@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/FlashCardSage.Api.Tests/FlashCardSage.Api.Tests.csproj" />
+    <Project Path="backend/FlashCardSage.Api/FlashCardSage.Api.csproj" />
+    <Project Path="backend/FlashCardSage.Database/FlashCardSage.Database.csproj" />
+  </Folder>
+</Solution>

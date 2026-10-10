@@ -1,0 +1,65 @@
+# Dependabot configuration
+# https://docs.github.com/en/code-security/dependabot/dependabot-version-updates/configuration-options-for-the-dependabot.yml-file
+
+version: 2
+updates:
+  # NuGet dependencies for all C# backend projects (glob captures any new projects automatically)
+  - package-ecosystem: "nuget"
+    directories:
+      - "/backend/*"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "dylan-smith"
+    labels:
+      - "dependencies"
+      - "backend"
+    groups:
+      # EF Core packages must stay on the same version; bumping them separately breaks the build
+      ef-core:
+        patterns:
+          - "Microsoft.EntityFrameworkCore*"
+
+  # GitHub Actions dependencies
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "dylan-smith"
+    labels:
+      - "dependencies"
+
+  # npm dependencies for the frontend
+  - package-ecosystem: "npm"
+    directory: "/frontend"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+    reviewers:
+      - "dylan-smith"
+    labels:
+      - "dependencies"
+      - "frontend"
+    # BEGIN typescript-major-ignore
+    # typescript-eslint doesn't support TypeScript 7 yet. The nightly
+    # typescript-eslint-compat workflow removes this block (and itself) via PR once it does.
+    ignore:
+      - dependency-name: "typescript"
+        update-types: ["version-update:semver-major"]
+    # END typescript-major-ignore
+    groups:
+      # react and react-dom must be the exact same version at runtime
+      react:
+        patterns:
+          - "react"
+          - "react-dom"
+          - "@types/react"
+          - "@types/react-dom"
+      # @vitest/coverage-v8 requires the exact same vitest version
+      vitest:
+        patterns:
+          - "vitest"
+          - "@vitest/*"
