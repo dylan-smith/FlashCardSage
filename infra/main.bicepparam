@@ -13,7 +13,7 @@ param appServicePlanName = 'FlashCardSage-Plan'
 param appServicePlanSku = 'F1'
 
 // Storage Account (frontend static website; globally unique, lowercase, 3-24 characters)
-param storageAccountName = 'flashcardsageweb'
+param storageAccountName = 'flashcardsage'
 
 // Database backups (BACPAC exports taken by CI before migrations, in the db-backups container)
 param backupRetentionDays = 30

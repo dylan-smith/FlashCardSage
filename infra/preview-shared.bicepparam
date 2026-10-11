@@ -11,4 +11,4 @@ param sqlServerName = 'flashcardsage-preview-sql'
 // The flashcardsage-preview-deploy managed identity (see README, Identities & Permissions). Replace the object ID
 // with the identity's once it's created; the first preview deployment fails until then.
 param sqlEntraAdminLogin = 'flashcardsage-preview-deploy'
-param sqlEntraAdminObjectId = '00000000-0000-0000-0000-000000000000'
+param sqlEntraAdminObjectId = '62ce86fe-94aa-4f21-981e-a5a4184602d1'

@@ -152,15 +152,14 @@ The CI workflow (`.github/workflows/ci.yml`) includes deployment jobs that run a
 
 ### Setting up a new environment
 
-The templates create the Azure resources, but not the identities, role assignments, database users, GitHub settings or the Google OAuth client. Setting those up for the first time, in order:
+The templates create the Azure resources, but not the identities, role assignments, database users, GitHub settings or the Google OAuth client. `infra/Setup-Environment.ps1` sets up all of those except the Google OAuth client. It reads the names from `infra/main.bicepparam` and `infra/preview-shared.bicepparam`, creates whatever is missing and leaves what's already there, so it can be re-run, and `-WhatIf` shows what it would do. It needs the Azure CLI (`az login`) and the GitHub CLI (`gh auth login`, with admin access to the repository). Setting up for the first time, in order:
 
-1. **Resource groups**: create `FlashCardSage` (production) and `FlashCardSage-Preview` (PR previews) in the subscription.
-2. **Identities and roles**: create the four user-assigned managed identities in [Identities & Permissions](#identities--permissions) with their federated credentials and role assignments (the database users come later, once the SQL server exists).
-3. **Preview parameters**: put the `flashcardsage-preview-deploy` identity's object ID in `infra/preview-shared.bicepparam` (`sqlEntraAdminObjectId`). The production SQL admin in `infra/main.bicepparam` (`sqlEntraAdminLogin`, `sqlEntraAdminObjectId`) is the person who will create the database users.
-4. **Google OAuth client**: in the Google Cloud console, create a web application OAuth client. Its authorized JavaScript origins need the frontend origin, which exists after the first deployment (`https://flashcardsageweb.z22.web.core.windows.net`, or the custom domain), so come back to add it.
-5. **GitHub**: create the `production` environment restricted to `main`, add the [variables](#required-github-variables) and [secrets](#required-github-secrets), and set up the [branch protection](CONTRIBUTING.md#branch-protection). `AZURE_BACKEND_APP_NAME` is `FlashCardSage` and `AZURE_STORAGE_ACCOUNT_NAME` is `flashcardsageweb` (from `infra/main.bicepparam`); `AZURE_BACKEND_URL` is only known after the first deployment, since Azure adds a random suffix to the App Service host name.
-6. **First deployment**: push to `main`. `deploy-infrastructure` creates the resources, then `deploy-backend` fails at the migrations because the database users don't exist yet. Create them as the SQL Entra admin (see [Identities & Permissions](#identities--permissions)), set `AZURE_BACKEND_URL` from the new App Service, add the frontend origin to the Google OAuth client, and re-run the workflow.
-7. **Optional**: Slack alerts and Claude investigations ([Alerts](#alerts), [Alert Investigation](#alert-investigation)), a [custom domain](#custom-domain), and the Dependabot and CI investigation tokens ([Required GitHub Secrets](#required-github-secrets)).
+1. **Parameters**: in `infra/main.bicepparam`, set the resource names, `githubRepository`, `alertEmail`, `budgetStartDate` and the SQL Entra admin (`sqlEntraAdminLogin`, `sqlEntraAdminObjectId`: the person who will run step 5), and in `infra/preview-shared.bicepparam` the preview names. Storage account and SQL server names are global, so check they're free (`az storage account check-name`).
+2. **Google OAuth client**: in the Google Cloud console, create a web application OAuth client. Its authorized JavaScript origins need the frontend origin, which exists after the first deployment (`https://flashcardsage.z22.web.core.windows.net`, or the custom domain), so come back to add it.
+3. **Identities, roles and GitHub settings**: run `.\infra\Setup-Environment.ps1 -GoogleClientId <client id>`. It creates the resource groups (`FlashCardSage` and `FlashCardSage-Preview`), the four identities in [Identities & Permissions](#identities--permissions) with their federated credentials and role assignments, the `production` and `alert-investigation` environments restricted to `main`, the [variables](#required-github-variables), the `AZURE_SQL_CONNECTION_STRING` and service token [secrets](#required-github-secrets), and the [branch ruleset](CONTRIBUTING.md#branch-protection). It also writes the preview identity into `infra/preview-shared.bicepparam`, so commit that.
+4. **First deployment**: push to `main`. `deploy-infrastructure` creates the resources, then `deploy-backend` fails at the migrations because the database users don't exist yet.
+5. **Database users and backend URL**: run `.\infra\Setup-Environment.ps1 -Stage PostDeploy`, signed in to Azure as the SQL Entra admin. It creates the database users, sets `AZURE_BACKEND_URL` from the new App Service (Azure adds a random suffix to its host name) and re-runs the failed deployment. Then add the frontend origin it prints to the Google OAuth client.
+6. **Optional**: Slack alerts and Claude investigations ([Alerts](#alerts), [Alert Investigation](#alert-investigation)), a [custom domain](#custom-domain), and the Dependabot and CI investigation tokens ([Required GitHub Secrets](#required-github-secrets)). The script's `-SlackWebhookUrl`, `-ClaudeCodeOAuthToken`, `-AlertInvestigationToken`, `-AutomergeToken` and `-TsCompatPrToken` parameters save those secrets; re-running it with just those changes nothing else.
 
 ### Infrastructure as Code
 
@@ -174,6 +173,7 @@ infra/
 ├── preview.bicepparam   # Preview parameter values
 ├── preview-shared.bicep # The App Service plan and SQL server every preview shares
 ├── preview-shared.bicepparam # Their parameter values
+├── Setup-Environment.ps1 # One-time setup of what the templates don't create (see Setting up a new environment)
 ├── modules/
 │   ├── alerts.bicep     # Alert rules, action group, availability test, Slack notifier and budget
 │   ├── appservice.bicep # App Service Plan + App Service (Linux/.NET 10) and its app settings
@@ -241,18 +241,18 @@ az deployment group create --resource-group FlashCardSage --template-file infra/
 
 #### Identities & Permissions
 
-The template doesn't manage identities, role assignments or database users, so a new environment needs these set up by hand. The exception is [PR preview environments](#pr-preview-environments): the `deploy-preview` job creates each preview web app's database user itself.
+The template doesn't manage identities, role assignments or database users; `infra/Setup-Environment.ps1` creates them for a new environment (see [Setting up a new environment](#setting-up-a-new-environment)). The exception is [PR preview environments](#pr-preview-environments): the `deploy-preview` job creates each preview web app's database user itself.
 
 | Identity | Grants |
 |----------|--------|
-| `flashcardsage-deploy` (user-assigned managed identity, `AZURE_CLIENT_ID`) | Federated credential for subject `repo:dylan-smith@<owner id>/FlashCardSage@<repo id>:environment:production`; **Contributor** on the resource group; **Storage Blob Data Owner** on the frontend storage account (static website setup, `npm run deploy` and database backup uploads use `--auth-mode login`); `db_owner` database user (runs the migrations and pre-migration backups) |
+| `flashcardsage-deploy` (user-assigned managed identity, `AZURE_CLIENT_ID`) | Federated credential for subject `repo:dylan-smith@<owner id>/FlashCardSage@<repo id>:environment:production`; **Contributor** and **Storage Blob Data Owner** on the resource group (static website setup, `npm run deploy` and database backup uploads use `--auth-mode login`, and the storage account doesn't exist until the first deployment); `db_owner` database user (runs the migrations and pre-migration backups) |
 | `flashcardsage-pr-whatif` (user-assigned managed identity, `AZURE_WHATIF_CLIENT_ID`) | Federated credential for subject `repo:dylan-smith@<owner id>/FlashCardSage@<repo id>:pull_request`; custom **FlashCardSage What-If Reader** role (`*/read`, `Microsoft.Resources/deployments/validate/action`, `Microsoft.Resources/deployments/whatIf/action`, `Microsoft.Resources/deployments/write`) on the resource group |
 | `flashcardsage-alert-investigator` (user-assigned managed identity, `AZURE_ALERT_INVESTIGATOR_CLIENT_ID`) | Federated credential for subject `repo:dylan-smith@<owner id>/FlashCardSage@<repo id>:environment:alert-investigation`; **Reader**, **Monitoring Reader**, **Log Analytics Reader** and **Cost Management Reader** on the resource group; **Monitoring Reader** on the subscription (Service Health events). Read-only, used by the alert investigation workflow |
 | App Service system-assigned identity | `db_datareader` + `db_datawriter` database user (the API's runtime connection) |
 | `flashcardsage-preview-deploy` (user-assigned managed identity, `AZURE_PREVIEW_CLIENT_ID`) | Federated credential for subject `repo:dylan-smith@<owner id>/FlashCardSage@<repo id>:pull_request`; **Contributor** and **Storage Blob Data Owner** on the `FlashCardSage-Preview` resource group; Entra admin of the preview SQL server (set by `infra/preview-shared.bicep`, so it can run migrations on and create users in every preview database). Deploys [PR preview environments](#pr-preview-environments), so it must have no rights outside that resource group: PR branches control the workflow that uses it |
 | Preview web app system-assigned identities | `db_datareader` + `db_datawriter` user in the PR's database, created by the `deploy-preview` job |
 
-GitHub issues OIDC tokens for this repo with immutable-ID subjects, so federated credentials must use the portal's **Other issuer** scenario (issuer `https://token.actions.githubusercontent.com`) rather than the GitHub Actions template. `<owner id>` and `<repo id>` are the numeric IDs from `gh api users/dylan-smith --jq .id` and `gh api repos/dylan-smith/FlashCardSage --jq .id`. Create the database users as the SQL Entra admin, e.g. `CREATE USER [flashcardsage-deploy] FROM EXTERNAL PROVIDER; ALTER ROLE db_owner ADD MEMBER [flashcardsage-deploy];`.
+GitHub issues OIDC tokens for this repo with immutable-ID subjects, so federated credentials must use the portal's **Other issuer** scenario (issuer `https://token.actions.githubusercontent.com`) rather than the GitHub Actions template. `<owner id>` and `<repo id>` are the numeric IDs from `gh api users/dylan-smith --jq .id` and `gh api repos/dylan-smith/FlashCardSage --jq .id`. The database users are created from the identities' client IDs (`CREATE USER ... WITH SID = ..., TYPE = E`, as in `.github/scripts/preview-db-user.sql`) rather than `FROM EXTERNAL PROVIDER`, which would need the SQL server to read Microsoft Entra ID.
 
 #### PR Preview Environments
 
@@ -286,7 +286,7 @@ Setting up previews for a new environment: create the `FlashCardSage-Preview` re
 | Component | Azure Service | Endpoint |
 |-----------|--------------|----------|
 | Backend API | Azure App Service (Linux/.NET 10) | `https://flashcardsage-<suffix>.westus2-01.azurewebsites.net` (Azure picks the suffix; it's the `AZURE_BACKEND_URL` variable) |
-| Frontend | Azure Storage Account (static website) | `https://flashcardsageweb.z22.web.core.windows.net`, or the [custom domain](#custom-domain) |
+| Frontend | Azure Storage Account (static website) | `https://flashcardsage.z22.web.core.windows.net`, or the [custom domain](#custom-domain) |
 | Database | Azure SQL serverless database (Entra-only auth) | — |
 | Monitoring | Log Analytics + Application Insights (App Service HTTP/console/app/platform logs and SQL errors, timeouts, blocks, deadlocks and automatic tuning go to the `FlashCardSage` workspace), plus the **FlashCardSage Health** workbook | — |
 
@@ -298,8 +298,8 @@ Before the first deployment with the domain (Azure checks it then, and the deplo
 
 | Type | Name | Target | Proxy status |
 |------|------|--------|--------------|
-| CNAME | `asverify.flashcardsage` | `asverify.flashcardsageweb.blob.core.windows.net` | DNS only |
-| CNAME | `flashcardsage` | `flashcardsageweb.z22.web.core.windows.net` | Proxied |
+| CNAME | `asverify.flashcardsage` | `asverify.flashcardsage.blob.core.windows.net` | DNS only |
+| CNAME | `flashcardsage` | `flashcardsage.z22.web.core.windows.net` | Proxied |
 
 - Keep the `asverify` record, since every deployment sends the domain again.
 - Under **Rules → Configuration Rules**, add a rule for the hostname that sets **SSL** to **Full**. The storage account's certificate is for `*.web.core.windows.net`, so **Full (strict)** fails, and **Flexible** connects over HTTP, which the storage account refuses.
@@ -308,13 +308,13 @@ Before the first deployment with the domain (Azure checks it then, and the deplo
 
 ### Database Backups
 
-Before running migrations, the `deploy-backend` job exports the database to a BACPAC and uploads it to the private `db-backups` container in the `flashcardsageweb` storage account. It does this on every deploy, including the daily scheduled run. Files are named `FlashCardSage-<UTC timestamp>-<commit>.bacpac`. A lifecycle management rule deletes backups older than `backupRetentionDays` (30 days, set in `infra/main.bicepparam`). If the backup fails, the migrations don't run.
+Before running migrations, the `deploy-backend` job exports the database to a BACPAC and uploads it to the private `db-backups` container in the `flashcardsage` storage account. It does this on every deploy, including the daily scheduled run. Files are named `FlashCardSage-<UTC timestamp>-<commit>.bacpac`. A lifecycle management rule deletes backups older than `backupRetentionDays` (30 days, set in `infra/main.bicepparam`). If the backup fails, the migrations don't run.
 
 To restore, import a backup into a **new** database, check it, then point the app at it or swap the names:
 
 ```powershell
-az storage blob list --auth-mode login --account-name flashcardsageweb --container-name db-backups --output table
-az storage blob download --auth-mode login --account-name flashcardsageweb --container-name db-backups --name <file>.bacpac --file backup.bacpac
+az storage blob list --auth-mode login --account-name flashcardsage --container-name db-backups --output table
+az storage blob download --auth-mode login --account-name flashcardsage --container-name db-backups --name <file>.bacpac --file backup.bacpac
 sqlpackage /Action:Import /SourceFile:backup.bacpac /TargetServerName:flashcardsage-sql.database.windows.net /TargetDatabaseName:FlashCardSage-Restored /UniversalAuthentication:True
 ```
 
@@ -371,8 +371,8 @@ Claude only has read access: the `flashcardsage-alert-investigator` identity can
 
 To set it up:
 
-1. Create the `flashcardsage-alert-investigator` identity and its roles (see [Identities & Permissions](#identities--permissions)).
-2. Create a GitHub environment named `alert-investigation`, restrict its deployment branches to `main`, and add the `AZURE_ALERT_INVESTIGATOR_CLIENT_ID` variable to it. The workflow also uses the repository-level `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `AZURE_RESOURCE_GROUP` variables.
+1. Create the `flashcardsage-alert-investigator` identity and its roles (see [Identities & Permissions](#identities--permissions)); `infra/Setup-Environment.ps1` does this.
+2. Create a GitHub environment named `alert-investigation`, restrict its deployment branches to `main`, and add the `AZURE_ALERT_INVESTIGATOR_CLIENT_ID` variable to it (the script does this too). The workflow also uses the repository-level `AZURE_TENANT_ID`, `AZURE_SUBSCRIPTION_ID` and `AZURE_RESOURCE_GROUP` variables.
 3. Save a fine-grained personal access token as the `ALERT_INVESTIGATION_TOKEN` secret (see [Required GitHub Secrets](#required-github-secrets)), and renew it before it expires. The next deployment adds it to the Logic App.
 
 To try it, choose **Test** on the **FlashCardSage-Alerts** action group, or run **Alert Investigation** from the Actions tab and paste an alert payload, such as the trigger body of a Logic App run.

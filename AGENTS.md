@@ -100,8 +100,9 @@ npm run test:e2e
   `infra/modules/appservice.bicep` (and `infra/preview.bicep` for previews), never by hand in the
   portal.
 - The templates don't manage identities, role assignments or database users. Production's are set
-  up manually (see README). Preview web apps' database users are created by the `deploy-preview`
-  job (`.github/scripts/preview-db-user.sql`), so don't add manual steps for them.
+  up by `infra/Setup-Environment.ps1` (see README), so a new identity, role or GitHub variable
+  belongs there too. Preview web apps' database users are created by the `deploy-preview` job
+  (`.github/scripts/preview-db-user.sql`), so don't add manual steps for them.
 - Pushes to `main` deploy to production, so treat changes to `ci.yml` and `infra/` with care.
 
 ## Pull requests
