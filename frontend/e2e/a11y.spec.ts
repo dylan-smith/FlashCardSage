@@ -56,6 +56,29 @@ test.describe('Accessibility', () => {
     }
   })
 
+  test('practice page, with a card revealed, has no detectable accessibility violations', async ({
+    page,
+    request,
+  }) => {
+    const response = await request.post(flashCardsApiUrl, {
+      data: { spanish: `A11y practice ${Date.now()}`, english: 'a check' },
+    })
+    expect(response.ok()).toBe(true)
+    const { id } = (await response.json()) as { id: number }
+
+    try {
+      await page.goto('/practice')
+      await page.getByRole('button', { name: 'Reveal' }).click()
+      await expect(page.getByRole('button', { name: 'Got it!' })).toBeVisible()
+
+      const results = await new AxeBuilder({ page }).analyze()
+
+      expect(results.violations).toEqual([])
+    } finally {
+      await request.delete(`${flashCardsApiUrl}/${id}`)
+    }
+  })
+
   test('not found page has no detectable accessibility violations', async ({
     page,
   }) => {

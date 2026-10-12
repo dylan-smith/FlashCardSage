@@ -4,13 +4,14 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
-import { Link, Route, Routes, useLocation } from 'react-router'
+import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
 import logo from './assets/logo.svg'
 import { disableGoogleAutoSelect } from './auth/google'
 import { setSession, useSession } from './auth/session'
 import SignInPage from './auth/SignInPage'
 import FlashCardsPage from './pages/FlashCardsPage'
 import NotFoundPage from './pages/NotFoundPage'
+import PracticePage from './pages/PracticePage'
 import { trackPageView } from './telemetry'
 
 export const tagline = 'Learn a language one card at a time.'
@@ -19,6 +20,12 @@ function signOut() {
   disableGoogleAutoSelect()
   setSession(null)
 }
+
+// The app's two modes. NavLink marks the current one with aria-current.
+const modes = [
+  { to: '/', label: 'Manage cards' },
+  { to: '/practice', label: 'Practice' },
+]
 
 function App() {
   const { pathname } = useLocation()
@@ -82,10 +89,30 @@ function App() {
       {session === null ? (
         <SignInPage />
       ) : (
-        <Routes>
-          <Route path="/" element={<FlashCardsPage />} />
-          <Route path="*" element={<NotFoundPage />} />
-        </Routes>
+        <>
+          <Box
+            component="nav"
+            aria-label="Mode"
+            sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3 }}
+          >
+            {modes.map(({ to, label }) => (
+              <Button
+                key={to}
+                component={NavLink}
+                to={to}
+                end
+                variant={pathname === to ? 'contained' : 'outlined'}
+              >
+                {label}
+              </Button>
+            ))}
+          </Box>
+          <Routes>
+            <Route path="/" element={<FlashCardsPage />} />
+            <Route path="/practice" element={<PracticePage />} />
+            <Route path="*" element={<NotFoundPage />} />
+          </Routes>
+        </>
       )}
     </Container>
   )

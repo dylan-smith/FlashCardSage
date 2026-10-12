@@ -6,7 +6,8 @@ namespace FlashCardSage.Api.Data;
 
 /// <remarks>
 /// Flash cards belong to a user. A query filter only shows the current user's, and new ones are given the current
-/// user when they're saved, so the controllers never handle the owner themselves.
+/// user when they're saved, so the controllers never handle the owner themselves. Practice results are filtered
+/// through their card, so they're only the current user's too.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {
@@ -16,6 +17,8 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<User> Users => Set<User>();
 
     public DbSet<FlashCard> FlashCards => Set<FlashCard>();
+
+    public DbSet<PracticeResult> PracticeResults => Set<PracticeResult>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -78,5 +81,22 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
             .Property(card => card.English)
             .HasMaxLength(200)
             .IsRequired();
+
+        modelBuilder.Entity<PracticeResult>()
+            .HasQueryFilter(result => result.FlashCard.UserId == CurrentUserId);
+
+        modelBuilder.Entity<PracticeResult>()
+            .HasOne(result => result.FlashCard)
+            .WithMany()
+            .HasForeignKey(result => result.FlashCardId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<PracticeResult>()
+            .HasIndex(result => result.FlashCardId);
+
+        modelBuilder.Entity<PracticeResult>()
+            .Property(result => result.Outcome)
+            .HasConversion<string>()
+            .HasMaxLength(20);
     }
 }

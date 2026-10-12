@@ -461,4 +461,186 @@ describe('App', () => {
       })
     })
   })
+
+  describe('modes', () => {
+    it('links to both modes and marks the current one', async () => {
+      const user = userEvent.setup()
+      await showCards([])
+      const nav = screen.getByRole('navigation', { name: 'Mode' })
+
+      expect(
+        within(nav).getByRole('link', { name: 'Manage cards' }),
+      ).toHaveAttribute('aria-current', 'page')
+      await user.click(within(nav).getByRole('link', { name: 'Practice' }))
+
+      expect(
+        await screen.findByText('There are no flash cards to practice yet.'),
+      ).toBeInTheDocument()
+      expect(
+        within(nav).getByRole('link', { name: 'Practice' }),
+      ).toHaveAttribute('aria-current', 'page')
+      expect(
+        within(nav).getByRole('link', { name: 'Manage cards' }),
+      ).not.toHaveAttribute('aria-current')
+    })
+  })
+
+  describe('practicing', () => {
+    const cards = [
+      { id: 1, spanish: 'el gato', english: 'the cat' },
+      { id: 2, spanish: 'el perro', english: 'the dog' },
+    ]
+
+    // Answers the list with the cards and a practice result with the status.
+    async function practice(status = 204) {
+      const calls = mockFetch(async (_url, init) =>
+        init?.method === 'POST'
+          ? new Response(null, { status })
+          : jsonResponse(cards),
+      )
+      renderAt('/practice')
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
+      })
+      return calls
+    }
+
+    it('shows the Spanish of a random card until it is revealed', async () => {
+      const user = userEvent.setup()
+      // The first card, Spanish side up.
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      await practice()
+
+      expect(screen.getByText('el gato')).toHaveAttribute('lang', 'es')
+      expect(screen.queryByText('the cat')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Got it!' }),
+      ).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(screen.getByText('the cat')).toHaveAttribute('lang', 'en')
+      expect(screen.getByRole('button', { name: 'Got it!' })).toHaveFocus()
+      expect(
+        screen.getByRole('button', { name: 'I was close' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Failed :(' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Reveal' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('can show the English side first', async () => {
+      const user = userEvent.setup()
+      // The second card, English side up.
+      vi.spyOn(Math, 'random').mockReturnValue(0.9)
+      await practice()
+
+      expect(screen.getByText('the dog')).toBeInTheDocument()
+      expect(screen.queryByText('el perro')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+      expect(screen.getByText('el perro')).toBeInTheDocument()
+    })
+
+    it.each([
+      ['Got it!', 'GotIt'],
+      ['I was close', 'WasClose'],
+      ['Failed :(', 'Failed'],
+    ])(
+      'records "%s" for the card, then shows another one',
+      async (label, outcome) => {
+        const user = userEvent.setup()
+        vi.spyOn(Math, 'random').mockReturnValue(0)
+        const calls = await practice()
+
+        await user.click(screen.getByRole('button', { name: 'Reveal' }))
+        await user.click(screen.getByRole('button', { name: label }))
+
+        // The card just practiced isn't picked again, so it's the other one.
+        expect(await screen.findByText('el perro')).toBeInTheDocument()
+        expect(screen.queryByText('el gato')).not.toBeInTheDocument()
+        expect(screen.queryByText('the dog')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Reveal' })).toHaveFocus()
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.url).toBe(
+          'http://localhost:5269/api/flashcards/1/practice-results',
+        )
+        expect(post?.init?.body).toBe(JSON.stringify({ outcome }))
+        expect(trackEvent).toHaveBeenCalledWith('PracticeResultRecorded', {
+          outcome,
+        })
+      },
+    )
+
+    it('keeps practicing the only card', async () => {
+      const user = userEvent.setup()
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      mockFetch(async (_url, init) =>
+        init?.method === 'POST'
+          ? new Response(null, { status: 204 })
+          : jsonResponse([cards[0]]),
+      )
+      renderAt('/practice')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+      expect(
+        await screen.findByRole('button', { name: 'Reveal' }),
+      ).toBeInTheDocument()
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+    })
+
+    it('shows an error and keeps the card when saving the answer fails', async () => {
+      const user = userEvent.setup()
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+      await practice(500)
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Unable to save your answer.',
+      )
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(screen.getByText('the cat')).toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'Got it!' })).toBeEnabled()
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'practice',
+      })
+    })
+
+    it('links to adding cards when there are none', async () => {
+      mockFetch(async () => jsonResponse([]))
+      renderAt('/practice')
+
+      expect(
+        await screen.findByText('There are no flash cards to practice yet.'),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Add flash cards' }),
+      ).toHaveAttribute('href', '/')
+    })
+
+    it('shows an error when loading fails', async () => {
+      mockFetch(async () => new Response(null, { status: 500 }))
+      renderAt('/practice')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Unable to load flash cards.',
+      )
+      expect(
+        screen.queryByText('There are no flash cards to practice yet.'),
+      ).not.toBeInTheDocument()
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'load',
+      })
+    })
+  })
 })
