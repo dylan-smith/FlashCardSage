@@ -85,6 +85,3 @@ resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
     publicNetworkAccess: 'Enabled'
   }
 }
-
-@description('Name of the Translator resource every preview shares, which preview.bicep reads the key from.')
-output translatorName string = translator.name

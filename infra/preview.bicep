@@ -23,7 +23,7 @@ param appServicePlanName string
 @description('Name of the Azure SQL Server shared by every preview.')
 param sqlServerName string
 
-@description('Name of the Translator resource every preview shares, from preview-shared.bicep\'s output. Empty turns translation off, for a base branch whose preview-shared.bicep doesn\'t have one yet.')
+@description('Name of the Translator resource every preview shares (preview-shared.bicep), which CI looks up in the resource group. Empty turns translation off, while there isn\'t one.')
 param translatorName string = ''
 
 @description('Use the Azure SQL free offer for the database. The offer covers a limited number of databases per subscription, and can\'t be turned on for an existing database.')
