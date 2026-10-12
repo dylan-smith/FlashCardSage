@@ -1,0 +1,59 @@
+name: TypeScript/ESLint Compatibility
+
+# Nightly check for whether the latest TypeScript major works with ESLint (typescript-eslint).
+# Once it does, opens a PR that removes the dependabot ignore rule for TypeScript major
+# updates and deletes this workflow.
+#
+# Requires the TS_COMPAT_PR_TOKEN secret: a fine-grained PAT for this repo with
+# Contents, Pull requests and Workflows read/write. GITHUB_TOKEN can't be used because it
+# isn't allowed to push changes to workflow files.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: Check latest TypeScript with ESLint
+    runs-on: ubuntu-latest
+    env:
+      BRANCH: chore/allow-typescript-major-updates
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Compare TypeScript versions
+        id: versions
+        run: bash ../.github/scripts/typescript-compat-versions.sh
+
+      - name: Install dependencies
+        if: steps.versions.outputs.newer-major == 'true'
+        run: npm ci
+
+      - name: Try latest TypeScript with latest typescript-eslint
+        id: compat
+        if: steps.versions.outputs.newer-major == 'true'
+        run: bash ../.github/scripts/typescript-compat-try.sh
+        env:
+          LATEST: ${{ steps.versions.outputs.latest }}
+
+      - name: Open PR to allow TypeScript major updates
+        if: steps.compat.outputs.compatible == 'true'
+        working-directory: .
+        env:
+          GH_TOKEN: ${{ secrets.TS_COMPAT_PR_TOKEN }}
+          LATEST: ${{ steps.versions.outputs.latest }}
+        run: bash .github/scripts/typescript-compat-open-pr.sh

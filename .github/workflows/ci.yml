@@ -1,0 +1,924 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    - cron: '0 0 * * *'
+
+permissions:
+  contents: read
+
+# Runs on main deploy to production, so only one runs at a time: another run's Bicep deployment or backend
+# deploy mustn't reconfigure, restart or resume the API while this one has it paused (see deploy-backend). A
+# workflow-level group holds the lock for the whole infrastructure, backend and frontend sequence, which
+# job-level groups can't. Never cancel a running deployment: stopping it partway through migrations would leave
+# the API paused. A newer main run waiting its turn replaces an older waiting one, which is fine since it has
+# the newer code. Other runs (pull requests) get a group of their own, so they never wait. The deploy-preview job
+# has a job-level group per PR (shared with preview-cleanup.yml) so one deployment runs for a PR at a time.
+concurrency:
+  group: ${{ github.ref == 'refs/heads/main' && 'production-deploy' || format('ci-{0}', github.run_id) }}
+  cancel-in-progress: false
+
+jobs:
+  backend:
+    name: Backend Build & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      checks: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Initialize CodeQL
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/init@v4.38.2
+        with:
+          languages: csharp
+          build-mode: manual
+          queries: security-and-quality
+          config-file: ./.github/codeql/codeql-config.yml
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Verify formatting
+        run: dotnet format FlashCardSage.slnx --verify-no-changes --no-restore
+
+      - name: Test
+        id: test
+        run: dotnet test --no-build --verbosity normal --logger "trx;LogFileName=test-results.trx" --results-directory TestResults
+
+      # Coverlet (configured in coverage.runsettings) writes its report under a run id folder; give it a fixed
+      # name for the PR comment.
+      - name: Collect Backend Coverage
+        if: always() && steps.test.outcome != 'skipped'
+        run: cp TestResults/*/coverage.cobertura.xml backend-coverage.xml
+
+      - name: Publish Backend Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          check_name: Backend Test Results
+          comment_mode: 'off'
+          files: "**/TestResults/*.trx"
+          json_file: backend-test-results.json
+
+      - name: Upload Backend Test Results Summary
+        uses: actions/upload-artifact@v7
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          name: test-results-backend
+          path: |
+            backend-test-results.json
+            backend-coverage.xml
+          if-no-files-found: warn
+
+      # CodeQL ignores paths-ignore for C# because it traces the real build, so drop the findings in the
+      # OpenAPI source generator's output (reported under obj/) from the SARIF before uploading it.
+      - name: Perform CodeQL Analysis
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/analyze@v4.38.2
+        with:
+          category: "/language:csharp"
+          upload: failure-only
+          output: codeql-results
+
+      - name: Filter generated code from CodeQL results
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: advanced-security/filter-sarif@v1.1
+        with:
+          patterns: "-**/obj/**"
+          input: codeql-results/csharp.sarif
+          output: codeql-results/csharp.sarif
+
+      - name: Upload CodeQL results
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/upload-sarif@v4.38.2
+        with:
+          sarif_file: codeql-results/csharp.sarif
+          category: "/language:csharp"
+
+  frontend:
+    name: Frontend Build, Lint & Test
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+      checks: write
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Initialize CodeQL
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/init@v4.38.2
+        with:
+          languages: javascript-typescript
+          build-mode: none
+          queries: security-and-quality
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type check
+        run: npx tsc -b
+
+      - name: Build
+        run: npx vite build
+
+      - name: Lint
+        run: npx eslint . --max-warnings 0
+
+      - name: Verify formatting
+        run: npx prettier --check .
+
+      - name: Test
+        id: test
+        run: npm test -- --coverage
+
+      - name: Collect Frontend Coverage
+        if: always() && steps.test.outcome != 'skipped'
+        run: cp coverage/coverage-summary.json ../frontend-coverage.json
+
+      - name: Publish Frontend Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          check_name: Frontend Test Results
+          comment_mode: 'off'
+          files: "frontend/vitest-report/results.xml"
+          json_file: frontend-test-results.json
+
+      - name: Upload Frontend Test Results Summary
+        uses: actions/upload-artifact@v7
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          name: test-results-frontend
+          path: |
+            frontend-test-results.json
+            frontend-coverage.json
+          if-no-files-found: warn
+
+      - name: Perform CodeQL Analysis
+        if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+        uses: github/codeql-action/analyze@v4.38.2
+        with:
+          category: "/language:javascript-typescript"
+
+  e2e-tests:
+    runs-on: ubuntu-latest
+    needs: [frontend, backend]
+    permissions:
+      contents: read
+      checks: write
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+      - name: Restore backend dependencies
+        run: dotnet restore
+        working-directory: .
+      - name: Build backend
+        run: dotnet build --no-restore
+        working-directory: .
+      - run: npm ci
+      - run: npx playwright install chromium --with-deps
+      - name: Build frontend
+        run: VITE_API_BASE_URL=http://localhost:5269 VITE_ENABLE_TEST_SIGN_IN=true npm run build
+      - name: Run Playwright tests
+        env:
+          VITE_API_BASE_URL: http://localhost:5269
+          VITE_ENABLE_TEST_SIGN_IN: 'true'
+        run: npx playwright test
+      - name: Publish E2E Test Results
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          check_name: E2E Test Results
+          comment_mode: 'off'
+          files: "frontend/playwright-report/results.xml"
+          json_file: e2e-test-results.json
+      - name: Upload E2E Test Results Summary
+        uses: actions/upload-artifact@v7
+        if: always() && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
+        with:
+          name: test-results-e2e
+          path: e2e-test-results.json
+          if-no-files-found: warn
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: playwright-report
+          path: frontend/playwright-report/
+          retention-days: 30
+
+  test-results-comment:
+    name: Test Results PR Comment
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, e2e-tests]
+    if: always() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    # Serialize the find-then-create/update so overlapping runs on one PR can't both create a comment.
+    concurrency:
+      group: test-results-comment-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      contents: read
+      pull-requests: write
+    steps:
+      # Only the comment script is needed. Check out before downloading, since checkout cleans the workspace.
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+
+      - name: Download test result summaries
+        uses: actions/download-artifact@v8
+        with:
+          pattern: test-results-*
+          merge-multiple: true
+          path: test-results
+
+      - name: Create or update PR comment
+        uses: actions/github-script@v9
+        env:
+          BACKEND_RESULT: ${{ needs.backend.result }}
+          FRONTEND_RESULT: ${{ needs.frontend.result }}
+          E2E_RESULT: ${{ needs['e2e-tests'].result }}
+        with:
+          script: |
+            const run = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/test-results-comment.cjs`);
+            await run({ github, context });
+
+  infrastructure-what-if:
+    name: Infrastructure What-If (Bicep)
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.actor != 'dependabot[bot]'
+    # No environment: PR runs use a separate read-and-preview-only identity and never get the
+    # production environment's credentials or secrets.
+    # Serialize the find-then-create/update of the PR comment so overlapping runs on one PR can't both create one.
+    concurrency:
+      group: infrastructure-what-if-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      # What-if reports false positives (noise) for this template on every run, so the PR's changes are the ones
+      # it reports beyond those it reports for main.
+      - name: Checkout main for comparison
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.base_ref }}
+          path: baseline
+          sparse-checkout: infra
+
+      # The preview template is only linted here; deploy-preview deploys it for real on every PR.
+      - name: Lint Bicep templates
+        run: |
+          az bicep lint --file infra/main.bicep
+          az bicep lint --file infra/preview.bicep
+          az bicep lint --file infra/preview-shared.bicep
+          az bicep build-params --file infra/preview.bicepparam --stdout > /dev/null
+          az bicep build-params --file infra/preview-shared.bicepparam --stdout > /dev/null
+        env:
+          PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_WHATIF_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Preview infrastructure changes
+        shell: bash
+        run: |
+          az deployment group what-if \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.bicepparam \
+            --validation-level ProviderNoRbac \
+            --exclude-change-types Ignore NoChange \
+            | tee "${RUNNER_TEMP}/what-if.txt"
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          # What-if can't read existing app setting values, so the real secret adds nothing to the
+          # preview; keep it out of PR runs, whose workflow definition comes from the PR branch.
+          AZURE_SQL_CONNECTION_STRING: what-if-placeholder
+          GOOGLE_CLIENT_ID: what-if-placeholder
+          FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
+          AZURE_CORE_NO_COLOR: 'true'
+
+      # If this fails (say main's templates are broken), the comment shows every change instead of failing the PR.
+      - name: Preview main's infrastructure changes
+        id: baseline
+        continue-on-error: true
+        shell: bash
+        run: |
+          az deployment group what-if \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --template-file baseline/infra/main.bicep \
+            --parameters baseline/infra/main.bicepparam \
+            --validation-level ProviderNoRbac \
+            --exclude-change-types Ignore NoChange \
+            > "${RUNNER_TEMP}/baseline-what-if.txt"
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_SQL_CONNECTION_STRING: what-if-placeholder
+          GOOGLE_CLIENT_ID: what-if-placeholder
+          FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
+          AZURE_CORE_NO_COLOR: 'true'
+
+      - name: Comment infrastructure changes on PR
+        uses: actions/github-script@v9
+        env:
+          WHAT_IF_OUTPUT: ${{ runner.temp }}/what-if.txt
+          BASELINE_WHAT_IF_OUTPUT: ${{ runner.temp }}/baseline-what-if.txt
+          BASELINE_OK: ${{ steps.baseline.outcome == 'success' }}
+          AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+        with:
+          script: |
+            const run = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/what-if-comment.cjs`);
+            await run({ github, context });
+
+  # Deploys the PR to a preview environment of its own (infra/preview.bicep) and links to it from a PR comment.
+  # preview-cleanup.yml deletes it when the PR closes.
+  deploy-preview:
+    name: Deploy PR Preview
+    runs-on: ubuntu-latest
+    needs: [backend, frontend]
+    # Checks who opened the PR, not who triggered the run, so a push to a Dependabot PR doesn't deploy it either.
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
+    # No environment: PR runs use the preview identity, which can only change the preview resource group, and
+    # never get the production environment's credentials or secrets.
+    # A deployment still running for the PR finishes before the next one starts (a newer push waiting its turn
+    # replaces an older waiting one), since stopping it partway through migrations would break the database.
+    # Closing the PR does cancel it (preview-cleanup.yml uses the same group), since the database is deleted then.
+    concurrency:
+      group: preview-${{ github.event.pull_request.number }}
+      cancel-in-progress: false
+    permissions:
+      id-token: write
+      contents: read
+      pull-requests: write
+    # Long enough for every step's own waits and retries to run their course on a slow first deployment.
+    timeout-minutes: 60
+    env:
+      PR_NUMBER: ${{ github.event.pull_request.number }}
+      # Read by infra/preview.bicepparam.
+      PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+      PREVIEW_RESOURCE_GROUP: FlashCardSage-Preview
+      PREVIEW_SQL_SERVER: flashcardsage-preview-sql
+      # The per-PR resource names, as infra/preview.bicep derives them. The storage account's name has a suffix
+      # of its own, so it comes from the deployment's outputs.
+      PREVIEW_APP_NAME: flashcardsage-pr-${{ github.event.pull_request.number }}
+      PREVIEW_DB_NAME: FlashCardSage-pr-${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v7
+
+      # Only the run for the PR's current head commit, while the PR is open, deploys (see the script).
+      - name: Check this run is for the PR's latest commit
+        id: current
+        run: bash .github/scripts/preview-is-current.sh
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+          GH_TOKEN: ${{ github.token }}
+
+      # The resources every preview shares are deployed from the base branch (see deploy-preview-infra.sh).
+      - name: Checkout the base branch's infrastructure
+        if: steps.current.outputs.current == 'true'
+        uses: actions/checkout@v7
+        with:
+          ref: ${{ github.base_ref }}
+          path: baseline
+          sparse-checkout: infra
+
+      # The comment is only a status report, so failing to post it doesn't stop the deployment.
+      - name: Report preview deployment started
+        if: steps.current.outputs.current == 'true'
+        continue-on-error: true
+        uses: actions/github-script@v9
+        env:
+          PREVIEW_STATUS: deploying
+        with:
+          script: |
+            const run = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/preview-comment.cjs`);
+            await run({ github, context });
+
+      - name: Setup .NET
+        if: steps.current.outputs.current == 'true'
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Setup Node.js
+        if: steps.current.outputs.current == 'true'
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Restore dependencies
+        if: steps.current.outputs.current == 'true'
+        run: |
+          dotnet restore backend/FlashCardSage.Api/FlashCardSage.Api.csproj
+          dotnet restore backend/FlashCardSage.Database/FlashCardSage.Database.csproj
+
+      - name: Build
+        if: steps.current.outputs.current == 'true'
+        run: |
+          dotnet build backend/FlashCardSage.Api/FlashCardSage.Api.csproj --configuration Release --no-restore
+          dotnet build backend/FlashCardSage.Database/FlashCardSage.Database.csproj --configuration Release --no-restore
+
+      - name: Publish API
+        if: steps.current.outputs.current == 'true'
+        run: dotnet publish backend/FlashCardSage.Api/FlashCardSage.Api.csproj --configuration Release --no-build --output ./backend/publish
+
+      - name: Publish Database CLI
+        if: steps.current.outputs.current == 'true'
+        run: dotnet publish backend/FlashCardSage.Database/FlashCardSage.Database.csproj --configuration Release --no-build --output ./backend/database-publish
+
+      - name: Install frontend dependencies
+        if: steps.current.outputs.current == 'true'
+        run: npm ci
+        working-directory: frontend
+
+      - name: Login to Azure
+        if: steps.current.outputs.current == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_PREVIEW_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Recreates the database empty if an applied migration script was edited, or the last migration run
+      # didn't finish (see the script), so the migrations below always match the PR's scripts.
+      - name: Check the preview database's migrations
+        if: steps.current.outputs.current == 'true'
+        run: bash .github/scripts/preview-migrations.sh check
+
+      - name: Deploy preview infrastructure (Bicep)
+        if: steps.current.outputs.current == 'true'
+        id: infra
+        run: bash .github/scripts/deploy-preview-infra.sh
+        env:
+          BASE_DIR: baseline
+
+      # Until the migrations finish, the database isn't marked as matching any scripts (see the check above).
+      - name: Mark the migrations as started
+        if: steps.current.outputs.current == 'true'
+        run: bash .github/scripts/preview-migrations.sh clear
+
+      # Active Directory Default authenticates as the identity azure/login signed in, which is the preview SQL
+      # server's Entra admin, so no database user or secret is needed for the migrations.
+      - name: Run database migrations
+        if: steps.current.outputs.current == 'true'
+        run: ./backend/database-publish/FlashCardSage.Database "$CONNECTION_STRING"
+        env:
+          CONNECTION_STRING: Server=tcp:${{ steps.infra.outputs['sql-server-fqdn'] }},1433;Initial Catalog=${{ env.PREVIEW_DB_NAME }};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;Connection Timeout=120;
+
+      - name: Record the migrations applied
+        if: steps.current.outputs.current == 'true'
+        run: bash .github/scripts/preview-migrations.sh record
+
+      - name: Create the API's database user
+        if: steps.current.outputs.current == 'true'
+        uses: azure/sql-action@v2.4
+        with:
+          connection-string: Server=tcp:${{ steps.infra.outputs['sql-server-fqdn'] }},1433;Initial Catalog=${{ env.PREVIEW_DB_NAME }};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;
+          path: .github/scripts/preview-db-user.sql
+          arguments: -v AppUserName=${{ env.PREVIEW_APP_NAME }} AppSid=${{ steps.infra.outputs['api-client-id'] }}
+
+      # The Bicep deployment's app settings restart the site's deployment (SCM) container shortly before this,
+      # which can stop the deployment partway (see deploy-backend), so a failed deployment is retried once.
+      - name: Deploy API to Azure App Service
+        if: steps.current.outputs.current == 'true'
+        id: deploy
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.PREVIEW_APP_NAME }}
+          package: ./backend/publish
+
+      - name: Wait before retrying the deployment
+        if: steps.deploy.outcome == 'failure'
+        run: |
+          echo "::warning::Deployment failed; retrying it once in 60 seconds"
+          sleep 60
+
+      - name: Retry deploy to Azure App Service
+        if: steps.deploy.outcome == 'failure'
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ env.PREVIEW_APP_NAME }}
+          package: ./backend/publish
+
+      - name: Enable static website hosting
+        if: steps.current.outputs.current == 'true'
+        run: bash .github/scripts/enable-static-website.sh
+        env:
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.infra.outputs['storage-account-name'] }}
+
+      # No Application Insights connection string: the preview doesn't report telemetry. No Google client ID either:
+      # Google only accepts the origins registered with it, so previews use test sign-in instead.
+      - name: Build frontend
+        if: steps.current.outputs.current == 'true'
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ steps.infra.outputs['app-service-url'] }}
+          VITE_ENABLE_TEST_SIGN_IN: 'true'
+
+      - name: Deploy frontend to Azure Storage Account
+        if: steps.current.outputs.current == 'true'
+        run: npm run deploy
+        working-directory: frontend
+        env:
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.infra.outputs['storage-account-name'] }}
+
+      # It normally takes under a minute, but its system package download has hung for good, so it times out
+      # instead of holding the job until the job's own timeout.
+      - name: Install Playwright browser
+        if: steps.current.outputs.current == 'true'
+        timeout-minutes: 5
+        run: npx playwright install chromium --with-deps
+        working-directory: frontend
+
+      # Checks the preview works end to end before the comment says it's ready. The tests first wait for the API
+      # to answer with the right CORS header (see e2e/smoke.global-setup.ts); on the free plan a new app and a
+      # new database take a while to start, hence the longer wait.
+      - name: Run smoke tests against the preview
+        if: steps.current.outputs.current == 'true'
+        run: npm run test:smoke
+        working-directory: frontend
+        env:
+          SMOKE_BASE_URL: ${{ steps.infra.outputs['frontend-origin'] }}
+          SMOKE_API_URL: ${{ steps.infra.outputs['app-service-url'] }}
+          SMOKE_READY_TIMEOUT_MS: '600000'
+          SMOKE_AUTH_TOKEN: 'test:Smoke User'
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: preview-smoke-test-report
+          path: |
+            frontend/playwright-report/smoke/
+            frontend/playwright-report/smoke-results.xml
+          retention-days: 30
+
+      # Replaces the preview's data with the sample flash cards on every deployment, so there's something to try straight
+      # away and each push starts from the same data. They belong to the test user "Preview User", the name the
+      # preview's sign-in page suggests.
+      - name: Seed sample data
+        if: steps.current.outputs.current == 'true'
+        run: bash .github/scripts/seed-preview.sh
+        env:
+          API_URL: ${{ steps.infra.outputs['app-service-url'] }}
+          API_AUTH_TOKEN: 'test:Preview User'
+
+      # Not when cancelled: the newer run for this PR owns the comment then.
+      - name: Update preview comment
+        if: ${{ !cancelled() && steps.current.outputs.current == 'true' }}
+        uses: actions/github-script@v9
+        env:
+          PREVIEW_STATUS: ${{ job.status == 'success' && 'ready' || 'failed' }}
+          PREVIEW_FRONTEND_URL: ${{ steps.infra.outputs['frontend-origin'] }}
+          PREVIEW_API_URL: ${{ steps.infra.outputs['app-service-url'] }}
+        with:
+          script: |
+            const run = require(`${process.env.GITHUB_WORKSPACE}/.github/scripts/preview-comment.cjs`);
+            await run({ github, context });
+
+  deploy-infrastructure:
+    name: Deploy Infrastructure (Bicep)
+    runs-on: ubuntu-latest
+    needs: [backend, frontend, e2e-tests]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Deploy Bicep template
+        shell: bash
+        run: |
+          az deployment group create \
+            --resource-group "${AZURE_RESOURCE_GROUP}" \
+            --name "ci-${GITHUB_RUN_ID}" \
+            --template-file infra/main.bicep \
+            --parameters infra/main.bicepparam \
+            --only-show-errors \
+            --output none
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ALERT_INVESTIGATION_TOKEN: ${{ secrets.ALERT_INVESTIGATION_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          FLASHCARDSAGE_SERVICE_TOKEN: ${{ secrets.FLASHCARDSAGE_SERVICE_TOKEN }}
+
+      # Static website hosting is a data-plane setting that ARM templates can't manage.
+      - name: Enable static website hosting
+        shell: bash
+        run: |
+          az storage blob service-properties update \
+            --account-name "${AZURE_STORAGE_ACCOUNT_NAME}" \
+            --auth-mode login \
+            --static-website \
+            --index-document index.html \
+            --404-document index.html \
+            --only-show-errors \
+            --output none
+        env:
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
+
+  deploy-backend:
+    name: Deploy Backend (ASP.NET Core)
+    runs-on: ubuntu-latest
+    needs: [deploy-infrastructure]
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: |
+          dotnet restore backend/FlashCardSage.Api/FlashCardSage.Api.csproj
+          dotnet restore backend/FlashCardSage.Database/FlashCardSage.Database.csproj
+
+      - name: Build
+        run: |
+          dotnet build backend/FlashCardSage.Api/FlashCardSage.Api.csproj --configuration Release --no-restore
+          dotnet build backend/FlashCardSage.Database/FlashCardSage.Database.csproj --configuration Release --no-restore
+
+      - name: Publish API
+        run: dotnet publish backend/FlashCardSage.Api/FlashCardSage.Api.csproj --configuration Release --no-build --output ./backend/publish
+
+      - name: Publish Database CLI
+        run: dotnet publish backend/FlashCardSage.Database/FlashCardSage.Database.csproj --configuration Release --no-build --output ./backend/database-publish
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      # Installed before the API is paused so the install doesn't add to the downtime.
+      - name: Install SqlPackage
+        run: dotnet tool install --global microsoft.sqlpackage
+
+      # The pause makes /health return 403, so turn the availability test off while it lasts (see Enable health check).
+      - name: Disable health check
+        id: disable-health-check
+        run: bash .github/scripts/set-health-check.sh false
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+      # Pause the API from before the backup until the new version is deployed, so the old API never runs
+      # against the migrated database (and the backup can't miss writes made after it).
+      - name: Pause API
+        id: pause
+        run: bash .github/scripts/pause-api.sh
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_BACKEND_APP_NAME: ${{ vars.AZURE_BACKEND_APP_NAME }}
+          AZURE_BACKEND_URL: ${{ vars.AZURE_BACKEND_URL }}
+
+      # Back up the database before every migration run. The backup goes to the db-backups container, and
+      # its lifecycle policy (infra/modules/storage.bicep) deletes old copies. If this fails, migrations don't run.
+      - name: Backup database (BACPAC)
+        run: bash .github/scripts/backup-database.sh
+        env:
+          CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+
+      - name: Upload backup to Blob Storage
+        shell: bash
+        run: |
+          az storage blob upload \
+            --account-name "${AZURE_STORAGE_ACCOUNT_NAME}" \
+            --auth-mode login \
+            --container-name db-backups \
+            --name "${BACKUP_FILE}" \
+            --file "${RUNNER_TEMP}/${BACKUP_FILE}" \
+            --only-show-errors \
+            --output none
+          echo "Backed up to db-backups/${BACKUP_FILE}" >> "$GITHUB_STEP_SUMMARY"
+        env:
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
+
+      - name: Run database migrations
+        id: migrate
+        run: ./backend/database-publish/FlashCardSage.Database "$CONNECTION_STRING"
+        env:
+          CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+
+      # Pause API's site changes and restart also restart the deployment (SCM) container, but some time after those
+      # calls return, so the restart can land during this deployment and stop it ("Deployment has been stopped due
+      # to SCM container restart"). The action then waits about 20 minutes for Kudu to report the failure, so the
+      # step times out well before that (a good deployment takes under 2 minutes). A failed deployment is retried
+      # once, after giving the container time to come back.
+      - name: Deploy to Azure App Service
+        id: deploy
+        continue-on-error: true
+        timeout-minutes: 5
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_BACKEND_APP_NAME }}
+          package: ./backend/publish
+
+      - name: Wait before retrying the deployment
+        if: steps.deploy.outcome == 'failure'
+        run: |
+          echo "::warning::Deployment failed; retrying it once in 60 seconds"
+          sleep 60
+
+      - name: Retry deploy to Azure App Service
+        id: redeploy
+        if: steps.deploy.outcome == 'failure'
+        uses: azure/webapps-deploy@v3
+        with:
+          app-name: ${{ vars.AZURE_BACKEND_APP_NAME }}
+          package: ./backend/publish
+
+      # Resume only if this run paused the API (so a run that fails before pausing never resumes one an earlier
+      # run left paused), and then either after the new API deploys, or after a failure or cancellation before
+      # migrations started, since the database then still matches the running API. That last case needs the API to
+      # have been live when this run paused it: if an earlier run left it paused, its migrations may have changed
+      # the database.
+      - name: Resume API
+        id: resume
+        if: >-
+          always() && steps.pause.outcome != 'skipped' && (steps.deploy.outcome == 'success' ||
+          steps.redeploy.outcome == 'success' ||
+          (steps.migrate.outcome == 'skipped' && steps.pause.outputs['was-live'] == 'true'))
+        run: bash .github/scripts/resume-api.sh
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_BACKEND_APP_NAME: ${{ vars.AZURE_BACKEND_APP_NAME }}
+
+      - name: Report API left paused
+        if: always() && steps.pause.outcome != 'skipped' && steps.resume.outcome != 'success'
+        run: echo "::error::The API is still paused, so it isn't serving users. Either a deployment stopped after its migrations started (this run or an earlier one), or resuming failed. Deploy a fix, or restore the backup and remove the app's deploy-pause-* access restriction rules."
+
+      # Turned back on even when the API is left paused, since users can't reach it then and the alert should fire.
+      - name: Enable health check
+        if: always() && steps.disable-health-check.outcome != 'skipped'
+        run: bash .github/scripts/set-health-check.sh true
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+
+  deploy-frontend:
+    name: Deploy Frontend (React)
+    runs-on: ubuntu-latest
+    needs: deploy-backend
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    outputs:
+      frontend-origin: ${{ steps['resolve-frontend-origin'].outputs['frontend-origin'] }}
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend
+
+      - name: Login to Azure
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
+      - name: Resolve Application Insights connection string
+        id: resolve-appinsights
+        run: bash .github/scripts/resolve-appinsights-connection-string.sh
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_BACKEND_APP_NAME: ${{ vars.AZURE_BACKEND_APP_NAME }}
+
+      - name: Build
+        run: npm run build
+        working-directory: frontend
+        env:
+          VITE_API_BASE_URL: ${{ vars.AZURE_BACKEND_URL }}
+          VITE_APPINSIGHTS_CONNECTION_STRING: ${{ steps['resolve-appinsights'].outputs['connection-string'] }}
+          VITE_GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+
+      - name: Deploy to Azure Storage Account
+        run: npm run deploy
+        working-directory: frontend
+        env:
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
+
+      - name: Resolve frontend origin
+        id: resolve-frontend-origin
+        run: bash .github/scripts/resolve-frontend-origin.sh
+        env:
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ vars.AZURE_STORAGE_ACCOUNT_NAME }}
+
+  smoke-tests:
+    name: Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy-frontend
+    if: github.ref == 'refs/heads/main'
+    environment: production
+    permissions:
+      contents: read
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Playwright browser
+        run: npx playwright install chromium --with-deps
+
+      - name: Run smoke tests
+        env:
+          SMOKE_BASE_URL: ${{ needs['deploy-frontend'].outputs['frontend-origin'] }}
+          # The smoke tests first poll the API until it's healthy (see e2e/smoke.global-setup.ts).
+          SMOKE_API_URL: ${{ vars.AZURE_BACKEND_URL }}
+          # Signs the smoke tests in as the service user, since production has no test sign-in.
+          SMOKE_AUTH_TOKEN: ${{ secrets.FLASHCARDSAGE_SERVICE_TOKEN }}
+        run: npm run test:smoke
+
+      - uses: actions/upload-artifact@v7
+        if: ${{ failure() }}
+        with:
+          name: smoke-test-report
+          path: |
+            frontend/playwright-report/smoke/
+            frontend/playwright-report/smoke-results.xml
+          retention-days: 30

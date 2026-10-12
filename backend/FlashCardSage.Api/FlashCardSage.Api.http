@@ -1,0 +1,38 @@
+@FlashCardSage.Api_HostAddress = http://localhost:5269
+@contentType = application/json
+# Development turns test sign-in on, so any "test:<name>" token signs in as that name.
+@token = test:Me
+
+GET {{FlashCardSage.Api_HostAddress}}/api/flashcards
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###
+
+POST {{FlashCardSage.Api_HostAddress}}/api/flashcards
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "el gato"
+}
+
+###
+
+PUT {{FlashCardSage.Api_HostAddress}}/api/flashcards/1
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "title": "el perro"
+}
+
+###
+
+DELETE {{FlashCardSage.Api_HostAddress}}/api/flashcards/1
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###
