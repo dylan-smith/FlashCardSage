@@ -118,9 +118,9 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         using var client = CreateClient();
         var card = await CreateCardAsync(client);
 
-        var response = await client.PostAsync(
-            $"/api/flashcards/{card.Id}/practice-results",
-            new StringContent(body, MediaTypeHeaderValue.Parse("application/json")));
+        using var content = new StringContent(body, MediaTypeHeaderValue.Parse("application/json"));
+
+        var response = await client.PostAsync($"/api/flashcards/{card.Id}/practice-results", content);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
