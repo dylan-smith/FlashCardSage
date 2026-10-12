@@ -94,16 +94,30 @@ export async function deleteFlashCard(id: number) {
 // How the user did at a card in practice mode, by the name the API stores.
 export type PracticeOutcome = 'GotIt' | 'WasClose' | 'Failed'
 
-// The card's score after an answer, and when the answer was given.
-export type PracticeResult = {
-  score: number
-  practicedAt: string
+// The side of a card shown first in practice, by the name the API sends.
+export type PracticeSide = 'Spanish' | 'English'
+
+// A card the API picked to practice, and the side to show first.
+export type PracticeCard = FlashCard & {
+  side: PracticeSide
 }
 
+// The card to start practicing with, or null when there are no cards.
+export async function getNextPracticeCard(): Promise<PracticeCard | null> {
+  const response = await apiFetch(`${flashCardsUrl}/practice/next`)
+  if (!response.ok) {
+    throw new Error('Unable to load flash cards.')
+  }
+  return response.status === 204
+    ? null
+    : ((await response.json()) as PracticeCard)
+}
+
+// Records the answer and returns the card to practice next.
 export async function recordPracticeResult(
   id: number,
   outcome: PracticeOutcome,
-): Promise<PracticeResult> {
+): Promise<PracticeCard> {
   const response = await apiFetch(`${flashCardsUrl}/${id}/practice-results`, {
     method: 'POST',
     headers: {
@@ -114,17 +128,12 @@ export async function recordPracticeResult(
   if (!response.ok) {
     throw new Error('Unable to save your answer.')
   }
-  return (await response.json()) as PracticeResult
+  return ((await response.json()) as { next: PracticeCard }).next
 }
 
-// The most a card can score, once it's been answered with Got it! enough times in a row.
-export const maximumScore = 100
-
-// A card's score out of 100, from how many times in a row it was last answered with Got it! in practice, and
-// when it was last practiced (null if never).
+// A card's score out of 100, from how many times in a row it was last answered with Got it! in practice.
 export type FlashCardScore = FlashCard & {
   score: number
-  lastPracticedAt: string | null
 }
 
 // Every card's score, lowest first, and the total out of the most the cards could score.

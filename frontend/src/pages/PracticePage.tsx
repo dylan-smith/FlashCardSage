@@ -10,24 +10,23 @@ import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import {
   describeFetchError,
-  listFlashCardScores,
-  maximumScore,
+  getNextPracticeCard,
   recordPracticeResult,
 } from '../api/flashCards'
-import type { FlashCardScore, PracticeOutcome } from '../api/flashCards'
+import type {
+  PracticeCard,
+  PracticeOutcome,
+  PracticeSide,
+} from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 
-type Side = 'spanish' | 'english'
-
-// The card being practiced and the side the user is shown first.
-type Prompt = {
-  card: FlashCardScore
-  side: Side
-}
-
-const sides: Record<Side, { label: string; lang: string }> = {
-  spanish: { label: 'Spanish', lang: 'es' },
-  english: { label: 'English', lang: 'en' },
+// Which field of a card holds each side, and its language.
+const sides: Record<
+  PracticeSide,
+  { field: 'spanish' | 'english'; lang: string }
+> = {
+  Spanish: { field: 'spanish', lang: 'es' },
+  English: { field: 'english', lang: 'en' },
 }
 
 const outcomes: {
@@ -40,52 +39,11 @@ const outcomes: {
   { outcome: 'Failed', label: 'Failed :(', color: 'error' },
 ]
 
-const dayInMilliseconds = 24 * 60 * 60 * 1000
-
-// How likely a card is to come up, up to the maximum score for a card never practiced. The lower its score, the
-// likelier it is, and it gains a little for every day since it was last practiced, so even a card with the
-// maximum score comes back now and then.
-function weight(card: FlashCardScore, now: number) {
-  const days =
-    card.lastPracticedAt === null
-      ? 0
-      : Math.max(0, now - Date.parse(card.lastPracticedAt)) / dayInMilliseconds
-  return Math.min(maximumScore, maximumScore - card.score + days)
-}
-
-// A card picked by its weight, and a random side. The card just practiced isn't picked again straight away, unless
-// it's the only one. When every card has no weight, they're all as likely as each other.
-function pickPrompt(
-  cards: FlashCardScore[],
-  previous?: FlashCardScore,
-): Prompt {
-  const choices =
-    cards.length > 1 ? cards.filter((card) => card.id !== previous?.id) : cards
-  const now = Date.now()
-  const weights = choices.map((card) => weight(card, now))
-  const total = weights.reduce((sum, value) => sum + value, 0)
-  const chances = total > 0 ? weights : choices.map(() => 1)
-  let target = Math.random() * (total > 0 ? total : choices.length)
-  // Falls back to the last card that can be picked, in case rounding leaves the target past the end.
-  let index = chances.findLastIndex((chance) => chance > 0)
-  for (const [position, chance] of chances.entries()) {
-    target -= chance
-    if (target < 0) {
-      index = position
-      break
-    }
-  }
-  return {
-    card: choices[index],
-    side: Math.random() < 0.5 ? 'spanish' : 'english',
-  }
-}
-
-function CardSide({ side, text }: { side: Side; text: string }) {
+function CardSide({ side, text }: { side: PracticeSide; text: string }) {
   return (
     <Box>
       <Typography variant="overline" component="p" color="text.secondary">
-        {sides[side].label}
+        {side}
       </Typography>
       <Typography
         variant="h4"
@@ -100,8 +58,8 @@ function CardSide({ side, text }: { side: Side; text: string }) {
 }
 
 function PracticePage() {
-  const [cards, setCards] = useState<FlashCardScore[]>([])
-  const [prompt, setPrompt] = useState<Prompt | null>(null)
+  // The card being practiced, as the API picked it.
+  const [prompt, setPrompt] = useState<PracticeCard | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -111,14 +69,13 @@ function PracticePage() {
   const firstOutcomeRef = useRef<HTMLButtonElement>(null)
   const answeredRef = useRef(false)
 
-  // Loads the cards and their scores once. Each answer returns the card's new score, so they're never reloaded.
+  // The API picks the first card here, and each one after that when an answer is saved.
   useEffect(() => {
     let cancelled = false
-    listFlashCardScores()
-      .then(({ cards: loaded }) => {
+    getNextPracticeCard()
+      .then((next) => {
         if (!cancelled) {
-          setCards(loaded)
-          setPrompt(loaded.length > 0 ? pickPrompt(loaded) : null)
+          setPrompt(next)
         }
       })
       .catch((error: unknown) => {
@@ -156,19 +113,10 @@ function PracticePage() {
     setErrorMessage('')
 
     try {
-      const { score, practicedAt } = await recordPracticeResult(
-        prompt.card.id,
-        outcome,
-      )
+      const next = await recordPracticeResult(prompt.id, outcome)
       trackEvent('PracticeResultRecorded', { outcome })
       answeredRef.current = true
-      const updated = cards.map((card) =>
-        card.id === prompt.card.id
-          ? { ...card, score, lastPracticedAt: practicedAt }
-          : card,
-      )
-      setCards(updated)
-      setPrompt(pickPrompt(updated, prompt.card))
+      setPrompt(next)
       setRevealed(false)
     } catch (error) {
       trackException(error, { operation: 'practice' })
@@ -178,7 +126,8 @@ function PracticePage() {
     }
   }
 
-  const otherSide: Side = prompt?.side === 'spanish' ? 'english' : 'spanish'
+  const otherSide: PracticeSide =
+    prompt?.side === 'Spanish' ? 'English' : 'Spanish'
 
   return (
     <Stack spacing={2}>
@@ -207,11 +156,17 @@ function PracticePage() {
               aria-live="polite"
               sx={{ textAlign: 'center', py: 2 }}
             >
-              <CardSide side={prompt.side} text={prompt.card[prompt.side]} />
+              <CardSide
+                side={prompt.side}
+                text={prompt[sides[prompt.side].field]}
+              />
               {revealed && (
                 <>
                   <Divider />
-                  <CardSide side={otherSide} text={prompt.card[otherSide]} />
+                  <CardSide
+                    side={otherSide}
+                    text={prompt[sides[otherSide].field]}
+                  />
                 </>
               )}
             </Stack>

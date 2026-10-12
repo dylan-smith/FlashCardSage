@@ -465,10 +465,11 @@ describe('App', () => {
   describe('modes', () => {
     it('links to each mode and marks the current one', async () => {
       const user = userEvent.setup()
+      // No cards, so there's nothing to practice either.
       mockFetch(async (url) =>
-        jsonResponse(
-          url.endsWith('/scores') ? { total: 0, maximum: 0, cards: [] } : [],
-        ),
+        url.endsWith('/practice/next')
+          ? new Response(null, { status: 204 })
+          : jsonResponse([]),
       )
       renderAt('/')
       await waitFor(() => {
@@ -499,62 +500,24 @@ describe('App', () => {
   })
 
   describe('practicing', () => {
-    const now = Date.parse('2026-10-12T12:00:00Z')
-    const dayInMilliseconds = 24 * 60 * 60 * 1000
+    const cat = { id: 1, spanish: 'el gato', english: 'the cat' }
+    const dog = { id: 2, spanish: 'el perro', english: 'the dog' }
 
-    type ScoredCard = {
-      id: number
-      spanish: string
-      english: string
-      score: number
-      lastPracticedAt: string | null
-    }
-
-    const cat: ScoredCard = {
-      id: 1,
-      spanish: 'el gato',
-      english: 'the cat',
-      score: 0,
-      lastPracticedAt: null,
-    }
-    const dog: ScoredCard = {
-      id: 2,
-      spanish: 'el perro',
-      english: 'the dog',
-      score: 0,
-      lastPracticedAt: null,
-    }
-    const house: ScoredCard = {
-      id: 3,
-      spanish: 'la casa',
-      english: 'the house',
-      score: 0,
-      lastPracticedAt: null,
-    }
-
-    // When a card was practiced, this many days before now.
-    function daysAgo(days: number) {
-      return new Date(now - days * dayInMilliseconds).toISOString()
-    }
-
-    // Answers the scores with the cards, and a practice result with the status and, when it's saved, this score.
-    async function practice({
-      cards = [cat, dog],
-      status = 200,
-      score = 50,
-    }: { cards?: ScoredCard[]; status?: number; score?: number } = {}) {
-      vi.spyOn(Date, 'now').mockReturnValue(now)
+    // Starts on the first card the API picks, then answers each saved result with the next card it picks, or with
+    // the status when it isn't saved.
+    async function practice(
+      first: unknown,
+      { next = { ...dog, side: 'Spanish' }, status = 200 } = {},
+    ) {
       const calls = mockFetch(async (_url, init) => {
         if (init?.method === 'POST') {
           return status === 200
-            ? jsonResponse({ score, practicedAt: new Date(now).toISOString() })
+            ? jsonResponse({ next })
             : new Response(null, { status })
         }
-        return jsonResponse({
-          total: cards.reduce((sum, card) => sum + card.score, 0),
-          maximum: cards.length * 100,
-          cards,
-        })
+        return first === null
+          ? new Response(null, { status: 204 })
+          : jsonResponse(first)
       })
       renderAt('/practice')
       await waitFor(() => {
@@ -563,20 +526,13 @@ describe('App', () => {
       return calls
     }
 
-    async function answer(label: string) {
+    it('shows the Spanish of the card the API picks until it is revealed', async () => {
       const user = userEvent.setup()
-      await user.click(screen.getByRole('button', { name: 'Reveal' }))
-      await user.click(screen.getByRole('button', { name: label }))
-      await screen.findByRole('button', { name: 'Reveal' })
-    }
+      const calls = await practice({ ...cat, side: 'Spanish' })
 
-    it('shows the Spanish of a random card until it is revealed', async () => {
-      const user = userEvent.setup()
-      // The first card, Spanish side up.
-      vi.spyOn(Math, 'random').mockReturnValue(0)
-      const calls = await practice()
-
-      expect(calls[0].url).toMatch(/\/api\/flashcards\/scores$/)
+      expect(calls[0].url).toBe(
+        'http://localhost:5269/api/flashcards/practice/next',
+      )
       expect(screen.getByText('el gato')).toHaveAttribute('lang', 'es')
       expect(screen.queryByText('the cat')).not.toBeInTheDocument()
       expect(
@@ -601,9 +557,7 @@ describe('App', () => {
 
     it('can show the English side first', async () => {
       const user = userEvent.setup()
-      // The second card, English side up.
-      vi.spyOn(Math, 'random').mockReturnValue(0.9)
-      await practice()
+      await practice({ ...dog, side: 'English' })
 
       expect(screen.getByText('the dog')).toBeInTheDocument()
       expect(screen.queryByText('el perro')).not.toBeInTheDocument()
@@ -613,86 +567,25 @@ describe('App', () => {
       expect(screen.getByText('el perro')).toBeInTheDocument()
     })
 
-    it('favours the card with the lower score', async () => {
-      // Weights 100 and 10, so 0.85 of the way is still the first card, where an even pick would be the second.
-      vi.spyOn(Math, 'random').mockReturnValue(0.85)
-      await practice({ cards: [cat, { ...dog, score: 90 }] })
-
-      expect(screen.getByText('the cat')).toBeInTheDocument()
-    })
-
-    it('leaves out a card with the maximum score practiced just now while another can be picked', async () => {
-      vi.spyOn(Math, 'random').mockReturnValue(0)
-      await practice({
-        cards: [{ ...cat, score: 100, lastPracticedAt: daysAgo(0) }, dog],
-      })
-
-      expect(screen.getByText('el perro')).toBeInTheDocument()
-    })
-
-    it.each([
-      [50, 'el gato'],
-      [10, 'el perro'],
-    ])(
-      'gives a card with the maximum score more chance the longer since it was practiced (%i days)',
-      async (days, shown) => {
-        // A weight of one for each day, against 50 for the other card.
-        vi.spyOn(Math, 'random').mockReturnValue(0.45)
-        await practice({
-          cards: [
-            { ...cat, score: 100, lastPracticedAt: daysAgo(days) },
-            { ...dog, score: 50 },
-          ],
-        })
-
-        expect(screen.getByText(shown)).toBeInTheDocument()
-      },
-    )
-
-    it('picks any card when none of them can come up by weight', async () => {
-      vi.spyOn(Math, 'random').mockReturnValue(0.9)
-      await practice({
-        cards: [
-          { ...cat, score: 100, lastPracticedAt: daysAgo(0) },
-          { ...dog, score: 100, lastPracticedAt: daysAgo(0) },
-        ],
-      })
-
-      expect(screen.getByText('the dog')).toBeInTheDocument()
-    })
-
-    it('picks the next cards by the score each answer returns', async () => {
-      vi.spyOn(Math, 'random').mockReturnValue(0)
-      await practice({ cards: [cat, dog, house], score: 100 })
-      expect(screen.getByText('el gato')).toBeInTheDocument()
-
-      await answer('Got it!')
-      // The card just practiced is left out.
-      expect(screen.getByText('el perro')).toBeInTheDocument()
-
-      await answer('Got it!')
-      // The cat now has the maximum score and was practiced just now, so the house comes up instead.
-      expect(screen.getByText('la casa')).toBeInTheDocument()
-    })
-
     it.each([
       ['Got it!', 'GotIt'],
       ['I was close', 'WasClose'],
       ['Failed :(', 'Failed'],
     ])(
-      'records "%s" for the card, then shows another one',
+      'records "%s" for the card, then shows the one the API picks next',
       async (label, outcome) => {
         const user = userEvent.setup()
-        vi.spyOn(Math, 'random').mockReturnValue(0)
-        const calls = await practice()
+        const calls = await practice(
+          { ...cat, side: 'Spanish' },
+          { next: { ...dog, side: 'English' } },
+        )
 
         await user.click(screen.getByRole('button', { name: 'Reveal' }))
         await user.click(screen.getByRole('button', { name: label }))
 
-        // The card just practiced isn't picked again, so it's the other one.
-        expect(await screen.findByText('el perro')).toBeInTheDocument()
+        expect(await screen.findByText('the dog')).toBeInTheDocument()
+        expect(screen.queryByText('el perro')).not.toBeInTheDocument()
         expect(screen.queryByText('el gato')).not.toBeInTheDocument()
-        expect(screen.queryByText('the dog')).not.toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Reveal' })).toHaveFocus()
         const post = calls.find((call) => call.init?.method === 'POST')
         expect(post?.url).toBe(
@@ -705,20 +598,26 @@ describe('App', () => {
       },
     )
 
-    it('keeps practicing the only card', async () => {
-      vi.spyOn(Math, 'random').mockReturnValue(0)
-      await practice({ cards: [cat], score: 100 })
-      expect(screen.getByText('el gato')).toBeInTheDocument()
+    it('can be given the same card again', async () => {
+      const user = userEvent.setup()
+      await practice(
+        { ...cat, side: 'Spanish' },
+        { next: { ...cat, side: 'Spanish' } },
+      )
 
-      await answer('Got it!')
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      await user.click(screen.getByRole('button', { name: 'Got it!' }))
 
+      expect(
+        await screen.findByRole('button', { name: 'Reveal' }),
+      ).toBeInTheDocument()
       expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(screen.queryByText('the cat')).not.toBeInTheDocument()
     })
 
     it('shows an error and keeps the card when saving the answer fails', async () => {
       const user = userEvent.setup()
-      vi.spyOn(Math, 'random').mockReturnValue(0)
-      await practice({ status: 500 })
+      await practice({ ...cat, side: 'Spanish' }, { status: 500 })
 
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
       await user.click(screen.getByRole('button', { name: 'Got it!' }))
@@ -735,7 +634,7 @@ describe('App', () => {
     })
 
     it('links to adding cards when there are none', async () => {
-      await practice({ cards: [] })
+      await practice(null)
 
       expect(
         screen.getByText('There are no flash cards to practice yet.'),

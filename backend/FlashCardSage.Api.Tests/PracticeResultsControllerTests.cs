@@ -29,41 +29,37 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
         var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome });
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.IsType<OkObjectResult>(result.Result);
         var saved = await dbContext.PracticeResults.SingleAsync();
         Assert.Equal((card.Id, outcome), (saved.FlashCardId, saved.Outcome));
         Assert.InRange(saved.PracticedAt, before, DateTimeOffset.UtcNow);
-        Assert.Equal(saved.PracticedAt, response.PracticedAt);
     }
 
-    [Theory]
-    [InlineData(50, PracticeOutcome.GotIt)]
-    [InlineData(80, PracticeOutcome.GotIt, PracticeOutcome.GotIt)]
-    [InlineData(0, PracticeOutcome.GotIt, PracticeOutcome.Failed)]
-    [InlineData(0, PracticeOutcome.GotIt, PracticeOutcome.WasClose)]
-    [InlineData(50, PracticeOutcome.Failed, PracticeOutcome.GotIt)]
-    [InlineData(
-        100,
-        PracticeOutcome.Failed,
-        PracticeOutcome.GotIt,
-        PracticeOutcome.GotIt,
-        PracticeOutcome.GotIt,
-        PracticeOutcome.GotIt,
-        PracticeOutcome.GotIt)]
-    public async Task Create_ReturnsTheCardsNewScore(int expected, params PracticeOutcome[] outcomes)
+    [Fact]
+    public async Task Create_ReturnsAnotherCardToPracticeNext()
+    {
+        await using var dbContext = TestDb.Create();
+        var cat = await AddCardAsync(dbContext);
+        var dog = await AddCardAsync(dbContext, "el perro", "the dog");
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.Failed });
+
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal((dog.Id, "el perro", "the dog"), (response.Next.Id, response.Next.Spanish, response.Next.English));
+    }
+
+    [Fact]
+    public async Task Create_ReturnsTheSameCard_WhenItIsTheOnlyOne()
     {
         await using var dbContext = TestDb.Create();
         var card = await AddCardAsync(dbContext);
         var controller = CreateController(dbContext);
 
-        ActionResult<PracticeResultResponse>? result = null;
-        foreach (var outcome in outcomes)
-        {
-            result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome });
-        }
+        var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result!.Result).Value);
-        Assert.Equal(expected, response.Score);
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(card.Id, response.Next.Id);
     }
 
     [Fact]
@@ -138,8 +134,10 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
             $"/api/flashcards/{card.Id}/practice-results", new { outcome = "WasClose" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var body = await response.Content.ReadFromJsonAsync<PracticeResultResponse>();
-        Assert.Equal(0, body!.Score);
+        // The only card comes up again, with the side sent by name.
+        Assert.Matches(
+            $$"""^\{"next":\{"id":{{card.Id}},.*"side":"(Spanish|English)"\}\}$""",
+            await response.Content.ReadAsStringAsync());
     }
 
     [Theory]
@@ -158,9 +156,10 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private static async Task<FlashCard> AddCardAsync(FlashCardDbContext dbContext)
+    private static async Task<FlashCard> AddCardAsync(
+        FlashCardDbContext dbContext, string spanish = "el gato", string english = "the cat")
     {
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var card = new FlashCard { Spanish = spanish, English = english };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
         return card;
