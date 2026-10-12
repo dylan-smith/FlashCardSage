@@ -21,7 +21,7 @@ fi
 
 next=$(echo "$prs" | jq -r 'map(select(.mergeStateStatus == "BEHIND")) | first | .number // empty')
 if [ -z "$next" ]; then
-  echo "No Dependabot PRs are behind main"
+  echo "No Dependabot PRs with auto-merge enabled are behind main"
   exit 0
 fi
 
