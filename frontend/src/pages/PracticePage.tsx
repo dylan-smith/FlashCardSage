@@ -144,6 +144,27 @@ function PracticePage() {
     <Stack spacing={2}>
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
+      {/* Kept outside the card, since it's about the session rather than this card. */}
+      {prompt !== null && (
+        <Typography color="text.secondary" sx={{ textAlign: 'right' }}>
+          Session score{' '}
+          <Box
+            component="span"
+            sx={{
+              fontWeight: 'bold',
+              color:
+                sessionScore > 0
+                  ? 'success.main'
+                  : sessionScore < 0
+                    ? 'error.main'
+                    : 'text.primary',
+            }}
+          >
+            {formatScoreChange(sessionScore)}
+          </Box>
+        </Typography>
+      )}
+
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
@@ -162,23 +183,6 @@ function PracticePage() {
           )
         ) : (
           <Stack spacing={3}>
-            <Typography color="text.secondary" sx={{ textAlign: 'right' }}>
-              Session score{' '}
-              <Box
-                component="span"
-                sx={{
-                  fontWeight: 'bold',
-                  color:
-                    sessionScore > 0
-                      ? 'success.main'
-                      : sessionScore < 0
-                        ? 'error.main'
-                        : 'text.primary',
-                }}
-              >
-                {formatScoreChange(sessionScore)}
-              </Box>
-            </Typography>
             <Stack
               spacing={2}
               aria-live="polite"
