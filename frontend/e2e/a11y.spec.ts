@@ -79,6 +79,36 @@ test.describe('Accessibility', () => {
     }
   })
 
+  test('scores page has no detectable accessibility violations', async ({
+    page,
+    request,
+  }) => {
+    const spanish = `A11y scores ${Date.now()}`
+    const response = await request.post(flashCardsApiUrl, {
+      data: { spanish, english: 'a check' },
+    })
+    expect(response.ok()).toBe(true)
+    const { id } = (await response.json()) as { id: number }
+
+    try {
+      expect(
+        (
+          await request.post(`${flashCardsApiUrl}/${id}/practice-results`, {
+            data: { outcome: 'GotIt' },
+          })
+        ).ok(),
+      ).toBe(true)
+      await page.goto('/scores')
+      await expect(page.getByText(spanish, { exact: true })).toBeVisible()
+
+      const results = await new AxeBuilder({ page }).analyze()
+
+      expect(results.violations).toEqual([])
+    } finally {
+      await request.delete(`${flashCardsApiUrl}/${id}`)
+    }
+  })
+
   test('not found page has no detectable accessibility violations', async ({
     page,
   }) => {

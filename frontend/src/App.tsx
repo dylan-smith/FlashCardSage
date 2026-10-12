@@ -12,6 +12,7 @@ import SignInPage from './auth/SignInPage'
 import FlashCardsPage from './pages/FlashCardsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
+import ScoresPage from './pages/ScoresPage'
 import { trackPageView } from './telemetry'
 
 export const tagline = 'Learn a language one card at a time.'
@@ -21,10 +22,11 @@ function signOut() {
   setSession(null)
 }
 
-// The app's two modes. NavLink marks the current one with aria-current.
+// The app's three modes. NavLink marks the current one with aria-current.
 const modes = [
   { to: '/', label: 'Manage cards' },
   { to: '/practice', label: 'Practice' },
+  { to: '/scores', label: 'Scores' },
 ]
 
 function App() {
@@ -110,6 +112,7 @@ function App() {
           <Routes>
             <Route path="/" element={<FlashCardsPage />} />
             <Route path="/practice" element={<PracticePage />} />
+            <Route path="/scores" element={<ScoresPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </>

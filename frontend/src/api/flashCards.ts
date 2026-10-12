@@ -109,3 +109,23 @@ export async function recordPracticeResult(
     throw new Error('Unable to save your answer.')
   }
 }
+
+// A card's score out of 100, from how many times in a row it was last answered with Got it! in practice.
+export type FlashCardScore = FlashCard & {
+  score: number
+}
+
+// Every card's score, lowest first, and the total out of the most the cards could score.
+export type FlashCardScores = {
+  total: number
+  maximum: number
+  cards: FlashCardScore[]
+}
+
+export async function listFlashCardScores(): Promise<FlashCardScores> {
+  const response = await apiFetch(`${flashCardsUrl}/scores`)
+  if (!response.ok) {
+    throw new Error('Unable to load scores.')
+  }
+  return (await response.json()) as FlashCardScores
+}
