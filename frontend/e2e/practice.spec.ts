@@ -33,7 +33,6 @@ test.describe('Practice', () => {
       .getByRole('navigation', { name: 'Mode' })
       .getByRole('link', { name: 'Practice' })
       .click()
-    await expect(page.getByRole('heading', { name: 'Practice' })).toBeVisible()
     await expect(page.getByRole('button', { name: 'Reveal' })).toBeVisible()
 
     // Either side of either card can come up, so find which one it is from the text shown. The card is on the

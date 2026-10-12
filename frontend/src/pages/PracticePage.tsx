@@ -144,9 +144,6 @@ function PracticePage() {
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
-        <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-          Practice
-        </Typography>
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
             <CircularProgress aria-label="Loading" />

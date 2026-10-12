@@ -474,7 +474,7 @@ describe('App', () => {
       await user.click(within(nav).getByRole('link', { name: 'Practice' }))
 
       expect(
-        await screen.findByRole('heading', { level: 2, name: 'Practice' }),
+        await screen.findByText('There are no flash cards to practice yet.'),
       ).toBeInTheDocument()
       expect(
         within(nav).getByRole('link', { name: 'Practice' }),
