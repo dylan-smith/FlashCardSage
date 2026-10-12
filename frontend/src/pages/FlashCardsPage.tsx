@@ -50,8 +50,15 @@ const fieldSlotProps = {
   formHelperText: { component: 'div' },
 } as const
 
-// The note under a side translation fills in: whether it's being translated or was, and when a single word has more
-// than one meaning, the others to pick from instead.
+// The other side's name, for the button that translates it again.
+const otherSideNames: Record<CardSide, string> = {
+  spanish: 'English',
+  english: 'Spanish',
+}
+
+// The note under a side translation fills in: whether it's being translated or was, when a single word has more
+// than one meaning, the others to pick from instead, and once the user has put something else in, a button that
+// hands it back to translation.
 function translationNote(
   translation: AutoTranslate,
   side: CardSide,
@@ -61,7 +68,8 @@ function translationNote(
   const others = translation
     .meanings(side)
     .filter((meaning) => meaning !== value)
-  if (others.length === 0) {
+  const canRetranslate = translation.canRetranslate(side)
+  if (others.length === 0 && !canRetranslate) {
     return note
   }
   return (
@@ -76,7 +84,7 @@ function translationNote(
           mt: note ? 0.5 : 0,
         }}
       >
-        Other meanings:
+        {others.length > 0 && 'Other meanings:'}
         {others.map((meaning) => (
           <Chip
             key={meaning}
@@ -86,6 +94,16 @@ function translationNote(
             onClick={() => translation.choose(side, meaning)}
           />
         ))}
+        {canRetranslate && (
+          <Button
+            type="button"
+            size="small"
+            onClick={() => translation.retranslate(side)}
+            sx={{ py: 0, minWidth: 0, textTransform: 'none' }}
+          >
+            Translate from {otherSideNames[side]}
+          </Button>
+        )}
       </Box>
     </>
   )
@@ -107,7 +125,7 @@ function FlashCardEditForm({
   onSave: (event: SubmitEvent<HTMLFormElement>) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
-  const translation = useAutoTranslate(onChange)
+  const translation = useAutoTranslate(edit, onChange)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -248,7 +266,7 @@ function FlashCardsPage() {
   // The card whose edit is being saved or that is being deleted, so its buttons can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
-  const translation = useAutoTranslate((change) =>
+  const translation = useAutoTranslate(fields, (change) =>
     setFields((current) => ({ ...current, ...change })),
   )
 

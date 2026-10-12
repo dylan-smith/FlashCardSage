@@ -580,6 +580,64 @@ describe('App', () => {
       expect(screen.queryByText('Other meanings:')).not.toBeInTheDocument()
     })
 
+    it('translates a side again once the user clears what they typed over it', async () => {
+      const user = userEvent.setup()
+      const translations = mockTranslations()
+      const { spanish, english } = await showForm()
+      await user.type(spanish, 'el gato')
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Translate from Spanish' }),
+      ).not.toBeInTheDocument()
+
+      await user.clear(english)
+      await user.type(english, 'the kitty')
+      expect(
+        screen.getByRole('button', { name: 'Translate from Spanish' }),
+      ).toBeInTheDocument()
+      await user.clear(english)
+
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+      expect(screen.getByText(autoTranslated)).toBeInTheDocument()
+      expect(translations()).toHaveLength(2)
+      expect(translations()[1].init?.body).toBe(
+        JSON.stringify({ text: 'el gato', from: 'Spanish' }),
+      )
+    })
+
+    it('hands a side back to translation with its button', async () => {
+      const user = userEvent.setup()
+      mockTranslations([], async () =>
+        jsonResponse({
+          translation: 'silla',
+          alternatives: ['cátedra', 'presidente'],
+        }),
+      )
+      const { spanish, english } = await showForm()
+      await user.type(english, 'chair')
+      await waitFor(() => expect(spanish).toHaveValue('silla'), untilTranslated)
+      await user.click(screen.getByRole('button', { name: 'presidente' }))
+
+      await user.click(
+        screen.getByRole('button', { name: 'Translate from English' }),
+      )
+
+      await waitFor(() => expect(spanish).toHaveValue('silla'))
+      expect(screen.getByText(autoTranslated)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Translate from English' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'presidente' }),
+      ).toBeInTheDocument()
+    })
+
     it("doesn't offer other meanings for a phrase", async () => {
       const user = userEvent.setup()
       mockTranslations()

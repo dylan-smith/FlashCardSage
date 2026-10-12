@@ -83,6 +83,9 @@ test.describe('Flash card management', () => {
       await expect(
         page.getByText('Auto-translated: edit to change'),
       ).toBeVisible()
+      await english.fill('the cats')
+      await page.getByRole('button', { name: 'Translate from Spanish' }).click()
+      await expect(english).toHaveValue('the cat')
       await english.fill('the kitty')
       await page.getByRole('button', { name: 'Add flash card' }).click()
 
