@@ -10,23 +10,23 @@ import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import {
   describeFetchError,
-  listFlashCards,
+  getNextPracticeCard,
   recordPracticeResult,
 } from '../api/flashCards'
-import type { FlashCard, PracticeOutcome } from '../api/flashCards'
+import type {
+  PracticeCard,
+  PracticeOutcome,
+  PracticeSide,
+} from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 
-type Side = 'spanish' | 'english'
-
-// The card being practiced and the side the user is shown first.
-type Prompt = {
-  card: FlashCard
-  side: Side
-}
-
-const sides: Record<Side, { label: string; lang: string }> = {
-  spanish: { label: 'Spanish', lang: 'es' },
-  english: { label: 'English', lang: 'en' },
+// Which field of a card holds each side, and its language.
+const sides: Record<
+  PracticeSide,
+  { field: 'spanish' | 'english'; lang: string }
+> = {
+  Spanish: { field: 'spanish', lang: 'es' },
+  English: { field: 'english', lang: 'en' },
 }
 
 const outcomes: {
@@ -39,21 +39,11 @@ const outcomes: {
   { outcome: 'Failed', label: 'Failed :(', color: 'error' },
 ]
 
-// A random card and side. The card just practiced isn't picked again straight away, unless it's the only one.
-function pickPrompt(cards: FlashCard[], previous?: FlashCard): Prompt {
-  const choices =
-    cards.length > 1 ? cards.filter((card) => card.id !== previous?.id) : cards
-  return {
-    card: choices[Math.floor(Math.random() * choices.length)],
-    side: Math.random() < 0.5 ? 'spanish' : 'english',
-  }
-}
-
-function CardSide({ side, text }: { side: Side; text: string }) {
+function CardSide({ side, text }: { side: PracticeSide; text: string }) {
   return (
     <Box>
       <Typography variant="overline" component="p" color="text.secondary">
-        {sides[side].label}
+        {side}
       </Typography>
       <Typography
         variant="h4"
@@ -68,8 +58,8 @@ function CardSide({ side, text }: { side: Side; text: string }) {
 }
 
 function PracticePage() {
-  const [cards, setCards] = useState<FlashCard[]>([])
-  const [prompt, setPrompt] = useState<Prompt | null>(null)
+  // The card being practiced, as the API picked it.
+  const [prompt, setPrompt] = useState<PracticeCard | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
@@ -79,14 +69,13 @@ function PracticePage() {
   const firstOutcomeRef = useRef<HTMLButtonElement>(null)
   const answeredRef = useRef(false)
 
-  // Loads the cards once. Practicing doesn't change them, so they're never reloaded.
+  // The API picks the first card here, and each one after that when an answer is saved.
   useEffect(() => {
     let cancelled = false
-    listFlashCards()
-      .then((loaded) => {
+    getNextPracticeCard()
+      .then((next) => {
         if (!cancelled) {
-          setCards(loaded)
-          setPrompt(loaded.length > 0 ? pickPrompt(loaded) : null)
+          setPrompt(next)
         }
       })
       .catch((error: unknown) => {
@@ -124,10 +113,10 @@ function PracticePage() {
     setErrorMessage('')
 
     try {
-      await recordPracticeResult(prompt.card.id, outcome)
+      const next = await recordPracticeResult(prompt.id, outcome)
       trackEvent('PracticeResultRecorded', { outcome })
       answeredRef.current = true
-      setPrompt(pickPrompt(cards, prompt.card))
+      setPrompt(next)
       setRevealed(false)
     } catch (error) {
       trackException(error, { operation: 'practice' })
@@ -137,7 +126,8 @@ function PracticePage() {
     }
   }
 
-  const otherSide: Side = prompt?.side === 'spanish' ? 'english' : 'spanish'
+  const otherSide: PracticeSide =
+    prompt?.side === 'Spanish' ? 'English' : 'Spanish'
 
   return (
     <Stack spacing={2}>
@@ -166,11 +156,17 @@ function PracticePage() {
               aria-live="polite"
               sx={{ textAlign: 'center', py: 2 }}
             >
-              <CardSide side={prompt.side} text={prompt.card[prompt.side]} />
+              <CardSide
+                side={prompt.side}
+                text={prompt[sides[prompt.side].field]}
+              />
               {revealed && (
                 <>
                   <Divider />
-                  <CardSide side={otherSide} text={prompt.card[otherSide]} />
+                  <CardSide
+                    side={otherSide}
+                    text={prompt[sides[otherSide].field]}
+                  />
                 </>
               )}
             </Stack>

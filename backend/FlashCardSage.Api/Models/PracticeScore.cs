@@ -16,4 +16,13 @@ public static class PracticeScore
         ArgumentOutOfRangeException.ThrowIfNegative(correctInARow);
         return ScoresByStreak[Math.Min(correctInARow, MaximumStreak)];
     }
+
+    // Scores a card from its practice outcomes, newest first. Anything but Got it! ends the run.
+    public static int FromOutcomes(IEnumerable<PracticeOutcome> newestFirst)
+    {
+        return FromStreak(newestFirst
+            .Take(MaximumStreak)
+            .TakeWhile(outcome => outcome == PracticeOutcome.GotIt)
+            .Count());
+    }
 }

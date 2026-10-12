@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// Records how the user did each time they practice a card. FlashCardScoresController scores the cards from them.
+/// Records how the user did each time they practice a card, and picks the card to practice next.
+/// FlashCardScoresController scores the cards from them.
 /// </summary>
 [ApiController]
 [Route("api/flashcards/{flashCardId:int}/practice-results")]
@@ -15,7 +16,8 @@ public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<Pra
     : ControllerBase
 {
     [HttpPost]
-    public async Task<IActionResult> Create(int flashCardId, [FromBody] PracticeResultRequest request)
+    public async Task<ActionResult<PracticeResultResponse>> Create(
+        int flashCardId, [FromBody] PracticeResultRequest request)
     {
         // The card is looked up first, since that's what limits it to the current user's cards.
         if (!await dbContext.FlashCards.AnyAsync(card => card.Id == flashCardId))
@@ -32,9 +34,15 @@ public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<Pra
         });
         await dbContext.SaveChangesAsync();
 
-        logger.LogInformation(
-            "Recorded practice result {Outcome} for flash card {FlashCardId}", request.Outcome, flashCardId);
+        // Picked after saving, so the answer just given counts. The practiced card exists, so there's always one.
+        var next = (await PracticePicker.PickNextAsync(dbContext, flashCardId))!;
 
-        return NoContent();
+        logger.LogInformation(
+            "Recorded practice result {Outcome} for flash card {FlashCardId}, next is {NextFlashCardId}",
+            request.Outcome,
+            flashCardId,
+            next.Id);
+
+        return Ok(new PracticeResultResponse(next));
     }
 }

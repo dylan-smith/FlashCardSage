@@ -39,6 +39,12 @@ Authorization: Bearer {{token}}
 
 ###
 
+GET {{FlashCardSage.Api_HostAddress}}/api/flashcards/practice/next
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###
+
 POST {{FlashCardSage.Api_HostAddress}}/api/flashcards/1/practice-results
 Content-Type: {{contentType}}
 Accept: {{contentType}}

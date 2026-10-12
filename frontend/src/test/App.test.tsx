@@ -465,7 +465,16 @@ describe('App', () => {
   describe('modes', () => {
     it('links to each mode and marks the current one', async () => {
       const user = userEvent.setup()
-      await showCards([])
+      // No cards, so there's nothing to practice either.
+      mockFetch(async (url) =>
+        url.endsWith('/practice/next')
+          ? new Response(null, { status: 204 })
+          : jsonResponse([]),
+      )
+      renderAt('/')
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
+      })
       const nav = screen.getByRole('navigation', { name: 'Mode' })
 
       expect(
@@ -491,18 +500,25 @@ describe('App', () => {
   })
 
   describe('practicing', () => {
-    const cards = [
-      { id: 1, spanish: 'el gato', english: 'the cat' },
-      { id: 2, spanish: 'el perro', english: 'the dog' },
-    ]
+    const cat = { id: 1, spanish: 'el gato', english: 'the cat' }
+    const dog = { id: 2, spanish: 'el perro', english: 'the dog' }
 
-    // Answers the list with the cards and a practice result with the status.
-    async function practice(status = 204) {
-      const calls = mockFetch(async (_url, init) =>
-        init?.method === 'POST'
-          ? new Response(null, { status })
-          : jsonResponse(cards),
-      )
+    // Starts on the first card the API picks, then answers each saved result with the next card it picks, or with
+    // the status when it isn't saved.
+    async function practice(
+      first: unknown,
+      { next = { ...dog, side: 'Spanish' }, status = 200 } = {},
+    ) {
+      const calls = mockFetch(async (_url, init) => {
+        if (init?.method === 'POST') {
+          return status === 200
+            ? jsonResponse({ next })
+            : new Response(null, { status })
+        }
+        return first === null
+          ? new Response(null, { status: 204 })
+          : jsonResponse(first)
+      })
       renderAt('/practice')
       await waitFor(() => {
         expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
@@ -510,12 +526,13 @@ describe('App', () => {
       return calls
     }
 
-    it('shows the Spanish of a random card until it is revealed', async () => {
+    it('shows the Spanish of the card the API picks until it is revealed', async () => {
       const user = userEvent.setup()
-      // The first card, Spanish side up.
-      vi.spyOn(Math, 'random').mockReturnValue(0)
-      await practice()
+      const calls = await practice({ ...cat, side: 'Spanish' })
 
+      expect(calls[0].url).toBe(
+        'http://localhost:5269/api/flashcards/practice/next',
+      )
       expect(screen.getByText('el gato')).toHaveAttribute('lang', 'es')
       expect(screen.queryByText('the cat')).not.toBeInTheDocument()
       expect(
@@ -540,9 +557,7 @@ describe('App', () => {
 
     it('can show the English side first', async () => {
       const user = userEvent.setup()
-      // The second card, English side up.
-      vi.spyOn(Math, 'random').mockReturnValue(0.9)
-      await practice()
+      await practice({ ...dog, side: 'English' })
 
       expect(screen.getByText('the dog')).toBeInTheDocument()
       expect(screen.queryByText('el perro')).not.toBeInTheDocument()
@@ -557,19 +572,20 @@ describe('App', () => {
       ['I was close', 'WasClose'],
       ['Failed :(', 'Failed'],
     ])(
-      'records "%s" for the card, then shows another one',
+      'records "%s" for the card, then shows the one the API picks next',
       async (label, outcome) => {
         const user = userEvent.setup()
-        vi.spyOn(Math, 'random').mockReturnValue(0)
-        const calls = await practice()
+        const calls = await practice(
+          { ...cat, side: 'Spanish' },
+          { next: { ...dog, side: 'English' } },
+        )
 
         await user.click(screen.getByRole('button', { name: 'Reveal' }))
         await user.click(screen.getByRole('button', { name: label }))
 
-        // The card just practiced isn't picked again, so it's the other one.
-        expect(await screen.findByText('el perro')).toBeInTheDocument()
+        expect(await screen.findByText('the dog')).toBeInTheDocument()
+        expect(screen.queryByText('el perro')).not.toBeInTheDocument()
         expect(screen.queryByText('el gato')).not.toBeInTheDocument()
-        expect(screen.queryByText('the dog')).not.toBeInTheDocument()
         expect(screen.getByRole('button', { name: 'Reveal' })).toHaveFocus()
         const post = calls.find((call) => call.init?.method === 'POST')
         expect(post?.url).toBe(
@@ -582,16 +598,12 @@ describe('App', () => {
       },
     )
 
-    it('keeps practicing the only card', async () => {
+    it('can be given the same card again', async () => {
       const user = userEvent.setup()
-      vi.spyOn(Math, 'random').mockReturnValue(0)
-      mockFetch(async (_url, init) =>
-        init?.method === 'POST'
-          ? new Response(null, { status: 204 })
-          : jsonResponse([cards[0]]),
+      await practice(
+        { ...cat, side: 'Spanish' },
+        { next: { ...cat, side: 'Spanish' } },
       )
-      renderAt('/practice')
-      await screen.findByText('el gato')
 
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
       await user.click(screen.getByRole('button', { name: 'Got it!' }))
@@ -600,12 +612,12 @@ describe('App', () => {
         await screen.findByRole('button', { name: 'Reveal' }),
       ).toBeInTheDocument()
       expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(screen.queryByText('the cat')).not.toBeInTheDocument()
     })
 
     it('shows an error and keeps the card when saving the answer fails', async () => {
       const user = userEvent.setup()
-      vi.spyOn(Math, 'random').mockReturnValue(0)
-      await practice(500)
+      await practice({ ...cat, side: 'Spanish' }, { status: 500 })
 
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
       await user.click(screen.getByRole('button', { name: 'Got it!' }))
@@ -622,11 +634,10 @@ describe('App', () => {
     })
 
     it('links to adding cards when there are none', async () => {
-      mockFetch(async () => jsonResponse([]))
-      renderAt('/practice')
+      await practice(null)
 
       expect(
-        await screen.findByText('There are no flash cards to practice yet.'),
+        screen.getByText('There are no flash cards to practice yet.'),
       ).toBeInTheDocument()
       expect(
         screen.getByRole('link', { name: 'Add flash cards' }),

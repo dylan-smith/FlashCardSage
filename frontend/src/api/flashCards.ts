@@ -94,10 +94,30 @@ export async function deleteFlashCard(id: number) {
 // How the user did at a card in practice mode, by the name the API stores.
 export type PracticeOutcome = 'GotIt' | 'WasClose' | 'Failed'
 
+// The side of a card shown first in practice, by the name the API sends.
+export type PracticeSide = 'Spanish' | 'English'
+
+// A card the API picked to practice, and the side to show first.
+export type PracticeCard = FlashCard & {
+  side: PracticeSide
+}
+
+// The card to start practicing with, or null when there are no cards.
+export async function getNextPracticeCard(): Promise<PracticeCard | null> {
+  const response = await apiFetch(`${flashCardsUrl}/practice/next`)
+  if (!response.ok) {
+    throw new Error('Unable to load flash cards.')
+  }
+  return response.status === 204
+    ? null
+    : ((await response.json()) as PracticeCard)
+}
+
+// Records the answer and returns the card to practice next.
 export async function recordPracticeResult(
   id: number,
   outcome: PracticeOutcome,
-) {
+): Promise<PracticeCard> {
   const response = await apiFetch(`${flashCardsUrl}/${id}/practice-results`, {
     method: 'POST',
     headers: {
@@ -108,6 +128,7 @@ export async function recordPracticeResult(
   if (!response.ok) {
     throw new Error('Unable to save your answer.')
   }
+  return ((await response.json()) as { next: PracticeCard }).next
 }
 
 // A card's score out of 100, from how many times in a row it was last answered with Got it! in practice.
