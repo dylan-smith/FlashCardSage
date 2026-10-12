@@ -281,6 +281,19 @@ function Set-ResourceGroup([string]$Name) {
     }
 }
 
+# Deployments can't register a resource provider with only resource group roles, so the templates' less common
+# ones are registered here. Registration finishes in the background.
+function Register-ResourceProvider([string]$Namespace) {
+    if ((Invoke-Az provider show --namespace $Namespace --query registrationState) -eq 'Registered') {
+        Write-Kept "resource provider $Namespace"
+        return
+    }
+    if ($PSCmdlet.ShouldProcess("resource provider $Namespace", 'Register')) {
+        Invoke-Az provider register --namespace $Namespace | Out-Null
+        Write-Done "resource provider $Namespace registered"
+    }
+}
+
 # Returns the identity (clientId, principalId), creating it when it doesn't exist. Returns $null under -WhatIf.
 function Set-ManagedIdentity([hashtable]$Identity) {
     $existing = Invoke-Az identity list --resource-group $Identity.ResourceGroup --query "[?name=='$($Identity.Name)'] | [0]"
@@ -359,6 +372,10 @@ function Invoke-InitialStage {
     Write-Step 'Resource groups'
     Set-ResourceGroup $ResourceGroup
     Set-ResourceGroup $PreviewResourceGroup
+
+    Write-Step 'Resource providers'
+    # Azure AI Translator (infra/modules/translator.bicep).
+    Register-ResourceProvider 'Microsoft.CognitiveServices'
 
     Write-Step 'Managed identities'
     $principals = @{}

@@ -23,6 +23,9 @@ param appServicePlanName string
 @description('Name of the Azure SQL Server shared by every preview.')
 param sqlServerName string
 
+@description('Name of the Translator resource every preview shares (preview-shared.bicep), which CI looks up in the resource group. Empty turns translation off, while there isn\'t one.')
+param translatorName string = ''
+
 @description('Use the Azure SQL free offer for the database. The offer covers a limited number of databases per subscription, and can\'t be turned on for an existing database.')
 param useFreeLimit bool = true
 
@@ -49,6 +52,10 @@ resource appServicePlan 'Microsoft.Web/serverfarms@2024-11-01' existing = {
 
 resource sqlServer 'Microsoft.Sql/servers@2023-08-01' existing = {
   name: sqlServerName
+}
+
+resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = if (!empty(translatorName)) {
+  name: translatorName
 }
 
 // Free and Shared plans don't support Always On.
@@ -128,16 +135,20 @@ resource appService 'Microsoft.Web/sites@2024-11-01' = {
 resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
   parent: appService
   name: 'appsettings'
-  properties: {
-    // The web app connects as its own managed identity; CI creates the database user for it.
-    ConnectionStrings__FlashCardSage: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabase.name};Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
-    // The browser sends the origin without a trailing slash.
-    Cors__AllowedOrigins__0: replace(storageAccount.properties.primaryEndpoints.web, '.net/', '.net')
-    // Google only accepts the origins registered with it, and every preview has its own, so previews use test
-    // sign-in instead: anyone can sign in as any name. Never set this in main.bicep.
-    Authentication__AllowTestSignIn: 'true'
-    WEBSITE_ENABLE_SYNC_UPDATE_SITE: 'true'
-  }
+  properties: union(
+    {
+      // The web app connects as its own managed identity; CI creates the database user for it.
+      ConnectionStrings__FlashCardSage: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabase.name};Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
+      // The browser sends the origin without a trailing slash.
+      Cors__AllowedOrigins__0: replace(storageAccount.properties.primaryEndpoints.web, '.net/', '.net')
+      // Google only accepts the origins registered with it, and every preview has its own, so previews use test
+      // sign-in instead: anyone can sign in as any name. Never set this in main.bicep.
+      Authentication__AllowTestSignIn: 'true'
+      WEBSITE_ENABLE_SYNC_UPDATE_SITE: 'true'
+    },
+    // Without a key the API answers translations with a 503 and the user types both sides.
+    empty(translatorName) ? {} : { Translator__Key: translator!.listKeys().key1 }
+  )
 }
 
 @description('Resource ID of the App Service.')
