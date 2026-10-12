@@ -29,9 +29,8 @@ export function useAutoTranslate(
   const [autoSide, setAutoSide] = useState<CardSide | null>(null)
   // The side a translation is being fetched for.
   const [translating, setTranslating] = useState<CardSide | null>(null)
-  // The side the user put their own text in while the other side had text it could be a translation of, by typing
-  // (over a translation or not) or picking another meaning.
-  const [overridden, setOverridden] = useState<CardSide | null>(null)
+  // Whether the user has changed either side in this form, so a saved card's form doesn't open with buttons.
+  const [edited, setEdited] = useState(false)
   // A translated word's meanings, most common first, for the user to pick from. Kept after they pick one, so they
   // can change their mind, until they type again.
   const [meaningsOf, setMeaningsOf] = useState<{
@@ -72,7 +71,7 @@ export function useAutoTranslate(
     cancel()
     typed.current = { spanish: false, english: false }
     setAuto(null)
-    setOverridden(null)
+    setEdited(false)
     setMeaningsOf(null)
   }
 
@@ -120,12 +119,7 @@ export function useAutoTranslate(
     if (autoSideRef.current === side) {
       setAuto(null)
     }
-    if (text === '') {
-      setOverridden((current) => (current === side ? null : current))
-    } else if (fields[target].trim() !== '') {
-      // There's something on the other side it could be a translation of.
-      setOverridden(side)
-    }
+    setEdited(true)
 
     if (text === '') {
       if (autoSideRef.current === target) {
@@ -163,20 +157,23 @@ export function useAutoTranslate(
     onChange({ [side]: meaning.slice(0, maxLength) })
     typed.current[side] = true
     setAuto(null)
-    setOverridden(side)
+    setEdited(true)
   }
 
-  // Whether the user can hand side back to translation: they put their own text in it, and there's something on
-  // the other side to translate.
-  function canRetranslate(side: CardSide) {
+  // Whether the user can hand a side back to translation, filling it with a translation of the other side. That's
+  // once they've changed the form and both sides hold their own text, so either one can be translated from the
+  // other. While one side is a translation of the other, they already match.
+  function canRetranslate() {
     return (
-      overridden === side &&
-      translating !== side &&
-      fields[otherSide(side)].trim() !== ''
+      edited &&
+      autoSide === null &&
+      translating === null &&
+      fields.spanish.trim() !== '' &&
+      fields.english.trim() !== ''
     )
   }
 
-  // Drops the user's override of side and translates the other side into it right away.
+  // Translates the other side into side right away, replacing what the user put there.
   function retranslate(side: CardSide) {
     const from = otherSide(side)
     const text = fields[from].trim()
@@ -185,7 +182,6 @@ export function useAutoTranslate(
     }
     cancel()
     typed.current[side] = false
-    setOverridden(null)
     setMeaningsOf(null)
     schedule(from, text, 0)
   }

@@ -611,6 +611,30 @@ describe('App', () => {
       )
     })
 
+    it('translates what the user typed over a translation the other way', async () => {
+      const user = userEvent.setup()
+      mockTranslations()
+      const { spanish, english } = await showForm()
+      await user.type(spanish, 'el gato')
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+
+      await user.clear(english)
+      await user.type(english, 'the dog')
+      await user.click(
+        screen.getByRole('button', { name: 'Translate from English' }),
+      )
+
+      await waitFor(() => expect(spanish).toHaveValue('el perro'))
+      expect(english).toHaveValue('the dog')
+      expect(screen.getByText(autoTranslated)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /^Translate from/ }),
+      ).not.toBeInTheDocument()
+    })
+
     it('hands a side back to translation with its button', async () => {
       const user = userEvent.setup()
       mockTranslations([], async () =>

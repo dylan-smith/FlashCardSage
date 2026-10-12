@@ -68,7 +68,7 @@ function translationNote(
   const others = translation
     .meanings(side)
     .filter((meaning) => meaning !== value)
-  const canRetranslate = translation.canRetranslate(side)
+  const canRetranslate = translation.canRetranslate()
   if (others.length === 0 && !canRetranslate) {
     return note
   }
