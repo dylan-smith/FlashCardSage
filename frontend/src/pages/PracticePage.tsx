@@ -39,6 +39,11 @@ const outcomes: {
   { outcome: 'Failed', label: 'Failed :(', color: 'error' },
 ]
 
+// A rise in score gets a plus sign, so it reads as a change rather than a total.
+function formatScoreChange(change: number) {
+  return change > 0 ? `+${change}` : `${change}`
+}
+
 function CardSide({ side, text }: { side: PracticeSide; text: string }) {
   return (
     <Box>
@@ -63,6 +68,8 @@ function PracticePage() {
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
+  // How much the answers given since the page was opened have raised or lowered the total score.
+  const [sessionScore, setSessionScore] = useState(0)
   const [errorMessage, setErrorMessage] = useState('')
   // The button that replaces the one just pressed gets focus, so keyboard users can carry on from where they were.
   const revealRef = useRef<HTMLButtonElement>(null)
@@ -113,9 +120,13 @@ function PracticePage() {
     setErrorMessage('')
 
     try {
-      const next = await recordPracticeResult(prompt.id, outcome)
+      const { next, scoreChange } = await recordPracticeResult(
+        prompt.id,
+        outcome,
+      )
       trackEvent('PracticeResultRecorded', { outcome })
       answeredRef.current = true
+      setSessionScore((score) => score + scoreChange)
       setPrompt(next)
       setRevealed(false)
     } catch (error) {
@@ -132,6 +143,27 @@ function PracticePage() {
   return (
     <Stack spacing={2}>
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+
+      {/* Kept outside the card, since it's about the session rather than this card. */}
+      {prompt !== null && (
+        <Typography color="text.secondary" sx={{ textAlign: 'right' }}>
+          Session score{' '}
+          <Box
+            component="span"
+            sx={{
+              fontWeight: 'bold',
+              color:
+                sessionScore > 0
+                  ? 'success.main'
+                  : sessionScore < 0
+                    ? 'error.main'
+                    : 'text.primary',
+            }}
+          >
+            {formatScoreChange(sessionScore)}
+          </Box>
+        </Typography>
+      )}
 
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
         {loading ? (

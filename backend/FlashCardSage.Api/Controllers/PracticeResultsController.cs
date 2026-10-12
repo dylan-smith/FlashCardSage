@@ -7,7 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// Records how the user did each time they practice a card, and picks the card to practice next.
+/// Records how the user did each time they practice a card, says how much that changed the card's score, and picks
+/// the card to practice next.
 /// FlashCardScoresController scores the cards from them.
 /// </summary>
 [ApiController]
@@ -26,6 +27,17 @@ public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<Pra
             return NotFound();
         }
 
+        // A card's score only depends on its last few answers, so those are all it takes to see how much this one
+        // changes it.
+        var recentOutcomes = await dbContext.PracticeResults
+            .Where(result => result.FlashCardId == flashCardId)
+            .OrderByDescending(result => result.Id)
+            .Take(PracticeScore.MaximumStreak)
+            .Select(result => result.Outcome)
+            .ToListAsync();
+        var scoreChange = PracticeScore.FromOutcomes(recentOutcomes.Prepend(request.Outcome!.Value))
+            - PracticeScore.FromOutcomes(recentOutcomes);
+
         dbContext.PracticeResults.Add(new PracticeResult
         {
             FlashCardId = flashCardId,
@@ -38,11 +50,12 @@ public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<Pra
         var next = (await PracticePicker.PickNextAsync(dbContext, flashCardId))!;
 
         logger.LogInformation(
-            "Recorded practice result {Outcome} for flash card {FlashCardId}, next is {NextFlashCardId}",
+            "Recorded practice result {Outcome} ({ScoreChange}) for flash card {FlashCardId}, next is {NextFlashCardId}",
             request.Outcome,
+            scoreChange,
             flashCardId,
             next.Id);
 
-        return Ok(new PracticeResultResponse(next));
+        return Ok(new PracticeResultResponse(next, scoreChange));
     }
 }

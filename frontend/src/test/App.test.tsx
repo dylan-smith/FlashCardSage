@@ -841,12 +841,20 @@ describe('App', () => {
     // the status when it isn't saved.
     async function practice(
       first: unknown,
-      { next = { ...dog, side: 'Spanish' }, status = 200 } = {},
+      {
+        next = { ...dog, side: 'Spanish' },
+        status = 200,
+        scoreChanges = [0],
+      }: { next?: unknown; status?: number; scoreChanges?: number[] } = {},
     ) {
+      let answers = 0
       const calls = mockFetch(async (_url, init) => {
         if (init?.method === 'POST') {
+          // Each answer gets the next score change, and the last one after that.
+          const scoreChange =
+            scoreChanges[Math.min(answers++, scoreChanges.length - 1)]
           return status === 200
-            ? jsonResponse({ next })
+            ? jsonResponse({ next, scoreChange })
             : new Response(null, { status })
         }
         return first === null
@@ -947,6 +955,46 @@ describe('App', () => {
       ).toBeInTheDocument()
       expect(screen.getByText('el gato')).toBeInTheDocument()
       expect(screen.queryByText('the cat')).not.toBeInTheDocument()
+    })
+
+    it('adds up how much each answer changes the score into a session score', async () => {
+      const user = userEvent.setup()
+      await practice(
+        { ...cat, side: 'Spanish' },
+        { next: { ...cat, side: 'Spanish' }, scoreChanges: [50, 30, -80] },
+      )
+
+      expect(screen.getByText(/^Session score/)).toHaveTextContent(
+        'Session score 0',
+      )
+
+      for (const [label, expected] of [
+        ['Got it!', '+50'],
+        ['Got it!', '+80'],
+        ['Failed :(', '0'],
+        ['Failed :(', '-80'],
+      ]) {
+        await user.click(screen.getByRole('button', { name: 'Reveal' }))
+        await user.click(screen.getByRole('button', { name: label }))
+        await waitFor(() => {
+          expect(screen.getByText(/^Session score/)).toHaveTextContent(
+            `Session score ${expected}`,
+          )
+        })
+      }
+    })
+
+    it('keeps the session score when saving the answer fails', async () => {
+      const user = userEvent.setup()
+      await practice({ ...cat, side: 'Spanish' }, { status: 500 })
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      expect(screen.getByText(/^Session score/)).toHaveTextContent(
+        'Session score 0',
+      )
     })
 
     it('shows an error and keeps the card when saving the answer fails', async () => {
