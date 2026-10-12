@@ -12,7 +12,8 @@ public class AzureTranslatorTests
     public async Task TranslateAsync_SendsTheTextFromSpanishToEnglish_AndReturnsTheTranslation()
     {
         var handler = new FakeHandler(HttpStatusCode.OK, """[{"translations":[{"text":"the cat","to":"en"}]}]""");
-        var translator = CreateTranslator(handler);
+        using var httpClient = new HttpClient(handler);
+        var translator = CreateTranslator(httpClient);
 
         var translation = await translator.TranslateAsync("el gato", Language.Spanish, CancellationToken.None);
 
@@ -30,8 +31,9 @@ public class AzureTranslatorTests
     public async Task TranslateAsync_TranslatesEnglishToSpanish()
     {
         var handler = new FakeHandler(HttpStatusCode.OK, """[{"translations":[{"text":"el gato","to":"es"}]}]""");
+        using var httpClient = new HttpClient(handler);
 
-        var translation = await CreateTranslator(handler).TranslateAsync("the cat", Language.English, CancellationToken.None);
+        var translation = await CreateTranslator(httpClient).TranslateAsync("the cat", Language.English, CancellationToken.None);
 
         Assert.Equal("el gato", translation);
         Assert.EndsWith("from=en&to=es", handler.Request!.RequestUri!.ToString(), StringComparison.Ordinal);
@@ -41,18 +43,20 @@ public class AzureTranslatorTests
     public async Task TranslateAsync_Throws_WhenTheServiceFails()
     {
         var handler = new FakeHandler(HttpStatusCode.Unauthorized, """{"error":{"code":401000}}""");
+        using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateTranslator(handler).TranslateAsync("el gato", Language.Spanish, CancellationToken.None));
+            CreateTranslator(httpClient).TranslateAsync("el gato", Language.Spanish, CancellationToken.None));
     }
 
     [Fact]
     public async Task TranslateAsync_Throws_WhenThereIsNoTranslation()
     {
         var handler = new FakeHandler(HttpStatusCode.OK, "[]");
+        using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateTranslator(handler).TranslateAsync("el gato", Language.Spanish, CancellationToken.None));
+            CreateTranslator(httpClient).TranslateAsync("el gato", Language.Spanish, CancellationToken.None));
     }
 
     [Theory]
@@ -67,10 +71,10 @@ public class AzureTranslatorTests
         Assert.Equal(expected, translator.IsAvailable);
     }
 
-    private static AzureTranslator CreateTranslator(FakeHandler handler)
+    private static AzureTranslator CreateTranslator(HttpClient httpClient)
     {
         var options = new TranslatorOptions { Endpoint = "https://translator.example/", Key = "secret-key" };
-        return new AzureTranslator(new HttpClient(handler), Options.Create(options));
+        return new AzureTranslator(httpClient, Options.Create(options));
     }
 
     private sealed class FakeHandler(HttpStatusCode statusCode, string responseBody) : HttpMessageHandler
