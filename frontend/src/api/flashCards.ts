@@ -90,3 +90,22 @@ export async function deleteFlashCard(id: number) {
     throw new Error('Unable to delete flash card.')
   }
 }
+
+// How the user did at a card in practice mode, by the name the API stores.
+export type PracticeOutcome = 'GotIt' | 'WasClose' | 'Failed'
+
+export async function recordPracticeResult(
+  id: number,
+  outcome: PracticeOutcome,
+) {
+  const response = await apiFetch(`${flashCardsUrl}/${id}/practice-results`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ outcome }),
+  })
+  if (!response.ok) {
+    throw new Error('Unable to save your answer.')
+  }
+}

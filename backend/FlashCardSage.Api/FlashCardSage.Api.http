@@ -38,3 +38,14 @@ Accept: {{contentType}}
 Authorization: Bearer {{token}}
 
 ###
+
+POST {{FlashCardSage.Api_HostAddress}}/api/flashcards/1/practice-results
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "outcome": "GotIt"
+}
+
+###
