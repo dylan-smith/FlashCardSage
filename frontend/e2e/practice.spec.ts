@@ -69,7 +69,7 @@ test.describe('Practice', () => {
     )
     await page.getByRole('button', { name: 'I was close' }).click()
 
-    expect((await saved).status()).toBe(204)
+    expect((await saved).status()).toBe(200)
     await expect(page.getByRole('button', { name: 'Reveal' })).toBeVisible()
     await expect(
       page

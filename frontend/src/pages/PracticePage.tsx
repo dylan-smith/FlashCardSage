@@ -10,17 +10,18 @@ import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import {
   describeFetchError,
-  listFlashCards,
+  listFlashCardScores,
+  maximumScore,
   recordPracticeResult,
 } from '../api/flashCards'
-import type { FlashCard, PracticeOutcome } from '../api/flashCards'
+import type { FlashCardScore, PracticeOutcome } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 
 type Side = 'spanish' | 'english'
 
 // The card being practiced and the side the user is shown first.
 type Prompt = {
-  card: FlashCard
+  card: FlashCardScore
   side: Side
 }
 
@@ -39,12 +40,43 @@ const outcomes: {
   { outcome: 'Failed', label: 'Failed :(', color: 'error' },
 ]
 
-// A random card and side. The card just practiced isn't picked again straight away, unless it's the only one.
-function pickPrompt(cards: FlashCard[], previous?: FlashCard): Prompt {
+const dayInMilliseconds = 24 * 60 * 60 * 1000
+
+// How likely a card is to come up, up to the maximum score for a card never practiced. The lower its score, the
+// likelier it is, and it gains a little for every day since it was last practiced, so even a card with the
+// maximum score comes back now and then.
+function weight(card: FlashCardScore, now: number) {
+  const days =
+    card.lastPracticedAt === null
+      ? 0
+      : Math.max(0, now - Date.parse(card.lastPracticedAt)) / dayInMilliseconds
+  return Math.min(maximumScore, maximumScore - card.score + days)
+}
+
+// A card picked by its weight, and a random side. The card just practiced isn't picked again straight away, unless
+// it's the only one. When every card has no weight, they're all as likely as each other.
+function pickPrompt(
+  cards: FlashCardScore[],
+  previous?: FlashCardScore,
+): Prompt {
   const choices =
     cards.length > 1 ? cards.filter((card) => card.id !== previous?.id) : cards
+  const now = Date.now()
+  const weights = choices.map((card) => weight(card, now))
+  const total = weights.reduce((sum, value) => sum + value, 0)
+  const chances = total > 0 ? weights : choices.map(() => 1)
+  let target = Math.random() * (total > 0 ? total : choices.length)
+  // Falls back to the last card that can be picked, in case rounding leaves the target past the end.
+  let index = chances.findLastIndex((chance) => chance > 0)
+  for (const [position, chance] of chances.entries()) {
+    target -= chance
+    if (target < 0) {
+      index = position
+      break
+    }
+  }
   return {
-    card: choices[Math.floor(Math.random() * choices.length)],
+    card: choices[index],
     side: Math.random() < 0.5 ? 'spanish' : 'english',
   }
 }
@@ -68,7 +100,7 @@ function CardSide({ side, text }: { side: Side; text: string }) {
 }
 
 function PracticePage() {
-  const [cards, setCards] = useState<FlashCard[]>([])
+  const [cards, setCards] = useState<FlashCardScore[]>([])
   const [prompt, setPrompt] = useState<Prompt | null>(null)
   const [revealed, setRevealed] = useState(false)
   const [loading, setLoading] = useState(true)
@@ -79,11 +111,11 @@ function PracticePage() {
   const firstOutcomeRef = useRef<HTMLButtonElement>(null)
   const answeredRef = useRef(false)
 
-  // Loads the cards once. Practicing doesn't change them, so they're never reloaded.
+  // Loads the cards and their scores once. Each answer returns the card's new score, so they're never reloaded.
   useEffect(() => {
     let cancelled = false
-    listFlashCards()
-      .then((loaded) => {
+    listFlashCardScores()
+      .then(({ cards: loaded }) => {
         if (!cancelled) {
           setCards(loaded)
           setPrompt(loaded.length > 0 ? pickPrompt(loaded) : null)
@@ -124,10 +156,19 @@ function PracticePage() {
     setErrorMessage('')
 
     try {
-      await recordPracticeResult(prompt.card.id, outcome)
+      const { score, practicedAt } = await recordPracticeResult(
+        prompt.card.id,
+        outcome,
+      )
       trackEvent('PracticeResultRecorded', { outcome })
       answeredRef.current = true
-      setPrompt(pickPrompt(cards, prompt.card))
+      const updated = cards.map((card) =>
+        card.id === prompt.card.id
+          ? { ...card, score, lastPracticedAt: practicedAt }
+          : card,
+      )
+      setCards(updated)
+      setPrompt(pickPrompt(updated, prompt.card))
       setRevealed(false)
     } catch (error) {
       trackException(error, { operation: 'practice' })

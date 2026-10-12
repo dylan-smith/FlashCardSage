@@ -29,10 +29,41 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
         var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome });
 
-        Assert.IsType<NoContentResult>(result);
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
         var saved = await dbContext.PracticeResults.SingleAsync();
         Assert.Equal((card.Id, outcome), (saved.FlashCardId, saved.Outcome));
         Assert.InRange(saved.PracticedAt, before, DateTimeOffset.UtcNow);
+        Assert.Equal(saved.PracticedAt, response.PracticedAt);
+    }
+
+    [Theory]
+    [InlineData(50, PracticeOutcome.GotIt)]
+    [InlineData(80, PracticeOutcome.GotIt, PracticeOutcome.GotIt)]
+    [InlineData(0, PracticeOutcome.GotIt, PracticeOutcome.Failed)]
+    [InlineData(0, PracticeOutcome.GotIt, PracticeOutcome.WasClose)]
+    [InlineData(50, PracticeOutcome.Failed, PracticeOutcome.GotIt)]
+    [InlineData(
+        100,
+        PracticeOutcome.Failed,
+        PracticeOutcome.GotIt,
+        PracticeOutcome.GotIt,
+        PracticeOutcome.GotIt,
+        PracticeOutcome.GotIt,
+        PracticeOutcome.GotIt)]
+    public async Task Create_ReturnsTheCardsNewScore(int expected, params PracticeOutcome[] outcomes)
+    {
+        await using var dbContext = TestDb.Create();
+        var card = await AddCardAsync(dbContext);
+        var controller = CreateController(dbContext);
+
+        ActionResult<PracticeResultResponse>? result = null;
+        foreach (var outcome in outcomes)
+        {
+            result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome });
+        }
+
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result!.Result).Value);
+        Assert.Equal(expected, response.Score);
     }
 
     [Fact]
@@ -58,7 +89,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
         var result = await controller.Create(999, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
 
-        Assert.IsType<NotFoundResult>(result);
+        Assert.IsType<NotFoundResult>(result.Result);
         Assert.False(await dbContext.PracticeResults.AnyAsync());
     }
 
@@ -77,7 +108,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
         var result = await controller.Create(otherId, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
 
-        Assert.IsType<NotFoundResult>(result);
+        Assert.IsType<NotFoundResult>(result.Result);
         Assert.False(await dbContext.PracticeResults.IgnoreQueryFilters().AnyAsync());
     }
 
@@ -106,7 +137,9 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var response = await client.PostAsJsonAsync(
             $"/api/flashcards/{card.Id}/practice-results", new { outcome = "WasClose" });
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var body = await response.Content.ReadFromJsonAsync<PracticeResultResponse>();
+        Assert.Equal(0, body!.Score);
     }
 
     [Theory]

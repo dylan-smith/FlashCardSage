@@ -39,7 +39,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         var response = await GetAsync(dbContext);
 
-        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0)], response.Cards);
+        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0, null)], response.Cards);
     }
 
     [Theory]
@@ -85,6 +85,25 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     }
 
     [Fact]
+    public async Task Get_GivesWhenEachCardWasLastPracticed()
+    {
+        await using var dbContext = TestDb.Create();
+        var card = await AddCardAsync(dbContext, "el gato", "the cat");
+        var first = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
+        var last = first.AddDays(3);
+        foreach (var practicedAt in new[] { first, last })
+        {
+            dbContext.PracticeResults.Add(
+                new PracticeResult { FlashCardId = card.Id, Outcome = GotIt, PracticedAt = practicedAt });
+            await dbContext.SaveChangesAsync();
+        }
+
+        var response = await GetAsync(dbContext);
+
+        Assert.Equal(last, Assert.Single(response.Cards).LastPracticedAt);
+    }
+
+    [Fact]
     public async Task Get_ReturnsNothing_WhenThereAreNoCards()
     {
         await using var dbContext = TestDb.Create();
@@ -110,7 +129,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         var response = await GetAsync(dbContext);
 
-        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0)], response.Cards);
+        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0, null)], response.Cards);
         Assert.Equal((0, 100), (response.Total, response.Maximum));
     }
 

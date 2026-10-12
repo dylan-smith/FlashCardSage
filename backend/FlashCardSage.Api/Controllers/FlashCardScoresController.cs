@@ -30,19 +30,17 @@ public class FlashCardScoresController(FlashCardDbContext dbContext, ILogger<Fla
         var results = await dbContext.PracticeResults
             .AsNoTracking()
             .OrderByDescending(result => result.Id)
-            .Select(result => new { result.FlashCardId, result.Outcome })
+            .Select(result => new { result.FlashCardId, result.Outcome, result.PracticedAt })
             .ToListAsync();
-        var outcomesByCard = results.ToLookup(result => result.FlashCardId, result => result.Outcome);
+        var resultsByCard = results.ToLookup(result => result.FlashCardId);
 
         var scores = cards
             .Select(card => new FlashCardScore(
                 card.Id,
                 card.Spanish,
                 card.English,
-                PracticeScore.FromStreak(outcomesByCard[card.Id]
-                    .Take(PracticeScore.MaximumStreak)
-                    .TakeWhile(outcome => outcome == PracticeOutcome.GotIt)
-                    .Count())))
+                PracticeScore.FromOutcomes(resultsByCard[card.Id].Select(result => result.Outcome)),
+                resultsByCard[card.Id].FirstOrDefault()?.PracticedAt))
             .OrderBy(score => score.Score)
             .ThenBy(score => score.Id)
             .ToList();

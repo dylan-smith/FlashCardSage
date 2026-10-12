@@ -94,10 +94,16 @@ export async function deleteFlashCard(id: number) {
 // How the user did at a card in practice mode, by the name the API stores.
 export type PracticeOutcome = 'GotIt' | 'WasClose' | 'Failed'
 
+// The card's score after an answer, and when the answer was given.
+export type PracticeResult = {
+  score: number
+  practicedAt: string
+}
+
 export async function recordPracticeResult(
   id: number,
   outcome: PracticeOutcome,
-) {
+): Promise<PracticeResult> {
   const response = await apiFetch(`${flashCardsUrl}/${id}/practice-results`, {
     method: 'POST',
     headers: {
@@ -108,11 +114,17 @@ export async function recordPracticeResult(
   if (!response.ok) {
     throw new Error('Unable to save your answer.')
   }
+  return (await response.json()) as PracticeResult
 }
 
-// A card's score out of 100, from how many times in a row it was last answered with Got it! in practice.
+// The most a card can score, once it's been answered with Got it! enough times in a row.
+export const maximumScore = 100
+
+// A card's score out of 100, from how many times in a row it was last answered with Got it! in practice, and
+// when it was last practiced (null if never).
 export type FlashCardScore = FlashCard & {
   score: number
+  lastPracticedAt: string | null
 }
 
 // Every card's score, lowest first, and the total out of the most the cards could score.
