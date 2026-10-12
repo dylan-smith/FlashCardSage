@@ -55,7 +55,11 @@ describe('signing in', () => {
     const user = userEvent.setup()
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(jsonResponse([{ id: 1, title: 'Morning' }]))
+      .mockResolvedValue(
+        jsonResponse([
+          { id: 1, spanish: 'buenos días', english: 'good morning' },
+        ]),
+      )
     renderAt('/')
 
     await user.clear(screen.getByLabelText('Name'))
@@ -64,7 +68,7 @@ describe('signing in', () => {
       screen.getByRole('button', { name: 'Sign in as test user' }),
     )
 
-    expect(await screen.findByText('Morning')).toBeInTheDocument()
+    expect(await screen.findByText('buenos días')).toBeInTheDocument()
     await waitFor(() => {
       expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
     })

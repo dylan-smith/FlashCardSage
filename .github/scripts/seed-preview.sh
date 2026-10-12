@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Seeds a preview environment with the sample flash cards in preview-seed-data.json (a list of titles), through
-# the API so the data goes through the same validation as real use. Runs after the smoke tests, which have
-# already waited for the API to be ready.
+# Seeds a preview environment with the sample flash cards in preview-seed-data.json (Spanish and English pairs),
+# through the API so the data goes through the same validation as real use. Runs after the smoke tests, which
+# have already waited for the API to be ready.
 #
 # Every deployment starts the preview over: it deletes every flash card of the seed's user first, so whatever
 # reviewers changed as that user is gone and the samples are never duplicated. Cards other test users made are
@@ -28,9 +28,9 @@ echo "Deleted the preview's ${deleted} flash card(s)"
 
 count="$(jq length "${seed_file}")"
 for i in $(seq 0 $((count - 1))); do
-  title="$(jq -r ".[${i}]" "${seed_file}")"
-  id="$(jq -c "{title: .[${i}]}" "${seed_file}" | api -X POST --data @- "${API_URL}/api/flashcards" | jq -r .id)"
-  echo "Added flash card ${id}, \"${title}\""
+  spanish="$(jq -r ".[${i}].spanish" "${seed_file}")"
+  id="$(jq -c ".[${i}]" "${seed_file}" | api -X POST --data @- "${API_URL}/api/flashcards" | jq -r .id)"
+  echo "Added flash card ${id}, \"${spanish}\""
 done
 
 echo "Seeded the preview with ${count} flash cards"

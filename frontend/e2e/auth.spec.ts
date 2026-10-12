@@ -61,7 +61,8 @@ test('each user only sees their own flash cards', async ({ browser }) => {
 
   try {
     await alice.page.goto('/')
-    await alice.page.getByLabel('Title').fill(title)
+    await alice.page.getByLabel('Spanish').fill(title)
+    await alice.page.getByLabel('English').fill('a test card')
     await alice.page.getByRole('button', { name: 'Add flash card' }).click()
     await expect(alice.page.getByText(title, { exact: true })).toBeVisible()
 

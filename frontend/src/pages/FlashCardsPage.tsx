@@ -19,17 +19,28 @@ import {
   listFlashCards,
   updateFlashCard,
 } from '../api/flashCards'
-import type { FlashCard } from '../api/flashCards'
+import type { FlashCard, FlashCardFields } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 
-export const titleRequiredMessage = 'Title is required.'
+export const spanishRequiredMessage = 'Spanish is required.'
+export const englishRequiredMessage = 'English is required.'
 
-type EditState = {
-  id: number
-  title: string
+const emptyFields: FlashCardFields = { spanish: '', english: '' }
+
+// Trims both sides of a card, or returns the message for the first one left blank.
+function trimFields(fields: FlashCardFields): FlashCardFields | string {
+  const spanish = fields.spanish.trim()
+  const english = fields.english.trim()
+  if (!spanish) {
+    return spanishRequiredMessage
+  }
+  if (!english) {
+    return englishRequiredMessage
+  }
+  return { spanish, english }
 }
 
-// The form that replaces a card in the list while its title is being changed. The field gets focus when the
+// The form that replaces a card in the list while it's being changed. The Spanish field gets focus when the
 // form appears, since the user just asked to edit it.
 function FlashCardEditForm({
   edit,
@@ -38,9 +49,9 @@ function FlashCardEditForm({
   onCancel,
   onSave,
 }: {
-  edit: EditState
+  edit: FlashCard
   busy: boolean
-  onChange: (title: string) => void
+  onChange: (change: Partial<FlashCardFields>) => void
   onCancel: () => void
   onSave: (event: SubmitEvent<HTMLFormElement>) => void
 }) {
@@ -55,41 +66,51 @@ function FlashCardEditForm({
       <Box
         component="form"
         onSubmit={onSave}
-        sx={{ display: 'flex', flexGrow: 1, gap: 1, alignItems: 'center' }}
+        sx={{
+          display: 'flex',
+          flexDirection: { xs: 'column', sm: 'row' },
+          flexGrow: 1,
+          gap: 1,
+          alignItems: { xs: 'stretch', sm: 'center' },
+        }}
       >
         <TextField
-          label="Title"
-          value={edit.title}
-          onChange={(event) => onChange(event.target.value)}
+          label="Spanish"
+          value={edit.spanish}
+          onChange={(event) => onChange({ spanish: event.target.value })}
           inputRef={inputRef}
           slotProps={{ htmlInput: { maxLength: 200 } }}
           size="small"
           fullWidth
         />
-        <Button
-          type="submit"
-          variant="contained"
+        <TextField
+          label="English"
+          value={edit.english}
+          onChange={(event) => onChange({ english: event.target.value })}
+          slotProps={{ htmlInput: { maxLength: 200 } }}
           size="small"
-          disabled={busy}
-          sx={{ flexShrink: 0 }}
-        >
-          {busy ? 'Saving…' : 'Save'}
-        </Button>
-        <Button
-          type="button"
-          size="small"
-          disabled={busy}
-          onClick={onCancel}
-          sx={{ flexShrink: 0 }}
-        >
-          Cancel
-        </Button>
+          fullWidth
+        />
+        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+          <Button
+            type="submit"
+            variant="contained"
+            size="small"
+            disabled={busy}
+          >
+            {busy ? 'Saving…' : 'Save'}
+          </Button>
+          <Button type="button" size="small" disabled={busy} onClick={onCancel}>
+            Cancel
+          </Button>
+        </Box>
       </Box>
     </ListItem>
   )
 }
 
-// One card in the list: its title with Edit and Delete buttons, or, while it's being edited, the form above.
+// One card in the list: its Spanish and English with Edit and Delete buttons, or, while it's being edited, the
+// form above.
 function FlashCardItem({
   card,
   edit,
@@ -101,10 +122,10 @@ function FlashCardItem({
   onDelete,
 }: {
   card: FlashCard
-  edit: EditState | null
+  edit: FlashCard | null
   busy: boolean
   onEdit: () => void
-  onEditChange: (title: string) => void
+  onEditChange: (change: Partial<FlashCardFields>) => void
   onEditCancel: () => void
   onEditSave: (event: SubmitEvent<HTMLFormElement>) => void
   onDelete: () => void
@@ -123,12 +144,16 @@ function FlashCardItem({
 
   return (
     <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
-      <ListItemText primary={card.title} sx={{ overflowWrap: 'anywhere' }} />
+      <ListItemText
+        primary={card.spanish}
+        secondary={card.english}
+        sx={{ overflowWrap: 'anywhere' }}
+      />
       <Button
         type="button"
         size="small"
         disabled={busy}
-        aria-label={`Edit "${card.title}"`}
+        aria-label={`Edit "${card.spanish}"`}
         onClick={onEdit}
         sx={{ flexShrink: 0 }}
       >
@@ -139,7 +164,7 @@ function FlashCardItem({
         size="small"
         color="error"
         disabled={busy}
-        aria-label={`Delete "${card.title}"`}
+        aria-label={`Delete "${card.spanish}"`}
         onClick={onDelete}
         sx={{ flexShrink: 0 }}
       >
@@ -151,13 +176,13 @@ function FlashCardItem({
 
 function FlashCardsPage() {
   const [cards, setCards] = useState<FlashCard[]>([])
-  const [title, setTitle] = useState('')
+  const [fields, setFields] = useState<FlashCardFields>(emptyFields)
   const [loading, setLoading] = useState(true)
   // Set when the list couldn't be loaded, so the page doesn't claim there are no cards.
   const [loadFailed, setLoadFailed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  // The card being edited, with its title as typed so far. One at a time keeps the list simple.
-  const [edit, setEdit] = useState<EditState | null>(null)
+  // The card being edited, as typed so far. One at a time keeps the list simple.
+  const [edit, setEdit] = useState<FlashCard | null>(null)
   // The card whose edit is being saved or that is being deleted, so its buttons can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
@@ -193,9 +218,9 @@ function FlashCardsPage() {
   async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
 
-    const trimmedTitle = title.trim()
-    if (!trimmedTitle) {
-      setErrorMessage(titleRequiredMessage)
+    const trimmed = trimFields(fields)
+    if (typeof trimmed === 'string') {
+      setErrorMessage(trimmed)
       return
     }
 
@@ -203,12 +228,12 @@ function FlashCardsPage() {
     setErrorMessage('')
 
     try {
-      const created = await createFlashCard(trimmedTitle)
+      const created = await createFlashCard(trimmed)
       trackEvent('FlashCardCreated')
-      setTitle('')
+      setFields(emptyFields)
       setCards((current) => [...current, created])
     } catch (error) {
-      // A rejected title is the user's to fix, not a failure to report.
+      // A rejected card is the user's to fix, not a failure to report.
       if (!(error instanceof ApiError)) {
         trackException(error, { operation: 'create' })
       }
@@ -224,9 +249,9 @@ function FlashCardsPage() {
       return
     }
 
-    const trimmedTitle = edit.title.trim()
-    if (!trimmedTitle) {
-      setErrorMessage(titleRequiredMessage)
+    const trimmed = trimFields(edit)
+    if (typeof trimmed === 'string') {
+      setErrorMessage(trimmed)
       return
     }
 
@@ -234,7 +259,7 @@ function FlashCardsPage() {
     setErrorMessage('')
 
     try {
-      const updated = await updateFlashCard(edit.id, trimmedTitle)
+      const updated = await updateFlashCard(edit.id, trimmed)
       trackEvent('FlashCardUpdated')
       setCards((current) =>
         current.map((card) => (card.id === updated.id ? updated : card)),
@@ -278,13 +303,32 @@ function FlashCardsPage() {
           sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}
         >
           <TextField
-            id="flash-card-title"
-            label="Title"
-            value={title}
-            onChange={(event) => setTitle(event.target.value)}
+            id="flash-card-spanish"
+            label="Spanish"
+            value={fields.spanish}
+            onChange={(event) =>
+              setFields((current) => ({
+                ...current,
+                spanish: event.target.value,
+              }))
+            }
             slotProps={{ htmlInput: { maxLength: 200 } }}
             required
             placeholder="e.g. el gato"
+          />
+          <TextField
+            id="flash-card-english"
+            label="English"
+            value={fields.english}
+            onChange={(event) =>
+              setFields((current) => ({
+                ...current,
+                english: event.target.value,
+              }))
+            }
+            slotProps={{ htmlInput: { maxLength: 200 } }}
+            required
+            placeholder="e.g. the cat"
           />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button type="submit" variant="contained" disabled={submitting}>
@@ -316,11 +360,11 @@ function FlashCardsPage() {
                 busy={busyId === card.id}
                 onEdit={() => {
                   setErrorMessage('')
-                  setEdit({ id: card.id, title: card.title })
+                  setEdit(card)
                 }}
-                onEditChange={(value) =>
+                onEditChange={(change) =>
                   setEdit((current) =>
-                    current === null ? null : { ...current, title: value },
+                    current === null ? null : { ...current, ...change },
                   )
                 }
                 onEditCancel={() => {

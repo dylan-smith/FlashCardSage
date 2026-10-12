@@ -29,7 +29,7 @@ test.describe('Accessibility', () => {
     const ids: number[] = []
     for (const title of [`A11y card ${Date.now()}`, 'Another a11y card']) {
       const response = await request.post(flashCardsApiUrl, {
-        data: { title },
+        data: { spanish: title, english: 'an accessibility check' },
       })
       expect(response.ok()).toBe(true)
       ids.push(((await response.json()) as { id: number }).id)

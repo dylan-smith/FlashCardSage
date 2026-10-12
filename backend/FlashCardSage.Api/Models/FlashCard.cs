@@ -3,13 +3,18 @@ using System.Text.Json.Serialization;
 
 namespace FlashCardSage.Api.Models;
 
+// A Spanish word or phrase and its English translation.
 public class FlashCard
 {
     public int Id { get; set; }
 
     [Required]
     [MaxLength(200)]
-    public string Title { get; set; } = string.Empty;
+    public string Spanish { get; set; } = string.Empty;
+
+    [Required]
+    [MaxLength(200)]
+    public string English { get; set; } = string.Empty;
 
     // The card is returned as it is, and callers only ever see their own, so the owner isn't part of it.
     [JsonIgnore]

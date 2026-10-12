@@ -2,7 +2,7 @@
 # Calls the API directly for LOAD_DURATION_MINUTES minutes with LOAD_WORKERS parallel workers, so the FlashCardSage
 # Health workbook has request, dependency and failure telemetry to show. Each worker keeps running a flash card
 # through its lifecycle (list, create, read, rename, delete), plus a few requests that fail on purpose (a blank
-# title and a missing id) so the failure charts get data too. Every card it creates is deleted again: every id a
+# card and a missing id) so the failure charts get data too. Every card it creates is deleted again: every id a
 # worker creates is remembered until the API confirms its deletion, and a final cleanup, verified and retried,
 # deletes any still there. Only ids this run created are ever deleted. The cleanup also runs when the script is
 # stopped early (an error, or the runner cancelling it).
@@ -105,7 +105,7 @@ trap 'cleanup; exit 143' TERM
 
 # Sends one request, records its status code (000 when the request itself failed) in the counts and in
 # last_status, and prints the response body.
-# Usage: request METHOD PATH [curl options...], e.g. request POST /api/flashcards --data '{"title":"x"}'
+# Usage: request METHOD PATH [curl options...], e.g. request POST /api/flashcards --data '{"spanish":"x","english":"y"}'
 request() {
   local method="$1" path="$2" response
   shift 2
@@ -123,7 +123,7 @@ request() {
 create_card() {
   local id
   touch "${creating_dir}/${worker_id}"
-  id="$(request POST /api/flashcards --data "$(jq -cn --arg title "$1" '{title: $title}')" \
+  id="$(request POST /api/flashcards --data "$(jq -cn --arg spanish "$1" '{spanish: $spanish, english: "a load test card"}')" \
     | jq -r '.id // empty' 2> /dev/null || true)"
   if [ -n "${id}" ]; then
     echo "${id}" > "${pending_dir}/${id}"
@@ -152,13 +152,13 @@ worker() {
     id="$(create_card "${title}")"
     if [ -n "${id}" ]; then
       request GET "/api/flashcards/${id}" > /dev/null
-      request PUT "/api/flashcards/${id}" --data "$(jq -cn --arg title "${renamed}" '{title: $title}')" > /dev/null
+      request PUT "/api/flashcards/${id}" --data "$(jq -cn --arg spanish "${renamed}" '{spanish: $spanish, english: "a load test card"}')" > /dev/null
       delete_card "${id}"
       # Already deleted: 404
       request GET "/api/flashcards/${id}" > /dev/null
     fi
-    # Blank title: 400
-    request POST /api/flashcards --data '{"title":"   "}' > /dev/null
+    # Blank Spanish and English: 400
+    request POST /api/flashcards --data '{"spanish":"   ","english":"   "}' > /dev/null
 
     # A little think time so the workers don't hammer the API in lockstep.
     sleep "0.$((RANDOM % 9 + 1))"

@@ -15,7 +15,8 @@ Accept: {{contentType}}
 Authorization: Bearer {{token}}
 
 {
-  "title": "el gato"
+  "spanish": "el gato",
+  "english": "the cat"
 }
 
 ###
@@ -26,7 +27,8 @@ Accept: {{contentType}}
 Authorization: Bearer {{token}}
 
 {
-  "title": "el perro"
+  "spanish": "el perro",
+  "english": "the dog"
 }
 
 ###
