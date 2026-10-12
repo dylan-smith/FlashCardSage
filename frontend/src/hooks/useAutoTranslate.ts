@@ -4,7 +4,7 @@ import { translate } from '../api/translations'
 import type { CardSide } from '../api/translations'
 
 // How long the user has to stop typing before their side is translated, so each keystroke doesn't send a request.
-export const translateDelayMs = 500
+export const translateDelayMs = 1000
 
 // The most a side of a card can hold, the same as the API's limit.
 const maxLength = 200

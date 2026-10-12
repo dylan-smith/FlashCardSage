@@ -401,6 +401,9 @@ describe('App', () => {
   })
 
   describe('auto translation', () => {
+    // waitFor gives up after a second by default, which is about how long a translation waits for typing to stop.
+    const untilTranslated = { timeout: translateDelayMs + 1000 }
+
     const autoTranslated = 'Auto-translated: edit to change'
 
     const dictionary: Record<string, string> = {
@@ -462,7 +465,10 @@ describe('App', () => {
 
       await user.type(spanish, 'el gato')
 
-      await waitFor(() => expect(english).toHaveValue('the cat'))
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
       expect(screen.getByText(autoTranslated)).toBeInTheDocument()
       expect(translations()).toHaveLength(1)
       expect(translations()[0].url).toBe(
@@ -486,7 +492,10 @@ describe('App', () => {
 
       await user.type(english, 'the dog')
 
-      await waitFor(() => expect(spanish).toHaveValue('el perro'))
+      await waitFor(
+        () => expect(spanish).toHaveValue('el perro'),
+        untilTranslated,
+      )
       expect(translations()[0].init?.body).toBe(
         JSON.stringify({ text: 'the dog', from: 'English' }),
       )
@@ -497,7 +506,10 @@ describe('App', () => {
       const translations = mockTranslations()
       const { spanish, english } = await showForm()
       await user.type(spanish, 'el gato')
-      await waitFor(() => expect(english).toHaveValue('the cat'))
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
 
       await user.clear(english)
       await user.type(english, 'the kitty')
@@ -521,7 +533,10 @@ describe('App', () => {
       )
       const { spanish, english } = await showForm()
       await user.type(spanish, 'el gato')
-      await waitFor(() => expect(translations()).toHaveLength(1))
+      await waitFor(
+        () => expect(translations()).toHaveLength(1),
+        untilTranslated,
+      )
       expect(screen.getByText('Translating…')).toBeInTheDocument()
 
       await user.type(english, 'my cat')
@@ -537,7 +552,10 @@ describe('App', () => {
       mockTranslations()
       const { spanish, english } = await showForm()
       await user.type(spanish, 'el gato')
-      await waitFor(() => expect(english).toHaveValue('the cat'))
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
 
       await user.clear(spanish)
 
@@ -551,7 +569,10 @@ describe('App', () => {
       const { spanish, english } = await showForm()
 
       await user.type(spanish, 'la casa')
-      await waitFor(() => expect(translations()).toHaveLength(1))
+      await waitFor(
+        () => expect(translations()).toHaveLength(1),
+        untilTranslated,
+      )
       await waitPastTranslateDelay()
 
       expect(english).toHaveValue('')
@@ -572,7 +593,10 @@ describe('App', () => {
       const english = within(item).getByLabelText('English')
       await user.clear(spanish)
       await user.type(spanish, 'el perro')
-      await waitFor(() => expect(english).toHaveValue('the dog'))
+      await waitFor(
+        () => expect(english).toHaveValue('the dog'),
+        untilTranslated,
+      )
       await user.click(within(item).getByRole('button', { name: 'Save' }))
 
       expect(await screen.findByText('the dog')).toBeInTheDocument()
