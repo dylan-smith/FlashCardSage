@@ -79,6 +79,22 @@ test.describe('Practice', () => {
     await expect(page.getByText(shownSide, { exact: true })).toBeHidden()
   })
 
+  test('keeps a running score for the session', async ({ page }) => {
+    await page.goto('/practice')
+    const sessionScore = page.getByText(/^Session score/)
+    await expect(sessionScore).toHaveText('Session score 0')
+
+    // Both cards are new, so whichever comes up goes from 0 to 50.
+    await page.getByRole('button', { name: 'Reveal' }).click()
+    await page.getByRole('button', { name: 'Got it!' }).click()
+    await expect(sessionScore).toHaveText('Session score +50')
+
+    // Failed leaves the other card at 0, or drops the same one back to 0, whichever comes up next.
+    await page.getByRole('button', { name: 'Reveal' }).click()
+    await page.getByRole('button', { name: 'Failed :(' }).click()
+    await expect(sessionScore).toHaveText(/^Session score (\+50|0)$/)
+  })
+
   test('points to adding cards when there are none', async ({
     page,
     request,

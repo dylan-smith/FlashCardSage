@@ -62,6 +62,57 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         Assert.Equal(card.Id, response.Next.Id);
     }
 
+    [Theory]
+    // A never-practiced card.
+    [InlineData(new PracticeOutcome[0], PracticeOutcome.GotIt, 50)]
+    [InlineData(new PracticeOutcome[0], PracticeOutcome.Failed, 0)]
+    // Raising a run of Got it!
+    [InlineData(new[] { PracticeOutcome.GotIt }, PracticeOutcome.GotIt, 30)]
+    [InlineData(new[] { PracticeOutcome.Failed, PracticeOutcome.GotIt, PracticeOutcome.GotIt }, PracticeOutcome.GotIt, 10)]
+    // Ending a run, including with I was close.
+    [InlineData(new[] { PracticeOutcome.GotIt, PracticeOutcome.GotIt }, PracticeOutcome.WasClose, -80)]
+    [InlineData(new[] { PracticeOutcome.GotIt, PracticeOutcome.GotIt, PracticeOutcome.GotIt }, PracticeOutcome.Failed, -90)]
+    // A card already at the top stays there.
+    [InlineData(
+        new[]
+        {
+            PracticeOutcome.GotIt, PracticeOutcome.GotIt, PracticeOutcome.GotIt, PracticeOutcome.GotIt,
+            PracticeOutcome.GotIt, PracticeOutcome.GotIt
+        },
+        PracticeOutcome.GotIt,
+        0)]
+    public async Task Create_ReturnsHowMuchTheAnswerChangedTheCardsScore(
+        PracticeOutcome[] earlier, PracticeOutcome outcome, int expected)
+    {
+        await using var dbContext = TestDb.Create();
+        var card = await AddCardAsync(dbContext);
+        var controller = CreateController(dbContext);
+        foreach (var earlierOutcome in earlier)
+        {
+            await controller.Create(card.Id, new PracticeResultRequest { Outcome = earlierOutcome });
+        }
+
+        var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome });
+
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(expected, response.ScoreChange);
+    }
+
+    [Fact]
+    public async Task Create_OnlyCountsTheCardsOwnResults_ForTheScoreChange()
+    {
+        await using var dbContext = TestDb.Create();
+        var cat = await AddCardAsync(dbContext);
+        var dog = await AddCardAsync(dbContext, "el perro", "the dog");
+        var controller = CreateController(dbContext);
+        await controller.Create(dog.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+
+        var result = await controller.Create(cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(50, response.ScoreChange);
+    }
+
     [Fact]
     public async Task Create_KeepsEveryResult()
     {
@@ -134,9 +185,9 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
             $"/api/flashcards/{card.Id}/practice-results", new { outcome = "WasClose" });
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        // The only card comes up again, with the side sent by name.
+        // The only card comes up again, with the side sent by name. I was close leaves a new card at 0.
         Assert.Matches(
-            $$"""^\{"next":\{"id":{{card.Id}},.*"side":"(Spanish|English)"\}\}$""",
+            $$"""^\{"next":\{"id":{{card.Id}},.*"side":"(Spanish|English)"\},"scoreChange":0\}$""",
             await response.Content.ReadAsStringAsync());
     }
 
