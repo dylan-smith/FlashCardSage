@@ -647,7 +647,7 @@ function Invoke-PostDeployStage {
     }
 
     Write-Step 'Re-running the deployment'
-    $run = Invoke-Gh run list --repo $repository --workflow ci.yml --branch main --limit 1 --json databaseId,conclusion,status |
+    $run = Invoke-Gh run list --repo $repository --workflow ci.yml --branch main --limit 1 --json 'databaseId,conclusion,status' |
         ConvertFrom-Json | Select-Object -First 1
     if (-not $run) {
         Write-Note 'No CI run on main yet. Push to main to deploy.'
