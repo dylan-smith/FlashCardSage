@@ -6,8 +6,9 @@ namespace FlashCardSage.Api.Data;
 
 /// <remarks>
 /// Flash cards belong to a user. A query filter only shows the current user's, and new ones are given the current
-/// user when they're saved, so the controllers never handle the owner themselves. Practice results are filtered
-/// through their card, so they're only the current user's too.
+/// user when they're saved, so the controllers never handle the owner themselves. Tags work the same way. Practice
+/// results are filtered through their card, so they're only the current user's too, and a card's tags are only
+/// reached through the card.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {
@@ -19,6 +20,8 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<FlashCard> FlashCards => Set<FlashCard>();
 
     public DbSet<PracticeResult> PracticeResults => Set<PracticeResult>();
+
+    public DbSet<Tag> Tags => Set<Tag>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -38,6 +41,12 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         {
             entry.Entity.UserId = CurrentUserId
                 ?? throw new InvalidOperationException("Flash cards can only be saved for a signed-in user.");
+        }
+
+        foreach (var entry in ChangeTracker.Entries<Tag>().Where(entry => entry.State == EntityState.Added))
+        {
+            entry.Entity.UserId = CurrentUserId
+                ?? throw new InvalidOperationException("Tags can only be saved for a signed-in user.");
         }
     }
 
@@ -98,5 +107,38 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
             .Property(result => result.Outcome)
             .HasConversion<string>()
             .HasMaxLength(20);
+
+        modelBuilder.Entity<Tag>()
+            .HasQueryFilter(tag => tag.UserId == CurrentUserId);
+
+        modelBuilder.Entity<Tag>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(tag => tag.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Tag>()
+            .HasIndex(tag => new { tag.UserId, tag.Name })
+            .IsUnique();
+
+        modelBuilder.Entity<Tag>()
+            .Property(tag => tag.Name)
+            .HasMaxLength(Tag.MaxNameLength)
+            .IsRequired();
+
+        // The database only cascades from the card (see 0005-CreateTagsTables.sql), so EF deletes a tag's links,
+        // which needs the tag's cards loaded when it's removed.
+        modelBuilder.Entity<FlashCard>()
+            .HasMany(card => card.Tags)
+            .WithMany(tag => tag.FlashCards)
+            .UsingEntity<Dictionary<string, object>>(
+                "FlashCardTags",
+                link => link.HasOne<Tag>().WithMany().HasForeignKey("TagId").OnDelete(DeleteBehavior.ClientCascade),
+                link => link.HasOne<FlashCard>().WithMany().HasForeignKey("FlashCardId").OnDelete(DeleteBehavior.Cascade),
+                link =>
+                {
+                    link.HasKey("FlashCardId", "TagId");
+                    link.HasIndex("TagId");
+                });
     }
 }

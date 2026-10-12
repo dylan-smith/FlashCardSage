@@ -1,14 +1,31 @@
 import { apiBaseUrl } from '../config'
 import { apiFetch } from './client'
 
-export type FlashCard = {
+// A name the user puts on cards to organize them, such as Food or Travel.
+export type Tag = {
+  id: number
+  name: string
+}
+
+// A card's words, which is all practice and scores need.
+export type FlashCardWords = {
   id: number
   spanish: string
   english: string
 }
 
-// What the user types in for a card, sent when it's created or changed.
-export type FlashCardFields = Omit<FlashCard, 'id'>
+// The API sends a card's tags in name order.
+export type FlashCard = FlashCardWords & {
+  tags: Tag[]
+}
+
+// What the user types in for a card, sent when it's created or changed. Tags are by name, and a new name makes a
+// new tag.
+export type FlashCardFields = {
+  spanish: string
+  english: string
+  tags: string[]
+}
 
 // The body of a 400 from the API, with the messages for each invalid field.
 type ValidationErrorResponse = {
@@ -61,16 +78,20 @@ async function saveFlashCard(
     body: JSON.stringify(fields),
   })
 
-  // A 400 says what's wrong with the card, so pass that on.
+  await throwIfNotSaved(response, 'Unable to save flash card.')
+  return (await response.json()) as FlashCard
+}
+
+// Throws for a save that didn't go through. A 400 says what's wrong with what was sent, so that's passed on.
+export async function throwIfNotSaved(response: Response, fallback: string) {
   if (response.status === 400) {
     const error = (await response.json()) as ValidationErrorResponse
     const message = Object.values(error.errors ?? {}).flat()[0]
-    throw new ApiError(400, message ?? 'Unable to save flash card.')
+    throw new ApiError(400, message ?? fallback)
   }
   if (!response.ok) {
-    throw new Error('Unable to save flash card.')
+    throw new Error(fallback)
   }
-  return (await response.json()) as FlashCard
 }
 
 export function createFlashCard(fields: FlashCardFields) {
@@ -98,7 +119,7 @@ export type PracticeOutcome = 'GotIt' | 'WasClose' | 'Failed'
 export type PracticeSide = 'Spanish' | 'English'
 
 // A card the API picked to practice, and the side to show first.
-export type PracticeCard = FlashCard & {
+export type PracticeCard = FlashCardWords & {
   side: PracticeSide
 }
 
@@ -132,7 +153,7 @@ export async function recordPracticeResult(
 }
 
 // A card's score out of 100, from how many times in a row it was last answered with Got it! in practice.
-export type FlashCardScore = FlashCard & {
+export type FlashCardScore = FlashCardWords & {
   score: number
 }
 

@@ -19,4 +19,6 @@ public class FlashCard
     // The card is returned as it is, and callers only ever see their own, so the owner isn't part of it.
     [JsonIgnore]
     public int UserId { get; set; }
+
+    public List<Tag> Tags { get; set; } = [];
 }

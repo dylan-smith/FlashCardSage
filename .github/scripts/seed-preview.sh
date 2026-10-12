@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Seeds a preview environment with the sample flash cards in preview-seed-data.json (Spanish and English pairs),
+# Seeds a preview environment with the sample flash cards in preview-seed-data.json (Spanish and English pairs, with tags),
 # through the API so the data goes through the same validation as real use. Runs after the smoke tests, which
 # have already waited for the API to be ready.
 #

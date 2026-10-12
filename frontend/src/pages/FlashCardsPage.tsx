@@ -3,6 +3,7 @@ import type { SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
@@ -11,6 +12,7 @@ import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import { useSearchParams } from 'react-router'
 import {
   ApiError,
   createFlashCard,
@@ -19,15 +21,20 @@ import {
   listFlashCards,
   updateFlashCard,
 } from '../api/flashCards'
-import type { FlashCard, FlashCardFields } from '../api/flashCards'
+import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
+import { deleteTag, listTags, renameTag } from '../api/tags'
 import { trackEvent, trackException } from '../telemetry'
+import { TagFilter, TagsInput } from './FlashCardTags'
 
 export const spanishRequiredMessage = 'Spanish is required.'
 export const englishRequiredMessage = 'English is required.'
 
-const emptyFields: FlashCardFields = { spanish: '', english: '' }
+const emptyFields: FlashCardFields = { spanish: '', english: '', tags: [] }
 
-// Trims both sides of a card, or returns the message for the first one left blank.
+// A card being edited, with its tags by name as they're typed in.
+type EditedFlashCard = FlashCardFields & { id: number }
+
+// Trims both sides of a card, or returns the message for the first one left blank. The API tidies up the tags.
 function trimFields(fields: FlashCardFields): FlashCardFields | string {
   const spanish = fields.spanish.trim()
   const english = fields.english.trim()
@@ -37,19 +44,28 @@ function trimFields(fields: FlashCardFields): FlashCardFields | string {
   if (!english) {
     return englishRequiredMessage
   }
-  return { spanish, english }
+  return { spanish, english, tags: fields.tags }
+}
+
+// Tags in name order whatever their case, as the API sends them.
+function sortTags(tags: Tag[]) {
+  return [...tags].sort((a, b) =>
+    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+  )
 }
 
 // The form that replaces a card in the list while it's being changed. The Spanish field gets focus when the
 // form appears, since the user just asked to edit it.
 function FlashCardEditForm({
   edit,
+  tags,
   busy,
   onChange,
   onCancel,
   onSave,
 }: {
-  edit: FlashCard
+  edit: EditedFlashCard
+  tags: Tag[]
   busy: boolean
   onChange: (change: Partial<FlashCardFields>) => void
   onCancel: () => void
@@ -91,6 +107,12 @@ function FlashCardEditForm({
           size="small"
           fullWidth
         />
+        <TagsInput
+          value={edit.tags}
+          tags={tags}
+          onChange={(names) => onChange({ tags: names })}
+          size="small"
+        />
         <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
           <Button
             type="submit"
@@ -109,11 +131,12 @@ function FlashCardEditForm({
   )
 }
 
-// One card in the list: its Spanish and English with Edit and Delete buttons, or, while it's being edited, the
-// form above.
+// One card in the list: its Spanish and English and its tags with Edit and Delete buttons, or, while it's being
+// edited, the form above.
 function FlashCardItem({
   card,
   edit,
+  tags,
   busy,
   onEdit,
   onEditChange,
@@ -122,7 +145,8 @@ function FlashCardItem({
   onDelete,
 }: {
   card: FlashCard
-  edit: FlashCard | null
+  edit: EditedFlashCard | null
+  tags: Tag[]
   busy: boolean
   onEdit: () => void
   onEditChange: (change: Partial<FlashCardFields>) => void
@@ -134,6 +158,7 @@ function FlashCardItem({
     return (
       <FlashCardEditForm
         edit={edit}
+        tags={tags}
         busy={busy}
         onChange={onEditChange}
         onCancel={onEditCancel}
@@ -144,11 +169,20 @@ function FlashCardItem({
 
   return (
     <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
-      <ListItemText
-        primary={card.spanish}
-        secondary={card.english}
-        sx={{ overflowWrap: 'anywhere' }}
-      />
+      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
+        <ListItemText
+          primary={card.spanish}
+          secondary={card.english}
+          sx={{ overflowWrap: 'anywhere' }}
+        />
+        {card.tags.length > 0 && (
+          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
+            {card.tags.map((tag) => (
+              <Chip key={tag.id} label={tag.name} size="small" />
+            ))}
+          </Box>
+        )}
+      </Box>
       <Button
         type="button"
         size="small"
@@ -182,18 +216,40 @@ function FlashCardsPage() {
   const [loadFailed, setLoadFailed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
   // The card being edited, as typed so far. One at a time keeps the list simple.
-  const [edit, setEdit] = useState<FlashCard | null>(null)
+  const [edit, setEdit] = useState<EditedFlashCard | null>(null)
   // The card whose edit is being saved or that is being deleted, so its buttons can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
+  // The user's tags in name order, including any no card has any more.
+  const [tags, setTags] = useState<Tag[]>([])
+  // Set while the picked tag is being renamed or deleted.
+  const [tagBusy, setTagBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
 
-  // Loads the list once. The page starts out loading, and the other actions keep the list up to date themselves.
+  // The tag whose cards are shown is in the URL, so the back button and a refresh keep it. One that doesn't exist
+  // (any more) shows every card.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const selectedTag =
+    tags.find((tag) => String(tag.id) === searchParams.get('tag')) ?? null
+  const visibleCards =
+    selectedTag === null
+      ? cards
+      : cards.filter((card) =>
+          card.tags.some((tag) => tag.id === selectedTag.id),
+        )
+  const tagCounts = new Map<number, number>()
+  for (const tag of cards.flatMap((card) => card.tags)) {
+    tagCounts.set(tag.id, (tagCounts.get(tag.id) ?? 0) + 1)
+  }
+
+  // Loads the list and the tags once. The page starts out loading, and the other actions keep both up to date
+  // themselves.
   useEffect(() => {
     let cancelled = false
-    listFlashCards()
-      .then((loaded) => {
+    Promise.all([listFlashCards(), listTags()])
+      .then(([loadedCards, loadedTags]) => {
         if (!cancelled) {
-          setCards(loaded)
+          setCards(loadedCards)
+          setTags(loadedTags)
         }
       })
       .catch((error: unknown) => {
@@ -215,6 +271,16 @@ function FlashCardsPage() {
     }
   }, [])
 
+  // A saved card can have tags the API just made for new names, so they're added to the user's tags.
+  function addNewTags(card: FlashCard) {
+    setTags((current) => {
+      const added = card.tags.filter(
+        (tag) => !current.some((item) => item.id === tag.id),
+      )
+      return added.length === 0 ? current : sortTags([...current, ...added])
+    })
+  }
+
   async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
 
@@ -232,6 +298,7 @@ function FlashCardsPage() {
       trackEvent('FlashCardCreated')
       setFields(emptyFields)
       setCards((current) => [...current, created])
+      addNewTags(created)
     } catch (error) {
       // A rejected card is the user's to fix, not a failure to report.
       if (!(error instanceof ApiError)) {
@@ -264,6 +331,7 @@ function FlashCardsPage() {
       setCards((current) =>
         current.map((card) => (card.id === updated.id ? updated : card)),
       )
+      addNewTags(updated)
       setEdit(null)
     } catch (error) {
       if (!(error instanceof ApiError)) {
@@ -288,6 +356,67 @@ function FlashCardsPage() {
       setErrorMessage(describeFetchError(error, 'Unable to delete flash card.'))
     } finally {
       setBusyId(null)
+    }
+  }
+
+  function selectTag(tag: Tag | null) {
+    setSearchParams(tag === null ? {} : { tag: String(tag.id) })
+  }
+
+  async function handleTagRename(tag: Tag, name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      setErrorMessage('Tag name is required.')
+      return false
+    }
+
+    setTagBusy(true)
+    setErrorMessage('')
+
+    try {
+      const renamed = await renameTag(tag.id, trimmed)
+      trackEvent('TagRenamed')
+      const rename = (item: Tag) => (item.id === renamed.id ? renamed : item)
+      setTags((current) => sortTags(current.map(rename)))
+      setCards((current) =>
+        current.map((card) => ({
+          ...card,
+          tags: sortTags(card.tags.map(rename)),
+        })),
+      )
+      return true
+    } catch (error) {
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'renameTag' })
+      }
+      setErrorMessage(describeFetchError(error, 'Unable to rename tag.'))
+      return false
+    } finally {
+      setTagBusy(false)
+    }
+  }
+
+  // Deleting a tag takes it off its cards but leaves the cards, and goes back to showing every card.
+  async function handleTagDelete(tag: Tag) {
+    setTagBusy(true)
+    setErrorMessage('')
+
+    try {
+      await deleteTag(tag.id)
+      trackEvent('TagDeleted')
+      setTags((current) => current.filter((item) => item.id !== tag.id))
+      setCards((current) =>
+        current.map((card) => ({
+          ...card,
+          tags: card.tags.filter((item) => item.id !== tag.id),
+        })),
+      )
+      selectTag(null)
+    } catch (error) {
+      trackException(error, { operation: 'deleteTag' })
+      setErrorMessage(describeFetchError(error, 'Unable to delete tag.'))
+    } finally {
+      setTagBusy(false)
     }
   }
 
@@ -330,6 +459,13 @@ function FlashCardsPage() {
             required
             placeholder="e.g. the cat"
           />
+          <TagsInput
+            value={fields.tags}
+            tags={tags}
+            onChange={(names) =>
+              setFields((current) => ({ ...current, tags: names }))
+            }
+          />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button type="submit" variant="contained" disabled={submitting}>
               {submitting ? 'Saving…' : 'Add flash card'}
@@ -348,34 +484,62 @@ function FlashCardsPage() {
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
             <CircularProgress aria-label="Loading" />
           </Box>
-        ) : loadFailed ? null : cards.length === 0 ? (
-          <Typography color="text.secondary">No flash cards yet.</Typography>
-        ) : (
-          <List disablePadding>
-            {cards.map((card) => (
-              <FlashCardItem
-                key={card.id}
-                card={card}
-                edit={edit?.id === card.id ? edit : null}
-                busy={busyId === card.id}
-                onEdit={() => {
-                  setErrorMessage('')
-                  setEdit(card)
-                }}
-                onEditChange={(change) =>
-                  setEdit((current) =>
-                    current === null ? null : { ...current, ...change },
-                  )
-                }
-                onEditCancel={() => {
-                  setErrorMessage('')
-                  setEdit(null)
-                }}
-                onEditSave={(event) => void handleEditSave(event)}
-                onDelete={() => void handleDelete(card)}
+        ) : loadFailed ? null : (
+          <>
+            {tags.length > 0 && (
+              <TagFilter
+                tags={tags}
+                counts={tagCounts}
+                total={cards.length}
+                selected={selectedTag}
+                busy={tagBusy}
+                onSelect={selectTag}
+                onRename={handleTagRename}
+                onDelete={(tag) => void handleTagDelete(tag)}
               />
-            ))}
-          </List>
+            )}
+            {cards.length === 0 ? (
+              <Typography color="text.secondary">
+                No flash cards yet.
+              </Typography>
+            ) : visibleCards.length === 0 ? (
+              <Typography color="text.secondary">
+                No flash cards with this tag.
+              </Typography>
+            ) : (
+              <List disablePadding>
+                {visibleCards.map((card) => (
+                  <FlashCardItem
+                    key={card.id}
+                    card={card}
+                    edit={edit?.id === card.id ? edit : null}
+                    tags={tags}
+                    busy={busyId === card.id}
+                    onEdit={() => {
+                      setErrorMessage('')
+                      setEdit({
+                        id: card.id,
+                        spanish: card.spanish,
+                        english: card.english,
+                        tags: card.tags.map((tag) => tag.name),
+                      })
+                    }}
+                    onEditChange={(change) =>
+                      setEdit((current) =>
+                        current === null ? null : { ...current, ...change },
+                      )
+                    }
+                    onEditCancel={() => {
+                      setErrorMessage('')
+                      setEdit(null)
+                    }}
+                    onEditSave={(event) => void handleEditSave(event)}
+                    onDelete={() => void handleDelete(card)}
+                  />
+                ))}
+              </List>
+            )}
+          </>
         )}
       </Paper>
     </Stack>
