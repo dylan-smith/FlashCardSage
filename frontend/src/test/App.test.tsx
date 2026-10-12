@@ -580,7 +580,7 @@ describe('App', () => {
       expect(screen.queryByText('Other meanings:')).not.toBeInTheDocument()
     })
 
-    it('translates a side again once the user clears what they typed over it', async () => {
+    it('leaves a cleared side empty, and translates it again with its button', async () => {
       const user = userEvent.setup()
       const translations = mockTranslations()
       const { spanish, english } = await showForm()
@@ -594,16 +594,16 @@ describe('App', () => {
       ).not.toBeInTheDocument()
 
       await user.clear(english)
-      await user.type(english, 'the kitty')
-      expect(
-        screen.getByRole('button', { name: 'Translate from Spanish' }),
-      ).toBeInTheDocument()
-      await user.clear(english)
+      await waitPastTranslateDelay()
+      expect(english).toHaveValue('')
+      expect(translations()).toHaveLength(1)
 
-      await waitFor(
-        () => expect(english).toHaveValue('the cat'),
-        untilTranslated,
+      await user.type(english, 'the kitty')
+      await user.click(
+        screen.getByRole('button', { name: 'Translate from Spanish' }),
       )
+
+      await waitFor(() => expect(english).toHaveValue('the cat'))
       expect(screen.getByText(autoTranslated)).toBeInTheDocument()
       expect(translations()).toHaveLength(2)
       expect(translations()[1].init?.body).toBe(

@@ -14,10 +14,10 @@ function otherSide(side: CardSide): CardSide {
 }
 
 // Fills in the other side of a card with a translation of the side the user is typing in. A side the user has
-// typed in themselves is never filled in, so they can override a translation by typing over it. To hand a side
-// back to translation, they can clear it, which fills it with a translation of the other side, or use
-// retranslate. A side they haven't typed in (such as a saved card's other side) is filled in. When translation
-// fails or isn't available, nothing is filled in and the user types both sides.
+// typed in themselves isn't filled in while it has text, so they can override a translation by typing over it,
+// and retranslate hands a side back to translation. A side they haven't typed in (such as a saved card's other
+// side) is filled in. When translation fails or isn't available, nothing is filled in and the user types both
+// sides.
 //
 // onChange gets each change to the fields, the user's own and the translations, and must merge it into the
 // current fields rather than the ones it was created with.
@@ -121,14 +121,12 @@ export function useAutoTranslate(
     }
     setEdited(true)
 
+    // The side stays empty when the user clears it, since they're most likely about to type something else.
     if (text === '') {
       if (autoSideRef.current === target) {
         // A translation of nothing is nothing.
         onChange({ [target]: '' })
         setAuto(null)
-      } else if (fields[target].trim() !== '') {
-        // Clearing a side hands it back to translation.
-        schedule(target, fields[target].trim(), translateDelayMs)
       }
       return
     }
