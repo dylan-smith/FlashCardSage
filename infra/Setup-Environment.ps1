@@ -661,7 +661,9 @@ function Invoke-PostDeployStage {
     }
 
     Write-Step 'Next steps'
-    $frontendOrigin = (Invoke-Az storage account show --name $storageAccountName --resource-group $ResourceGroup --query primaryEndpoints.web) -replace '/$', ''
+    # The custom domain when main.bicepparam sets one (the deployment registers it), otherwise the web endpoint.
+    $storage = Invoke-Az storage account show --name $storageAccountName --resource-group $ResourceGroup --query '{domain:customDomain.name,web:primaryEndpoints.web}'
+    $frontendOrigin = if ($storage.domain) { "https://$($storage.domain)" } else { $storage.web -replace '/$', '' }
     Write-Host @"
    1. Add $frontendOrigin (or the custom domain) to the Google OAuth client's authorized
       JavaScript origins, so sign-in works on the deployed site.
