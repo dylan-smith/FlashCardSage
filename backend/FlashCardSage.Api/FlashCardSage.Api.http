@@ -49,3 +49,9 @@ Authorization: Bearer {{token}}
 }
 
 ###
+
+GET {{FlashCardSage.Api_HostAddress}}/api/flashcards/scores
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###

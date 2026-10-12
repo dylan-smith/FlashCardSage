@@ -463,11 +463,16 @@ describe('App', () => {
   })
 
   describe('modes', () => {
-    it('links to both modes and marks the current one', async () => {
+    it('links to each mode and marks the current one', async () => {
       const user = userEvent.setup()
       await showCards([])
       const nav = screen.getByRole('navigation', { name: 'Mode' })
 
+      expect(
+        within(nav)
+          .getAllByRole('link')
+          .map((link) => link.getAttribute('href')),
+      ).toEqual(['/', '/practice', '/scores'])
       expect(
         within(nav).getByRole('link', { name: 'Manage cards' }),
       ).toHaveAttribute('aria-current', 'page')
@@ -641,6 +646,70 @@ describe('App', () => {
       expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
         operation: 'load',
       })
+    })
+  })
+
+  describe('scores', () => {
+    it('shows the total and each card with its score, in the order given', async () => {
+      const calls = mockFetch(async () =>
+        jsonResponse({
+          total: 130,
+          maximum: 300,
+          cards: [
+            { id: 3, spanish: 'la casa', english: 'the house', score: 0 },
+            { id: 2, spanish: 'el perro', english: 'the dog', score: 50 },
+            { id: 1, spanish: 'el gato', english: 'the cat', score: 80 },
+          ],
+        }),
+      )
+      renderAt('/scores')
+
+      expect(
+        await screen.findByText('Total score 130 / 300 (43%)'),
+      ).toBeInTheDocument()
+      const items = within(
+        screen.getByRole('list', { name: 'Card scores' }),
+      ).getAllByRole('listitem')
+      expect(items.map((item) => item.textContent)).toEqual([
+        'la casathe house0 / 100',
+        'el perrothe dog50 / 100',
+        'el gatothe cat80 / 100',
+      ])
+      expect(screen.getByText('la casa')).toHaveAttribute('lang', 'es')
+      expect(calls[0].url).toMatch(/\/api\/flashcards\/scores$/)
+    })
+
+    it('links to adding cards when there are none', async () => {
+      mockFetch(async () => jsonResponse({ total: 0, maximum: 0, cards: [] }))
+      renderAt('/scores')
+
+      expect(
+        await screen.findByText('There are no flash cards to score yet.'),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Add flash cards' }),
+      ).toHaveAttribute('href', '/')
+    })
+
+    it('shows an error when loading fails', async () => {
+      mockFetch(async () => new Response(null, { status: 500 }))
+      renderAt('/scores')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Unable to load scores.',
+      )
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'scores',
+      })
+    })
+
+    it('says to try again when the API is unreachable', async () => {
+      mockFetch(unreachable)
+      renderAt('/scores')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        unreachableMessage,
+      )
     })
   })
 })

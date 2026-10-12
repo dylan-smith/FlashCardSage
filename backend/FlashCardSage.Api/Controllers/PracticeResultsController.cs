@@ -7,7 +7,7 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// Records how the user did each time they practice a card. Nothing reads the results back yet.
+/// Records how the user did each time they practice a card. FlashCardScoresController scores the cards from them.
 /// </summary>
 [ApiController]
 [Route("api/flashcards/{flashCardId:int}/practice-results")]
