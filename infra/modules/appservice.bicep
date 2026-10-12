@@ -36,6 +36,13 @@ param googleClientId string
 @secure()
 param serviceToken string
 
+@description('Name of the Azure AI Translator resource the API translates cards with.')
+param translatorName string
+
+resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
+  name: translatorName
+}
+
 // Free and Shared plans don't support Always On.
 var isFreeOrShared = startsWith(planSku, 'F') || startsWith(planSku, 'D')
 
@@ -85,6 +92,7 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       ConnectionStrings__FlashCardSage: sqlConnectionString
       Authentication__Google__ClientId: googleClientId
       Authentication__ServiceToken: serviceToken
+      Translator__Key: translator.listKeys().key1
       APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
       APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsInstrumentationKey
       WEBSITE_ENABLE_SYNC_UPDATE_SITE: 'true'

@@ -65,6 +65,30 @@ test.describe('Flash card management', () => {
       await expect(items.nth(2)).toContainText('tres')
     })
 
+    test('fills in the translation, which the user can type over', async ({
+      page,
+    }) => {
+      // The E2E backend has no translator key, so stand in for Azure AI Translator.
+      await page.route('**/api/translations', async (route) => {
+        const { text } = route.request().postDataJSON() as { text: string }
+        await route.fulfill({
+          json: { translation: text === 'el gato' ? 'the cat' : '?' },
+        })
+      })
+
+      await page.getByLabel('Spanish').fill('el gato')
+
+      const english = page.getByLabel('English')
+      await expect(english).toHaveValue('the cat')
+      await expect(
+        page.getByText('Auto-translated: edit to change'),
+      ).toBeVisible()
+      await english.fill('the kitty')
+      await page.getByRole('button', { name: 'Add flash card' }).click()
+
+      await expect(page.getByText('the kitty', { exact: true })).toBeVisible()
+    })
+
     test('keeps the cards after a reload', async ({ page }) => {
       await createFlashCard(page, 'el libro', 'the book')
 

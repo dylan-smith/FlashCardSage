@@ -20,6 +20,7 @@ import {
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields } from '../api/flashCards'
+import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import { trackEvent, trackException } from '../telemetry'
 
 export const spanishRequiredMessage = 'Spanish is required.'
@@ -56,6 +57,7 @@ function FlashCardEditForm({
   onSave: (event: SubmitEvent<HTMLFormElement>) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const translation = useAutoTranslate(onChange)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -65,19 +67,26 @@ function FlashCardEditForm({
     <ListItem divider disablePadding sx={{ py: 1 }}>
       <Box
         component="form"
-        onSubmit={onSave}
+        onSubmit={(event) => {
+          translation.cancel()
+          onSave(event)
+        }}
         sx={{
           display: 'flex',
           flexDirection: { xs: 'column', sm: 'row' },
           flexGrow: 1,
           gap: 1,
-          alignItems: { xs: 'stretch', sm: 'center' },
+          // Top-aligned, so a field's translation note under it doesn't push it out of line with the other.
+          alignItems: { xs: 'stretch', sm: 'flex-start' },
         }}
       >
         <TextField
           label="Spanish"
           value={edit.spanish}
-          onChange={(event) => onChange({ spanish: event.target.value })}
+          onChange={(event) =>
+            translation.change('spanish', event.target.value)
+          }
+          helperText={translation.helperText('spanish')}
           inputRef={inputRef}
           slotProps={{ htmlInput: { maxLength: 200 } }}
           size="small"
@@ -86,12 +95,15 @@ function FlashCardEditForm({
         <TextField
           label="English"
           value={edit.english}
-          onChange={(event) => onChange({ english: event.target.value })}
+          onChange={(event) =>
+            translation.change('english', event.target.value)
+          }
+          helperText={translation.helperText('english')}
           slotProps={{ htmlInput: { maxLength: 200 } }}
           size="small"
           fullWidth
         />
-        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, mt: { sm: 0.5 } }}>
           <Button
             type="submit"
             variant="contained"
@@ -186,6 +198,9 @@ function FlashCardsPage() {
   // The card whose edit is being saved or that is being deleted, so its buttons can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
+  const translation = useAutoTranslate((change) =>
+    setFields((current) => ({ ...current, ...change })),
+  )
 
   // Loads the list once. The page starts out loading, and the other actions keep the list up to date themselves.
   useEffect(() => {
@@ -217,6 +232,7 @@ function FlashCardsPage() {
 
   async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
+    translation.cancel()
 
     const trimmed = trimFields(fields)
     if (typeof trimmed === 'string') {
@@ -231,6 +247,7 @@ function FlashCardsPage() {
       const created = await createFlashCard(trimmed)
       trackEvent('FlashCardCreated')
       setFields(emptyFields)
+      translation.reset()
       setCards((current) => [...current, created])
     } catch (error) {
       // A rejected card is the user's to fix, not a failure to report.
@@ -307,11 +324,9 @@ function FlashCardsPage() {
             label="Spanish"
             value={fields.spanish}
             onChange={(event) =>
-              setFields((current) => ({
-                ...current,
-                spanish: event.target.value,
-              }))
+              translation.change('spanish', event.target.value)
             }
+            helperText={translation.helperText('spanish')}
             slotProps={{ htmlInput: { maxLength: 200 } }}
             required
             placeholder="e.g. el gato"
@@ -321,11 +336,9 @@ function FlashCardsPage() {
             label="English"
             value={fields.english}
             onChange={(event) =>
-              setFields((current) => ({
-                ...current,
-                english: event.target.value,
-              }))
+              translation.change('english', event.target.value)
             }
+            helperText={translation.helperText('english')}
             slotProps={{ htmlInput: { maxLength: 200 } }}
             required
             placeholder="e.g. the cat"

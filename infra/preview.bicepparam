@@ -9,6 +9,8 @@ param prNumber = int(readEnvironmentVariable('PREVIEW_PR_NUMBER'))
 // The shared resources, deployed by preview-shared.bicep
 param appServicePlanName = 'FlashCardSage-Preview-Plan'
 param sqlServerName = 'flashcardsage-preview-sql'
+// From preview-shared.bicep's output (CI sets PREVIEW_TRANSLATOR_NAME); empty turns translation off
+param translatorName = readEnvironmentVariable('PREVIEW_TRANSLATOR_NAME', '')
 
 // The free offer covers 10 databases per subscription, one of which is production's. Turn this off if a
 // deployment fails because they're used up (an existing database keeps the setting it was created with).

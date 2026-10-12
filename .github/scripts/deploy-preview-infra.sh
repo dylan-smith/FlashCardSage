@@ -44,6 +44,9 @@ if [ ! -f "${shared_dir}/preview-shared.bicep" ]; then
   shared_dir=infra
 fi
 deploy "preview-shared-pr-${PR_NUMBER}" "${shared_dir}/preview-shared.bicep" "${shared_dir}/preview-shared.bicepparam"
+# Read by infra/preview.bicepparam. Empty, which turns translation off, while the base branch has no Translator.
+PREVIEW_TRANSLATOR_NAME="$(jq -r '.translatorName.value // ""' "${outputs}")"
+export PREVIEW_TRANSLATOR_NAME
 
 # Read just before the deployment, after the migrations check, which may have deleted the database.
 PREVIEW_DATABASE_TAGS="$(az resource list \
