@@ -2,6 +2,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -67,17 +68,50 @@ public class FlashCardsControllerTests
         Assert.Equal(["English is required."], problem.Errors["English"]);
     }
 
-    [Fact]
-    public async Task Create_AllowsTheSameCardTwice()
+    [Theory]
+    [InlineData("el gato", "the cat")]
+    [InlineData("  El Gato ", "THE CAT")]
+    public async Task Create_ReturnsConflict_WhenTheCardAlreadyExists(string spanish, string english)
     {
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
         await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
-        var result = await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
+        var result = await controller.Create(new FlashCardRequest { Spanish = spanish, English = english });
+
+        AssertDuplicateProblem(result.Result);
+        Assert.Equal(1, await dbContext.FlashCards.CountAsync());
+    }
+
+    [Fact]
+    public async Task Create_AllowsAnotherTranslationOfTheSameWord()
+    {
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext);
+
+        await controller.Create(new FlashCardRequest { Spanish = "el banco", English = "the bank" });
+        var result = await controller.Create(new FlashCardRequest { Spanish = "el banco", English = "the bench" });
 
         Assert.IsType<CreatedAtActionResult>(result.Result);
         Assert.Equal(2, await dbContext.FlashCards.CountAsync());
+    }
+
+    [Fact]
+    public async Task Create_AllowsACardAnotherUserAlreadyHas()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            otherContext.FlashCards.Add(new FlashCard { Spanish = "el gato", English = "the cat" });
+            await otherContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
+
+        Assert.IsType<CreatedAtActionResult>(result.Result);
     }
 
     [Fact]
@@ -177,6 +211,39 @@ public class FlashCardsControllerTests
     }
 
     [Fact]
+    public async Task Update_ReturnsConflict_WhenItWouldDuplicateAnotherCard()
+    {
+        await using var dbContext = TestDb.Create();
+        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        dbContext.FlashCards.AddRange(card, new FlashCard { Spanish = "el perro", English = "the dog" });
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = "El perro", English = "the dog" });
+
+        AssertDuplicateProblem(result.Result);
+        var savedCard = await dbContext.FlashCards.AsNoTracking().SingleAsync(item => item.Id == card.Id);
+        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish, savedCard.English));
+    }
+
+    [Fact]
+    public async Task Update_AllowsSavingTheCardUnchanged()
+    {
+        await using var dbContext = TestDb.Create();
+        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        dbContext.FlashCards.Add(card);
+        await dbContext.SaveChangesAsync();
+
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = "El gato", English = "the cat" });
+
+        Assert.IsType<OkObjectResult>(result.Result);
+        Assert.Equal("El gato", (await dbContext.FlashCards.SingleAsync()).Spanish);
+    }
+
+    [Fact]
     public async Task Update_ReturnsNotFound_WhenFlashCardDoesNotExist()
     {
         await using var dbContext = TestDb.Create();
@@ -235,6 +302,13 @@ public class FlashCardsControllerTests
         Assert.IsType<NotFoundResult>((await controller.GetById(otherId)).Result);
         Assert.IsType<NotFoundResult>((await controller.Update(otherId, new FlashCardRequest { Spanish = "mío", English = "mine" })).Result);
         Assert.IsType<NotFoundResult>(await controller.Delete(otherId));
+    }
+
+    private static void AssertDuplicateProblem(IActionResult? result)
+    {
+        var objectResult = Assert.IsType<ObjectResult>(result);
+        Assert.Equal(StatusCodes.Status409Conflict, objectResult.StatusCode);
+        Assert.Equal(FlashCardsController.DuplicateMessage, Assert.IsType<ProblemDetails>(objectResult.Value).Detail);
     }
 
     private static FlashCardsController CreateController(FlashCardDbContext dbContext)

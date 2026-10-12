@@ -14,6 +14,8 @@ namespace FlashCardSage.Api.Controllers;
 [Route("api/flashcards")]
 public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCardsController> logger) : ControllerBase
 {
+    public const string DuplicateMessage = "You already have this flash card.";
+
     // In the order they were made, so a list of words stays in the order it was typed in.
     [HttpGet]
     public async Task<ActionResult<IEnumerable<FlashCard>>> GetAll()
@@ -56,6 +58,12 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
             return ValidationProblem(ModelState);
         }
 
+        if (await IsDuplicateAsync(spanish, english, exceptId: null))
+        {
+            logger.LogWarning("Refused a duplicate flash card");
+            return DuplicateProblem();
+        }
+
         var card = new FlashCard
         {
             Spanish = spanish,
@@ -84,6 +92,12 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
         if (!TryTrim(request, out var spanish, out var english))
         {
             return ValidationProblem(ModelState);
+        }
+
+        if (await IsDuplicateAsync(spanish, english, exceptId: id))
+        {
+            logger.LogWarning("Refused to make flash card {FlashCardId} a duplicate", id);
+            return DuplicateProblem();
         }
 
         card.Spanish = spanish;
@@ -131,5 +145,26 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
         }
 
         return spanish.Length > 0 && english.Length > 0;
+    }
+
+    // Whether the user already has a card with both of these sides, ignoring case, other than the one being changed.
+    // A word can have more than one translation, so it's only a duplicate when both sides match. The cards are
+    // compared in memory, since the in-memory database used in development can't ignore case in a query.
+    private async Task<bool> IsDuplicateAsync(string spanish, string english, int? exceptId)
+    {
+        var cards = await dbContext.FlashCards
+            .AsNoTracking()
+            .Where(card => card.Id != exceptId)
+            .Select(card => new { card.Spanish, card.English })
+            .ToListAsync();
+
+        return cards.Any(card =>
+            string.Equals(card.Spanish, spanish, StringComparison.OrdinalIgnoreCase)
+            && string.Equals(card.English, english, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private ObjectResult DuplicateProblem()
+    {
+        return Problem(detail: DuplicateMessage, statusCode: StatusCodes.Status409Conflict);
     }
 }

@@ -15,6 +15,13 @@ type ValidationErrorResponse = {
   errors?: Record<string, string[]>
 }
 
+// The body of another error from the API, such as a 409 for a card the user already has.
+type ProblemResponse = {
+  detail?: string
+}
+
+const duplicateMessage = 'You already have this flash card.'
+
 // Thrown for a response the caller should show to the user as is, such as a 400 for a blank translation.
 export class ApiError extends Error {
   readonly status: number
@@ -66,6 +73,11 @@ async function saveFlashCard(
     const error = (await response.json()) as ValidationErrorResponse
     const message = Object.values(error.errors ?? {}).flat()[0]
     throw new ApiError(400, message ?? 'Unable to save flash card.')
+  }
+  // A 409 means the user already has this card.
+  if (response.status === 409) {
+    const problem = (await response.json()) as ProblemResponse
+    throw new ApiError(409, problem.detail ?? duplicateMessage)
   }
   if (!response.ok) {
     throw new Error('Unable to save flash card.')
