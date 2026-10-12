@@ -14,6 +14,12 @@ import { describeFetchError, listFlashCardScores } from '../api/flashCards'
 import type { FlashCardScores } from '../api/flashCards'
 import { trackException } from '../telemetry'
 
+// A light shade from red at 0 to green at 100, pale enough that the text on it stays readable.
+function scoreColor(score: number) {
+  const hue = (Math.min(Math.max(score, 0), 100) / 100) * 120
+  return `hsl(${hue}, 70%, 90%)`
+}
+
 function ScoresPage() {
   const [scores, setScores] = useState<FlashCardScores | null>(null)
   const [loading, setLoading] = useState(true)
@@ -69,7 +75,12 @@ function ScoresPage() {
             </Typography>
             <List disablePadding aria-label="Card scores">
               {scores.cards.map((card) => (
-                <ListItem key={card.id} divider disablePadding sx={{ py: 1 }}>
+                <ListItem
+                  key={card.id}
+                  divider
+                  disablePadding
+                  sx={{ py: 1, px: 2, bgcolor: scoreColor(card.score) }}
+                >
                   <ListItemText
                     primary={card.spanish}
                     secondary={card.english}
