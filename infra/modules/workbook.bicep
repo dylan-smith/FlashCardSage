@@ -30,6 +30,8 @@ param frontendUrl string
 
 // The workbook JSON is exported from the portal's Advanced editor with each resource ID and site URL
 // swapped for a placeholder token, so it can be edited in the portal and pasted back into the repo.
+// It's loaded as JSON and serialized again so the indentation goes: with the resource IDs filled in, the
+// pretty-printed text passes the 131,072-character limit ARM puts on an expression's result.
 var serializedData = reduce(
   items({
     __APP_INSIGHTS_ID__: appInsightsId
@@ -44,7 +46,7 @@ var serializedData = reduce(
     __API_URL__: apiUrl
     __FRONTEND_URL__: frontendUrl
   }),
-  loadTextContent('../workbooks/health.workbook.json'),
+  string(loadJsonContent('../workbooks/health.workbook.json')),
   (json, token) => replace(json, token.key, token.value)
 )
 
