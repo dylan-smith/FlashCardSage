@@ -97,9 +97,10 @@ function translationNote(
         {canRetranslate && (
           <Button
             type="button"
+            variant="outlined"
             size="small"
             onClick={() => translation.retranslate(side)}
-            sx={{ py: 0, minWidth: 0, textTransform: 'none' }}
+            sx={{ py: 0.25 }}
           >
             Translate from {otherSideNames[side]}
           </Button>
