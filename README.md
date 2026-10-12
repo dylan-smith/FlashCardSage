@@ -286,25 +286,29 @@ Setting up previews for a new environment: create the `FlashCardSage-Preview` re
 | Component | Azure Service | Endpoint |
 |-----------|--------------|----------|
 | Backend API | Azure App Service (Linux/.NET 10) | `https://flashcardsage-<suffix>.westus2-01.azurewebsites.net` (Azure picks the suffix; it's the `AZURE_BACKEND_URL` variable) |
-| Frontend | Azure Storage Account (static website) | `https://flashcardsage.z22.web.core.windows.net`, or the [custom domain](#custom-domain) |
+| Frontend | Azure Storage Account (static website) | `https://flashcardsage.com` (the [custom domain](#custom-domain)); the web endpoint `https://flashcardsage.z22.web.core.windows.net` also works |
 | Database | Azure SQL serverless database (Entra-only auth) | — |
 | Monitoring | Log Analytics + Application Insights (App Service HTTP/console/app/platform logs and SQL errors, timeouts, blocks, deadlocks and automatic tuning go to the `FlashCardSage` workspace), plus the **FlashCardSage Health** workbook | — |
 
 ### Custom Domain
 
-The frontend can be served on a custom domain by setting `frontendCustomDomain` in `infra/main.bicepparam` (it's empty by default, which serves the storage account's web endpoint). The storage account's static website can't serve a custom domain over HTTPS by itself, so Cloudflare proxies the domain to it and serves it over HTTPS. Bicep registers the domain on the storage account, so the static website answers requests for it, and allows it in the API's CORS origins next to the web endpoint, which keeps working. The API stays on its `azurewebsites.net` URL, because the Free (F1) App Service plan doesn't support custom domains.
+The frontend is served on `flashcardsage.com`, set as `frontendCustomDomain` in `infra/main.bicepparam` (empty serves the storage account's web endpoint instead). The storage account's static website can't serve a custom domain over HTTPS by itself, so Cloudflare proxies the domain to it and serves it over HTTPS. Bicep registers the domain on the storage account, so the static website answers requests for it, and allows it in the API's CORS origins next to the web endpoint, which keeps working. The API stays on its `azurewebsites.net` URL, because the Free (F1) App Service plan doesn't support custom domains.
 
-Before the first deployment with the domain (Azure checks it then, and the deployment fails if it can't), set up the zone in Cloudflare, for example for `flashcardsage.example.com`:
+Before the first deployment with the domain (Azure checks it then, and the deployment fails if it can't), set up the zone in Cloudflare:
 
 | Type | Name | Target | Proxy status |
 |------|------|--------|--------------|
-| CNAME | `asverify.flashcardsage` | `asverify.flashcardsage.blob.core.windows.net` | DNS only |
-| CNAME | `flashcardsage` | `flashcardsage.z22.web.core.windows.net` | Proxied |
+| CNAME | `asverify` | `asverify.flashcardsage.blob.core.windows.net` | DNS only |
+| CNAME | `@` | `flashcardsage.z22.web.core.windows.net` | Proxied |
+| CNAME | `www` | `flashcardsage.com` | Proxied |
 
-- Keep the `asverify` record, since every deployment sends the domain again.
-- Under **Rules → Configuration Rules**, add a rule for the hostname that sets **SSL** to **Full**. The storage account's certificate is for `*.web.core.windows.net`, so **Full (strict)** fails, and **Flexible** connects over HTTP, which the storage account refuses.
-- Turn on **SSL/TLS → Edge Certificates → Always Use HTTPS**, since Google sign-in needs HTTPS.
-- In the Google Cloud console, add the domain to the OAuth client's **Authorized JavaScript origins**, or Google sign-in won't load there.
+- Keep the `asverify` record, since every deployment sends the domain again. Azure verifies the domain through it (`useSubDomainName` in `infra/modules/storage.bicep`), which is also what lets the bare domain work: Azure's docs say only subdomains are supported, but that restriction is about the domain itself needing a CNAME, which Cloudflare's proxy takes care of.
+- Under **Rules → Configuration Rules**, a rule for the hostname sets **SSL** to **Full**. The storage account's certificate is for `*.web.core.windows.net`, so **Full (strict)** fails, and **Flexible** connects over HTTP, which the storage account refuses.
+- Under **Rules → Redirect Rules**, a rule sends `www.flashcardsage.com` to `https://flashcardsage.com` with the path, so the `www` record never reaches Azure (the storage account only knows the bare domain). A **Cache Rule** for the hostname respects the origin's cache headers, so `index.html` (`no-cache`) is always fresh while the hashed assets are cached.
+- **SSL/TLS → Edge Certificates → Always Use HTTPS** is on, since Google sign-in needs HTTPS.
+- In the Google Cloud console, add `https://flashcardsage.com` to the OAuth client's **Authorized JavaScript origins**, or Google sign-in won't load there.
+
+For another app, the same records work for a subdomain (`asverify.<sub>` and `<sub>`) with `frontendCustomDomain` set to the full name.
 
 ### Database Backups
 

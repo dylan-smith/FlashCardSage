@@ -21,7 +21,7 @@ param backupRetentionDays = 30
 // Custom domain for the frontend, e.g. 'flashcardsage.example.com'. Cloudflare proxies it to the static website
 // and serves it over HTTPS; see the README's "Custom Domain" section for the DNS records it needs before deploying.
 // Empty serves the frontend on the storage account's web endpoint.
-param frontendCustomDomain = ''
+param frontendCustomDomain = 'flashcardsage.com'
 
 // SQL Server and Database (Entra-only auth; the server name is globally unique)
 param sqlServerName = 'flashcardsage-sql'
