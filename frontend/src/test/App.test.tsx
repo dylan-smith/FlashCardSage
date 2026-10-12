@@ -738,6 +738,29 @@ describe('App', () => {
       expect(calls[0].url).toMatch(/\/api\/flashcards\/scores$/)
     })
 
+    it('shades each card from red for a low score to green for a high one', async () => {
+      mockFetch(async () =>
+        jsonResponse({
+          total: 150,
+          maximum: 300,
+          cards: [
+            { id: 3, spanish: 'la casa', english: 'the house', score: 0 },
+            { id: 2, spanish: 'el perro', english: 'the dog', score: 50 },
+            { id: 1, spanish: 'el gato', english: 'the cat', score: 100 },
+          ],
+        }),
+      )
+      renderAt('/scores')
+
+      await screen.findByText('Total score 150 / 300 (50%)')
+      const items = within(
+        screen.getByRole('list', { name: 'Card scores' }),
+      ).getAllByRole('listitem')
+      expect(items[0]).toHaveStyle({ backgroundColor: 'hsl(0, 70%, 90%)' })
+      expect(items[1]).toHaveStyle({ backgroundColor: 'hsl(60, 70%, 90%)' })
+      expect(items[2]).toHaveStyle({ backgroundColor: 'hsl(120, 70%, 90%)' })
+    })
+
     it('links to adding cards when there are none', async () => {
       mockFetch(async () => jsonResponse({ total: 0, maximum: 0, cards: [] }))
       renderAt('/scores')
