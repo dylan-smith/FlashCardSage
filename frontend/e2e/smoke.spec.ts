@@ -35,7 +35,8 @@ test('smoke: can add, edit and delete a flash card', async ({ page }) => {
     page.getByRole('heading', { name: 'FlashCardSage' }),
   ).toBeVisible()
 
-  await page.getByLabel('Title').fill(title)
+  await page.getByLabel('Spanish').fill(title)
+  await page.getByLabel('English').fill('a test card')
   await page.getByRole('button', { name: 'Add flash card' }).click()
   await expect(page.getByText(title, { exact: true })).toBeVisible()
 
@@ -45,7 +46,7 @@ test('smoke: can add, edit and delete a flash card', async ({ page }) => {
     await expect(page.getByText(title, { exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: `Edit "${title}"` }).click()
-    await page.getByRole('listitem').getByLabel('Title').fill(renamed)
+    await page.getByRole('listitem').getByLabel('Spanish').fill(renamed)
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(page.getByText(renamed, { exact: true })).toBeVisible()
   } finally {

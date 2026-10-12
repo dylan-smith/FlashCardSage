@@ -70,7 +70,12 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
             .HasIndex(card => card.UserId);
 
         modelBuilder.Entity<FlashCard>()
-            .Property(card => card.Title)
+            .Property(card => card.Spanish)
+            .HasMaxLength(200)
+            .IsRequired();
+
+        modelBuilder.Entity<FlashCard>()
+            .Property(card => card.English)
             .HasMaxLength(200)
             .IsRequired();
     }

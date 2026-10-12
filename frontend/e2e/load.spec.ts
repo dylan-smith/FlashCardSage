@@ -87,13 +87,14 @@ async function visit(browser: Browser, title: string) {
       timeout: FIRST_LOAD_TIMEOUT_MS,
     })
 
-    await page.getByLabel('Title').fill(title)
+    await page.getByLabel('Spanish').fill(title)
+    await page.getByLabel('English').fill('a test card')
     const pendingFile = await recordCreated(await clickAdd(page))
     await expect(page.getByText(title, { exact: true })).toBeVisible()
 
     const renamed = `${title} renamed`
     await page.getByRole('button', { name: `Edit "${title}"` }).click()
-    await page.getByRole('listitem').getByLabel('Title').fill(renamed)
+    await page.getByRole('listitem').getByLabel('Spanish').fill(renamed)
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(page.getByText(renamed, { exact: true })).toBeVisible()
 

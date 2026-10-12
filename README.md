@@ -9,7 +9,7 @@ A flash card app for learning a language, with:
 ## Features
 
 - Sign in with a Google account; each user only sees their own flash cards
-- Add, edit and delete flash cards (each card is a single title, for now)
+- Add, edit and delete flash cards (each card is a Spanish word or phrase and its English translation)
 - RESTful API with OpenAPI support
 
 ## Prerequisites

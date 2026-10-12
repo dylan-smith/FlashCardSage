@@ -8,7 +8,7 @@ namespace FlashCardSage.Api.Controllers;
 
 /// <remarks>
 /// Log statements use structured logging with typed route parameters (e.g. int id) only.
-/// User-provided strings such as card titles are intentionally excluded to prevent log-forging.
+/// User-provided strings such as a card's words are intentionally excluded to prevent log-forging.
 /// </remarks>
 [ApiController]
 [Route("api/flashcards")]
@@ -51,17 +51,15 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
     [HttpPost]
     public async Task<ActionResult<FlashCard>> Create([FromBody] FlashCardRequest request)
     {
-        var trimmedTitle = request.Title.Trim();
-
-        if (trimmedTitle.Length == 0)
+        if (!TryTrim(request, out var spanish, out var english))
         {
-            ModelState.AddModelError(nameof(request.Title), "Title is required.");
             return ValidationProblem(ModelState);
         }
 
         var card = new FlashCard
         {
-            Title = trimmedTitle
+            Spanish = spanish,
+            English = english
         };
 
         dbContext.FlashCards.Add(card);
@@ -83,15 +81,13 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
             return NotFound();
         }
 
-        var trimmedTitle = request.Title.Trim();
-
-        if (trimmedTitle.Length == 0)
+        if (!TryTrim(request, out var spanish, out var english))
         {
-            ModelState.AddModelError(nameof(request.Title), "Title is required.");
             return ValidationProblem(ModelState);
         }
 
-        card.Title = trimmedTitle;
+        card.Spanish = spanish;
+        card.English = english;
         await dbContext.SaveChangesAsync();
 
         logger.LogInformation("Updated flash card {FlashCardId}", id);
@@ -116,5 +112,24 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
         logger.LogInformation("Deleted flash card {FlashCardId}", id);
 
         return NoContent();
+    }
+
+    // Trims both sides of the card, adding a model error for each one that's left blank.
+    private bool TryTrim(FlashCardRequest request, out string spanish, out string english)
+    {
+        spanish = request.Spanish.Trim();
+        english = request.English.Trim();
+
+        if (spanish.Length == 0)
+        {
+            ModelState.AddModelError(nameof(request.Spanish), "Spanish is required.");
+        }
+
+        if (english.Length == 0)
+        {
+            ModelState.AddModelError(nameof(request.English), "English is required.");
+        }
+
+        return spanish.Length > 0 && english.Length > 0;
     }
 }

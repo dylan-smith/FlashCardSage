@@ -51,7 +51,9 @@ function renderAt(path: string) {
 }
 
 // Renders the flash cards page with these cards already loaded.
-async function showCards(cards: { id: number; title: string }[]) {
+async function showCards(
+  cards: { id: number; spanish: string; english: string }[],
+) {
   const calls = mockFetch(async (url, init) => {
     if (init?.method === undefined) {
       return jsonResponse(cards)
@@ -93,7 +95,10 @@ describe('App', () => {
         screen.getByRole('heading', { level: 2, name: 'Add flash card' }),
       ).toBeInTheDocument()
       expect(
-        screen.getByLabelText('Title', { exact: false }),
+        screen.getByLabelText('Spanish', { exact: false }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByLabelText('English', { exact: false }),
       ).toBeInTheDocument()
       expect(
         screen.getByRole('button', { name: 'Add flash card' }),
@@ -122,8 +127,8 @@ describe('App', () => {
     it('shows a loading state, then the cards in order', async () => {
       mockFetch(async () =>
         jsonResponse([
-          { id: 1, title: 'el gato' },
-          { id: 2, title: 'el perro' },
+          { id: 1, spanish: 'el gato', english: 'the cat' },
+          { id: 2, spanish: 'el perro', english: 'the dog' },
         ]),
       )
 
@@ -132,8 +137,8 @@ describe('App', () => {
       expect(screen.getByLabelText('Loading')).toBeInTheDocument()
       const items = await screen.findAllByRole('listitem')
       expect(items.map((item) => item.textContent)).toEqual([
-        'el gatoEditDelete',
-        'el perroEditDelete',
+        'el gatothe catEditDelete',
+        'el perrothe dogEditDelete',
       ])
       expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
       expect(
@@ -176,60 +181,88 @@ describe('App', () => {
   })
 
   describe('adding a card', () => {
-    it('sends the trimmed title, adds the card to the list and clears the input', async () => {
+    it('sends both trimmed sides, adds the card to the list and clears the inputs', async () => {
       const user = userEvent.setup()
       const calls = mockFetch(async (_url, init) =>
         init?.method === 'POST'
-          ? jsonResponse({ id: 7, title: 'el gato' }, 201)
+          ? jsonResponse({ id: 7, spanish: 'el gato', english: 'the cat' }, 201)
           : jsonResponse([]),
       )
       renderAt('/')
       await screen.findByText('No flash cards yet.')
 
       await user.type(
-        screen.getByLabelText('Title', { exact: false }),
+        screen.getByLabelText('Spanish', { exact: false }),
         '  el gato  ',
+      )
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        ' the cat ',
       )
       await user.click(screen.getByRole('button', { name: 'Add flash card' }))
 
       expect(await screen.findByText('el gato')).toBeInTheDocument()
+      expect(screen.getByText('the cat')).toBeInTheDocument()
       expect(screen.queryByText('No flash cards yet.')).not.toBeInTheDocument()
-      expect(screen.getByLabelText('Title', { exact: false })).toHaveValue('')
+      expect(screen.getByLabelText('Spanish', { exact: false })).toHaveValue('')
+      expect(screen.getByLabelText('English', { exact: false })).toHaveValue('')
       const post = calls.find((call) => call.init?.method === 'POST')
       expect(post?.url).toBe('http://localhost:5269/api/flashcards')
-      expect(post?.init?.body).toBe(JSON.stringify({ title: 'el gato' }))
+      expect(post?.init?.body).toBe(
+        JSON.stringify({ spanish: 'el gato', english: 'the cat' }),
+      )
       expect(trackEvent).toHaveBeenCalledWith('FlashCardCreated')
     })
 
-    it('asks for a title instead of sending a blank one', async () => {
+    it('asks for the Spanish instead of sending a blank one', async () => {
       const user = userEvent.setup()
       const { calls } = await showCards([])
-      const input = screen.getByLabelText('Title', { exact: false })
+      const input = screen.getByLabelText('Spanish', { exact: false })
       // The field is required, so submit the form around it rather than clicking the button.
       input.removeAttribute('required')
 
       await user.type(input, '   ')
+      await user.type(screen.getByLabelText('English', { exact: false }), 'x')
       await user.click(screen.getByRole('button', { name: 'Add flash card' }))
 
-      expect(screen.getByRole('alert')).toHaveTextContent('Title is required.')
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'Spanish is required.',
+      )
       expect(calls).toHaveLength(1)
     })
 
-    it("shows the API's reason when it rejects the title", async () => {
+    it('asks for the English instead of sending a blank one', async () => {
+      const user = userEvent.setup()
+      const { calls } = await showCards([])
+      const input = screen.getByLabelText('English', { exact: false })
+      input.removeAttribute('required')
+
+      await user.type(screen.getByLabelText('Spanish', { exact: false }), 'x')
+      await user.type(input, '   ')
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'English is required.',
+      )
+      expect(calls).toHaveLength(1)
+    })
+
+    it("shows the API's reason when it rejects the card", async () => {
       const user = userEvent.setup()
       mockFetch(async (_url, init) =>
         init?.method === 'POST'
-          ? jsonResponse({ errors: { Title: ['Title is required.'] } }, 400)
+          ? jsonResponse({ errors: { English: ['English is required.'] } }, 400)
           : jsonResponse([]),
       )
       renderAt('/')
       await screen.findByText('No flash cards yet.')
 
-      await user.type(screen.getByLabelText('Title', { exact: false }), 'x')
+      await user.type(screen.getByLabelText('Spanish', { exact: false }), 'x')
+      await user.type(screen.getByLabelText('English', { exact: false }), 'y')
       await user.click(screen.getByRole('button', { name: 'Add flash card' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'Title is required.',
+        'English is required.',
       )
       expect(trackException).not.toHaveBeenCalled()
     })
@@ -245,15 +278,19 @@ describe('App', () => {
       await screen.findByText('No flash cards yet.')
 
       await user.type(
-        screen.getByLabelText('Title', { exact: false }),
+        screen.getByLabelText('Spanish', { exact: false }),
         'el gato',
+      )
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'the cat',
       )
       await user.click(screen.getByRole('button', { name: 'Add flash card' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Unable to save flash card.',
       )
-      expect(screen.getByLabelText('Title', { exact: false })).toHaveValue(
+      expect(screen.getByLabelText('Spanish', { exact: false })).toHaveValue(
         'el gato',
       )
       expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
@@ -263,14 +300,14 @@ describe('App', () => {
   })
 
   describe('editing a card', () => {
-    it('saves the new title', async () => {
+    it('saves both changed sides', async () => {
       const user = userEvent.setup()
       const calls = mockFetch(async (_url, init) =>
         init?.method === 'PUT'
-          ? jsonResponse({ id: 1, title: 'el perro' })
+          ? jsonResponse({ id: 1, spanish: 'el perro', english: 'the dog' })
           : jsonResponse([
-              { id: 1, title: 'el gato' },
-              { id: 2, title: 'la casa' },
+              { id: 1, spanish: 'el gato', english: 'the cat' },
+              { id: 2, spanish: 'la casa', english: 'the house' },
             ]),
       )
       renderAt('/')
@@ -278,13 +315,19 @@ describe('App', () => {
 
       await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
       const item = screen.getAllByRole('listitem')[0]
-      const input = within(item).getByLabelText('Title')
-      expect(input).toHaveValue('el gato')
-      await user.clear(input)
-      await user.type(input, ' el perro ')
+      const spanish = within(item).getByLabelText('Spanish')
+      const english = within(item).getByLabelText('English')
+      expect(spanish).toHaveValue('el gato')
+      expect(spanish).toHaveFocus()
+      expect(english).toHaveValue('the cat')
+      await user.clear(spanish)
+      await user.type(spanish, ' el perro ')
+      await user.clear(english)
+      await user.type(english, ' the dog ')
       await user.click(within(item).getByRole('button', { name: 'Save' }))
 
       expect(await screen.findByText('el perro')).toBeInTheDocument()
+      expect(screen.getByText('the dog')).toBeInTheDocument()
       expect(screen.queryByText('el gato')).not.toBeInTheDocument()
       expect(screen.getByText('la casa')).toBeInTheDocument()
       expect(
@@ -292,16 +335,20 @@ describe('App', () => {
       ).not.toBeInTheDocument()
       const put = calls.find((call) => call.init?.method === 'PUT')
       expect(put?.url).toBe('http://localhost:5269/api/flashcards/1')
-      expect(put?.init?.body).toBe(JSON.stringify({ title: 'el perro' }))
+      expect(put?.init?.body).toBe(
+        JSON.stringify({ spanish: 'el perro', english: 'the dog' }),
+      )
       expect(trackEvent).toHaveBeenCalledWith('FlashCardUpdated')
     })
 
-    it('can be cancelled, keeping the old title', async () => {
+    it('can be cancelled, keeping the old card', async () => {
       const user = userEvent.setup()
-      const { calls } = await showCards([{ id: 1, title: 'el gato' }])
+      const { calls } = await showCards([
+        { id: 1, spanish: 'el gato', english: 'the cat' },
+      ])
 
       await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
-      const input = screen.getByLabelText('Title', { selector: 'input[value]' })
+      const input = screen.getByDisplayValue('el gato')
       await user.clear(input)
       await user.type(input, 'changed')
       await user.click(screen.getByRole('button', { name: 'Cancel' }))
@@ -311,15 +358,19 @@ describe('App', () => {
       expect(calls).toHaveLength(1)
     })
 
-    it('asks for a title instead of saving a blank one', async () => {
+    it('asks for the English instead of saving a blank one', async () => {
       const user = userEvent.setup()
-      const { calls } = await showCards([{ id: 1, title: 'el gato' }])
+      const { calls } = await showCards([
+        { id: 1, spanish: 'el gato', english: 'the cat' },
+      ])
 
       await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
-      await user.clear(screen.getByDisplayValue('el gato'))
+      await user.clear(screen.getByDisplayValue('the cat'))
       await user.click(screen.getByRole('button', { name: 'Save' }))
 
-      expect(screen.getByRole('alert')).toHaveTextContent('Title is required.')
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'English is required.',
+      )
       expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
       expect(calls).toHaveLength(1)
     })
@@ -329,7 +380,7 @@ describe('App', () => {
       mockFetch(async (_url, init) =>
         init?.method === 'PUT'
           ? new Response(null, { status: 500 })
-          : jsonResponse([{ id: 1, title: 'el gato' }]),
+          : jsonResponse([{ id: 1, spanish: 'el gato', english: 'the cat' }]),
       )
       renderAt('/')
       await screen.findByText('el gato')
@@ -355,8 +406,8 @@ describe('App', () => {
         init?.method === 'DELETE'
           ? new Response(null, { status: 204 })
           : jsonResponse([
-              { id: 1, title: 'el gato' },
-              { id: 2, title: 'la casa' },
+              { id: 1, spanish: 'el gato', english: 'the cat' },
+              { id: 2, spanish: 'la casa', english: 'the house' },
             ]),
       )
       renderAt('/')
@@ -379,7 +430,7 @@ describe('App', () => {
       mockFetch(async (_url, init) =>
         init?.method === 'DELETE'
           ? new Response(null, { status: 204 })
-          : jsonResponse([{ id: 1, title: 'el gato' }]),
+          : jsonResponse([{ id: 1, spanish: 'el gato', english: 'the cat' }]),
       )
       renderAt('/')
       await screen.findByText('el gato')
@@ -394,7 +445,7 @@ describe('App', () => {
       mockFetch(async (_url, init) =>
         init?.method === 'DELETE'
           ? new Response(null, { status: 500 })
-          : jsonResponse([{ id: 1, title: 'el gato' }]),
+          : jsonResponse([{ id: 1, spanish: 'el gato', english: 'the cat' }]),
       )
       renderAt('/')
       await screen.findByText('el gato')

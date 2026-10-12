@@ -5,11 +5,12 @@ import { test, expect } from './fixtures'
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
 
 // Adds a flash card from the form and waits for it to appear in the list.
-async function createFlashCard(page: Page, title: string) {
-  await page.getByLabel('Title').fill(title)
+async function createFlashCard(page: Page, spanish: string, english: string) {
+  await page.getByLabel('Spanish').fill(spanish)
+  await page.getByLabel('English').fill(english)
   await page.getByRole('button', { name: 'Add flash card' }).click()
   await expect(
-    page.getByRole('listitem').filter({ hasText: title }),
+    page.getByRole('listitem').filter({ hasText: spanish }),
   ).toBeVisible()
 }
 
@@ -31,26 +32,31 @@ test.describe('Flash card management', () => {
   })
 
   test.describe('Add flash card', () => {
-    test('adds a new card', async ({ page }) => {
-      await createFlashCard(page, 'el gato')
+    test('adds a new card with its translation', async ({ page }) => {
+      await createFlashCard(page, 'el gato', 'the cat')
+
+      await expect(page.getByText('the cat', { exact: true })).toBeVisible()
     })
 
-    test('trims whitespace from the title', async ({ page }) => {
-      await page.getByLabel('Title').fill('  el perro  ')
+    test('trims whitespace from both sides', async ({ page }) => {
+      await page.getByLabel('Spanish').fill('  el perro  ')
+      await page.getByLabel('English').fill('  the dog  ')
       await page.getByRole('button', { name: 'Add flash card' }).click()
 
       await expect(page.getByText('el perro', { exact: true })).toBeVisible()
+      await expect(page.getByText('the dog', { exact: true })).toBeVisible()
     })
 
-    test('clears the input after adding a card', async ({ page }) => {
-      await createFlashCard(page, 'la casa')
-      await expect(page.getByLabel('Title')).toHaveValue('')
+    test('clears the inputs after adding a card', async ({ page }) => {
+      await createFlashCard(page, 'la casa', 'the house')
+      await expect(page.getByLabel('Spanish')).toHaveValue('')
+      await expect(page.getByLabel('English')).toHaveValue('')
     })
 
     test('lists cards in the order they were added', async ({ page }) => {
-      await createFlashCard(page, 'uno')
-      await createFlashCard(page, 'dos')
-      await createFlashCard(page, 'tres')
+      await createFlashCard(page, 'uno', 'one')
+      await createFlashCard(page, 'dos', 'two')
+      await createFlashCard(page, 'tres', 'three')
 
       const items = page.getByRole('listitem')
       await expect(items).toHaveCount(3)
@@ -60,69 +66,75 @@ test.describe('Flash card management', () => {
     })
 
     test('keeps the cards after a reload', async ({ page }) => {
-      await createFlashCard(page, 'el libro')
+      await createFlashCard(page, 'el libro', 'the book')
 
       await page.reload()
 
       await expect(page.getByText('el libro', { exact: true })).toBeVisible()
+      await expect(page.getByText('the book', { exact: true })).toBeVisible()
     })
   })
 
   test.describe('Edit flash card', () => {
-    test('changes the title', async ({ page }) => {
-      await createFlashCard(page, 'el gato')
+    test('changes both sides', async ({ page }) => {
+      await createFlashCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Edit "el gato"' }).click()
-      const input = page.getByRole('listitem').getByLabel('Title')
-      await expect(input).toHaveValue('el gato')
-      await input.fill('  el perro  ')
+      const spanish = page.getByRole('listitem').getByLabel('Spanish')
+      const english = page.getByRole('listitem').getByLabel('English')
+      await expect(spanish).toHaveValue('el gato')
+      await expect(english).toHaveValue('the cat')
+      await spanish.fill('  el perro  ')
+      await english.fill('  the dog  ')
       await page.getByRole('button', { name: 'Save' }).click()
 
       await expect(page.getByText('el perro', { exact: true })).toBeVisible()
+      await expect(page.getByText('the dog', { exact: true })).toBeVisible()
       await expect(page.getByText('el gato', { exact: true })).toBeHidden()
       await expect(page.getByRole('button', { name: 'Save' })).toBeHidden()
       await page.reload()
       await expect(page.getByText('el perro', { exact: true })).toBeVisible()
+      await expect(page.getByText('the dog', { exact: true })).toBeVisible()
     })
 
     test('saves with Enter', async ({ page }) => {
-      await createFlashCard(page, 'el gato')
+      await createFlashCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Edit "el gato"' }).click()
-      const input = page.getByRole('listitem').getByLabel('Title')
-      await input.fill('la gata')
+      const input = page.getByRole('listitem').getByLabel('English')
+      await input.fill('the tomcat')
       await input.press('Enter')
 
-      await expect(page.getByText('la gata', { exact: true })).toBeVisible()
+      await expect(page.getByText('the tomcat', { exact: true })).toBeVisible()
     })
 
     test('can be cancelled', async ({ page }) => {
-      await createFlashCard(page, 'el gato')
+      await createFlashCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Edit "el gato"' }).click()
-      await page.getByRole('listitem').getByLabel('Title').fill('changed')
+      await page.getByRole('listitem').getByLabel('Spanish').fill('changed')
       await page.getByRole('button', { name: 'Cancel' }).click()
 
       await expect(page.getByText('el gato', { exact: true })).toBeVisible()
       await expect(page.getByText('changed', { exact: true })).toBeHidden()
     })
 
-    test('refuses a blank title', async ({ page }) => {
-      await createFlashCard(page, 'el gato')
+    test('refuses a blank translation', async ({ page }) => {
+      await createFlashCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Edit "el gato"' }).click()
-      await page.getByRole('listitem').getByLabel('Title').fill('   ')
+      await page.getByRole('listitem').getByLabel('English').fill('   ')
       await page.getByRole('button', { name: 'Save' }).click()
 
-      await expect(page.getByRole('alert')).toHaveText('Title is required.')
+      await expect(page.getByRole('alert')).toHaveText('English is required.')
       await expect(page.getByRole('button', { name: 'Save' })).toBeVisible()
     })
   })
 
   test.describe('Delete flash card', () => {
     test('removes the card', async ({ page }) => {
-      await createFlashCard(page, 'el gato')
-      await createFlashCard(page, 'el perro')
+      await createFlashCard(page, 'el gato', 'the cat')
+      await createFlashCard(page, 'el perro', 'the dog')
 
       await page.getByRole('button', { name: 'Delete "el gato"' }).click()
 
@@ -136,7 +148,7 @@ test.describe('Flash card management', () => {
     test('shows the empty message once the last card is gone', async ({
       page,
     }) => {
-      await createFlashCard(page, 'el gato')
+      await createFlashCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Delete "el gato"' }).click()
 

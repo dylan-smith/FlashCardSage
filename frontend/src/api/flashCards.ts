@@ -3,15 +3,19 @@ import { apiFetch } from './client'
 
 export type FlashCard = {
   id: number
-  title: string
+  spanish: string
+  english: string
 }
+
+// What the user types in for a card, sent when it's created or changed.
+export type FlashCardFields = Omit<FlashCard, 'id'>
 
 // The body of a 400 from the API, with the messages for each invalid field.
 type ValidationErrorResponse = {
   errors?: Record<string, string[]>
 }
 
-// Thrown for a response the caller should show to the user as is, such as a 400 for a blank title.
+// Thrown for a response the caller should show to the user as is, such as a 400 for a blank translation.
 export class ApiError extends Error {
   readonly status: number
 
@@ -47,17 +51,17 @@ export async function listFlashCards(): Promise<FlashCard[]> {
 async function saveFlashCard(
   url: string,
   method: 'POST' | 'PUT',
-  title: string,
+  fields: FlashCardFields,
 ) {
   const response = await apiFetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ title }),
+    body: JSON.stringify(fields),
   })
 
-  // A 400 says what's wrong with the title, so pass that on.
+  // A 400 says what's wrong with the card, so pass that on.
   if (response.status === 400) {
     const error = (await response.json()) as ValidationErrorResponse
     const message = Object.values(error.errors ?? {}).flat()[0]
@@ -69,12 +73,12 @@ async function saveFlashCard(
   return (await response.json()) as FlashCard
 }
 
-export function createFlashCard(title: string) {
-  return saveFlashCard(flashCardsUrl, 'POST', title)
+export function createFlashCard(fields: FlashCardFields) {
+  return saveFlashCard(flashCardsUrl, 'POST', fields)
 }
 
-export function updateFlashCard(id: number, title: string) {
-  return saveFlashCard(`${flashCardsUrl}/${id}`, 'PUT', title)
+export function updateFlashCard(id: number, fields: FlashCardFields) {
+  return saveFlashCard(`${flashCardsUrl}/${id}`, 'PUT', fields)
 }
 
 // A 404 means the card is already gone, which is what the caller wanted.
