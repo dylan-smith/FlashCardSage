@@ -40,7 +40,7 @@ public class TranslationsController(ITranslator translator, ILogger<Translations
         {
             var translation = await translator.TranslateAsync(text, from, cancellationToken);
             logger.LogInformation("Translated {Length} characters from {Language}", text.Length, from);
-            return Ok(new TranslationResponse(translation));
+            return Ok(new TranslationResponse(translation.Text, translation.Alternatives));
         }
         // A timeout surfaces as a cancellation the caller didn't ask for.
         catch (Exception ex) when (ex is HttpRequestException

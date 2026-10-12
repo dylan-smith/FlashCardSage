@@ -547,6 +547,53 @@ describe('App', () => {
       expect(screen.queryByText('Translating…')).not.toBeInTheDocument()
     })
 
+    it("offers a word's other meanings, and keeps the one the user picks", async () => {
+      const user = userEvent.setup()
+      mockTranslations([], async () =>
+        jsonResponse({
+          translation: 'silla',
+          alternatives: ['cátedra', 'presidente'],
+        }),
+      )
+      const { spanish, english } = await showForm()
+
+      await user.type(english, 'chair')
+      await waitFor(() => expect(spanish).toHaveValue('silla'), untilTranslated)
+      expect(screen.getByText('Other meanings:')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'silla' }),
+      ).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'presidente' }))
+
+      expect(spanish).toHaveValue('presidente')
+      expect(screen.queryByText(autoTranslated)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'silla' })).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'presidente' }),
+      ).not.toBeInTheDocument()
+
+      await user.type(english, 's')
+      await waitPastTranslateDelay()
+
+      expect(spanish).toHaveValue('presidente')
+      expect(screen.queryByText('Other meanings:')).not.toBeInTheDocument()
+    })
+
+    it("doesn't offer other meanings for a phrase", async () => {
+      const user = userEvent.setup()
+      mockTranslations()
+      const { spanish, english } = await showForm()
+
+      await user.type(spanish, 'el gato')
+
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+      expect(screen.queryByText('Other meanings:')).not.toBeInTheDocument()
+    })
+
     it('clears a translation when its side is cleared', async () => {
       const user = userEvent.setup()
       mockTranslations()

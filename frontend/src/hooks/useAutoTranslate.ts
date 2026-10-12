@@ -27,6 +27,12 @@ export function useAutoTranslate(
   const [autoSide, setAutoSide] = useState<CardSide | null>(null)
   // The side a translation is being fetched for.
   const [translating, setTranslating] = useState<CardSide | null>(null)
+  // A translated word's meanings, most common first, for the user to pick from. Kept after they pick one, so they
+  // can change their mind, until they type again.
+  const [meaningsOf, setMeaningsOf] = useState<{
+    side: CardSide
+    values: string[]
+  } | null>(null)
   const autoSideRef = useRef<CardSide | null>(null)
   const typed = useRef<Record<CardSide, boolean>>({
     spanish: false,
@@ -61,12 +67,14 @@ export function useAutoTranslate(
     cancel()
     typed.current = { spanish: false, english: false }
     setAuto(null)
+    setMeaningsOf(null)
   }
 
   // The user typed value into side.
   function change(side: CardSide, value: string) {
     onChange({ [side]: value })
     cancel()
+    setMeaningsOf(null)
 
     const text = value.trim()
     typed.current[side] = text !== ''
@@ -92,11 +100,16 @@ export function useAutoTranslate(
       request.current = controller
       setTranslating(target)
       translate(text, side, controller.signal)
-        .then((translation) => {
+        .then(({ translation, alternatives }) => {
           // Any change to the fields aborts the request, so the user hasn't typed since it was sent.
           if (!controller.signal.aborted) {
             onChange({ [target]: translation.slice(0, maxLength) })
             setAuto(target)
+            setMeaningsOf(
+              alternatives.length > 0
+                ? { side: target, values: [translation, ...alternatives] }
+                : null,
+            )
           }
         })
         .catch(() => {
@@ -119,5 +132,21 @@ export function useAutoTranslate(
     return autoSide === side ? 'Auto-translated: edit to change' : undefined
   }
 
-  return { change, cancel, reset, helperText }
+  // The meanings of the word translated into side, if it has more than one.
+  function meanings(side: CardSide) {
+    return meaningsOf?.side === side ? meaningsOf.values : []
+  }
+
+  // The user picked one of a word's meanings. It's their choice, so like a side they typed, it isn't translated
+  // over.
+  function choose(side: CardSide, meaning: string) {
+    cancel()
+    onChange({ [side]: meaning.slice(0, maxLength) })
+    typed.current[side] = true
+    setAuto(null)
+  }
+
+  return { change, cancel, reset, helperText, meanings, choose }
 }
+
+export type AutoTranslate = ReturnType<typeof useAutoTranslate>

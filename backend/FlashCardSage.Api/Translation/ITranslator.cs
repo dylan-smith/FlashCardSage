@@ -6,5 +6,8 @@ public interface ITranslator
     bool IsAvailable { get; }
 
     // Translates Spanish into English, or English into Spanish. Throws HttpRequestException if the service fails.
-    Task<string> TranslateAsync(string text, Language from, CancellationToken cancellationToken);
+    Task<TranslationResult> TranslateAsync(string text, Language from, CancellationToken cancellationToken);
 }
+
+// The likeliest translation, and for a single word its other meanings, most common first.
+public record TranslationResult(string Text, IReadOnlyList<string> Alternatives);

@@ -10,13 +10,19 @@ const languages: Record<CardSide, string> = {
   english: 'English',
 }
 
+// The translation of one side, and for a single word its other meanings, most common first.
+export type Translation = {
+  translation: string
+  alternatives: string[]
+}
+
 // Translates one side of a card into the other. Throws when translation fails or isn't available (a 503, e.g.
 // locally, where there's no translator key).
 export async function translate(
   text: string,
   from: CardSide,
   signal?: AbortSignal,
-): Promise<string> {
+): Promise<Translation> {
   const response = await apiFetch(`${apiBaseUrl}/api/translations`, {
     method: 'POST',
     headers: {
@@ -28,9 +34,17 @@ export async function translate(
   if (!response.ok) {
     throw new Error('Unable to translate.')
   }
-  const { translation } = (await response.json()) as { translation?: unknown }
+  const { translation, alternatives } = (await response.json()) as {
+    translation?: unknown
+    alternatives?: unknown
+  }
   if (typeof translation !== 'string') {
     throw new Error('Unable to translate.')
   }
-  return translation
+  return {
+    translation,
+    alternatives: Array.isArray(alternatives)
+      ? alternatives.filter((item): item is string => typeof item === 'string')
+      : [],
+  }
 }

@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { SubmitEvent } from 'react'
+import type { ReactNode, SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
@@ -20,7 +21,9 @@ import {
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields } from '../api/flashCards'
+import type { CardSide } from '../api/translations'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
+import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { trackEvent, trackException } from '../telemetry'
 
 export const spanishRequiredMessage = 'Spanish is required.'
@@ -39,6 +42,53 @@ function trimFields(fields: FlashCardFields): FlashCardFields | string {
     return englishRequiredMessage
   }
   return { spanish, english }
+}
+
+// A side's input is limited like the API's, and its note is a div, since it can hold the meanings' chips.
+const fieldSlotProps = {
+  htmlInput: { maxLength: 200 },
+  formHelperText: { component: 'div' },
+} as const
+
+// The note under a side translation fills in: whether it's being translated or was, and when a single word has more
+// than one meaning, the others to pick from instead.
+function translationNote(
+  translation: AutoTranslate,
+  side: CardSide,
+  value: string,
+): ReactNode {
+  const note = translation.helperText(side)
+  const others = translation
+    .meanings(side)
+    .filter((meaning) => meaning !== value)
+  if (others.length === 0) {
+    return note
+  }
+  return (
+    <>
+      {note}
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 0.5,
+          mt: note ? 0.5 : 0,
+        }}
+      >
+        Other meanings:
+        {others.map((meaning) => (
+          <Chip
+            key={meaning}
+            label={meaning}
+            size="small"
+            variant="outlined"
+            onClick={() => translation.choose(side, meaning)}
+          />
+        ))}
+      </Box>
+    </>
+  )
 }
 
 // The form that replaces a card in the list while it's being changed. The Spanish field gets focus when the
@@ -86,9 +136,9 @@ function FlashCardEditForm({
           onChange={(event) =>
             translation.change('spanish', event.target.value)
           }
-          helperText={translation.helperText('spanish')}
+          helperText={translationNote(translation, 'spanish', edit.spanish)}
           inputRef={inputRef}
-          slotProps={{ htmlInput: { maxLength: 200 } }}
+          slotProps={fieldSlotProps}
           size="small"
           fullWidth
         />
@@ -98,8 +148,8 @@ function FlashCardEditForm({
           onChange={(event) =>
             translation.change('english', event.target.value)
           }
-          helperText={translation.helperText('english')}
-          slotProps={{ htmlInput: { maxLength: 200 } }}
+          helperText={translationNote(translation, 'english', edit.english)}
+          slotProps={fieldSlotProps}
           size="small"
           fullWidth
         />
@@ -326,8 +376,8 @@ function FlashCardsPage() {
             onChange={(event) =>
               translation.change('spanish', event.target.value)
             }
-            helperText={translation.helperText('spanish')}
-            slotProps={{ htmlInput: { maxLength: 200 } }}
+            helperText={translationNote(translation, 'spanish', fields.spanish)}
+            slotProps={fieldSlotProps}
             required
             placeholder="e.g. el gato"
           />
@@ -338,8 +388,8 @@ function FlashCardsPage() {
             onChange={(event) =>
               translation.change('english', event.target.value)
             }
-            helperText={translation.helperText('english')}
-            slotProps={{ htmlInput: { maxLength: 200 } }}
+            helperText={translationNote(translation, 'english', fields.english)}
+            slotProps={fieldSlotProps}
             required
             placeholder="e.g. the cat"
           />

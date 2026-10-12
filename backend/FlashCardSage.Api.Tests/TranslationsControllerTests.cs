@@ -18,21 +18,22 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Translate_ReturnsTheTranslationOfTheTrimmedText()
     {
-        var translator = new FakeTranslator { Translation = "the cat" };
+        var translator = new FakeTranslator { Result = new TranslationResult("silla", ["cátedra", "presidente"]) };
 
         var result = await CreateController(translator).Translate(
             new TranslationRequest { Text = "  el gato ", From = Language.Spanish },
             CancellationToken.None);
 
         var response = Assert.IsType<TranslationResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
-        Assert.Equal("the cat", response.Translation);
+        Assert.Equal("silla", response.Translation);
+        Assert.Equal(["cátedra", "presidente"], response.Alternatives);
         Assert.Equal(("el gato", Language.Spanish), (translator.Text, translator.From));
     }
 
     [Fact]
     public async Task Translate_ReturnsValidationProblem_WhenTheTextIsBlank()
     {
-        var translator = new FakeTranslator { Translation = "unused" };
+        var translator = new FakeTranslator();
 
         var result = await CreateController(translator).Translate(
             new TranslationRequest { Text = "   ", From = Language.English },
@@ -138,7 +139,7 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
     {
         public bool IsAvailable { get; init; } = true;
 
-        public string Translation { get; init; } = string.Empty;
+        public TranslationResult Result { get; init; } = new(string.Empty, []);
 
         public Exception? Failure { get; init; }
 
@@ -146,11 +147,11 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
 
         public Language? From { get; private set; }
 
-        public Task<string> TranslateAsync(string text, Language from, CancellationToken cancellationToken)
+        public Task<TranslationResult> TranslateAsync(string text, Language from, CancellationToken cancellationToken)
         {
             Text = text;
             From = from;
-            return Failure is null ? Task.FromResult(Translation) : Task.FromException<string>(Failure);
+            return Failure is null ? Task.FromResult(Result) : Task.FromException<TranslationResult>(Failure);
         }
     }
 }

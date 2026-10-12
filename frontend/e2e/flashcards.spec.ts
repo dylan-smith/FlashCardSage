@@ -89,6 +89,27 @@ test.describe('Flash card management', () => {
       await expect(page.getByText('the kitty', { exact: true })).toBeVisible()
     })
 
+    test("lets the user pick another of a word's meanings", async ({
+      page,
+    }) => {
+      await page.route('**/api/translations', async (route) => {
+        await route.fulfill({
+          json: {
+            translation: 'silla',
+            alternatives: ['cátedra', 'presidente'],
+          },
+        })
+      })
+
+      await page.getByLabel('English').fill('chair')
+      await expect(page.getByLabel('Spanish')).toHaveValue('silla')
+      await page.getByRole('button', { name: 'presidente' }).click()
+      await page.getByRole('button', { name: 'Add flash card' }).click()
+
+      await expect(page.getByText('presidente', { exact: true })).toBeVisible()
+      await expect(page.getByText('chair', { exact: true })).toBeVisible()
+    })
+
     test('keeps the cards after a reload', async ({ page }) => {
       await createFlashCard(page, 'el libro', 'the book')
 
