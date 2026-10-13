@@ -610,6 +610,26 @@ jobs:
           API_URL: ${{ steps.infra.outputs['app-service-url'] }}
           API_AUTH_TOKEN: 'test:Preview User'
 
+      # A few of the built-in decks' cards get pictures, which nothing in the app can give them, so reviewers can see
+      # them on the Import cards page and copied by an import. The script makes and uploads them, and the step after
+      # puts them on the cards.
+      - name: Make pictures for some built-in cards
+        if: steps.current.outputs.current == 'true'
+        id: system-pictures
+        run: bash .github/scripts/seed-preview-system-pictures.sh
+        env:
+          API_URL: ${{ steps.infra.outputs['app-service-url'] }}
+          API_AUTH_TOKEN: 'test:Preview User'
+          AZURE_STORAGE_ACCOUNT_NAME: ${{ steps.infra.outputs['storage-account-name'] }}
+          SQL_FILE: system-card-pictures.sql
+
+      - name: Put the pictures on the built-in cards
+        if: steps.current.outputs.current == 'true' && steps.system-pictures.outputs.count != '0'
+        uses: azure/sql-action@v2.4
+        with:
+          connection-string: Server=tcp:${{ steps.infra.outputs['sql-server-fqdn'] }},1433;Initial Catalog=${{ env.PREVIEW_DB_NAME }};Authentication=Active Directory Default;Encrypt=True;TrustServerCertificate=False;
+          path: system-card-pictures.sql
+
       # Not when cancelled: the newer run for this PR owns the comment then.
       - name: Update preview comment
         if: ${{ !cancelled() && steps.current.outputs.current == 'true' }}

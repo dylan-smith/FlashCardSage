@@ -16,5 +16,6 @@
   "decks": [
     { "name": "Week 1", "cards": ["el gato", "el perro", "la casa", "gracias"] },
     { "name": "Polite phrases", "cards": ["buenos días", "gracias", "por favor", "hasta luego"] }
-  ]
+  ],
+  "systemCardPictures": ["lunes", "sábado", "enero", "julio"]
 }
