@@ -2,6 +2,7 @@ using System.Data.Common;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -54,6 +55,9 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<TranslatorOptions>(builder.Configuration.GetSection(TranslatorOptions.SectionName));
 // Translation fills in a field while the user types, so a slow answer is no better than none.
 builder.Services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.Configure<CardSuggesterOptions>(builder.Configuration.GetSection(CardSuggesterOptions.SectionName));
+// The Anthropic SDK times out and retries requests itself.
+builder.Services.AddHttpClient<ICardSuggester, ClaudeCardSuggester>(client => client.Timeout = Timeout.InfiniteTimeSpan);
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];

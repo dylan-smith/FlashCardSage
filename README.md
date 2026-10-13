@@ -11,6 +11,7 @@ A flash card app for learning a language, with:
 - Sign in with a Google account; each user only sees their own flash cards
 - Add, edit and delete flash cards (each card is a Spanish word or phrase and its English translation)
 - Type either side of a card and the other is filled in with a translation from Azure AI Translator; type over it to change it
+- A handful of suggested new cards, which Claude picks to go with your cards; add one with a click
 - RESTful API with OpenAPI support
 
 ## Prerequisites
@@ -294,6 +295,7 @@ Setting up previews for a new environment: create the `FlashCardSage-Preview` re
 | Frontend | Azure Storage Account (static website) | `https://flashcardsage.com` (the [custom domain](#custom-domain)); the web endpoint `https://flashcardsage.z22.web.core.windows.net` also works |
 | Database | Azure SQL serverless database (Entra-only auth) | — |
 | Translation | Azure AI Translator `flashcardsage-translator` (free F0 tier: 2 million characters a month) | Called by the API with the key from its app settings |
+| Card suggestions | Claude, through the Anthropic API (not an Azure resource; billed by Anthropic per token) | Called by the API with the `ANTHROPIC_API_KEY` secret, which the deployment puts in its app settings |
 | Monitoring | Log Analytics + Application Insights (App Service HTTP/console/app/platform logs and SQL errors, timeouts, blocks, deadlocks and automatic tuning go to the `FlashCardSage` workspace), plus the **FlashCardSage Health** workbook | — |
 
 ### Custom Domain
@@ -363,6 +365,7 @@ The what-if identity is a user-assigned managed identity with a federated creden
 |--------|-------------|
 | `AZURE_SQL_CONNECTION_STRING` | SQL Server connection string used at runtime and for migrations (applied to the App Service by the Bicep deployment) |
 | `FLASHCARDSAGE_SERVICE_TOKEN` | Secret token (at least 32 characters) that signs in as the service user. The infrastructure deployment gives it to the API, and the production smoke tests and the Generate Load workflow send it. Store it in the `production` environment |
+| `ANTHROPIC_API_KEY` | Optional. Anthropic API key the API asks Claude for card suggestions with. The infrastructure deployment gives it to the API; without it, the Suggested cards section isn't shown. Store it in the `production` environment (`Setup-Environment.ps1 -AnthropicApiKey`) |
 | `SLACK_WEBHOOK_URL` | Optional. Slack incoming webhook URL that alerts post to. Without it, alerts only go to email and the Azure mobile app |
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth token (from `claude setup-token`) used by the CI failure and alert investigation workflows |
 | `ALERT_INVESTIGATION_TOKEN` | Optional. Fine-grained personal access token for this repository only, with **Actions: Read and write**. The infrastructure deployment gives it to the Slack Logic App, which uses it to start the alert investigation workflow. Without it (or `SLACK_WEBHOOK_URL`), alerts aren't investigated |

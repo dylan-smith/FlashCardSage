@@ -59,6 +59,10 @@ param translatorName string
 @allowed(['F0', 'S1'])
 param translatorSku string = 'F0'
 
+@description('Anthropic API key the API suggests new cards with, using Claude. Leave empty to turn card suggestions off.')
+@secure()
+param anthropicApiKey string = ''
+
 @description('Days to keep database backups before they are deleted automatically.')
 @minValue(1)
 param backupRetentionDays int = 30
@@ -150,6 +154,7 @@ module appService 'modules/appservice.bicep' = {
     googleClientId: googleClientId
     serviceToken: serviceToken
     translatorName: translator.outputs.name
+    anthropicApiKey: anthropicApiKey
   }
 }
 

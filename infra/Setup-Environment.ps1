@@ -57,6 +57,10 @@ param(
     # and the secret doesn't exist yet.
     [string]$ServiceToken,
 
+    # The Anthropic API key the API suggests new cards with (the production ANTHROPIC_API_KEY secret). Optional:
+    # suggestions are off without it, and later runs keep the existing value when it's omitted.
+    [string]$AnthropicApiKey,
+
     # Optional repository secrets. Omitted ones are left as they are. See the README's "Required GitHub Secrets".
     [string]$SlackWebhookUrl,
     [string]$ClaudeCodeOAuthToken,
@@ -475,6 +479,11 @@ function Invoke-InitialStage {
     $missing = @('CLAUDE_CODE_OAUTH_TOKEN', 'SLACK_WEBHOOK_URL', 'ALERT_INVESTIGATION_TOKEN', 'AUTOMERGE_TOKEN', 'TS_COMPAT_PR_TOKEN') |
         Where-Object { $_ -notin (Get-GhNames 'secret') }
     if ($missing) { Write-Note "Optional secrets not set: $($missing -join ', '). Re-run with their parameters to add them." }
+    # The API's key is only for production deployments, so it's kept in the production environment.
+    Set-GhSecretIfGiven 'ANTHROPIC_API_KEY' $AnthropicApiKey 'production'
+    if ((Get-GhNames 'secret' 'production') -notcontains 'ANTHROPIC_API_KEY') {
+        Write-Note 'ANTHROPIC_API_KEY is not set, so card suggestions are off. Re-run with -AnthropicApiKey to add it.'
+    }
 
     Write-Step 'Branch ruleset for main'
     Set-MainRuleset

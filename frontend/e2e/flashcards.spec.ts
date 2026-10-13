@@ -135,6 +135,30 @@ test.describe('Flash card management', () => {
       await expect(page.getByText('chair', { exact: true })).toBeVisible()
     })
 
+    test('adds a suggested card', async ({ page }) => {
+      // The E2E backend has no Anthropic API key, so stand in for Claude's suggestions. They load with the page.
+      await page.route('**/api/card-suggestions', async (route) => {
+        await route.fulfill({
+          json: [
+            { spanish: 'el perro', english: 'the dog' },
+            { spanish: 'el pez', english: 'the fish' },
+          ],
+        })
+      })
+      await page.reload()
+      const suggestions = page.getByRole('list', { name: 'Suggested cards' })
+      await expect(suggestions.getByRole('listitem')).toHaveCount(2)
+
+      await page.getByRole('button', { name: 'Add "el perro"' }).click()
+
+      await expect(suggestions.getByRole('listitem')).toHaveCount(1)
+      await expect(
+        page.getByRole('button', { name: 'Edit "el perro"' }),
+      ).toBeVisible()
+      await page.reload()
+      await expect(page.getByText('the dog', { exact: true })).toBeVisible()
+    })
+
     test('keeps the cards after a reload', async ({ page }) => {
       await createFlashCard(page, 'el libro', 'the book')
 

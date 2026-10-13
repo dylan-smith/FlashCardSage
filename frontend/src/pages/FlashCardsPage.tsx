@@ -22,11 +22,13 @@ import {
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
+import type { CardSuggestion } from '../api/cardSuggestions'
 import { deleteTag, listTags, renameTag } from '../api/tags'
 import type { CardSide } from '../api/translations'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { trackEvent, trackException } from '../telemetry'
+import { CardSuggestions } from './CardSuggestions'
 import { TagFilter, TagsInput } from './FlashCardTags'
 
 export const spanishRequiredMessage = 'Spanish is required.'
@@ -396,6 +398,24 @@ function FlashCardsPage() {
     }
   }
 
+  // Adds a suggested card as it is, returning whether it was saved.
+  async function handleAddSuggestion(suggestion: CardSuggestion) {
+    setErrorMessage('')
+
+    try {
+      const created = await createFlashCard({ ...suggestion, tags: [] })
+      trackEvent('SuggestedFlashCardAdded')
+      setCards((current) => [...current, created])
+      return true
+    } catch (error) {
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'addSuggestion' })
+      }
+      setErrorMessage(describeFetchError(error, 'Unable to save flash card.'))
+      return false
+    }
+  }
+
   async function handleEditSave(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (edit === null) {
@@ -555,6 +575,8 @@ function FlashCardsPage() {
           </Stack>
         </Box>
       </Paper>
+
+      <CardSuggestions cards={cards} onAdd={handleAddSuggestion} />
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 

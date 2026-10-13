@@ -20,6 +20,10 @@ param storageAccountName = 'flashcardsage'
 param translatorName = 'flashcardsage-translator'
 param translatorSku = 'F0'
 
+// Claude, which suggests new cards from the user's cards, with the key from the ANTHROPIC_API_KEY secret (never
+// commit it). Suggestions are off when it isn't set.
+param anthropicApiKey = readEnvironmentVariable('ANTHROPIC_API_KEY', '')
+
 // Database backups (BACPAC exports taken by CI before migrations, in the db-backups container)
 param backupRetentionDays = 30
 
