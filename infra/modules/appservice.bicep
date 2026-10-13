@@ -39,15 +39,14 @@ param serviceToken string
 @description('Name of the Azure AI Translator resource the API translates cards with.')
 param translatorName string
 
-@description('Anthropic API key the API suggests new cards with. Empty turns suggestions off.')
-@secure()
-param anthropicApiKey string = ''
-
 @description('Name of the Azure AI Foundry resource the API makes cards\' pictures with. Empty turns pictures off, while there isn\'t one.')
 param foundryName string = ''
 
 @description('Name of the image model\'s deployment on the Azure AI Foundry resource.')
 param imageDeploymentName string
+
+@description('Name of the chat model\'s deployment on the Azure AI Foundry resource, which suggests new cards.')
+param suggestionDeploymentName string
 
 @description('Name of the Storage Account the API keeps cards\' pictures in.')
 param storageAccountName string
@@ -117,7 +116,6 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       Authentication__Google__ClientId: googleClientId
       Authentication__ServiceToken: serviceToken
       Translator__Key: translator.listKeys().key1
-      CardSuggestions__ApiKey: anthropicApiKey
       // The API writes pictures with the account's key: the web app's identity can't be given a role here, since
       // the deployment identity isn't allowed to assign roles.
       ImageStore__StorageConnectionString: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
@@ -127,14 +125,18 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       WEBSITE_ENABLE_SYNC_UPDATE_SITE: 'true'
     },
     toObject(range(0, length(corsAllowedOrigins)), i => 'Cors__AllowedOrigins__${i}', i => corsAllowedOrigins[i]),
-    // Without an endpoint and key the API answers picture requests with a 503, and cards go without pictures. The
-    // endpoint is the resource's Foundry one, on its subdomain (modules/foundry.bicep names it after the resource).
+    // Without an endpoint and key the API answers picture and suggestion requests with a 503, and cards go without
+    // pictures and the page without suggestions. The endpoints are the resource's Foundry and Azure OpenAI ones, on
+    // its subdomain (modules/foundry.bicep names it after the resource).
     empty(foundryName)
       ? {}
       : {
           ImageGeneration__Endpoint: 'https://${foundry!.name}.services.ai.azure.com/'
           ImageGeneration__Key: foundry!.listKeys().key1
           ImageGeneration__Deployment: imageDeploymentName
+          CardSuggestions__Endpoint: 'https://${foundry!.name}.openai.azure.com/'
+          CardSuggestions__Key: foundry!.listKeys().key1
+          CardSuggestions__Deployment: suggestionDeploymentName
         }
   )
 }

@@ -8,7 +8,7 @@ export type CardSuggestion = {
 }
 
 // A handful of new cards that go with the user's cards, or null when suggestions aren't available (a 503, e.g.
-// locally, where there's no API key). Throws when they fail.
+// locally, where there's no Foundry endpoint and key). Throws when they fail.
 export async function listCardSuggestions(
   signal?: AbortSignal,
 ): Promise<CardSuggestion[] | null> {

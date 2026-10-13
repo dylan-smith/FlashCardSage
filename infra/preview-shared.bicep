@@ -30,7 +30,7 @@ param sqlEntraAdminObjectId string
 @description('Name of the Azure AI Translator resource shared by every preview.')
 param translatorName string
 
-@description('Whether to deploy the Azure AI Foundry resource. Without it, previews run without pictures.')
+@description('Whether to deploy the Azure AI Foundry resource. Without it, previews run without pictures or card suggestions.')
 param deployFoundry bool = true
 
 @description('Name of the Azure AI Foundry resource shared by every preview, which is also its subdomain.')
@@ -126,4 +126,26 @@ resource imageModel 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01
     }
     versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
   }
+}
+
+// The chat model previews suggest new cards with (as modules/foundry.bicep deploys production's). It shares the
+// subscription's quota for the model with production's, so it's kept small.
+resource suggestionModel 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = if (deployFoundry) {
+  parent: foundry
+  name: 'gpt-5-mini'
+  sku: {
+    name: 'GlobalStandard'
+    capacity: 10
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-5-mini'
+      version: '2025-08-07'
+    }
+    versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
+  }
+  dependsOn: [
+    imageModel
+  ]
 }

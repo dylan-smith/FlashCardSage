@@ -32,6 +32,9 @@ param foundryName string = ''
 @description('Name of the image model\'s deployment on the shared Azure AI Foundry resource.')
 param imageDeploymentName string = 'flux-2-pro'
 
+@description('Name of the chat model\'s deployment on the shared Azure AI Foundry resource, which suggests new cards.')
+param suggestionDeploymentName string = 'gpt-5-mini'
+
 @description('Use the Azure SQL free offer for the database. The offer covers a limited number of databases per subscription, and can\'t be turned on for an existing database.')
 param useFreeLimit bool = true
 
@@ -175,14 +178,17 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
     },
     // Without a key the API answers translations with a 503 and the user types both sides.
     empty(translatorName) ? {} : { Translator__Key: translator!.listKeys().key1 },
-    // Without an endpoint and key the API answers picture requests with a 503, and cards go without pictures (see
-    // modules/appservice.bicep for the endpoint).
+    // Without an endpoint and key the API answers picture and suggestion requests with a 503, and cards go without
+    // pictures and the page without suggestions (see modules/appservice.bicep for the endpoints).
     empty(foundryName)
       ? {}
       : {
           ImageGeneration__Endpoint: 'https://${foundry!.name}.services.ai.azure.com/'
           ImageGeneration__Key: foundry!.listKeys().key1
           ImageGeneration__Deployment: imageDeploymentName
+          CardSuggestions__Endpoint: 'https://${foundry!.name}.openai.azure.com/'
+          CardSuggestions__Key: foundry!.listKeys().key1
+          CardSuggestions__Deployment: suggestionDeploymentName
         }
   )
 }

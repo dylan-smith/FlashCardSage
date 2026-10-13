@@ -136,7 +136,7 @@ test.describe('Flash card management', () => {
     })
 
     test('adds a suggested card', async ({ page }) => {
-      // The E2E backend has no Anthropic API key, so stand in for Claude's suggestions. They load with the page.
+      // The E2E backend has no Foundry endpoint or key, so stand in for the model's suggestions. They load with the page.
       await page.route('**/api/card-suggestions', async (route) => {
         await route.fulfill({
           json: [

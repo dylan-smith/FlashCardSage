@@ -659,7 +659,6 @@ jobs:
           ALERT_INVESTIGATION_TOKEN: ${{ secrets.ALERT_INVESTIGATION_TOKEN }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           FLASHCARDSAGE_SERVICE_TOKEN: ${{ secrets.FLASHCARDSAGE_SERVICE_TOKEN }}
-          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
 
       # Static website hosting is a data-plane setting that ARM templates can't manage.
       - name: Enable static website hosting

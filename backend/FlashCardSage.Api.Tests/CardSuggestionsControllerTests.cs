@@ -157,7 +157,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
             .WithWebHostBuilder(builder => builder
                 .UseEnvironment("Development")
                 .UseSetting("Authentication:AllowTestSignIn", "true")
-                .UseSetting("CardSuggestions:ApiKey", ""))
+                .UseSetting("CardSuggestions:Key", ""))
             .CreateClient();
         if (signedIn)
         {
