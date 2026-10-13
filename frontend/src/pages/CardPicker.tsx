@@ -1,18 +1,17 @@
-import { useId, useState } from 'react'
+import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
 import Pagination from '@mui/material/Pagination'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { cardCount } from './cardCount'
+import { FlashCardRow } from './FlashCardRow'
 
 // How many cards a page of the list shows. A deck can hold hundreds, and drawing them all at once is slow.
 export const cardPageSize = 50
@@ -54,7 +53,6 @@ export function CardPicker({
   // Resolves to whether it worked, so the cards stay picked when it didn't.
   onApply: (ids: number[]) => Promise<boolean>
 }) {
-  const id = useId()
   const [search, setSearch] = useState('')
   const [tagId, setTagId] = useState<number | null>(null)
   const [page, setPage] = useState(1)
@@ -188,55 +186,15 @@ export function CardPicker({
       {matching.length === 0 ? (
         <Typography color="text.secondary">No cards match.</Typography>
       ) : (
-        // Laid out like the cards page's list, with the same box to pick a card.
         <List disablePadding>
-          {shown.map((card) => {
-            const checkboxId = `${id}-card-${card.id}`
-            return (
-              <ListItem
-                key={card.id}
-                divider
-                disablePadding
-                sx={{ py: 1, gap: 1 }}
-              >
-                <Checkbox
-                  id={checkboxId}
-                  checked={selected.has(card.id)}
-                  onChange={() => toggle(card.id)}
-                  slotProps={{
-                    input: { 'aria-label': `Pick "${card.spanish}"` },
-                  }}
-                  sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
-                />
-                {/* Clicking the card's words picks it too, which helps when picking a lot of cards. */}
-                <Box
-                  component="label"
-                  htmlFor={checkboxId}
-                  sx={{ flexGrow: 1, minWidth: 0, cursor: 'pointer' }}
-                >
-                  <ListItemText
-                    primary={card.spanish}
-                    secondary={card.english}
-                    sx={{ overflowWrap: 'anywhere' }}
-                  />
-                  {card.tags.length > 0 && (
-                    <Box
-                      sx={{
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                        gap: 0.5,
-                        mb: 0.5,
-                      }}
-                    >
-                      {card.tags.map((tag) => (
-                        <Chip key={tag.id} label={tag.name} size="small" />
-                      ))}
-                    </Box>
-                  )}
-                </Box>
-              </ListItem>
-            )
-          })}
+          {shown.map((card) => (
+            <FlashCardRow
+              key={card.id}
+              card={card}
+              picked={selected.has(card.id)}
+              onPick={() => toggle(card.id)}
+            />
+          ))}
         </List>
       )}
       {pageCount > 1 && (
