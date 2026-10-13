@@ -72,12 +72,17 @@ public sealed class LocalFileImageStoreTests : IDisposable
 
         var copy = await store.CopyAsync(url, CancellationToken.None);
 
+        Assert.NotNull(copy);
         Assert.Matches(@"^http://localhost:5269/card-images/[0-9a-f]{32}\.jpg$", copy);
         Assert.NotEqual(url, copy);
-        Assert.Equal(2, Directory.GetFiles(store.Directory).Length);
-        Assert.NotNull(copy);
-        var copied = Path.Join(store.Directory, copy[(copy.LastIndexOf('/') + 1)..]);
-        Assert.Equal(CardImageTests.Jpeg, await File.ReadAllBytesAsync(copied));
+        // The files are found by listing the folder, like the save test, rather than from the URLs.
+        var files = Directory.GetFiles(store.Directory);
+        Assert.Equal(2, files.Length);
+        Assert.Contains(files, file => copy.EndsWith("/" + Path.GetFileName(file), StringComparison.Ordinal));
+        foreach (var file in files)
+        {
+            Assert.Equal(CardImageTests.Jpeg, await File.ReadAllBytesAsync(file));
+        }
     }
 
     [Theory]
