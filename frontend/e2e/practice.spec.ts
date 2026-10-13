@@ -101,7 +101,10 @@ test.describe('Practice', () => {
   }) => {
     // Only one card, with a picture, so it's the one that comes up.
     const response = await request.get(flashCardsApiUrl)
-    const [first, ...rest] = (await response.json()) as { id: number }[]
+    const [first, ...rest] = (await response.json()) as {
+      id: number
+      spanish: string
+    }[]
     for (const { id } of rest) {
       await request.delete(`${flashCardsApiUrl}/${id}`)
     }
@@ -116,7 +119,24 @@ test.describe('Practice', () => {
 
     await page.getByRole('button', { name: 'Reveal' }).click()
 
-    await expect(page.getByRole('img', { name: /^Picture for/ })).toBeVisible()
+    const picture = page.getByRole('img', { name: /^Picture for/ })
+    await expect(picture).toBeVisible()
+
+    // To the left of the card's text on a wide screen, and below it on a phone.
+    const text = page.getByText(first.spanish, { exact: true })
+    async function box(locator: typeof picture) {
+      const found = await locator.boundingBox()
+      expect(found).not.toBeNull()
+      return found ?? { x: 0, y: 0, width: 0, height: 0 }
+    }
+    let pictureBox = await box(picture)
+    let textBox = await box(text)
+    expect(pictureBox.x + pictureBox.width).toBeLessThanOrEqual(textBox.x)
+
+    await page.setViewportSize({ width: 375, height: 800 })
+    pictureBox = await box(picture)
+    textBox = await box(text)
+    expect(pictureBox.y).toBeGreaterThanOrEqual(textBox.y + textBox.height)
   })
 
   test('points to adding cards when there are none', async ({
