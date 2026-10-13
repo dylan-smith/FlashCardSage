@@ -9,6 +9,7 @@ import logo from './assets/logo.svg'
 import { disableGoogleAutoSelect } from './auth/google'
 import { setSession, useSession } from './auth/session'
 import SignInPage from './auth/SignInPage'
+import DecksPage from './pages/DecksPage'
 import FlashCardsPage from './pages/FlashCardsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
@@ -22,9 +23,10 @@ function signOut() {
   setSession(null)
 }
 
-// The app's three modes. NavLink marks the current one with aria-current.
+// The app's modes. NavLink marks the current one with aria-current.
 const modes = [
   { to: '/', label: 'Manage cards' },
+  { to: '/decks', label: 'Decks' },
   { to: '/practice', label: 'Practice' },
   { to: '/scores', label: 'Scores' },
 ]
@@ -95,7 +97,13 @@ function App() {
           <Box
             component="nav"
             aria-label="Mode"
-            sx={{ display: 'flex', justifyContent: 'center', gap: 1, mb: 3 }}
+            sx={{
+              display: 'flex',
+              flexWrap: 'wrap',
+              justifyContent: 'center',
+              gap: 1,
+              mb: 3,
+            }}
           >
             {modes.map(({ to, label }) => (
               <Button
@@ -111,6 +119,7 @@ function App() {
           </Box>
           <Routes>
             <Route path="/" element={<FlashCardsPage />} />
+            <Route path="/decks" element={<DecksPage />} />
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
             <Route path="*" element={<NotFoundPage />} />

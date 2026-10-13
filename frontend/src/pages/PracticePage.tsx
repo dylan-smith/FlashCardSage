@@ -4,10 +4,14 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
+import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { Link } from 'react-router'
+import { Link, useSearchParams } from 'react-router'
+import { listDecks } from '../api/decks'
+import type { Deck } from '../api/decks'
 import {
   describeFetchError,
   getNextPracticeCard,
@@ -17,7 +21,9 @@ import type {
   PracticeCard,
   PracticeOutcome,
   PracticeSide,
+  Tag,
 } from '../api/flashCards'
+import { listTags } from '../api/tags'
 import { trackEvent, trackException } from '../telemetry'
 
 // Which field of a card holds each side, and its language.
@@ -62,7 +68,121 @@ function CardSide({ side, text }: { side: PracticeSide; text: string }) {
   )
 }
 
+// What's being practiced: every card, a deck's or a tag's.
+type PracticeKind = 'all' | 'deck' | 'tag'
+
+const emptyMessages: Record<PracticeKind, string> = {
+  all: 'There are no flash cards to practice yet.',
+  deck: 'There are no cards in this deck.',
+  tag: 'There are no cards with this tag.',
+}
+
+// The user's decks and tags, to pick which cards to practice.
+type PracticeChoices = { decks: Deck[]; tags: Tag[] }
+
 function PracticePage() {
+  // The deck or tag being practiced is in the URL, so the back button and a refresh keep it. One that doesn't exist
+  // (any more) practices every card.
+  const [searchParams, setSearchParams] = useSearchParams()
+  const deckParam = searchParams.get('deck')
+  const tagParam = searchParams.get('tag')
+  // Null until they've loaded.
+  const [choices, setChoices] = useState<PracticeChoices | null>(null)
+  const [choicesFailed, setChoicesFailed] = useState(false)
+
+  useEffect(() => {
+    let cancelled = false
+    Promise.all([listDecks(), listTags()])
+      .then(([decks, tags]) => {
+        if (!cancelled) {
+          setChoices({ decks, tags })
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          trackException(error, { operation: 'loadChoices' })
+          setChoicesFailed(true)
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const deck =
+    choices?.decks.find((item) => String(item.id) === deckParam) ?? null
+  const tag =
+    deck === null
+      ? (choices?.tags.find((item) => String(item.id) === tagParam) ?? null)
+      : null
+  const kind: PracticeKind = deck ? 'deck' : tag ? 'tag' : 'all'
+  const value = deck ? `deck-${deck.id}` : tag ? `tag-${tag.id}` : 'all'
+  // A deck or tag in the URL can only be practiced once it's known to be the user's.
+  const waiting =
+    choices === null &&
+    !choicesFailed &&
+    (deckParam !== null || tagParam !== null)
+
+  function handleSelect(selected: string) {
+    const [type, id] = selected.split('-')
+    setSearchParams(
+      type === 'deck' ? { deck: id } : type === 'tag' ? { tag: id } : {},
+    )
+  }
+
+  return (
+    <Stack spacing={2}>
+      {choices !== null &&
+        (choices.decks.length > 0 || choices.tags.length > 0) && (
+          // Each option says whether it's a deck or a tag. MUI's Select makes every child an option, so group
+          // headings would be read out as options too.
+          <TextField
+            select
+            label="Practice"
+            size="small"
+            value={value}
+            onChange={(event) => handleSelect(event.target.value)}
+            sx={{ minWidth: 220, alignSelf: 'flex-start' }}
+          >
+            <MenuItem value="all">All cards</MenuItem>
+            {choices.decks.map((item) => (
+              <MenuItem key={`deck-${item.id}`} value={`deck-${item.id}`}>
+                Deck: {item.name}
+              </MenuItem>
+            ))}
+            {choices.tags.map((item) => (
+              <MenuItem key={`tag-${item.id}`} value={`tag-${item.id}`}>
+                Tag: {item.name}
+              </MenuItem>
+            ))}
+          </TextField>
+        )}
+      {waiting ? (
+        <Paper component="section" elevation={2} sx={{ p: 3 }}>
+          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+            <CircularProgress aria-label="Loading" />
+          </Box>
+        </Paper>
+      ) : (
+        // A new session for each choice, so the session score starts again.
+        <PracticeSession
+          key={value}
+          kind={kind}
+          deckId={deck?.id}
+          tagId={tag?.id}
+        />
+      )}
+    </Stack>
+  )
+}
+
+type PracticeSessionProps = {
+  kind: PracticeKind
+  deckId?: number
+  tagId?: number
+}
+
+function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
   // The card being practiced, as the API picked it.
   const [prompt, setPrompt] = useState<PracticeCard | null>(null)
   const [revealed, setRevealed] = useState(false)
@@ -79,7 +199,7 @@ function PracticePage() {
   // The API picks the first card here, and each one after that when an answer is saved.
   useEffect(() => {
     let cancelled = false
-    getNextPracticeCard()
+    getNextPracticeCard({ deckId, tagId })
       .then((next) => {
         if (!cancelled) {
           setPrompt(next)
@@ -101,7 +221,7 @@ function PracticePage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [deckId, tagId])
 
   useEffect(() => {
     if (revealed) {
@@ -123,6 +243,7 @@ function PracticePage() {
       const { next, scoreChange } = await recordPracticeResult(
         prompt.id,
         outcome,
+        { deckId, tagId },
       )
       trackEvent('PracticeResultRecorded', { outcome })
       answeredRef.current = true
@@ -174,11 +295,17 @@ function PracticePage() {
           errorMessage ? null : (
             <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
               <Typography color="text.secondary">
-                There are no flash cards to practice yet.
+                {emptyMessages[kind]}
               </Typography>
-              <Button component={Link} to="/" variant="contained">
-                Add flash cards
-              </Button>
+              {kind === 'deck' ? (
+                <Button component={Link} to="/decks" variant="contained">
+                  Edit decks
+                </Button>
+              ) : (
+                <Button component={Link} to="/" variant="contained">
+                  {kind === 'tag' ? 'Manage cards' : 'Add flash cards'}
+                </Button>
+              )}
             </Stack>
           )
         ) : (

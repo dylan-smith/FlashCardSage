@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App, { tagline } from '../App'
+import type { Deck } from '../api/decks'
 import { unreachableMessage } from '../api/flashCards'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { setSession } from '../auth/session'
@@ -18,21 +19,27 @@ vi.mock('../telemetry', () => ({
 type Call = { url: string; init?: RequestInit }
 
 const tagsUrl = 'http://localhost:5269/api/tags'
+const decksUrl = 'http://localhost:5269/api/decks'
 
-// Answers every fetch with the handler, except that loading the tags gets these tags, and keeps the calls so a test
-// can check what was sent.
+// Answers every fetch with the handler, except that loading the tags or decks gets these, and keeps the calls so a
+// test can check what was sent.
 function mockFetch(
   handler: (url: string, init?: RequestInit) => Promise<Response>,
   tags: Tag[] = [],
+  decks: Deck[] = [],
 ) {
   const calls: Call[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(
     (input: string | URL | Request, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : input.toString()
       calls.push({ url, init })
-      return url === tagsUrl && init?.method === undefined
-        ? Promise.resolve(jsonResponse(tags))
-        : handler(url, init)
+      if (init?.method === undefined && url === tagsUrl) {
+        return Promise.resolve(jsonResponse(tags))
+      }
+      if (init?.method === undefined && url === decksUrl) {
+        return Promise.resolve(jsonResponse(decks))
+      }
+      return handler(url, init)
     },
   )
   return calls
@@ -1079,6 +1086,222 @@ describe('App', () => {
     })
   })
 
+  describe('decks', () => {
+    const pets: Tag = { id: 4, name: 'Pets' }
+    const cat: FlashCard = {
+      id: 1,
+      spanish: 'el gato',
+      english: 'the cat',
+      tags: [pets],
+    }
+    const dog: FlashCard = {
+      id: 2,
+      spanish: 'el perro',
+      english: 'the dog',
+      tags: [pets],
+    }
+    const house: FlashCard = {
+      id: 3,
+      spanish: 'la casa',
+      english: 'the house',
+      tags: [],
+    }
+    const animals: Deck = { id: 7, name: 'Animals', flashCardIds: [1, 2] }
+
+    // Renders the decks page with these loaded, answering every change with the handler.
+    async function showDecks(
+      decks: Deck[],
+      handler: (url: string, init?: RequestInit) => Promise<Response> = (
+        url,
+        init,
+      ) => {
+        throw new Error(`Unexpected ${init?.method} ${url}`)
+      },
+    ) {
+      const calls = mockFetch(
+        async (url, init) =>
+          init?.method === undefined
+            ? jsonResponse([cat, dog, house])
+            : handler(url, init),
+        [pets],
+        decks,
+      )
+      renderAt('/decks')
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
+      })
+      return calls
+    }
+
+    it('lists the decks with how many cards each has', async () => {
+      await showDecks([animals, { id: 8, name: 'Home', flashCardIds: [3] }])
+
+      const items = within(screen.getByRole('list')).getAllByRole('listitem')
+      expect(items.map((item) => item.textContent)).toEqual([
+        expect.stringContaining('Animals2 cards'),
+        expect.stringContaining('Home1 card'),
+      ])
+      expect(
+        screen.getByRole('link', { name: 'Practice deck "Animals"' }),
+      ).toHaveAttribute('href', '/practice?deck=7')
+    })
+
+    it('says when there are no decks yet', async () => {
+      await showDecks([])
+
+      expect(
+        screen.getByText("You haven't made any decks yet."),
+      ).toBeInTheDocument()
+    })
+
+    it('creates a deck from the cards with a tag and cards picked one by one', async () => {
+      const user = userEvent.setup()
+      const calls = await showDecks([], async () =>
+        jsonResponse({ id: 9, name: 'Week 1', flashCardIds: [1, 2, 3] }, 201),
+      )
+
+      await user.type(
+        screen.getByLabelText('Deck name', { exact: false }),
+        ' Week 1 ',
+      )
+      await user.click(
+        within(
+          screen.getByRole('group', { name: 'Add the cards tagged' }),
+        ).getByRole('button', { name: 'Pets' }),
+      )
+      // Both of the tag's cards are in, so it has nothing more to add.
+      expect(
+        screen.queryByRole('group', { name: 'Add the cards tagged' }),
+      ).not.toBeInTheDocument()
+      await user.click(screen.getByRole('combobox', { name: 'Cards' }))
+      await user.click(
+        screen.getByRole('option', { name: 'la casa — the house' }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Create deck' }))
+
+      expect(await screen.findByText('Week 1')).toBeInTheDocument()
+      expect(screen.getByText('3 cards')).toBeInTheDocument()
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.url).toBe(decksUrl)
+      expect(post?.init?.body).toBe(
+        JSON.stringify({ name: 'Week 1', flashCardIds: [1, 2, 3] }),
+      )
+      expect(trackEvent).toHaveBeenCalledWith('DeckCreated')
+      expect(screen.getByLabelText('Deck name', { exact: false })).toHaveValue(
+        '',
+      )
+    })
+
+    it('shows why the API refused a deck', async () => {
+      const user = userEvent.setup()
+      await showDecks([animals], async () =>
+        jsonResponse(
+          { errors: { Name: ["There's already a deck with that name."] } },
+          400,
+        ),
+      )
+
+      await user.type(
+        screen.getByLabelText('Deck name', { exact: false }),
+        'animals',
+      )
+      await user.click(screen.getByRole('button', { name: 'Create deck' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        "There's already a deck with that name.",
+      )
+      expect(screen.getByLabelText('Deck name', { exact: false })).toHaveValue(
+        'animals',
+      )
+    })
+
+    it('edits a deck in the form', async () => {
+      const user = userEvent.setup()
+      const calls = await showDecks([animals], async () =>
+        jsonResponse({ id: 7, name: 'Pets', flashCardIds: [1] }),
+      )
+
+      await user.click(
+        screen.getByRole('button', { name: 'Edit deck "Animals"' }),
+      )
+
+      expect(
+        screen.getByRole('heading', { level: 2, name: 'Edit deck' }),
+      ).toBeInTheDocument()
+      const name = screen.getByLabelText('Deck name', { exact: false })
+      expect(name).toHaveValue('Animals')
+      expect(name).toHaveFocus()
+      expect(
+        screen.getByRole('button', { name: 'el perro — the dog' }),
+      ).toBeInTheDocument()
+      await user.clear(name)
+      await user.type(name, 'Pets')
+      // Takes the dog out of the deck.
+      await user.click(
+        within(
+          screen.getByRole('button', { name: 'el perro — the dog' }),
+        ).getByTestId('CancelIcon'),
+      )
+      await user.click(screen.getByRole('button', { name: 'Save deck' }))
+
+      expect(await screen.findByText('1 card')).toBeInTheDocument()
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.url).toBe(`${decksUrl}/7`)
+      expect(put?.init?.body).toBe(
+        JSON.stringify({ name: 'Pets', flashCardIds: [1] }),
+      )
+      expect(trackEvent).toHaveBeenCalledWith('DeckUpdated')
+      expect(
+        screen.getByRole('heading', { level: 2, name: 'New deck' }),
+      ).toBeInTheDocument()
+    })
+
+    it('can cancel an edit', async () => {
+      const user = userEvent.setup()
+      await showDecks([animals])
+
+      await user.click(
+        screen.getByRole('button', { name: 'Edit deck "Animals"' }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(screen.getByLabelText('Deck name', { exact: false })).toHaveValue(
+        '',
+      )
+      expect(
+        screen.getByRole('button', { name: 'Create deck' }),
+      ).toBeInTheDocument()
+    })
+
+    it('deletes a deck', async () => {
+      const user = userEvent.setup()
+      const calls = await showDecks(
+        [animals],
+        async () => new Response(null, { status: 204 }),
+      )
+
+      await user.click(
+        screen.getByRole('button', { name: 'Delete deck "Animals"' }),
+      )
+
+      expect(
+        await screen.findByText("You haven't made any decks yet."),
+      ).toBeInTheDocument()
+      const del = calls.find((call) => call.init?.method === 'DELETE')
+      expect(del?.url).toBe(`${decksUrl}/7`)
+      expect(trackEvent).toHaveBeenCalledWith('DeckDeleted')
+    })
+
+    it('shows an error when loading fails', async () => {
+      mockFetch(unreachable)
+      renderAt('/decks')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        unreachableMessage,
+      )
+    })
+  })
+
   describe('modes', () => {
     it('links to each mode and marks the current one', async () => {
       const user = userEvent.setup()
@@ -1098,7 +1321,7 @@ describe('App', () => {
         within(nav)
           .getAllByRole('link')
           .map((link) => link.getAttribute('href')),
-      ).toEqual(['/', '/practice', '/scores'])
+      ).toEqual(['/', '/decks', '/practice', '/scores'])
       expect(
         within(nav).getByRole('link', { name: 'Manage cards' }),
       ).toHaveAttribute('aria-current', 'page')
@@ -1128,36 +1351,57 @@ describe('App', () => {
         next = { ...dog, side: 'Spanish' },
         status = 200,
         scoreChanges = [0],
-      }: { next?: unknown; status?: number; scoreChanges?: number[] } = {},
+        path = '/practice',
+        tags = [],
+        decks = [],
+      }: {
+        next?: unknown
+        status?: number
+        scoreChanges?: number[]
+        path?: string
+        tags?: Tag[]
+        decks?: Deck[]
+      } = {},
     ) {
       let answers = 0
-      const calls = mockFetch(async (_url, init) => {
-        if (init?.method === 'POST') {
-          // Each answer gets the next score change, and the last one after that.
-          const scoreChange =
-            scoreChanges[Math.min(answers++, scoreChanges.length - 1)]
-          return status === 200
-            ? jsonResponse({ next, scoreChange })
-            : new Response(null, { status })
-        }
-        return first === null
-          ? new Response(null, { status: 204 })
-          : jsonResponse(first)
-      })
-      renderAt('/practice')
+      const calls = mockFetch(
+        async (_url, init) => {
+          if (init?.method === 'POST') {
+            // Each answer gets the next score change, and the last one after that.
+            const scoreChange =
+              scoreChanges[Math.min(answers++, scoreChanges.length - 1)]
+            return status === 200
+              ? jsonResponse({ next, scoreChange })
+              : new Response(null, { status })
+          }
+          return first === null
+            ? new Response(null, { status: 204 })
+            : jsonResponse(first)
+        },
+        tags,
+        decks,
+      )
+      renderAt(path)
       await waitFor(() => {
         expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
       })
       return calls
     }
 
+    // The urls the page asked for its practice cards from, in order.
+    function nextUrls(calls: Call[]) {
+      return calls
+        .map((call) => call.url)
+        .filter((url) => url.includes('/practice/next'))
+    }
+
     it('shows the Spanish of the card the API picks until it is revealed', async () => {
       const user = userEvent.setup()
       const calls = await practice({ ...cat, side: 'Spanish' })
 
-      expect(calls[0].url).toBe(
+      expect(nextUrls(calls)).toEqual([
         'http://localhost:5269/api/flashcards/practice/next',
-      )
+      ])
       expect(screen.getByText('el gato')).toHaveAttribute('lang', 'es')
       expect(screen.queryByText('the cat')).not.toBeInTheDocument()
       expect(
@@ -1307,6 +1551,139 @@ describe('App', () => {
       expect(
         screen.getByRole('link', { name: 'Add flash cards' }),
       ).toHaveAttribute('href', '/')
+    })
+
+    describe('picking what to practice', () => {
+      const animals: Deck = { id: 3, name: 'Animals', flashCardIds: [1, 2] }
+      const pets: Tag = { id: 4, name: 'Pets' }
+
+      it('offers every card, the decks and the tags, and practices the one picked', async () => {
+        const user = userEvent.setup()
+        const calls = await practice(
+          { ...cat, side: 'Spanish' },
+          { decks: [animals], tags: [pets], scoreChanges: [50] },
+        )
+        await user.click(screen.getByRole('button', { name: 'Reveal' }))
+        await user.click(screen.getByRole('button', { name: 'Got it!' }))
+        await waitFor(() => {
+          expect(screen.getByText(/^Session score/)).toHaveTextContent(
+            'Session score +50',
+          )
+        })
+
+        await user.click(screen.getByRole('combobox', { name: 'Practice' }))
+        const listbox = screen.getByRole('listbox')
+        expect(
+          within(listbox)
+            .getAllByRole('option')
+            .map((option) => option.textContent),
+        ).toEqual(['All cards', 'Deck: Animals', 'Tag: Pets'])
+        await user.click(
+          within(listbox).getByRole('option', { name: 'Deck: Animals' }),
+        )
+
+        await waitFor(() => {
+          expect(nextUrls(calls)).toContain(
+            'http://localhost:5269/api/flashcards/practice/next?deckId=3',
+          )
+        })
+        // A new session for the deck.
+        expect(await screen.findByText(/^Session score/)).toHaveTextContent(
+          'Session score 0',
+        )
+        expect(
+          screen.getByRole('combobox', { name: 'Practice' }),
+        ).toHaveTextContent('Deck: Animals')
+      })
+
+      it('practices the deck in the URL, and records answers with it', async () => {
+        const user = userEvent.setup()
+        const calls = await practice(
+          { ...cat, side: 'Spanish' },
+          { path: '/practice?deck=3', decks: [animals] },
+        )
+
+        expect(nextUrls(calls)).toEqual([
+          'http://localhost:5269/api/flashcards/practice/next?deckId=3',
+        ])
+        await user.click(screen.getByRole('button', { name: 'Reveal' }))
+        await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+        expect(await screen.findByText('el perro')).toBeInTheDocument()
+        expect(calls.find((call) => call.init?.method === 'POST')?.url).toBe(
+          'http://localhost:5269/api/flashcards/1/practice-results?deckId=3',
+        )
+      })
+
+      it('practices the tag in the URL', async () => {
+        const calls = await practice(
+          { ...cat, side: 'Spanish' },
+          { path: '/practice?tag=4', tags: [pets] },
+        )
+
+        expect(nextUrls(calls)).toEqual([
+          'http://localhost:5269/api/flashcards/practice/next?tagId=4',
+        ])
+        expect(
+          screen.getByRole('combobox', { name: 'Practice' }),
+        ).toHaveTextContent('Tag: Pets')
+      })
+
+      it('practices every card when the deck in the URL is gone', async () => {
+        const calls = await practice(
+          { ...cat, side: 'Spanish' },
+          { path: '/practice?deck=99', decks: [animals] },
+        )
+
+        expect(nextUrls(calls)).toEqual([
+          'http://localhost:5269/api/flashcards/practice/next',
+        ])
+        expect(
+          screen.getByRole('combobox', { name: 'Practice' }),
+        ).toHaveTextContent('All cards')
+      })
+
+      it('links to the decks when the deck has no cards', async () => {
+        await practice(null, { path: '/practice?deck=3', decks: [animals] })
+
+        expect(
+          screen.getByText('There are no cards in this deck.'),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('link', { name: 'Edit decks' }),
+        ).toHaveAttribute('href', '/decks')
+      })
+
+      it('says so when the tag has no cards', async () => {
+        await practice(null, { path: '/practice?tag=4', tags: [pets] })
+
+        expect(
+          screen.getByText('There are no cards with this tag.'),
+        ).toBeInTheDocument()
+      })
+
+      it('says so when the deck runs out of cards during practice', async () => {
+        const user = userEvent.setup()
+        await practice(
+          { ...cat, side: 'Spanish' },
+          { path: '/practice?deck=3', decks: [animals], next: null },
+        )
+
+        await user.click(screen.getByRole('button', { name: 'Reveal' }))
+        await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+        expect(
+          await screen.findByText('There are no cards in this deck.'),
+        ).toBeInTheDocument()
+      })
+
+      it('leaves out the picker when there are no decks or tags', async () => {
+        await practice({ ...cat, side: 'Spanish' })
+
+        expect(
+          screen.queryByRole('combobox', { name: 'Practice' }),
+        ).not.toBeInTheDocument()
+      })
     })
 
     it('shows an error when loading fails', async () => {

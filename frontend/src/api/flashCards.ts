@@ -123,9 +123,29 @@ export type PracticeCard = FlashCardWords & {
   side: PracticeSide
 }
 
-// The card to start practicing with, or null when there are no cards.
-export async function getNextPracticeCard(): Promise<PracticeCard | null> {
-  const response = await apiFetch(`${flashCardsUrl}/practice/next`)
+// Which cards to practice: a deck's, a tag's, or all of them when it's empty.
+export type PracticeSelection = { deckId?: number; tagId?: number }
+
+// The selection as a query string, starting with ? unless it's empty.
+function practiceQuery({ deckId, tagId }: PracticeSelection) {
+  const params = new URLSearchParams()
+  if (deckId !== undefined) {
+    params.set('deckId', String(deckId))
+  }
+  if (tagId !== undefined) {
+    params.set('tagId', String(tagId))
+  }
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
+// The card to start practicing with, or null when there are no cards in the selection.
+export async function getNextPracticeCard(
+  selection: PracticeSelection = {},
+): Promise<PracticeCard | null> {
+  const response = await apiFetch(
+    `${flashCardsUrl}/practice/next${practiceQuery(selection)}`,
+  )
   if (!response.ok) {
     throw new Error('Unable to load flash cards.')
   }
@@ -134,18 +154,21 @@ export async function getNextPracticeCard(): Promise<PracticeCard | null> {
     : ((await response.json()) as PracticeCard)
 }
 
-// The card to practice next, and how much the answer raised or lowered the answered card's score.
+// The card to practice next, and how much the answer raised or lowered the answered card's score. There's no next
+// card when the deck or tag being practiced has lost all its cards since practice started.
 export type PracticeResult = {
-  next: PracticeCard
+  next: PracticeCard | null
   scoreChange: number
 }
 
-// Records the answer.
+// Records the answer, and picks the next card from the same selection.
 export async function recordPracticeResult(
   id: number,
   outcome: PracticeOutcome,
+  selection: PracticeSelection = {},
 ): Promise<PracticeResult> {
-  const response = await apiFetch(`${flashCardsUrl}/${id}/practice-results`, {
+  const url = `${flashCardsUrl}/${id}/practice-results${practiceQuery(selection)}`
+  const response = await apiFetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

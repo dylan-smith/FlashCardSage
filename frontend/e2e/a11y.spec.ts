@@ -3,6 +3,7 @@ import { test, expect } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
+const decksApiUrl = 'http://localhost:5269/api/decks'
 
 test.describe('Accessibility', () => {
   test('main page has no detectable accessibility violations', async ({
@@ -76,6 +77,43 @@ test.describe('Accessibility', () => {
       expect(results.violations).toEqual([])
     } finally {
       await request.delete(`${flashCardsApiUrl}/${id}`)
+    }
+  })
+
+  test('decks page, with a deck being edited, has no detectable accessibility violations', async ({
+    page,
+    request,
+  }) => {
+    const card = await request.post(flashCardsApiUrl, {
+      data: {
+        spanish: `A11y deck card ${Date.now()}`,
+        english: 'a check',
+        tags: ['A11y'],
+      },
+    })
+    expect(card.ok()).toBe(true)
+    const { id: cardId } = (await card.json()) as { id: number }
+    const name = `A11y deck ${Date.now()}`
+    const deck = await request.post(decksApiUrl, {
+      data: { name, flashCardIds: [cardId] },
+    })
+    expect(deck.ok()).toBe(true)
+    const { id: deckId } = (await deck.json()) as { id: number }
+
+    try {
+      await page.goto('/decks')
+      // Editing shows the picked card's chip as well as the deck in the list.
+      await page.getByRole('button', { name: `Edit deck "${name}"` }).click()
+      await expect(
+        page.getByRole('button', { name: 'Save deck' }),
+      ).toBeVisible()
+
+      const results = await new AxeBuilder({ page }).analyze()
+
+      expect(results.violations).toEqual([])
+    } finally {
+      await request.delete(`${decksApiUrl}/${deckId}`)
+      await request.delete(`${flashCardsApiUrl}/${cardId}`)
     }
   })
 
