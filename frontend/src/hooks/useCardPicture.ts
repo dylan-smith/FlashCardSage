@@ -6,7 +6,8 @@ import {
 } from '../api/cardImages'
 import type { CardImage } from '../api/cardImages'
 import { ApiError, describeFetchError } from '../api/flashCards'
-import type { FlashCard, FlashCardFields } from '../api/flashCards'
+import type { FlashCard } from '../api/flashCards'
+import type { CardText } from '../api/translations'
 import { trackEvent, trackException } from '../telemetry'
 
 // The picture a card form offers: the card's own, if it has one, and one the API makes on request. A generated
@@ -38,9 +39,7 @@ export function useCardPicture(current: string | null) {
   }
 
   // Asks the API for a picture of the card's words, from whichever sides are filled in.
-  async function generate(
-    fields: Pick<FlashCardFields, 'spanish' | 'english'>,
-  ) {
+  async function generate(fields: CardText) {
     cancel()
     const controller = new AbortController()
     request.current = controller

@@ -6,9 +6,9 @@ See [README.md](README.md) for full setup, deployment and Azure details.
 ## Project overview
 
 FlashCardSage is a flash card app for learning a language. The first version is a plain list of flash cards,
-each with a Spanish word or phrase and its English translation, that the signed-in user can add, edit
-and delete. A card can have a picture of its meaning, made by FLUX.2-pro on Azure AI Foundry on request and kept in
-Azure Blob Storage (or as local files when no storage connection string is set, as in local development and E2E tests).
+each with one or more Spanish words or phrases and their English translations (e.g. "solo" and "únicamente"
+for "only"), that the signed-in user can add, edit and delete. A card can have a picture of its meaning, made by
+FLUX.2-pro on Azure AI Foundry on request and kept in Azure Blob Storage (or as local files when no storage connection string is set, as in local development and E2E tests).
 The cards page also suggests a handful of new cards, which gpt-5-mini on the same Foundry resource picks from the
 user's cards.
 

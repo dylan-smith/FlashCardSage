@@ -2,6 +2,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Translation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -18,14 +19,14 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(new FlashCardRequest { Spanish = "  el gato  ", English = " the cat " });
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["  el gato  "], English = [" the cat "] });
 
         var createdResult = Assert.IsType<CreatedAtActionResult>(result.Result);
         var card = Assert.IsType<FlashCard>(createdResult.Value);
-        Assert.Equal(("el gato", "the cat"), (card.Spanish, card.English));
+        Assert.Equal(("el gato", "the cat"), (card.Spanish.Single(), card.English.Single()));
 
-        var savedCard = await dbContext.FlashCards.SingleAsync();
-        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish, savedCard.English));
+        var savedCard = await dbContext.FlashCards.Include(c => c.Words).SingleAsync();
+        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish.Single(), savedCard.English.Single()));
     }
 
     [Fact]
@@ -34,7 +35,7 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(new FlashCardRequest { Spanish = "   ", English = "the cat" });
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["   "], English = ["the cat"] });
 
         var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
         Assert.Equal(["Spanish is required."], problem.Errors["Spanish"]);
@@ -48,7 +49,7 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "   " });
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["   "] });
 
         var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
         Assert.Equal(["English is required."], problem.Errors["English"]);
@@ -62,7 +63,7 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(new FlashCardRequest { Spanish = "", English = "" });
+        var result = await controller.Create(new FlashCardRequest { Spanish = [""], English = [""] });
 
         var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
         Assert.Equal(["Spanish is required."], problem.Errors["Spanish"]);
@@ -70,19 +71,19 @@ public class FlashCardsControllerTests
     }
 
     [Theory]
-    [InlineData("el gato", "the cat", FlashCardsController.DuplicateSpanishMessage)]
-    [InlineData("  El Gato ", "THE CAT", FlashCardsController.DuplicateSpanishMessage)]
-    [InlineData("el gato", "the tomcat", FlashCardsController.DuplicateSpanishMessage)]
-    [InlineData("el gatito", "The Cat", FlashCardsController.DuplicateEnglishMessage)]
-    public async Task Create_ReturnsConflict_WhenEitherSideIsAlreadyOnACard(string spanish, string english, string message)
+    [InlineData("el gato", "the cat", Language.Spanish, "el gato")]
+    [InlineData("  El Gato ", "THE CAT", Language.Spanish, "el gato")]
+    [InlineData("el gato", "the tomcat", Language.Spanish, "el gato")]
+    [InlineData("el gatito", "The Cat", Language.English, "the cat")]
+    public async Task Create_ReturnsConflict_WhenEitherSideIsAlreadyOnACard(string spanish, string english, Language language, string word)
     {
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
-        await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
-        var result = await controller.Create(new FlashCardRequest { Spanish = spanish, English = english });
+        await controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
+        var result = await controller.Create(new FlashCardRequest { Spanish = [spanish], English = [english] });
 
-        AssertDuplicateProblem(result.Result, message);
+        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateMessage(language, word));
         Assert.Equal(1, await dbContext.FlashCards.CountAsync());
     }
 
@@ -92,14 +93,14 @@ public class FlashCardsControllerTests
         var databaseName = Guid.NewGuid().ToString();
         await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
         {
-            otherContext.FlashCards.Add(new FlashCard { Spanish = "el gato", English = "the cat" });
+            otherContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el gato", "the cat") });
             await otherContext.SaveChangesAsync();
         }
 
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
 
         Assert.IsType<CreatedAtActionResult>(result.Result);
     }
@@ -110,9 +111,9 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
-        await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
+        await controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
 
-        Assert.Equal(TestDb.UserId, (await dbContext.FlashCards.SingleAsync()).UserId);
+        Assert.Equal(TestDb.UserId, (await dbContext.FlashCards.Include(c => c.Words).SingleAsync()).UserId);
     }
 
     [Fact]
@@ -120,9 +121,9 @@ public class FlashCardsControllerTests
     {
         await using var dbContext = TestDb.Create();
         dbContext.FlashCards.AddRange(
-            new FlashCard { Spanish = "uno", English = "one" },
-            new FlashCard { Spanish = "dos", English = "two" },
-            new FlashCard { Spanish = "tres", English = "three" });
+            new FlashCard { Words = TestDb.Words("uno", "one") },
+            new FlashCard { Words = TestDb.Words("dos", "two") },
+            new FlashCard { Words = TestDb.Words("tres", "three") });
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
@@ -131,14 +132,14 @@ public class FlashCardsControllerTests
 
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
         var cards = Assert.IsAssignableFrom<IEnumerable<FlashCard>>(okResult.Value).ToList();
-        Assert.Equal(["uno", "dos", "tres"], cards.Select(card => card.Spanish));
+        Assert.Equal(["uno", "dos", "tres"], cards.Select(card => card.Spanish.Single()));
     }
 
     [Fact]
     public async Task GetById_ReturnsFlashCard_WhenItExists()
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
 
@@ -148,7 +149,7 @@ public class FlashCardsControllerTests
 
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
         var returnedCard = Assert.IsType<FlashCard>(okResult.Value);
-        Assert.Equal((card.Id, "el gato"), (returnedCard.Id, returnedCard.Spanish));
+        Assert.Equal((card.Id, "el gato"), (returnedCard.Id, returnedCard.Spanish.Single()));
     }
 
     [Fact]
@@ -166,73 +167,73 @@ public class FlashCardsControllerTests
     public async Task Update_ReturnsOk_AndUpdatesFlashCard()
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
 
-        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = "  el perro  ", English = "  the dog  " });
+        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = ["  el perro  "], English = ["  the dog  "] });
 
         var okResult = Assert.IsType<OkObjectResult>(result.Result);
         var updatedCard = Assert.IsType<FlashCard>(okResult.Value);
-        Assert.Equal(("el perro", "the dog"), (updatedCard.Spanish, updatedCard.English));
+        Assert.Equal(("el perro", "the dog"), (updatedCard.Spanish.Single(), updatedCard.English.Single()));
 
-        var savedCard = await dbContext.FlashCards.SingleAsync(item => item.Id == card.Id);
-        Assert.Equal(("el perro", "the dog"), (savedCard.Spanish, savedCard.English));
+        var savedCard = await dbContext.FlashCards.Include(c => c.Words).SingleAsync(item => item.Id == card.Id);
+        Assert.Equal(("el perro", "the dog"), (savedCard.Spanish.Single(), savedCard.English.Single()));
     }
 
     [Fact]
     public async Task Update_ReturnsValidationProblem_WhenEnglishIsBlank()
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
 
-        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = "el perro", English = "" });
+        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = ["el perro"], English = [""] });
 
         var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
         Assert.Equal(["English is required."], problem.Errors["English"]);
-        var savedCard = await dbContext.FlashCards.SingleAsync();
-        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish, savedCard.English));
+        var savedCard = await dbContext.FlashCards.Include(c => c.Words).SingleAsync();
+        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish.Single(), savedCard.English.Single()));
     }
 
     [Theory]
-    [InlineData("El perro", "the cat", FlashCardsController.DuplicateSpanishMessage)]
-    [InlineData("el gato", "THE DOG", FlashCardsController.DuplicateEnglishMessage)]
-    public async Task Update_ReturnsConflict_WhenEitherSideIsOnAnotherCard(string spanish, string english, string message)
+    [InlineData("El perro", "the cat", Language.Spanish, "el perro")]
+    [InlineData("el gato", "THE DOG", Language.English, "the dog")]
+    public async Task Update_ReturnsConflict_WhenEitherSideIsOnAnotherCard(string spanish, string english, Language language, string word)
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
-        dbContext.FlashCards.AddRange(card, new FlashCard { Spanish = "el perro", English = "the dog" });
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+        dbContext.FlashCards.AddRange(card, new FlashCard { Words = TestDb.Words("el perro", "the dog") });
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
 
-        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = spanish, English = english });
+        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = [spanish], English = [english] });
 
-        AssertDuplicateProblem(result.Result, message);
-        var savedCard = await dbContext.FlashCards.AsNoTracking().SingleAsync(item => item.Id == card.Id);
-        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish, savedCard.English));
+        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateMessage(language, word));
+        var savedCard = await dbContext.FlashCards.AsNoTracking().Include(c => c.Words).SingleAsync(item => item.Id == card.Id);
+        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish.Single(), savedCard.English.Single()));
     }
 
     [Fact]
     public async Task Update_AllowsSavingTheCardUnchanged()
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
 
         var controller = CreateController(dbContext);
 
-        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = "El gato", English = "the cat" });
+        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = ["El gato"], English = ["the cat"] });
 
         Assert.IsType<OkObjectResult>(result.Result);
-        Assert.Equal("El gato", (await dbContext.FlashCards.SingleAsync()).Spanish);
+        Assert.Equal("El gato", (await dbContext.FlashCards.Include(c => c.Words).SingleAsync()).Spanish.Single());
     }
 
     [Fact]
@@ -241,7 +242,7 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
-        var result = await controller.Update(999, new FlashCardRequest { Spanish = "el gato", English = "the cat" });
+        var result = await controller.Update(999, new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
 
         Assert.IsType<NotFoundResult>(result.Result);
     }
@@ -250,7 +251,7 @@ public class FlashCardsControllerTests
     public async Task Delete_ReturnsNoContent_AndRemovesFlashCard()
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
 
@@ -263,13 +264,27 @@ public class FlashCardsControllerTests
     }
 
     [Fact]
+    public async Task Delete_RemovesTheCardsWords_SoTheyCanGoOnANewCard()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var cardId = await SaveCardAsync(databaseName, "el gato", "the cat");
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        Assert.IsType<NoContentResult>(await controller.Delete(cardId));
+
+        Assert.False(await dbContext.FlashCardWords.AnyAsync());
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
+        Assert.IsType<CreatedAtActionResult>(result.Result);
+    }
+
+    [Fact]
     public async Task Delete_RemovesTheCardsPicture()
     {
         await using var dbContext = TestDb.Create();
         var card = new FlashCard
         {
-            Spanish = "nadar",
-            English = "to swim",
+            Words = TestDb.Words("nadar", "to swim"),
             ImageUrl = "https://images.test/card-images/swim.jpg"
         };
         dbContext.FlashCards.Add(card);
@@ -300,7 +315,7 @@ public class FlashCardsControllerTests
         int otherId;
         await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
         {
-            var other = new FlashCard { Spanish = "suyo", English = "theirs" };
+            var other = new FlashCard { Words = TestDb.Words("suyo", "theirs") };
             otherContext.FlashCards.Add(other);
             await otherContext.SaveChangesAsync();
             otherId = other.Id;
@@ -312,7 +327,7 @@ public class FlashCardsControllerTests
         var all = Assert.IsType<OkObjectResult>((await controller.GetAll()).Result);
         Assert.Empty(Assert.IsAssignableFrom<IEnumerable<FlashCard>>(all.Value));
         Assert.IsType<NotFoundResult>((await controller.GetById(otherId)).Result);
-        Assert.IsType<NotFoundResult>((await controller.Update(otherId, new FlashCardRequest { Spanish = "mío", English = "mine" })).Result);
+        Assert.IsType<NotFoundResult>((await controller.Update(otherId, new FlashCardRequest { Spanish = ["mío"], English = ["mine"] })).Result);
         Assert.IsType<NotFoundResult>(await controller.Delete(otherId));
     }
 
@@ -326,8 +341,8 @@ public class FlashCardsControllerTests
 
         var result = await controller.Create(new FlashCardRequest
         {
-            Spanish = "la manzana",
-            English = "the apple",
+            Spanish = ["la manzana"],
+            English = ["the apple"],
             Tags = [" Fruit ", "food", "", "  ", "FRUIT"]
         });
 
@@ -345,8 +360,8 @@ public class FlashCardsControllerTests
 
         var result = await controller.Create(new FlashCardRequest
         {
-            Spanish = "el gato",
-            English = "the cat",
+            Spanish = ["el gato"],
+            English = ["the cat"],
             Tags = [new string('a', Tag.MaxNameLength + 1)]
         });
 
@@ -369,7 +384,7 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(new FlashCardRequest { Spanish = "el pan", English = "the bread", Tags = ["Food"] });
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["el pan"], English = ["the bread"], Tags = ["Food"] });
 
         var card = Assert.IsType<FlashCard>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
         Assert.Equal(TestDb.UserId, Assert.Single(card.Tags).UserId);
@@ -383,7 +398,7 @@ public class FlashCardsControllerTests
         int cardId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var card = new FlashCard { Spanish = "lunes", English = "Monday", Tags = [new Tag { Name = "Days" }, new Tag { Name = "Food" }] };
+            var card = new FlashCard { Words = TestDb.Words("lunes", "Monday"), Tags = [new Tag { Name = "Days" }, new Tag { Name = "Food" }] };
             setupContext.FlashCards.Add(card);
             await setupContext.SaveChangesAsync();
             cardId = card.Id;
@@ -392,7 +407,7 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
 
-        var result = await controller.Update(cardId, new FlashCardRequest { Spanish = "lunes", English = "Monday", Tags = ["days", "Weekdays"] });
+        var result = await controller.Update(cardId, new FlashCardRequest { Spanish = ["lunes"], English = ["Monday"], Tags = ["days", "Weekdays"] });
 
         var updatedCard = Assert.IsType<FlashCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal(["Days", "Weekdays"], updatedCard.Tags.Select(tag => tag.Name));
@@ -408,7 +423,7 @@ public class FlashCardsControllerTests
     public async Task GetAll_ReturnsEachCardsTagsInNameOrder()
     {
         await using var dbContext = TestDb.Create();
-        dbContext.FlashCards.Add(new FlashCard { Spanish = "enero", English = "January", Tags = [new Tag { Name = "Months" }, new Tag { Name = "Calendar" }] });
+        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("enero", "January"), Tags = [new Tag { Name = "Months" }, new Tag { Name = "Calendar" }] });
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
 
@@ -424,7 +439,7 @@ public class FlashCardsControllerTests
     public async Task Delete_KeepsTheCardsTags()
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Spanish = "el gato", English = "the cat", Tags = [new Tag { Name = "Animals" }] };
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat"), Tags = [new Tag { Name = "Animals" }] };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
         dbContext.ChangeTracker.Clear();
@@ -444,12 +459,12 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat", Tags = ["Animals"] });
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"], Tags = ["Animals"] });
 
         var created = Assert.IsType<CreatedAtActionResult>(result.Result);
         var card = Assert.IsType<FlashCard>(created.Value);
-        Assert.Equal(("el gato", "the cat", "Animals"), (card.Spanish, card.English, card.Tags.Single().Name));
-        var saved = await dbContext.FlashCards.SingleAsync();
+        Assert.Equal(("el gato", "the cat", "Animals"), (card.Spanish.Single(), card.English.Single(), card.Tags.Single().Name));
+        var saved = await dbContext.FlashCards.Include(c => c.Words).SingleAsync();
         Assert.Equal(saved.Id, card.Id);
         Assert.Equal(saved.Id, created.RouteValues?["id"]);
     }
@@ -462,10 +477,10 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
 
-        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateEnglishMessage);
-        Assert.Equal("el gatito", (await dbContext.FlashCards.SingleAsync()).Spanish);
+        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateMessage(Language.English, "the cat"));
+        Assert.Equal("el gatito", (await dbContext.FlashCards.Include(c => c.Words).SingleAsync()).Spanish.Single());
     }
 
     [Fact]
@@ -475,7 +490,7 @@ public class FlashCardsControllerTests
         var controller = CreateController(dbContext);
 
         await Assert.ThrowsAsync<DbUpdateException>(() =>
-            controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" }));
+            controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] }));
     }
 
     [Fact]
@@ -487,18 +502,144 @@ public class FlashCardsControllerTests
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
         var controller = CreateController(dbContext);
 
-        var result = await controller.Update(cardId, new FlashCardRequest { Spanish = "El Perro", English = "the cat" });
+        var result = await controller.Update(cardId, new FlashCardRequest { Spanish = ["El Perro"], English = ["the cat"] });
 
-        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateSpanishMessage);
-        var savedCard = await dbContext.FlashCards.SingleAsync(item => item.Id == cardId);
-        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish, savedCard.English));
+        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateMessage(Language.Spanish, "el perro"));
+        var savedCard = await dbContext.FlashCards.Include(c => c.Words).SingleAsync(item => item.Id == cardId);
+        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish.Single(), savedCard.English.Single()));
+    }
+
+    [Fact]
+    public async Task Create_KeepsEveryTranslationInOrder_LeavingOutBlanksAndRepeats()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest
+        {
+            Spanish = [" solo ", "", "únicamente", "SOLO", "   "],
+            English = ["only"]
+        });
+
+        var card = Assert.IsType<FlashCard>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+        Assert.Equal(["solo", "únicamente"], card.Spanish);
+        Assert.Equal(["only"], card.English);
+
+        await using var checkContext = TestDb.Create(databaseName);
+        var saved = await checkContext.FlashCards.Include(c => c.Words).SingleAsync();
+        Assert.Equal(["solo", "únicamente"], saved.Spanish);
+        Assert.All(saved.Words, word => Assert.Equal(TestDb.UserId, word.UserId));
+    }
+
+    [Fact]
+    public async Task Create_ReturnsValidationProblem_ForTooManyTranslations()
+    {
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest
+        {
+            Spanish = ["uno"],
+            English = [.. Enumerable.Range(1, FlashCard.MaxWordsPerSide + 1).Select(number => $"one {number}")]
+        });
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
+        Assert.Equal(["A flash card can have at most 10 English translations."], problem.Errors["English"]);
+        Assert.False(await dbContext.FlashCards.AnyAsync());
+    }
+
+    [Fact]
+    public async Task Create_ReturnsValidationProblem_ForATranslationThatsTooLong()
+    {
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest
+        {
+            Spanish = ["uno", new string('a', FlashCard.MaxWordLength + 1)],
+            English = ["one"]
+        });
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
+        Assert.Equal(["Spanish can be at most 200 characters."], problem.Errors["Spanish"]);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsConflict_WhenAnyTranslationIsOnAnotherCard()
+    {
+        await using var dbContext = TestDb.Create();
+        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("solo", "only") });
+        await dbContext.SaveChangesAsync();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["únicamente"], English = ["merely", "Only"] });
+
+        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateMessage(Language.English, "only"));
+        Assert.Equal(1, await dbContext.FlashCards.CountAsync());
+    }
+
+    [Fact]
+    public async Task Update_AddsReordersAndRemovesTranslations()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var cardId = await SaveCardAsync(databaseName, "solo", "only");
+
+        await using (var dbContext = TestDb.Create(databaseName))
+        {
+            var controller = CreateController(dbContext);
+            var result = await controller.Update(cardId, new FlashCardRequest
+            {
+                Spanish = ["únicamente", "Solo", "sólo"],
+                English = ["only"]
+            });
+
+            var updated = Assert.IsType<FlashCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+            Assert.Equal(["únicamente", "Solo", "sólo"], updated.Spanish);
+        }
+
+        await using (var dbContext = TestDb.Create(databaseName))
+        {
+            var controller = CreateController(dbContext);
+            Assert.IsType<OkObjectResult>((await controller.Update(cardId, new FlashCardRequest
+            {
+                Spanish = ["sólo", "únicamente"],
+                English = ["only", "just"]
+            })).Result);
+        }
+
+        await using var checkContext = TestDb.Create(databaseName);
+        var saved = await checkContext.FlashCards.Include(c => c.Words).SingleAsync();
+        Assert.Equal(["sólo", "únicamente"], saved.Spanish);
+        Assert.Equal(["only", "just"], saved.English);
+        Assert.Equal(4, await checkContext.FlashCardWords.CountAsync());
+    }
+
+    [Fact]
+    public async Task Create_AllowsATranslationAnotherUserHasOnACard()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            otherContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("solo", "only") });
+            await otherContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest { Spanish = ["únicamente", "solo"], English = ["only"] });
+
+        Assert.IsType<CreatedAtActionResult>(result.Result);
+        // Only the current user's words are counted: the new card's three.
+        Assert.Equal(3, await dbContext.FlashCardWords.CountAsync());
     }
 
     // Saves a card for the test user through a context of its own, as another request would.
     private static async Task<int> SaveCardAsync(string databaseName, string spanish, string english, params string[] tags)
     {
         await using var dbContext = TestDb.Create(databaseName);
-        var card = new FlashCard { Spanish = spanish, English = english, Tags = [.. tags.Select(name => new Tag { Name = name })] };
+        var card = new FlashCard { Words = TestDb.Words(spanish, english), Tags = [.. tags.Select(name => new Tag { Name = name })] };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
         return card.Id;

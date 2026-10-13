@@ -10,7 +10,11 @@ import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
-import { describeFetchError, listFlashCardScores } from '../api/flashCards'
+import {
+  describeFetchError,
+  formatWords,
+  listFlashCardScores,
+} from '../api/flashCards'
 import type { FlashCardScores } from '../api/flashCards'
 import { trackException } from '../telemetry'
 
@@ -82,8 +86,8 @@ function ScoresPage() {
                   sx={{ py: 1, px: 2, bgcolor: scoreColor(card.score) }}
                 >
                   <ListItemText
-                    primary={card.spanish}
-                    secondary={card.english}
+                    primary={formatWords(card.spanish)}
+                    secondary={formatWords(card.english)}
                     slotProps={{ primary: { lang: 'es' } }}
                     sx={{ overflowWrap: 'anywhere' }}
                   />

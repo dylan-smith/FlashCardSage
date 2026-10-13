@@ -7,11 +7,20 @@ export type Tag = {
   name: string
 }
 
-// A card's words, which is all practice and scores need.
+// A card's words, which is all practice and scores need. Each side has one or more words for the same meaning, in
+// the order the user put them in (e.g. "solo" and "únicamente" for "only").
 export type FlashCardWords = {
   id: number
-  spanish: string
-  english: string
+  spanish: string[]
+  english: string[]
+}
+
+// The most words a side of a card can have, the same as the API's limit.
+export const maxWordsPerSide = 10
+
+// A side's words as one line, the way a card shows them, such as "solo / únicamente".
+export function formatWords(words: string[]) {
+  return words.join(' / ')
 }
 
 // The API sends a card's tags in name order. imageUrl is the card's picture, or null for a card without one.
@@ -20,11 +29,11 @@ export type FlashCard = FlashCardWords & {
   imageUrl: string | null
 }
 
-// What the user types in for a card, sent when it's created or changed. Tags are by name, and a new name makes a
-// new tag.
+// What the user types in for a card, sent when it's created or changed. Each side is a list of words, and the API
+// leaves out blank ones. Tags are by name, and a new name makes a new tag.
 export type FlashCardFields = {
-  spanish: string
-  english: string
+  spanish: string[]
+  english: string[]
   tags: string[]
 }
 

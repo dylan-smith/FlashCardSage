@@ -23,6 +23,7 @@ public static class FlashCardScoring
         }
 
         var cards = await query
+            .Include(card => card.Words)
             .OrderBy(card => card.Id)
             .ToListAsync();
 

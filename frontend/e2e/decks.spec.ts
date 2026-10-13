@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect } from './fixtures'
+import { test, expect, cardData } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const apiUrl = 'http://localhost:5269/api'
@@ -42,7 +42,11 @@ test.describe('Decks', () => {
     }
     for (const card of cards) {
       expect(
-        (await request.post(`${apiUrl}/flashcards`, { data: card })).ok(),
+        (
+          await request.post(`${apiUrl}/flashcards`, {
+            data: cardData(card.spanish, card.english, card.tags),
+          })
+        ).ok(),
       ).toBe(true)
     }
   })

@@ -15,8 +15,8 @@ Accept: {{contentType}}
 Authorization: Bearer {{token}}
 
 {
-  "spanish": "el gato",
-  "english": "the cat",
+  "spanish": ["el gato"],
+  "english": ["the cat"],
   "tags": ["Animals"]
 }
 
@@ -28,8 +28,8 @@ Accept: {{contentType}}
 Authorization: Bearer {{token}}
 
 {
-  "spanish": "el perro",
-  "english": "the dog"
+  "spanish": ["el perro", "el can"],
+  "english": ["the dog"]
 }
 
 ###

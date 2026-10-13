@@ -150,15 +150,15 @@ describe('App', () => {
         jsonResponse([
           {
             id: 1,
-            spanish: 'el gato',
-            english: 'the cat',
+            spanish: ['el gato'],
+            english: ['the cat'],
             tags: [],
             imageUrl: null,
           },
           {
             id: 2,
-            spanish: 'el perro',
-            english: 'the dog',
+            spanish: ['el perro'],
+            english: ['the dog'],
             tags: [],
             imageUrl: null,
           },
@@ -221,8 +221,8 @@ describe('App', () => {
           ? jsonResponse(
               {
                 id: 7,
-                spanish: 'el gato',
-                english: 'the cat',
+                spanish: ['el gato'],
+                english: ['the cat'],
                 tags: [],
                 imageUrl: null,
               },
@@ -251,9 +251,72 @@ describe('App', () => {
       const post = calls.find((call) => call.init?.method === 'POST')
       expect(post?.url).toBe('http://localhost:5269/api/flashcards')
       expect(post?.init?.body).toBe(
-        JSON.stringify({ spanish: 'el gato', english: 'the cat', tags: [] }),
+        JSON.stringify({
+          spanish: ['el gato'],
+          english: ['the cat'],
+          tags: [],
+        }),
       )
       expect(trackEvent).toHaveBeenCalledWith('FlashCardCreated')
+    })
+
+    it('sends every translation typed in, leaving out blank ones', async () => {
+      const user = userEvent.setup()
+      // Typing in a side asks for a translation too, which isn't answered.
+      const isSave = (call: Call) =>
+        call.init?.method === 'POST' && call.url.endsWith('/api/flashcards')
+      const calls = mockFetch(async (url, init) =>
+        isSave({ url, init })
+          ? jsonResponse(
+              {
+                id: 7,
+                spanish: ['solo', 'únicamente'],
+                english: ['only'],
+                tags: [],
+                imageUrl: null,
+              },
+              201,
+            )
+          : jsonResponse([]),
+      )
+      renderAt('/')
+      await screen.findByText('No flash cards yet.')
+
+      await user.type(
+        screen.getByLabelText('Spanish', { exact: false }),
+        'solo',
+      )
+      await user.click(
+        screen.getByRole('button', { name: 'Add Spanish translation' }),
+      )
+      expect(screen.getByLabelText('Spanish 2')).toHaveFocus()
+      await user.type(screen.getByLabelText('Spanish 2'), ' únicamente ')
+      await user.click(
+        screen.getByRole('button', { name: 'Add Spanish translation' }),
+      )
+      await user.click(
+        screen.getByRole('button', { name: 'Add English translation' }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Remove English 2' }))
+      expect(screen.queryByLabelText('English 2')).not.toBeInTheDocument()
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'only',
+      )
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(await screen.findByText('solo / únicamente')).toBeInTheDocument()
+      expect(screen.getByText('only')).toBeInTheDocument()
+      // The form goes back to one field for each side.
+      expect(screen.queryByLabelText('Spanish 2')).not.toBeInTheDocument()
+      const post = calls.find(isSave)
+      expect(post?.init?.body).toBe(
+        JSON.stringify({
+          spanish: ['solo', 'únicamente'],
+          english: ['only'],
+          tags: [],
+        }),
+      )
     })
 
     it('asks for the Spanish instead of sending a blank one', async () => {
@@ -322,7 +385,7 @@ describe('App', () => {
               409,
             )
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+              { id: 1, spanish: ['el gato'], english: ['the cat'], tags: [] },
             ]),
       )
       renderAt('/')
@@ -383,8 +446,8 @@ describe('App', () => {
   describe('suggested cards', () => {
     const cat: FlashCard = {
       id: 1,
-      spanish: 'el gato',
-      english: 'the cat',
+      spanish: ['el gato'],
+      english: ['the cat'],
       tags: [],
       imageUrl: null,
     }
@@ -452,8 +515,8 @@ describe('App', () => {
           jsonResponse(
             {
               id: 2,
-              spanish: 'el perro',
-              english: 'the dog',
+              spanish: ['el perro'],
+              english: ['the dog'],
               tags: [],
               imageUrl: null,
             },
@@ -475,7 +538,11 @@ describe('App', () => {
       ).toBeInTheDocument()
       const post = calls.find((call) => call.init?.method === 'POST')
       expect(post?.init?.body).toBe(
-        JSON.stringify({ spanish: 'el perro', english: 'the dog', tags: [] }),
+        JSON.stringify({
+          spanish: ['el perro'],
+          english: ['the dog'],
+          tags: [],
+        }),
       )
       expect(trackEvent).toHaveBeenCalledWith('SuggestedFlashCardAdded')
     })
@@ -537,8 +604,8 @@ describe('App', () => {
         jsonResponse(
           {
             id: 2,
-            spanish: 'el perro',
-            english: 'the dog',
+            spanish: ['el perro'],
+            english: ['the dog'],
             tags: [],
             imageUrl: null,
           },
@@ -647,23 +714,23 @@ describe('App', () => {
         init?.method === 'PUT'
           ? jsonResponse({
               id: 1,
-              spanish: 'el perro',
-              english: 'the dog',
+              spanish: ['el perro'],
+              english: ['the dog'],
               tags: [],
               imageUrl: null,
             })
           : jsonResponse([
               {
                 id: 1,
-                spanish: 'el gato',
-                english: 'the cat',
+                spanish: ['el gato'],
+                english: ['the cat'],
                 tags: [],
                 imageUrl: null,
               },
               {
                 id: 2,
-                spanish: 'la casa',
-                english: 'the house',
+                spanish: ['la casa'],
+                english: ['the house'],
                 tags: [],
                 imageUrl: null,
               },
@@ -695,9 +762,111 @@ describe('App', () => {
       const put = calls.find((call) => call.init?.method === 'PUT')
       expect(put?.url).toBe('http://localhost:5269/api/flashcards/1')
       expect(put?.init?.body).toBe(
-        JSON.stringify({ spanish: 'el perro', english: 'the dog', tags: [] }),
+        JSON.stringify({
+          spanish: ['el perro'],
+          english: ['the dog'],
+          tags: [],
+        }),
       )
       expect(trackEvent).toHaveBeenCalledWith('FlashCardUpdated')
+    })
+
+    it('shows each translation in a field of its own, to change, add to and remove', async () => {
+      const user = userEvent.setup()
+      const calls = mockFetch(async (_url, init) =>
+        init?.method === 'PUT'
+          ? jsonResponse({
+              id: 1,
+              spanish: ['únicamente', 'sólo'],
+              english: ['only', 'just'],
+              tags: [],
+              imageUrl: null,
+            })
+          : jsonResponse([
+              {
+                id: 1,
+                spanish: ['solo', 'únicamente'],
+                english: ['only'],
+                tags: [],
+                imageUrl: null,
+              },
+            ]),
+      )
+      renderAt('/')
+      expect(await screen.findByText('solo / únicamente')).toBeInTheDocument()
+
+      await user.click(
+        screen.getByRole('button', { name: 'Edit "solo / únicamente"' }),
+      )
+      const item = screen.getAllByRole('listitem')[0]
+      expect(within(item).getByLabelText('Spanish')).toHaveValue('solo')
+      expect(within(item).getByLabelText('Spanish 2')).toHaveValue('únicamente')
+      expect(within(item).getByLabelText('English')).toHaveValue('only')
+      expect(
+        within(item).queryByRole('button', { name: 'Remove Spanish 1' }),
+      ).not.toBeInTheDocument()
+
+      await user.clear(within(item).getByLabelText('Spanish'))
+      await user.type(within(item).getByLabelText('Spanish'), 'únicamente')
+      await user.clear(within(item).getByLabelText('Spanish 2'))
+      await user.type(within(item).getByLabelText('Spanish 2'), 'sólo')
+      await user.click(
+        within(item).getByRole('button', { name: 'Add English translation' }),
+      )
+      await user.type(within(item).getByLabelText('English 2'), 'just')
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByText('únicamente / sólo')).toBeInTheDocument()
+      expect(screen.getByText('only / just')).toBeInTheDocument()
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.init?.body).toBe(
+        JSON.stringify({
+          spanish: ['únicamente', 'sólo'],
+          english: ['only', 'just'],
+          tags: [],
+        }),
+      )
+    })
+
+    it('can take a translation off a card', async () => {
+      const user = userEvent.setup()
+      const calls = mockFetch(async (_url, init) =>
+        init?.method === 'PUT'
+          ? jsonResponse({
+              id: 1,
+              spanish: ['solo'],
+              english: ['only'],
+              tags: [],
+              imageUrl: null,
+            })
+          : jsonResponse([
+              {
+                id: 1,
+                spanish: ['solo', 'únicamente'],
+                english: ['only'],
+                tags: [],
+                imageUrl: null,
+              },
+            ]),
+      )
+      renderAt('/')
+      await screen.findByText('solo / únicamente')
+
+      await user.click(
+        screen.getByRole('button', { name: 'Edit "solo / únicamente"' }),
+      )
+      const item = screen.getAllByRole('listitem')[0]
+      await user.click(
+        within(item).getByRole('button', { name: 'Remove Spanish 2' }),
+      )
+      expect(within(item).queryByLabelText('Spanish 2')).not.toBeInTheDocument()
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByText('solo')).toBeInTheDocument()
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.init?.body).toBe(
+        JSON.stringify({ spanish: ['solo'], english: ['only'], tags: [] }),
+      )
     })
 
     it('can be cancelled, keeping the old card', async () => {
@@ -705,8 +874,8 @@ describe('App', () => {
       const { calls } = await showCards([
         {
           id: 1,
-          spanish: 'el gato',
-          english: 'the cat',
+          spanish: ['el gato'],
+          english: ['the cat'],
           tags: [],
           imageUrl: null,
         },
@@ -730,8 +899,8 @@ describe('App', () => {
       const { calls } = await showCards([
         {
           id: 1,
-          spanish: 'el gato',
-          english: 'the cat',
+          spanish: ['el gato'],
+          english: ['the cat'],
           tags: [],
           imageUrl: null,
         },
@@ -759,8 +928,8 @@ describe('App', () => {
               409,
             )
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
-              { id: 2, spanish: 'el perro', english: 'the dog', tags: [] },
+              { id: 1, spanish: ['el gato'], english: ['the cat'], tags: [] },
+              { id: 2, spanish: ['el perro'], english: ['the dog'], tags: [] },
             ]),
       )
       renderAt('/')
@@ -788,8 +957,8 @@ describe('App', () => {
           : jsonResponse([
               {
                 id: 1,
-                spanish: 'el gato',
-                english: 'the cat',
+                spanish: ['el gato'],
+                english: ['the cat'],
                 tags: [],
                 imageUrl: null,
               },
@@ -1133,8 +1302,8 @@ describe('App', () => {
       const translations = mockTranslations([
         {
           id: 1,
-          spanish: 'el gato',
-          english: 'the cat',
+          spanish: ['el gato'],
+          english: ['the cat'],
           tags: [],
           imageUrl: null,
         },
@@ -1162,8 +1331,8 @@ describe('App', () => {
       const translations = mockTranslations([
         {
           id: 1,
-          spanish: 'el gato',
-          english: 'a cat',
+          spanish: ['el gato'],
+          english: ['a cat'],
           tags: [],
           imageUrl: null,
         },
@@ -1195,15 +1364,15 @@ describe('App', () => {
           : jsonResponse([
               {
                 id: 1,
-                spanish: 'el gato',
-                english: 'the cat',
+                spanish: ['el gato'],
+                english: ['the cat'],
                 tags: [],
                 imageUrl: null,
               },
               {
                 id: 2,
-                spanish: 'la casa',
-                english: 'the house',
+                spanish: ['la casa'],
+                english: ['the house'],
                 tags: [],
                 imageUrl: null,
               },
@@ -1232,8 +1401,8 @@ describe('App', () => {
           : jsonResponse([
               {
                 id: 1,
-                spanish: 'el gato',
-                english: 'the cat',
+                spanish: ['el gato'],
+                english: ['the cat'],
                 tags: [],
                 imageUrl: null,
               },
@@ -1255,8 +1424,8 @@ describe('App', () => {
           : jsonResponse([
               {
                 id: 1,
-                spanish: 'el gato',
-                english: 'the cat',
+                spanish: ['el gato'],
+                english: ['the cat'],
                 tags: [],
                 imageUrl: null,
               },
@@ -1282,15 +1451,15 @@ describe('App', () => {
     const travel = { id: 2, name: 'Travel' }
     const apple = {
       id: 1,
-      spanish: 'la manzana',
-      english: 'the apple',
+      spanish: ['la manzana'],
+      english: ['the apple'],
       tags: [food],
       imageUrl: null,
     }
     const train = {
       id: 2,
-      spanish: 'el tren',
-      english: 'the train',
+      spanish: ['el tren'],
+      english: ['the train'],
       tags: [travel],
       imageUrl: null,
     }
@@ -1343,8 +1512,8 @@ describe('App', () => {
             ? jsonResponse(
                 {
                   id: 3,
-                  spanish: 'el pan',
-                  english: 'the bread',
+                  spanish: ['el pan'],
+                  english: ['the bread'],
                   tags: [{ id: 3, name: 'Bakery' }, food],
                 },
                 201,
@@ -1373,8 +1542,8 @@ describe('App', () => {
       const post = calls.find((call) => call.init?.method === 'POST')
       expect(post?.init?.body).toBe(
         JSON.stringify({
-          spanish: 'el pan',
-          english: 'the bread',
+          spanish: ['el pan'],
+          english: ['the bread'],
           tags: ['Food', 'Bakery'],
         }),
       )
@@ -1414,8 +1583,8 @@ describe('App', () => {
       const put = calls.find((call) => call.init?.method === 'PUT')
       expect(put?.init?.body).toBe(
         JSON.stringify({
-          spanish: 'la manzana',
-          english: 'the apple',
+          spanish: ['la manzana'],
+          english: ['the apple'],
           tags: ['Food', 'Travel'],
         }),
       )
@@ -1424,8 +1593,8 @@ describe('App', () => {
     describe('the Tags page', () => {
       const pear: FlashCard = {
         id: 3,
-        spanish: 'la pera',
-        english: 'the pear',
+        spanish: ['la pera'],
+        english: ['the pear'],
         tags: [food],
         imageUrl: null,
       }
@@ -1586,8 +1755,8 @@ describe('App', () => {
     const imageUrl = 'http://images.test/7.png'
     const gato = {
       id: 7,
-      spanish: 'el gato',
-      english: 'the cat',
+      spanish: ['el gato'],
+      english: ['the cat'],
       tags: [],
       imageUrl: null,
     }
@@ -1618,7 +1787,7 @@ describe('App', () => {
             : new Response(null, { status: putStatus })
         }
         if (init?.method === 'PUT') {
-          return jsonResponse({ ...cards[0], spanish: 'el gatos' })
+          return jsonResponse({ ...cards[0], spanish: ['el gatos'] })
         }
         return jsonResponse(cards)
       })
@@ -1897,29 +2066,29 @@ describe('App', () => {
     const pets: Tag = { id: 4, name: 'Pets' }
     const cat: FlashCard = {
       id: 1,
-      spanish: 'el gato',
-      english: 'the cat',
+      spanish: ['el gato'],
+      english: ['the cat'],
       tags: [pets],
       imageUrl: null,
     }
     const dog: FlashCard = {
       id: 2,
-      spanish: 'el perro',
-      english: 'the dog',
+      spanish: ['el perro'],
+      english: ['the dog'],
       tags: [pets],
       imageUrl: null,
     }
     const house: FlashCard = {
       id: 3,
-      spanish: 'la casa',
-      english: 'the house',
+      spanish: ['la casa'],
+      english: ['the house'],
       tags: [],
       imageUrl: null,
     }
     const song: FlashCard = {
       id: 4,
-      spanish: 'la canción',
-      english: 'the song',
+      spanish: ['la canción'],
+      english: ['the song'],
       tags: [],
       imageUrl: null,
     }
@@ -2245,8 +2414,8 @@ describe('App', () => {
         const user = userEvent.setup()
         const many = Array.from({ length: 120 }, (_, index) => ({
           id: index + 1,
-          spanish: `palabra ${index + 1}`,
-          english: `word ${index + 1}`,
+          spanish: [`palabra ${index + 1}`],
+          english: [`word ${index + 1}`],
           tags: [],
           imageUrl: null,
         }))
@@ -2526,8 +2695,8 @@ describe('App', () => {
   })
 
   describe('practicing', () => {
-    const cat = { id: 1, spanish: 'el gato', english: 'the cat' }
-    const dog = { id: 2, spanish: 'el perro', english: 'the dog' }
+    const cat = { id: 1, spanish: ['el gato'], english: ['the cat'] }
+    const dog = { id: 2, spanish: ['el perro'], english: ['the dog'] }
 
     // Starts on the first card the API picks, then answers each saved result with the next card it picks, or with
     // the status when it isn't saved.
@@ -2580,6 +2749,26 @@ describe('App', () => {
         .map((call) => call.url)
         .filter((url) => url.includes('/practice/next'))
     }
+
+    it('shows every word on each side of a card with more than one translation', async () => {
+      const user = userEvent.setup()
+      await practice({
+        id: 3,
+        spanish: ['solo', 'únicamente'],
+        english: ['only'],
+        side: 'English',
+      })
+
+      expect(screen.getByText('only')).toHaveAttribute('lang', 'en')
+      expect(screen.queryByText('solo / únicamente')).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+      expect(screen.getByText('solo / únicamente')).toHaveAttribute(
+        'lang',
+        'es',
+      )
+    })
 
     it('shows the Spanish of the card the API picks until it is revealed', async () => {
       const user = userEvent.setup()
@@ -2925,9 +3114,9 @@ describe('App', () => {
           total: 130,
           maximum: 300,
           cards: [
-            { id: 3, spanish: 'la casa', english: 'the house', score: 0 },
-            { id: 2, spanish: 'el perro', english: 'the dog', score: 50 },
-            { id: 1, spanish: 'el gato', english: 'the cat', score: 80 },
+            { id: 3, spanish: ['la casa'], english: ['the house'], score: 0 },
+            { id: 2, spanish: ['el perro'], english: ['the dog'], score: 50 },
+            { id: 1, spanish: ['el gato'], english: ['the cat'], score: 80 },
           ],
         }),
       )
@@ -2954,9 +3143,9 @@ describe('App', () => {
           total: 150,
           maximum: 300,
           cards: [
-            { id: 3, spanish: 'la casa', english: 'the house', score: 0 },
-            { id: 2, spanish: 'el perro', english: 'the dog', score: 50 },
-            { id: 1, spanish: 'el gato', english: 'the cat', score: 100 },
+            { id: 3, spanish: ['la casa'], english: ['the house'], score: 0 },
+            { id: 2, spanish: ['el perro'], english: ['the dog'], score: 50 },
+            { id: 1, spanish: ['el gato'], english: ['the cat'], score: 100 },
           ],
         }),
       )
