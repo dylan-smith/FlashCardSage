@@ -50,10 +50,11 @@ test('smoke: can add, edit and delete a flash card', async ({ page }) => {
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(page.getByText(renamed, { exact: true })).toBeVisible()
   } finally {
-    // Best-effort cleanup so we don't leave data behind if the test fails mid-run.
+    // Best-effort cleanup so we don't leave data behind if the test fails mid-run. It deletes this run's card only,
+    // as an earlier run's leftover would otherwise be deleted first, leaving this one in the list.
     await page
-      .getByRole('button', { name: /^Delete "Smoke Test / })
-      .first()
+      .getByRole('button', { name: `Delete "${renamed}"` })
+      .or(page.getByRole('button', { name: `Delete "${title}"` }))
       .click()
       .catch(() => {})
   }
