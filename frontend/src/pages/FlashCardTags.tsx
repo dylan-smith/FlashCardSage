@@ -191,7 +191,8 @@ function TagRenameForm({
         display: 'flex',
         flexDirection: { xs: 'column', sm: 'row' },
         gap: 1,
-        mt: 1,
+        // More than the buttons' gap, since the field's label sits on its top edge.
+        mt: 2,
         alignItems: { xs: 'stretch', sm: 'center' },
       }}
     >
