@@ -20,7 +20,7 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     {
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext).GetNext();
+        var result = await CreateController(dbContext).GetNext(new PracticeSelection());
 
         Assert.IsType<NoContentResult>(result.Result);
     }
@@ -40,7 +40,7 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
 
-        var result = await CreateController(dbContext).GetNext();
+        var result = await CreateController(dbContext).GetNext(new PracticeSelection());
 
         var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal((card.Id, "el gato", "the cat"), (next.Id, next.Spanish, next.English));
@@ -58,6 +58,92 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
 
         Assert.Equal(HttpStatusCode.NoContent, empty.StatusCode);
         Assert.Equal("el gato", next!.Spanish);
+    }
+
+    [Fact]
+    public async Task GetNext_OnlyPicksTheDecksCards()
+    {
+        await using var dbContext = TestDb.Create();
+        var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
+        dbContext.FlashCards.Add(new FlashCard { Spanish = "el perro", English = "the dog" });
+        var deck = new Deck { Name = "Cats", FlashCards = [cat] };
+        dbContext.Decks.Add(deck);
+        await dbContext.SaveChangesAsync();
+
+        // Picked at random, so it's asked a few times.
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var result = await CreateController(dbContext).GetNext(new PracticeSelection { DeckId = deck.Id });
+
+            var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+            Assert.Equal(cat.Id, next.Id);
+        }
+    }
+
+    [Fact]
+    public async Task GetNext_OnlyPicksTheTagsCards()
+    {
+        await using var dbContext = TestDb.Create();
+        var tag = new Tag { Name = "Animals" };
+        var cat = new FlashCard { Spanish = "el gato", English = "the cat", Tags = [tag] };
+        dbContext.FlashCards.AddRange(cat, new FlashCard { Spanish = "la casa", English = "the house" });
+        await dbContext.SaveChangesAsync();
+
+        for (var attempt = 0; attempt < 10; attempt++)
+        {
+            var result = await CreateController(dbContext).GetNext(new PracticeSelection { TagId = tag.Id });
+
+            var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+            Assert.Equal(cat.Id, next.Id);
+        }
+    }
+
+    [Fact]
+    public async Task GetNext_ReturnsNoContent_WhenTheDeckIsEmpty()
+    {
+        await using var dbContext = TestDb.Create();
+        dbContext.FlashCards.Add(new FlashCard { Spanish = "el gato", English = "the cat" });
+        var deck = new Deck { Name = "Empty" };
+        dbContext.Decks.Add(deck);
+        await dbContext.SaveChangesAsync();
+
+        var result = await CreateController(dbContext).GetNext(new PracticeSelection { DeckId = deck.Id });
+
+        Assert.IsType<NoContentResult>(result.Result);
+    }
+
+    [Fact]
+    public async Task GetNext_ReturnsNotFound_ForAnotherUsersDeckOrTag()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var otherDeck = new Deck { Name = "Theirs" };
+        var otherTag = new Tag { Name = "Theirs" };
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            otherContext.Decks.Add(otherDeck);
+            otherContext.Tags.Add(otherTag);
+            await otherContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        Assert.IsType<NotFoundResult>((await controller.GetNext(new PracticeSelection { DeckId = otherDeck.Id })).Result);
+        Assert.IsType<NotFoundResult>((await controller.GetNext(new PracticeSelection { TagId = otherTag.Id })).Result);
+    }
+
+    [Fact]
+    public async Task GetNext_TakesTheDeckOrTagFromTheQuery()
+    {
+        using var client = CreateClient();
+
+        var unknownDeck = await client.GetAsync("/api/flashcards/practice/next?deckId=999");
+        var unknownTag = await client.GetAsync("/api/flashcards/practice/next?tagId=999");
+        var both = await client.GetAsync("/api/flashcards/practice/next?deckId=1&tagId=1");
+
+        Assert.Equal(HttpStatusCode.NotFound, unknownDeck.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, unknownTag.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, both.StatusCode);
     }
 
     private static PracticeController CreateController(FlashCardDbContext dbContext)

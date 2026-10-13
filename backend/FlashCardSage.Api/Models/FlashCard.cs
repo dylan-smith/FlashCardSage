@@ -21,4 +21,8 @@ public class FlashCard
     public int UserId { get; set; }
 
     public List<Tag> Tags { get; set; } = [];
+
+    // Only used to practice a deck's cards, so it's never returned. A deck lists its cards itself.
+    [JsonIgnore]
+    public List<Deck> Decks { get; set; } = [];
 }

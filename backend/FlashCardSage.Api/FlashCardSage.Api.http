@@ -46,6 +46,13 @@ Authorization: Bearer {{token}}
 
 ###
 
+# Practice a deck's cards, or a tag's with ?tagId=1. The practice result POST takes the same query.
+GET {{FlashCardSage.Api_HostAddress}}/api/flashcards/practice/next?deckId=1
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###
+
 POST {{FlashCardSage.Api_HostAddress}}/api/flashcards/1/practice-results
 Content-Type: {{contentType}}
 Accept: {{contentType}}
@@ -81,6 +88,53 @@ Authorization: Bearer {{token}}
 ###
 
 DELETE {{FlashCardSage.Api_HostAddress}}/api/tags/1
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###
+
+GET {{FlashCardSage.Api_HostAddress}}/api/decks
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###
+
+POST {{FlashCardSage.Api_HostAddress}}/api/decks
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "name": "Week 1",
+  "flashCardIds": [1]
+}
+
+###
+
+PUT {{FlashCardSage.Api_HostAddress}}/api/decks/1
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "name": "Week one"
+}
+
+###
+
+PATCH {{FlashCardSage.Api_HostAddress}}/api/decks/1/cards
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "add": [2, 3],
+  "remove": [1]
+}
+
+###
+
+DELETE {{FlashCardSage.Api_HostAddress}}/api/decks/1
 Accept: {{contentType}}
 Authorization: Bearer {{token}}
 

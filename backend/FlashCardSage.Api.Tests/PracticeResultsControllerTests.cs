@@ -27,7 +27,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var controller = CreateController(dbContext);
         var before = DateTimeOffset.UtcNow;
 
-        var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome });
+        var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome }, AllCards);
 
         Assert.IsType<OkObjectResult>(result.Result);
         var saved = await dbContext.PracticeResults.SingleAsync();
@@ -43,10 +43,11 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var dog = await AddCardAsync(dbContext, "el perro", "the dog");
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.Failed });
+        var result = await controller.Create(cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.Failed }, AllCards);
 
         var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
-        Assert.Equal((dog.Id, "el perro", "the dog"), (response.Next.Id, response.Next.Spanish, response.Next.English));
+        var next = Assert.IsType<PracticeCard>(response.Next);
+        Assert.Equal((dog.Id, "el perro", "the dog"), (next.Id, next.Spanish, next.English));
     }
 
     [Fact]
@@ -56,10 +57,79 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var card = await AddCardAsync(dbContext);
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+        var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
         var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
-        Assert.Equal(card.Id, response.Next.Id);
+        Assert.Equal(card.Id, response.Next?.Id);
+    }
+
+    [Fact]
+    public async Task Create_PicksTheNextCardFromTheSelectedDeck()
+    {
+        await using var dbContext = TestDb.Create();
+        var cat = await AddCardAsync(dbContext);
+        var dog = await AddCardAsync(dbContext, "el perro", "the dog");
+        await AddCardAsync(dbContext, "la casa", "the house");
+        var deck = new Deck { Name = "Animals", FlashCards = [cat, dog] };
+        dbContext.Decks.Add(deck);
+        await dbContext.SaveChangesAsync();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(
+            cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, new PracticeSelection { DeckId = deck.Id });
+
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(dog.Id, response.Next?.Id);
+    }
+
+    [Fact]
+    public async Task Create_PicksTheNextCardFromTheSelectedTag()
+    {
+        await using var dbContext = TestDb.Create();
+        var tag = new Tag { Name = "Animals" };
+        var cat = await AddCardAsync(dbContext);
+        var dog = new FlashCard { Spanish = "el perro", English = "the dog", Tags = [tag] };
+        dbContext.FlashCards.Add(dog);
+        await dbContext.SaveChangesAsync();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(
+            cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, new PracticeSelection { TagId = tag.Id });
+
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(dog.Id, response.Next?.Id);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsNoNextCard_WhenTheDeckHasNoCardsLeft()
+    {
+        await using var dbContext = TestDb.Create();
+        var card = await AddCardAsync(dbContext);
+        var deck = new Deck { Name = "Empty" };
+        dbContext.Decks.Add(deck);
+        await dbContext.SaveChangesAsync();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(
+            card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, new PracticeSelection { DeckId = deck.Id });
+
+        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Null(response.Next);
+        Assert.True(await dbContext.PracticeResults.AnyAsync());
+    }
+
+    [Fact]
+    public async Task Create_ReturnsNotFound_WhenTheDeckDoesNotExist()
+    {
+        await using var dbContext = TestDb.Create();
+        var card = await AddCardAsync(dbContext);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(
+            card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, new PracticeSelection { DeckId = 999 });
+
+        Assert.IsType<NotFoundResult>(result.Result);
+        Assert.False(await dbContext.PracticeResults.AnyAsync());
     }
 
     [Theory]
@@ -89,10 +159,10 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var controller = CreateController(dbContext);
         foreach (var earlierOutcome in earlier)
         {
-            await controller.Create(card.Id, new PracticeResultRequest { Outcome = earlierOutcome });
+            await controller.Create(card.Id, new PracticeResultRequest { Outcome = earlierOutcome }, AllCards);
         }
 
-        var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome });
+        var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome }, AllCards);
 
         var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal(expected, response.ScoreChange);
@@ -105,9 +175,9 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var cat = await AddCardAsync(dbContext);
         var dog = await AddCardAsync(dbContext, "el perro", "the dog");
         var controller = CreateController(dbContext);
-        await controller.Create(dog.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+        await controller.Create(dog.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
-        var result = await controller.Create(cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+        var result = await controller.Create(cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
         var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal(50, response.ScoreChange);
@@ -120,8 +190,8 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var card = await AddCardAsync(dbContext);
         var controller = CreateController(dbContext);
 
-        await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.Failed });
-        await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+        await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.Failed }, AllCards);
+        await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
         Assert.Equal(
             [PracticeOutcome.Failed, PracticeOutcome.GotIt],
@@ -134,7 +204,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(999, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+        var result = await controller.Create(999, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
         Assert.IsType<NotFoundResult>(result.Result);
         Assert.False(await dbContext.PracticeResults.AnyAsync());
@@ -153,7 +223,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
 
-        var result = await controller.Create(otherId, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+        var result = await controller.Create(otherId, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
         Assert.IsType<NotFoundResult>(result.Result);
         Assert.False(await dbContext.PracticeResults.IgnoreQueryFilters().AnyAsync());
@@ -167,7 +237,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         {
             var other = await AddCardAsync(otherContext);
             await CreateController(otherContext)
-                .Create(other.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt });
+                .Create(other.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
         }
 
         await using var dbContext = TestDb.Create(databaseName);
@@ -206,6 +276,8 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
+
+    private static PracticeSelection AllCards => new();
 
     private static async Task<FlashCard> AddCardAsync(
         FlashCardDbContext dbContext, string spanish = "el gato", string english = "the cat")
