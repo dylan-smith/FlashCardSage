@@ -1,0 +1,114 @@
+import type { Page } from '@playwright/test'
+import { test, expect } from './fixtures'
+
+// The backend started by playwright.config.ts.
+const apiUrl = 'http://localhost:5269/api'
+
+// Adds a flash card with these tags from the form and waits for it to appear in the list.
+async function createFlashCard(
+  page: Page,
+  spanish: string,
+  english: string,
+  tags: string[],
+) {
+  await page.getByLabel('Spanish').fill(spanish)
+  await page.getByLabel('English').fill(english)
+  const tagsInput = page.getByRole('combobox', { name: 'Tags' })
+  for (const tag of tags) {
+    await tagsInput.fill(tag)
+    await tagsInput.press('Enter')
+  }
+  await page.getByRole('button', { name: 'Add flash card' }).click()
+  await expect(
+    page.getByRole('listitem').filter({ hasText: spanish }),
+  ).toBeVisible()
+}
+
+test.describe('Tags', () => {
+  test.beforeEach(async ({ page, request }) => {
+    // Start with no cards or tags, deleted through the API like flashcards.spec.ts does.
+    for (const resource of ['flashcards', 'tags']) {
+      const response = await request.get(`${apiUrl}/${resource}`)
+      expect(response.ok()).toBe(true)
+      for (const { id } of (await response.json()) as { id: number }[]) {
+        expect((await request.delete(`${apiUrl}/${resource}/${id}`)).ok()).toBe(
+          true,
+        )
+      }
+    }
+
+    await page.goto('/')
+    await expect(page.getByText('No flash cards yet.')).toBeVisible()
+  })
+
+  test('tags cards and shows only the picked tag', async ({ page }) => {
+    await createFlashCard(page, 'lunes', 'Monday', ['Weekdays'])
+    await createFlashCard(page, 'enero', 'January', ['Months'])
+    await createFlashCard(page, 'martes', 'Tuesday', ['weekdays'])
+
+    const filter = page.getByRole('group', { name: 'Show cards tagged' })
+    await expect(filter.getByRole('button')).toHaveText([
+      'All (3)',
+      'Months (1)',
+      'Weekdays (2)',
+    ])
+
+    await filter.getByRole('button', { name: 'Weekdays (2)' }).click()
+
+    const items = page.getByRole('listitem')
+    await expect(items).toHaveCount(2)
+    await expect(items.nth(0)).toContainText('lunes')
+    await expect(items.nth(1)).toContainText('martes')
+    await expect(page).toHaveURL(/\?tag=\d+$/)
+
+    // The filter is in the address, so it's kept after a reload.
+    await page.reload()
+    await expect(items).toHaveCount(2)
+
+    await filter.getByRole('button', { name: 'All (3)' }).click()
+    await expect(items).toHaveCount(3)
+  })
+
+  test("changes a card's tags", async ({ page }) => {
+    await createFlashCard(page, 'la manzana', 'the apple', ['Food'])
+
+    await page.getByRole('button', { name: 'Edit "la manzana"' }).click()
+    const item = page.getByRole('listitem')
+    // Typed in without pressing Enter, the tag is still added when the card is saved.
+    await item.getByRole('combobox', { name: 'Tags' }).fill('Fruit')
+    await item.getByRole('button', { name: 'Save' }).click()
+
+    await expect(item.getByText('Fruit', { exact: true })).toBeVisible()
+    await page.reload()
+    await expect(item.getByText('Food', { exact: true })).toBeVisible()
+    await expect(item.getByText('Fruit', { exact: true })).toBeVisible()
+  })
+
+  test('renames a tag', async ({ page }) => {
+    await createFlashCard(page, 'el tren', 'the train', ['Travl'])
+
+    await page.getByRole('button', { name: 'Travl (1)' }).click()
+    await page.getByRole('button', { name: 'Rename tag "Travl"' }).click()
+    await page.getByLabel('Tag name').fill('Travel')
+    await page.getByRole('button', { name: 'Save' }).click()
+
+    await expect(page.getByRole('button', { name: 'Travel (1)' })).toBeVisible()
+    await page.reload()
+    await expect(
+      page.getByRole('listitem').getByText('Travel', { exact: true }),
+    ).toBeVisible()
+  })
+
+  test('deletes a tag but keeps its cards', async ({ page }) => {
+    await createFlashCard(page, 'el pan', 'the bread', ['Food'])
+
+    await page.getByRole('button', { name: 'Food (1)' }).click()
+    await page.getByRole('button', { name: 'Delete tag "Food"' }).click()
+
+    await expect(page.getByRole('button', { name: 'Food (1)' })).toBeHidden()
+    await expect(page.getByText('el pan', { exact: true })).toBeVisible()
+    await page.reload()
+    await expect(page.getByText('el pan', { exact: true })).toBeVisible()
+    await expect(page.getByText('Food', { exact: true })).toBeHidden()
+  })
+})
