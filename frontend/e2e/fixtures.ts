@@ -34,4 +34,11 @@ export const test = base.extend({
   },
 })
 
+// A picture for a card: a one-pixel PNG, as the API's generate endpoint would return one. The E2E backend has no
+// image generator, so the tests stand in for it with this.
+export const onePixelPng = {
+  contentType: 'image/png',
+  data: 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==',
+}
+
 export { expect } from '@playwright/test'

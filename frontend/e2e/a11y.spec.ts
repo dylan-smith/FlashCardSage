@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import { test, expect } from './fixtures'
+import { test, expect, onePixelPng } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
@@ -35,11 +35,19 @@ test.describe('Accessibility', () => {
       expect(response.ok()).toBe(true)
       ids.push(((await response.json()) as { id: number }).id)
     }
+    // One card with a picture, so the list's thumbnail and the edit form's picture get checked.
+    const put = await request.put(`${flashCardsApiUrl}/${ids[1]}/image`, {
+      data: onePixelPng,
+    })
+    expect(put.ok()).toBe(true)
 
     try {
       await page.goto('/')
       await expect(
         page.getByText('Another a11y card', { exact: true }),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('img', { name: 'Picture for "Another a11y card"' }),
       ).toBeVisible()
       // One card in edit mode and one not, so both kinds of list item get checked.
       await page
@@ -67,6 +75,11 @@ test.describe('Accessibility', () => {
     })
     expect(response.ok()).toBe(true)
     const { id } = (await response.json()) as { id: number }
+    // With a picture, so the revealed card's picture gets checked (other specs' cards may come up instead).
+    const put = await request.put(`${flashCardsApiUrl}/${id}/image`, {
+      data: onePixelPng,
+    })
+    expect(put.ok()).toBe(true)
 
     try {
       await page.goto('/practice')

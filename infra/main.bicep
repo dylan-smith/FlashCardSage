@@ -59,6 +59,22 @@ param translatorName string
 @allowed(['F0', 'S1'])
 param translatorSku string = 'F0'
 
+@description('Whether to deploy the Azure AI Foundry resource that makes a picture of what a card means. Without it the API answers picture requests with a 503.')
+param deployFoundry bool = true
+
+@description('Name of the Azure AI Foundry resource. It\'s also the resource\'s subdomain, so it\'s unique across Azure.')
+param foundryName string
+
+@description('Azure region for the Azure AI Foundry resource, which must be one the image model (FLUX.2-pro) is offered in.')
+param foundryLocation string
+
+@description('How many pictures a minute the image model\'s deployment can make, out of the subscription\'s quota for the model.')
+@minValue(1)
+param foundryCapacity int = 2
+
+@description('Name of the image model\'s deployment on the Azure AI Foundry resource: the model\'s name in lowercase.')
+param imageDeploymentName string = 'flux-2-pro'
+
 @description('Days to keep database backups before they are deleted automatically.')
 @minValue(1)
 param backupRetentionDays int = 30
@@ -133,6 +149,16 @@ module translator 'modules/translator.bicep' = {
   }
 }
 
+module foundry 'modules/foundry.bicep' = if (deployFoundry) {
+  name: 'foundry'
+  params: {
+    name: foundryName
+    location: foundryLocation
+    deploymentName: imageDeploymentName
+    capacity: foundryCapacity
+  }
+}
+
 module appService 'modules/appservice.bicep' = {
   name: 'appservice'
   params: {
@@ -150,7 +176,15 @@ module appService 'modules/appservice.bicep' = {
     googleClientId: googleClientId
     serviceToken: serviceToken
     translatorName: translator.outputs.name
+    // By name rather than from the module's outputs, which there aren't when it isn't deployed.
+    foundryName: deployFoundry ? foundryName : ''
+    imageDeploymentName: imageDeploymentName
+    storageAccountName: storageAccountName
+    cardImagesContainerName: storage.outputs.cardImagesContainerName
   }
+  dependsOn: [
+    foundry
+  ]
 }
 
 module workbook 'modules/workbook.bicep' = {

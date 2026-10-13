@@ -55,6 +55,16 @@ resource backupContainer 'Microsoft.Storage/storageAccounts/blobServices/contain
   }
 }
 
+// The pictures on cards, which browsers load straight from here. Anyone with a picture's URL can see it, but the
+// names are random, so a picture is only found through its card.
+resource cardImagesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-01-01' = {
+  parent: blobService
+  name: 'card-images'
+  properties: {
+    publicAccess: 'Blob'
+  }
+}
+
 // Deletes old backups so the container doesn't grow indefinitely.
 resource lifecyclePolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2025-01-01' = {
   parent: storageAccount
@@ -95,3 +105,6 @@ output frontendOrigin string = empty(customDomainName)
 
 @description('Resource ID of the Storage Account.')
 output storageAccountId string = storageAccount.id
+
+@description('Name of the container that holds the pictures on cards.')
+output cardImagesContainerName string = cardImagesContainer.name

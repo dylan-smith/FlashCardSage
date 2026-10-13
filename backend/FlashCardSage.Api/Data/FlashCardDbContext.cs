@@ -108,6 +108,10 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
             .HasMaxLength(200)
             .IsRequired();
 
+        modelBuilder.Entity<FlashCard>()
+            .Property(card => card.ImageUrl)
+            .HasMaxLength(FlashCard.MaxImageUrlLength);
+
         modelBuilder.Entity<PracticeResult>()
             .HasQueryFilter(result => result.FlashCard.UserId == CurrentUserId);
 

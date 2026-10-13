@@ -14,3 +14,8 @@ param sqlEntraAdminLogin = 'flashcardsage-preview-deploy'
 param sqlEntraAdminObjectId = '62ce86fe-94aa-4f21-981e-a5a4184602d1'
 
 param translatorName = 'flashcardsage-preview-translator'
+
+// Azure AI Foundry with the image model (FLUX.2-pro), in a region the model is offered in (see main.bicepparam)
+param deployFoundry = true
+param foundryName = 'flashcardsage-preview-foundry'
+param foundryLocation = 'westus3'
