@@ -58,7 +58,7 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<CardSuggesterO
     public bool IsAvailable => !string.IsNullOrWhiteSpace(options.Endpoint) && !string.IsNullOrWhiteSpace(options.Key);
 
     public async Task<IReadOnlyList<CardSuggestion>> SuggestAsync(
-        IReadOnlyList<FlashCard> cards, int count, CancellationToken cancellationToken)
+        IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, int count, CancellationToken cancellationToken)
     {
         // A short list of words doesn't need much thought, and the page waits for it, so the model reasons briefly.
         // The body is serialized up front so it's sent with a Content-Length, as the Foundry APIs expect.
@@ -68,7 +68,7 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<CardSuggesterO
             messages = new[]
             {
                 new { role = "developer", content = Instructions },
-                new { role = "user", content = Describe(cards, count) }
+                new { role = "user", content = Describe(cards, relatedTo, count) }
             },
             response_format = AnswerFormat,
             reasoning_effort = "low",
@@ -112,10 +112,18 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<CardSuggesterO
     }
 
     // The request: how many cards to suggest, and the learner's cards one per line, with their tags, which say what
-    // the learner groups them by.
-    private static string Describe(IReadOnlyList<FlashCard> cards, int count)
+    // the learner groups them by. With relatedTo, the new cards are to be related to that one.
+    private static string Describe(IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, int count)
     {
         var text = new StringBuilder();
+        if (relatedTo is not null)
+        {
+            text.AppendLine($"The learner just added the card {relatedTo.Spanish} = {relatedTo.English}. Every new "
+                + "card must be closely related to it: on the same topic, or words and phrases used with it. For "
+                + "example, after el perro = the dog, good next cards are el gato = the cat, el caballo = the horse "
+                + "and la vaca = the cow. After lunes = Monday, they're martes = Tuesday, miércoles = Wednesday and "
+                + "the other days of the week.");
+        }
         text.AppendLine(cards.Count == 0
             ? $"The learner has no cards yet. Suggest {count} cards a beginner would want first."
             : $"Suggest {count} new cards. These are the learner's cards, as Spanish = English [tags]:");
