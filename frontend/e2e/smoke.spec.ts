@@ -17,7 +17,9 @@ async function signIn(page: Page) {
 // Waits for the list of cards to load. A serverless database resuming from auto-pause (as a preview's often is)
 // can take well over the usual 5 seconds to answer.
 async function waitForList(page: Page) {
-  await expect(page.getByLabel('Loading')).toBeHidden({ timeout: 90_000 })
+  await expect(page.getByLabel('Loading', { exact: true })).toBeHidden({
+    timeout: 90_000,
+  })
 }
 
 test('smoke: app loads and asks the user to sign in', async ({ page }) => {
