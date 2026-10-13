@@ -1519,6 +1519,52 @@ describe('App', () => {
       expect(trackEvent).toHaveBeenCalledWith('FlashCardImageRemoved')
     })
 
+    it("shows a new picture in place of the card's, and puts it on the card when it's saved", async () => {
+      const user = userEvent.setup()
+      const calls = mockPictures({ cards: [{ ...gato, imageUrl }] })
+      renderAt('/')
+      await screen.findByRole('img', { name: 'Picture for "el gato"' })
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      const item = screen.getByRole('listitem')
+      await user.click(
+        within(item).getByRole('button', { name: 'Generate another picture' }),
+      )
+
+      expect(
+        await within(item).findByRole('img', { name: 'Generated picture' }),
+      ).toBeInTheDocument()
+      expect(
+        within(item).queryByRole('img', { name: "The card's picture" }),
+      ).not.toBeInTheDocument()
+      expect(
+        within(item).queryByRole('button', { name: 'Remove picture' }),
+      ).not.toBeInTheDocument()
+
+      // Discarding it brings the card's own back.
+      await user.click(within(item).getByRole('button', { name: 'Discard' }))
+      expect(
+        within(item).getByRole('img', { name: "The card's picture" }),
+      ).toHaveAttribute('src', imageUrl)
+
+      await user.click(
+        within(item).getByRole('button', { name: 'Generate another picture' }),
+      )
+      await within(item).findByRole('img', { name: 'Generated picture' })
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('button', { name: 'Save' }),
+        ).not.toBeInTheDocument()
+      })
+      const put = calls.find(
+        (call) => call.init?.method === 'PUT' && call.url.endsWith('/image'),
+      )
+      expect(put?.init?.body).toBe(JSON.stringify(picture))
+      expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(false)
+    })
+
     it('keeps the picture when the edit is cancelled', async () => {
       const user = userEvent.setup()
       const calls = mockPictures({ cards: [{ ...gato, imageUrl }] })

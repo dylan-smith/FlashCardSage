@@ -9,9 +9,9 @@ import type { CardPicture } from '../hooks/useCardPicture'
 // How big a picture is shown in a form and the list.
 export const thumbnailSize = 96
 
-// A card's picture in a form: the one it has, with a button to take it off, and a button that asks the API for
-// one of the card's words. A generated picture is shown for the user to look at, and goes on the card when it's
-// saved unless they discard it.
+// A card's picture in a form, with a button that asks the API for one of the card's words. One picture shows at a
+// time: a generated one, which goes on the card when it's saved unless the user discards it, in place of the
+// card's own, which they can take off. Cancelling the edit keeps the card's own.
 export function PictureField({
   picture,
   fields,
@@ -35,7 +35,7 @@ export function PictureField({
         gap: 1,
       }}
     >
-      {picture.current !== null && (
+      {picture.generated === null && picture.current !== null && (
         <>
           <Box
             component="img"
