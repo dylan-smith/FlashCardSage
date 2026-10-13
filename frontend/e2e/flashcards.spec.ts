@@ -190,6 +190,31 @@ test.describe('Flash card management', () => {
       await expect(page.getByText('the dog', { exact: true })).toBeVisible()
     })
 
+    test('suggests cards related to a card just added', async ({ page }) => {
+      // As above, stand in for the model, answering with cards related to the one added when it's asked for.
+      await page.route('**/api/card-suggestions*', async (route) => {
+        const related = new URL(route.request().url()).searchParams.has(
+          'relatedTo',
+        )
+        await route.fulfill({
+          json: related
+            ? [{ spanish: 'el collar', english: 'the collar' }]
+            : [{ spanish: 'el pez', english: 'the fish' }],
+        })
+      })
+      await page.reload()
+      const suggestions = page.getByRole('list', { name: 'Suggested cards' })
+      await expect(suggestions).toContainText('el pez')
+
+      await createFlashCard(page, 'el perro', 'the dog')
+
+      await expect(suggestions).toContainText('el collar')
+      await expect(suggestions).not.toContainText('el pez')
+      await expect(
+        page.getByText('New words and phrases that go with “el perro”.'),
+      ).toBeVisible()
+    })
+
     test('keeps the cards after a reload', async ({ page }) => {
       await createFlashCard(page, 'el libro', 'the book')
 

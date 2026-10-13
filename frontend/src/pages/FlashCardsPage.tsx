@@ -10,7 +10,6 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import Link from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
@@ -37,7 +36,8 @@ import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
 import { trackEvent, trackException } from '../telemetry'
-import { PictureField, thumbnailSize } from './FlashCardPicture'
+import { PictureField } from './FlashCardPicture'
+import { FlashCardRow } from './FlashCardRow'
 import { AddToDeck } from './AddToDeck'
 import { CardSuggestions } from './CardSuggestions'
 import { cardCount } from './cardCount'
@@ -405,8 +405,7 @@ function FlashCardEditForm({
   )
 }
 
-// One card in the list: a box to pick it, its picture if it has one, its Spanish and English and its tags with Edit
-// and Delete buttons, or, while it's being edited, the form above.
+// One card in the list, with Edit and Delete buttons, or, while it's being edited, the form above.
 function FlashCardItem({
   card,
   edit,
@@ -451,65 +450,36 @@ function FlashCardItem({
   }
 
   return (
-    <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
-      <Checkbox
-        checked={picked}
-        onChange={onPick}
-        slotProps={{ input: { 'aria-label': `Pick "${spanish}"` } }}
-        sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
-      />
-      {card.imageUrl !== null && (
-        <Box
-          component="img"
-          src={card.imageUrl}
-          alt={`Picture for "${spanish}"`}
-          loading="lazy"
-          sx={{
-            // Smaller on a phone, so the card's words keep room next to the pick box and buttons.
-            width: { xs: thumbnailSize / 2, sm: thumbnailSize },
-            height: { xs: thumbnailSize / 2, sm: thumbnailSize },
-            objectFit: 'cover',
-            borderRadius: 1,
-            flexShrink: 0,
-          }}
-        />
-      )}
-      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-        <ListItemText
-          primary={spanish}
-          secondary={formatWords(card.english)}
-          sx={{ overflowWrap: 'anywhere' }}
-        />
-        {card.tags.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
-            {card.tags.map((tag) => (
-              <Chip key={tag.id} label={tag.name} size="small" />
-            ))}
-          </Box>
-        )}
-      </Box>
-      <Button
-        type="button"
-        size="small"
-        disabled={busy}
-        aria-label={`Edit "${spanish}"`}
-        onClick={onEdit}
-        sx={{ flexShrink: 0 }}
-      >
-        Edit
-      </Button>
-      <Button
-        type="button"
-        size="small"
-        color="error"
-        disabled={busy}
-        aria-label={`Delete "${spanish}"`}
-        onClick={onDelete}
-        sx={{ flexShrink: 0 }}
-      >
-        Delete
-      </Button>
-    </ListItem>
+    <FlashCardRow
+      card={card}
+      picked={picked}
+      onPick={onPick}
+      actions={
+        <>
+          <Button
+            type="button"
+            size="small"
+            disabled={busy}
+            aria-label={`Edit "${spanish}"`}
+            onClick={onEdit}
+            sx={{ flexShrink: 0 }}
+          >
+            Edit
+          </Button>
+          <Button
+            type="button"
+            size="small"
+            color="error"
+            disabled={busy}
+            aria-label={`Delete "${spanish}"`}
+            onClick={onDelete}
+            sx={{ flexShrink: 0 }}
+          >
+            Delete
+          </Button>
+        </>
+      }
+    />
   )
 }
 
@@ -527,6 +497,8 @@ function FlashCardsPage() {
   // The user's tags in name order, including any no card has any more.
   const [tags, setTags] = useState<Tag[]>([])
   const [errorMessage, setErrorMessage] = useState('')
+  // The card last added with the form, which the suggestions are related to.
+  const [addedId, setAddedId] = useState<number | null>(null)
   // The user's decks, to add the picked cards to.
   const [decks, setDecks] = useState<Deck[]>([])
   // The cards picked to add to a deck.
@@ -565,6 +537,8 @@ function FlashCardsPage() {
     .map((card) => card.id)
   const allPicked =
     visibleCards.length > 0 && pickedIds.length === visibleCards.length
+  // Looked up so an edit shows in the suggestions, and once the card is deleted they go back to all the cards.
+  const added = cards.find((card) => card.id === addedId)
 
   // Loads the list and the tags once. The page starts out loading, and the other actions keep both up to date
   // themselves.
@@ -733,6 +707,7 @@ function FlashCardsPage() {
       )
       newPicture.reset()
       setCards((current) => [...current, card])
+      setAddedId(card.id)
       addNewTags(card)
     } catch (error) {
       // A rejected card is the user's to fix, not a failure to report.
@@ -876,7 +851,12 @@ function FlashCardsPage() {
         </Box>
       </Paper>
 
-      <CardSuggestions cards={cards} onAdd={handleAddSuggestion} />
+      <CardSuggestions
+        key={added?.id ?? 'all'}
+        cards={cards}
+        relatedTo={added}
+        onAdd={handleAddSuggestion}
+      />
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       {deckNotice && (

@@ -311,39 +311,52 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
           )
         ) : (
           <Stack spacing={3}>
+            {/* The picture sits to the left of the text, or below it on a narrow screen. The row is reversed so the
+                text still comes first for screen readers. */}
             <Stack
-              spacing={2}
+              direction={{ xs: 'column', sm: 'row-reverse' }}
+              spacing={3}
               aria-live="polite"
-              sx={{ textAlign: 'center', py: 2 }}
+              sx={{ alignItems: 'center', py: 2 }}
             >
-              <CardSide
-                side={prompt.side}
-                text={formatWords(prompt[sides[prompt.side].field])}
-              />
-              {revealed && (
-                <>
-                  <Divider />
-                  <CardSide
-                    side={otherSide}
-                    text={formatWords(prompt[sides[otherSide].field])}
-                  />
-                  {/* Only once revealed, so the picture doesn't give the answer away. */}
-                  {prompt.imageUrl !== null && (
-                    <Box
-                      component="img"
-                      src={prompt.imageUrl}
-                      alt={`Picture for "${formatWords(prompt.spanish)}"`}
-                      sx={{
-                        width: 240,
-                        maxWidth: '100%',
-                        height: 240,
-                        objectFit: 'cover',
-                        borderRadius: 1,
-                        alignSelf: 'center',
-                      }}
+              <Stack
+                spacing={2}
+                sx={{
+                  textAlign: 'center',
+                  flex: 1,
+                  minWidth: 0,
+                  width: '100%',
+                }}
+              >
+                <CardSide
+                  side={prompt.side}
+                  text={formatWords(prompt[sides[prompt.side].field])}
+                />
+                {revealed && (
+                  <>
+                    <Divider />
+                    <CardSide
+                      side={otherSide}
+                      text={formatWords(prompt[sides[otherSide].field])}
                     />
-                  )}
-                </>
+                  </>
+                )}
+              </Stack>
+              {/* Only once revealed, so the picture doesn't give the answer away. */}
+              {revealed && prompt.imageUrl !== null && (
+                <Box
+                  component="img"
+                  src={prompt.imageUrl}
+                  alt={`Picture for "${formatWords(prompt.spanish)}"`}
+                  sx={{
+                    width: 240,
+                    maxWidth: '100%',
+                    height: 240,
+                    flexShrink: 0,
+                    objectFit: 'cover',
+                    borderRadius: 1,
+                  }}
+                />
               )}
             </Stack>
             {revealed ? (

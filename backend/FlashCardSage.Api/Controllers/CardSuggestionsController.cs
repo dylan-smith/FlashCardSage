@@ -30,9 +30,11 @@ public class CardSuggestionsController(
 
     [HttpGet]
     [ProducesResponseType<IEnumerable<CardSuggestion>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<IEnumerable<CardSuggestion>>> Suggest(CancellationToken cancellationToken)
+    public async Task<ActionResult<IEnumerable<CardSuggestion>>> Suggest(
+        int? relatedTo, CancellationToken cancellationToken)
     {
         if (!suggester.IsAvailable)
         {
@@ -47,11 +49,24 @@ public class CardSuggestionsController(
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
+        // The card the suggestions are to be related to, e.g. one just added. It's looked up in the user's cards, so
+        // it can't be another user's.
+        FlashCard? related = null;
+        if (relatedTo is { } relatedId)
+        {
+            related = cards.Find(card => card.Id == relatedId);
+            if (related is null)
+            {
+                return NotFound();
+            }
+        }
+
         IReadOnlyList<CardSuggestion> suggested;
         try
         {
             suggested = await suggester.SuggestAsync(
-                cards.TakeLast(MaxCardsDescribed).ToList(), SuggestionCount + ExtraRequested, cancellationToken);
+                cards.TakeLast(MaxCardsDescribed).ToList(), related, SuggestionCount + ExtraRequested,
+                cancellationToken);
         }
         // A timeout surfaces as a cancellation the caller didn't ask for.
         catch (Exception ex) when (ex is HttpRequestException
