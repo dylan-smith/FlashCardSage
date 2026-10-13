@@ -1,0 +1,33 @@
+{
+  "decks": [
+    {
+      "name": "Days of the week",
+      "cards": [
+        { "spanish": "lunes", "english": "Monday", "tags": ["Days"] },
+        { "spanish": "martes", "english": "Tuesday", "tags": ["Days"] },
+        { "spanish": "miércoles", "english": "Wednesday", "tags": ["Days"] },
+        { "spanish": "jueves", "english": "Thursday", "tags": ["Days"] },
+        { "spanish": "viernes", "english": "Friday", "tags": ["Days"] },
+        { "spanish": "sábado", "english": "Saturday", "tags": ["Days"] },
+        { "spanish": "domingo", "english": "Sunday", "tags": ["Days"] }
+      ]
+    },
+    {
+      "name": "Months",
+      "cards": [
+        { "spanish": "enero", "english": "January", "tags": ["Months"] },
+        { "spanish": "febrero", "english": "February", "tags": ["Months"] },
+        { "spanish": "marzo", "english": "March", "tags": ["Months"] },
+        { "spanish": "abril", "english": "April", "tags": ["Months"] },
+        { "spanish": "mayo", "english": "May", "tags": ["Months"] },
+        { "spanish": "junio", "english": "June", "tags": ["Months"] },
+        { "spanish": "julio", "english": "July", "tags": ["Months"] },
+        { "spanish": "agosto", "english": "August", "tags": ["Months"] },
+        { "spanish": "septiembre", "english": "September", "tags": ["Months"] },
+        { "spanish": "octubre", "english": "October", "tags": ["Months"] },
+        { "spanish": "noviembre", "english": "November", "tags": ["Months"] },
+        { "spanish": "diciembre", "english": "December", "tags": ["Months"] }
+      ]
+    }
+  ]
+}

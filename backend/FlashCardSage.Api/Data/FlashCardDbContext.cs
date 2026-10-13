@@ -8,7 +8,8 @@ namespace FlashCardSage.Api.Data;
 /// Flash cards belong to a user. A query filter only shows the current user's, and new ones are given the current
 /// user when they're saved, so the controllers never handle the owner themselves. Tags and decks work the same way.
 /// Practice results are filtered through their card, so they're only the current user's too, and a card's tags are
-/// only reached through the card. A deck only gets cards that were found through the filter.
+/// only reached through the card. A deck only gets cards that were found through the filter. The built-in decks
+/// belong to the system user (see SystemDeckSeeder), and only SystemDecksController reads them past the filter.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {

@@ -2,6 +2,12 @@ namespace FlashCardSage.Api.Models;
 
 public class User
 {
+    /// <summary>
+    /// The subject of the user that owns the built-in decks anyone can import (see SystemDeckSeeder). Every signed-in
+    /// subject has a prefix, so nobody can sign in as it.
+    /// </summary>
+    public const string SystemSubject = "system";
+
     public int Id { get; set; }
 
     /// <summary>

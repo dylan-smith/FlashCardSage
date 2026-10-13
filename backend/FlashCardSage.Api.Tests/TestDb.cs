@@ -14,11 +14,17 @@ internal static class TestDb
 
     public static FlashCardDbContext Create(string? databaseName = null, int userId = UserId, params IInterceptor[] interceptors)
     {
+        return Create(databaseName ?? Guid.NewGuid().ToString(), new CurrentUser { UserId = userId }, interceptors);
+    }
+
+    // For code that changes the current user, as the system deck seeder does.
+    public static FlashCardDbContext Create(string databaseName, CurrentUser currentUser, params IInterceptor[] interceptors)
+    {
         var options = new DbContextOptionsBuilder<FlashCardDbContext>()
-            .UseInMemoryDatabase(databaseName ?? Guid.NewGuid().ToString())
+            .UseInMemoryDatabase(databaseName)
             .AddInterceptors(interceptors)
             .Options;
 
-        return new FlashCardDbContext(options, new CurrentUser { UserId = userId });
+        return new FlashCardDbContext(options, currentUser);
     }
 }

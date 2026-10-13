@@ -4,6 +4,7 @@ using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Suggestions;
+using FlashCardSage.Api.SystemDecks;
 using FlashCardSage.Api.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -168,6 +169,29 @@ else
         // through EF Core's retry-on-failure; the deployment smoke tests catch lasting failures.
         Console.WriteLine(
             $"[Startup] WARNING: Could not confirm database connectivity; starting anyway. {ex.GetType().Name}: {ex.Message}");
+    }
+}
+
+// The built-in decks users can import. A context of its own, since the seeder makes the system user its current user.
+using (var seedScope = app.Services.CreateScope())
+{
+    using var seedTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(60));
+
+    try
+    {
+        var added = await SystemDeckSeeder.SeedAsync(
+            seedScope.ServiceProvider.GetRequiredService<FlashCardDbContext>(),
+            seedScope.ServiceProvider.GetRequiredService<CurrentUser>(),
+            SystemDeckDefinitions.Load(),
+            seedTimeout.Token);
+        Console.WriteLine($"[Startup] System decks: {added} added.");
+    }
+    catch (Exception ex) when (ex is DbException or DbUpdateException or RetryLimitExceededException or OperationCanceledException)
+    {
+        // Like the check above, don't fail startup. Another instance starting at the same time may have added the
+        // same decks, which fails the unique indexes, and the next start adds any that are still missing.
+        Console.WriteLine(
+            $"[Startup] WARNING: Could not add the system decks; starting anyway. {ex.GetType().Name}: {ex.Message}");
     }
 }
 
