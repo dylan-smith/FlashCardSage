@@ -47,7 +47,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
         var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
         var next = Assert.IsType<PracticeCard>(response.Next);
-        Assert.Equal((dog.Id, "el perro", "the dog"), (next.Id, next.Spanish, next.English));
+        Assert.Equal((dog.Id, "el perro", "the dog"), (next.Id, next.Spanish.Single(), next.English.Single()));
     }
 
     [Fact]
@@ -88,7 +88,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         await using var dbContext = TestDb.Create();
         var tag = new Tag { Name = "Animals" };
         var cat = await AddCardAsync(dbContext);
-        var dog = new FlashCard { Spanish = "el perro", English = "the dog", Tags = [tag] };
+        var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog"), Tags = [tag] };
         dbContext.FlashCards.Add(dog);
         await dbContext.SaveChangesAsync();
         var controller = CreateController(dbContext);
@@ -282,7 +282,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     private static async Task<FlashCard> AddCardAsync(
         FlashCardDbContext dbContext, string spanish = "el gato", string english = "the cat")
     {
-        var card = new FlashCard { Spanish = spanish, English = english };
+        var card = new FlashCard { Words = TestDb.Words(spanish, english) };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
         return card;
@@ -308,7 +308,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
     private static async Task<IdResponse> CreateCardAsync(HttpClient client)
     {
-        var response = await client.PostAsJsonAsync("/api/flashcards", new { spanish = "el gato", english = "the cat" });
+        var response = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("el gato", "the cat"));
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<IdResponse>())!;
     }

@@ -3,7 +3,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
 import { cardImageDataUrl } from '../api/cardImages'
-import type { FlashCardFields } from '../api/flashCards'
+import type { CardText } from '../api/translations'
 import type { CardPicture } from '../hooks/useCardPicture'
 
 // How big a picture is shown in a form and the list.
@@ -19,7 +19,7 @@ export function PictureField({
   size,
 }: {
   picture: CardPicture
-  fields: Pick<FlashCardFields, 'spanish' | 'english'>
+  fields: CardText
   busy: boolean
   size?: 'small'
 }) {

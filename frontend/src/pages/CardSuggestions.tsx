@@ -11,6 +11,7 @@ import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import { listCardSuggestions } from '../api/cardSuggestions'
 import type { CardSuggestion } from '../api/cardSuggestions'
+import { formatWords } from '../api/flashCards'
 import type { FlashCardWords, Tag } from '../api/flashCards'
 import { trackException } from '../telemetry'
 
@@ -30,7 +31,7 @@ function describe(relatedTo?: FlashCardWords, tag?: Tag) {
     const kind = tag
       ? `New “${tag.name}” words and phrases`
       : 'New words and phrases'
-    return `${kind} that go with “${relatedTo.spanish}”.`
+    return `${kind} that go with “${formatWords(relatedTo.spanish)}”.`
   }
   return tag
     ? `New words and phrases for your “${tag.name}” cards.`
@@ -150,8 +151,10 @@ export function CardSuggestions({
           (suggestion) =>
             !cards.some(
               (card) =>
-                sameText(card.spanish, suggestion.spanish) ||
-                sameText(card.english, suggestion.english),
+                card.spanish.some((word) =>
+                  sameText(word, suggestion.spanish),
+                ) ||
+                card.english.some((word) => sameText(word, suggestion.english)),
             ),
         )
       : []

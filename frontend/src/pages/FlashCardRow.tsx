@@ -5,6 +5,7 @@ import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
+import { formatWords } from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
 import { thumbnailSize } from './FlashCardPicture'
 
@@ -22,6 +23,7 @@ export function FlashCardRow({
   actions?: ReactNode
 }) {
   const checkboxId = useId()
+  const spanish = formatWords(card.spanish)
 
   return (
     <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
@@ -29,7 +31,7 @@ export function FlashCardRow({
         id={checkboxId}
         checked={picked}
         onChange={onPick}
-        slotProps={{ input: { 'aria-label': `Pick "${card.spanish}"` } }}
+        slotProps={{ input: { 'aria-label': `Pick "${spanish}"` } }}
         sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
       />
       {/* Clicking the card's picture or words picks it too, which helps when picking a lot of cards. */}
@@ -48,7 +50,7 @@ export function FlashCardRow({
           <Box
             component="img"
             src={card.imageUrl}
-            alt={`Picture for "${card.spanish}"`}
+            alt={`Picture for "${spanish}"`}
             loading="lazy"
             sx={{
               // Smaller on a phone, so the card's words keep room next to the pick box and buttons.
@@ -62,8 +64,8 @@ export function FlashCardRow({
         )}
         <Box sx={{ flexGrow: 1, minWidth: 0 }}>
           <ListItemText
-            primary={card.spanish}
-            secondary={card.english}
+            primary={spanish}
+            secondary={formatWords(card.english)}
             sx={{ overflowWrap: 'anywhere' }}
           />
           {card.tags.length > 0 && (

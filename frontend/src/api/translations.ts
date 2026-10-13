@@ -5,6 +5,9 @@ import type { FlashCardWords } from './flashCards'
 // A side of a card, by its field name.
 export type CardSide = Exclude<keyof FlashCardWords, 'id'>
 
+// One piece of text for each side of a card, such as the word being typed in on each.
+export type CardText = Record<CardSide, string>
+
 const languages: Record<CardSide, string> = {
   spanish: 'Spanish',
   english: 'English',

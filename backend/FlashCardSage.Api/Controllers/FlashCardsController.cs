@@ -2,6 +2,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Translation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -18,9 +19,12 @@ public class FlashCardsController(
     IImageStore imageStore,
     ILogger<FlashCardsController> logger) : ControllerBase
 {
-    public const string DuplicateSpanishMessage = "You already have a flash card with this Spanish.";
-
-    public const string DuplicateEnglishMessage = "You already have a flash card with this English.";
+    // The 409 for a word that's already on another of the user's cards. A word with more than one translation
+    // belongs on one card, so the user is pointed at that card.
+    public static string DuplicateMessage(Language language, string word)
+    {
+        return $"You already have a flash card with the {language} \"{word}\". Add this translation to that card instead.";
+    }
 
     // In the order they were made, so a list of words stays in the order it was typed in.
     [HttpGet]
@@ -30,8 +34,10 @@ public class FlashCardsController(
 
         var cards = await dbContext.FlashCards
             .AsNoTracking()
+            .Include(card => card.Words)
             .Include(card => card.Tags.OrderBy(tag => tag.Name))
             .OrderBy(card => card.Id)
+            .AsSplitQuery()
             .ToListAsync();
 
         logger.LogInformation("Retrieved {Count} flash cards", cards.Count);
@@ -46,7 +52,9 @@ public class FlashCardsController(
 
         var card = await dbContext.FlashCards
             .AsNoTracking()
+            .Include(item => item.Words)
             .Include(item => item.Tags.OrderBy(tag => tag.Name))
+            .AsSplitQuery()
             .FirstOrDefaultAsync(item => item.Id == id);
 
         if (card is null)
@@ -69,15 +77,12 @@ public class FlashCardsController(
         if (await FindClashAsync(spanish, english, exceptId: null) is { } clash)
         {
             logger.LogWarning("Refused a duplicate flash card");
-            return DuplicateProblem(clash, spanish);
+            return DuplicateProblem(clash);
         }
 
-        var card = new FlashCard
-        {
-            Spanish = spanish,
-            English = english,
-            Tags = await FindOrMakeTagsAsync(tagNames)
-        };
+        var card = new FlashCard { Tags = await FindOrMakeTagsAsync(tagNames) };
+        SetWords(card, Language.Spanish, spanish);
+        SetWords(card, Language.English, english);
 
         dbContext.FlashCards.Add(card);
 
@@ -87,7 +92,7 @@ public class FlashCardsController(
         }
         catch (DbUpdateException)
         {
-            // A card saved since the check above failed a unique index on the Spanish or English.
+            // A card saved since the check above failed the unique index on its words.
             dbContext.ChangeTracker.Clear();
             var saved = await FindClashAsync(spanish, english, exceptId: null);
 
@@ -98,14 +103,15 @@ public class FlashCardsController(
 
             // The same card, so it's this one: EF Core retried an insert whose first try went through (say, while
             // the database resumed from auto-pause), or the same card was sent twice at once.
-            if (SameText(saved.Spanish, spanish) && SameText(saved.English, english))
+            var savedCard = await LoadAsync(saved.FlashCardId);
+            if (SameWords(savedCard.Spanish, spanish) && SameWords(savedCard.English, english))
             {
-                logger.LogInformation("Flash card {FlashCardId} was already created", saved.Id);
-                return CreatedAtAction(nameof(GetById), new { id = saved.Id }, await LoadAsync(saved.Id));
+                logger.LogInformation("Flash card {FlashCardId} was already created", savedCard.Id);
+                return CreatedAtAction(nameof(GetById), new { id = savedCard.Id }, savedCard);
             }
 
             logger.LogWarning("Refused a duplicate flash card");
-            return DuplicateProblem(saved, spanish);
+            return DuplicateProblem(saved);
         }
 
         logger.LogInformation("Created flash card {FlashCardId}", card.Id);
@@ -117,7 +123,9 @@ public class FlashCardsController(
     public async Task<ActionResult<FlashCard>> Update(int id, [FromBody] FlashCardRequest request)
     {
         var card = await dbContext.FlashCards
+            .Include(item => item.Words)
             .Include(item => item.Tags)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(item => item.Id == id);
 
         if (card is null)
@@ -134,12 +142,12 @@ public class FlashCardsController(
         if (await FindClashAsync(spanish, english, exceptId: id) is { } clash)
         {
             logger.LogWarning("Refused to make flash card {FlashCardId} a duplicate", id);
-            return DuplicateProblem(clash, spanish);
+            return DuplicateProblem(clash);
         }
 
         var tags = await FindOrMakeTagsAsync(tagNames);
-        card.Spanish = spanish;
-        card.English = english;
+        SetWords(card, Language.Spanish, spanish);
+        SetWords(card, Language.English, english);
         card.Tags.Clear();
         card.Tags.AddRange(tags);
 
@@ -149,8 +157,8 @@ public class FlashCardsController(
         }
         catch (DbUpdateException)
         {
-            // Another card saved since the check above failed a unique index. A retried update can't do that, since
-            // it only writes this card again, so it's always a duplicate.
+            // Another card saved since the check above failed the unique index. A retried update can't do that,
+            // since it only writes this card's words again, so it's always a duplicate.
             dbContext.ChangeTracker.Clear();
             var saved = await FindClashAsync(spanish, english, exceptId: id);
 
@@ -160,7 +168,7 @@ public class FlashCardsController(
             }
 
             logger.LogWarning("Refused to make flash card {FlashCardId} a duplicate", id);
-            return DuplicateProblem(saved, spanish);
+            return DuplicateProblem(saved);
         }
 
         logger.LogInformation("Updated flash card {FlashCardId}", id);
@@ -171,9 +179,12 @@ public class FlashCardsController(
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id)
     {
-        // The tags are loaded so EF removes the card's links to them, as the database would.
+        // The words and tags are loaded so EF removes them and the card's links to the tags, as the database would.
+        // The in-memory database used in development only cascades to what's loaded, and would keep the words.
         var card = await dbContext.FlashCards
+            .Include(item => item.Words)
             .Include(item => item.Tags)
+            .AsSplitQuery()
             .FirstOrDefaultAsync(item => item.Id == id);
 
         if (card is null)
@@ -196,28 +207,18 @@ public class FlashCardsController(
         return NoContent();
     }
 
-    // Trims both sides of the card, adding a model error for each one that's left blank. The tag names are trimmed
-    // too, leaving out blanks and repeats, with a model error if one is too long.
+    // Trims each side's words, leaving out blanks and repeats (ignoring case), and adds a model error for a side
+    // that's left with none, too many or one that's too long. The tag names are trimmed the same way, with a model
+    // error if one is too long.
     private bool TryTrim(
-        FlashCardRequest request, out string spanish, out string english, out List<string> tagNames)
+        FlashCardRequest request, out List<string> spanish, out List<string> english, out List<string> tagNames)
     {
-        spanish = request.Spanish.Trim();
-        english = request.English.Trim();
-        tagNames = request.Tags
-            .Select(name => (name ?? string.Empty).Trim())
-            .Where(name => name.Length > 0)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToList();
+        spanish = TrimWords(request.Spanish);
+        english = TrimWords(request.English);
+        tagNames = TrimWords(request.Tags);
 
-        if (spanish.Length == 0)
-        {
-            ModelState.AddModelError(nameof(request.Spanish), "Spanish is required.");
-        }
-
-        if (english.Length == 0)
-        {
-            ModelState.AddModelError(nameof(request.English), "English is required.");
-        }
+        CheckWords(nameof(request.Spanish), Language.Spanish, spanish);
+        CheckWords(nameof(request.English), Language.English, english);
 
         if (tagNames.Any(name => name.Length > Tag.MaxNameLength))
         {
@@ -225,6 +226,55 @@ public class FlashCardsController(
         }
 
         return ModelState.IsValid;
+    }
+
+    private void CheckWords(string field, Language language, List<string> words)
+    {
+        if (words.Count == 0)
+        {
+            ModelState.AddModelError(field, $"{language} is required.");
+        }
+        else if (words.Count > FlashCard.MaxWordsPerSide)
+        {
+            ModelState.AddModelError(
+                field, $"A flash card can have at most {FlashCard.MaxWordsPerSide} {language} translations.");
+        }
+        else if (words.Any(word => word.Length > FlashCard.MaxWordLength))
+        {
+            ModelState.AddModelError(field, $"{language} can be at most {FlashCard.MaxWordLength} characters.");
+        }
+    }
+
+    private static List<string> TrimWords(List<string> words)
+    {
+        return words
+            .Select(word => (word ?? string.Empty).Trim())
+            .Where(word => word.Length > 0)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    // Makes the card's words in a language these, in this order. A word the card already has (whatever its case) is
+    // kept and moved, so the database never sees it removed and added again, which the unique index could refuse.
+    private static void SetWords(FlashCard card, Language language, List<string> texts)
+    {
+        var existing = card.Words.Where(word => word.Language == language).ToList();
+        card.Words.RemoveAll(word =>
+            word.Language == language && !texts.Any(text => SameText(text, word.Text)));
+
+        for (var position = 0; position < texts.Count; position++)
+        {
+            var word = existing.FirstOrDefault(item => SameText(item.Text, texts[position]));
+            if (word is null)
+            {
+                card.Words.Add(new FlashCardWord { Language = language, Text = texts[position], Position = position });
+            }
+            else
+            {
+                word.Text = texts[position];
+                word.Position = position;
+            }
+        }
     }
 
     // The user's tags with these names, in name order, with a new tag for each name they don't have yet. Names match
@@ -246,41 +296,52 @@ public class FlashCardsController(
             .ToList();
     }
 
-    // Another of the user's cards with this Spanish, or else with this English, ignoring case, or null when neither
-    // is taken. A word with more than one translation belongs on one card (e.g. "the bank / the bench"), or the user
-    // wouldn't know which answer a card wants, so either side matching is a duplicate. The cards are compared in
-    // memory, since the in-memory database used in development can't ignore case in a query.
-    private async Task<CardSides?> FindClashAsync(string spanish, string english, int? exceptId)
+    // A word on another of the user's cards that's one of these Spanish words, or else one of these English ones,
+    // ignoring case, or null when none is taken. A word with more than one translation belongs on one card (e.g.
+    // "solo" and "únicamente" for "only"), or the user wouldn't know which answer a card wants, so any word matching
+    // is a duplicate. The words are compared in memory, since the in-memory database used in development can't
+    // ignore case in a query.
+    private async Task<FlashCardWord?> FindClashAsync(List<string> spanish, List<string> english, int? exceptId)
     {
-        var cards = await dbContext.FlashCards
+        var words = await dbContext.FlashCardWords
             .AsNoTracking()
-            .Where(card => card.Id != exceptId)
-            .Select(card => new CardSides(card.Id, card.Spanish, card.English))
+            .Where(word => word.FlashCardId != exceptId)
             .ToListAsync();
 
-        return cards.FirstOrDefault(card => SameText(card.Spanish, spanish))
-            ?? cards.FirstOrDefault(card => SameText(card.English, english));
+        return FirstClash(words, Language.Spanish, spanish) ?? FirstClash(words, Language.English, english);
     }
 
-    // A 409 that says which side of the card is taken.
-    private ObjectResult DuplicateProblem(CardSides clash, string spanish)
+    private static FlashCardWord? FirstClash(List<FlashCardWord> words, Language language, List<string> texts)
     {
-        var message = SameText(clash.Spanish, spanish) ? DuplicateSpanishMessage : DuplicateEnglishMessage;
-        return Problem(detail: message, statusCode: StatusCodes.Status409Conflict);
+        return texts
+            .Select(text => words.FirstOrDefault(word => word.Language == language && SameText(word.Text, text)))
+            .FirstOrDefault(word => word is not null);
+    }
+
+    // A 409 that says which word is taken.
+    private ObjectResult DuplicateProblem(FlashCardWord clash)
+    {
+        return Problem(detail: DuplicateMessage(clash.Language, clash.Text), statusCode: StatusCodes.Status409Conflict);
     }
 
     private Task<FlashCard> LoadAsync(int id)
     {
         return dbContext.FlashCards
             .AsNoTracking()
+            .Include(card => card.Words)
             .Include(card => card.Tags.OrderBy(tag => tag.Name))
+            .AsSplitQuery()
             .SingleAsync(card => card.Id == id);
+    }
+
+    // Whether two lists hold the same words, ignoring case and order.
+    private static bool SameWords(IReadOnlyList<string> a, List<string> b)
+    {
+        return a.Count == b.Count && a.All(word => b.Any(other => SameText(word, other)));
     }
 
     private static bool SameText(string a, string b)
     {
         return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     }
-
-    private sealed record CardSides(int Id, string Spanish, string English);
 }

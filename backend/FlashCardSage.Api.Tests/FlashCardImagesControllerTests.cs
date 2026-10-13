@@ -288,7 +288,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     public async Task Put_KeepsThePictureAsALocalFile_WhichAnyoneCanLoad()
     {
         using var client = CreateClient(signedIn: true);
-        var created = await client.PostAsJsonAsync("/api/flashcards", new { spanish = "nadar", english = "to swim" });
+        var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("nadar", "to swim"));
         var card = (await created.Content.ReadFromJsonAsync<FlashCard>())!;
 
         var put = await client.PutAsJsonAsync(
@@ -316,8 +316,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     {
         var card = new FlashCard
         {
-            Spanish = "nadar",
-            English = "to swim",
+            Words = TestDb.Words("nadar", "to swim"),
             ImageUrl = imageUrl,
             Tags = [.. tags.Select(name => new Tag { Name = name })]
         };

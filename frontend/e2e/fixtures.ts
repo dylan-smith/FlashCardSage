@@ -34,6 +34,16 @@ export const test = base.extend({
   },
 })
 
+// The body that makes a card with one Spanish word and one English word through the API, which takes a list of words
+// for each side.
+export function cardData(
+  spanish: string,
+  english: string,
+  tags: string[] = [],
+) {
+  return { spanish: [spanish], english: [english], tags }
+}
+
 // A picture for a card: a one-pixel PNG, as the API's generate endpoint would return one. The E2E backend has no
 // image generator, so the tests stand in for it with this.
 export const onePixelPng = {

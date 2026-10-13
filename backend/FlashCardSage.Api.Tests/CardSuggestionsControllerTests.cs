@@ -26,7 +26,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
 
         var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal([new("el pájaro", "the bird"), new("el pez", "the fish")], suggestions);
-        Assert.Equal(["el gato", "el perro"], suggester.Cards!.Select(card => card.Spanish));
+        Assert.Equal(["el gato", "el perro"], suggester.Cards!.Select(card => card.Spanish.Single()));
         Assert.Null(suggester.RelatedTo);
         Assert.Null(suggester.Tag);
         Assert.Equal(CardSuggestionsController.SuggestionCount + 3, suggester.Count);
@@ -43,7 +43,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
 
         var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal([new("el collar", "the collar")], suggestions);
-        Assert.Equal("el perro", suggester.RelatedTo?.Spanish);
+        Assert.Equal(["el perro"], suggester.RelatedTo!.Spanish);
         Assert.Equal(2, suggester.Cards!.Count);
     }
 
@@ -79,8 +79,8 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         Assert.Equal("food", suggester.Tag?.Name);
         // The tag's oldest card is kept in place of the oldest of the rest, and the cards stay in order.
         Assert.Equal(CardSuggestionsController.MaxCardsDescribed, suggester.Cards!.Count);
-        Assert.Equal(["es 1", "es 12"], suggester.Cards.Take(2).Select(card => card.Spanish));
-        Assert.Equal($"es {many.Length}", suggester.Cards[^1].Spanish);
+        Assert.Equal(["es 1", "es 12"], suggester.Cards.Take(2).Select(card => card.Spanish.Single()));
+        Assert.Equal($"es {many.Length}", suggester.Cards[^1].Spanish.Single());
     }
 
     [Fact]
@@ -125,6 +125,27 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     }
 
     [Fact]
+    public async Task Suggest_LeavesOutCardsWithAnyOfACardsTranslations()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await using (var dbContext = TestDb.Create(databaseName))
+        {
+            dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words(["solo", "únicamente"], ["only", "just"]) });
+            await dbContext.SaveChangesAsync();
+        }
+
+        var suggester = new FakeSuggester
+        {
+            Result = [new("Únicamente", "solely"), new("justo", "Just"), new("el pez", "the fish")]
+        };
+
+        var result = await CreateController(databaseName, suggester).Suggest(null, null, CancellationToken.None);
+
+        var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal([new("el pez", "the fish")], suggestions);
+    }
+
+    [Fact]
     public async Task Suggest_ReturnsAHandfulAtMost()
     {
         var suggester = new FakeSuggester
@@ -151,7 +172,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         await CreateController(databaseName, suggester).Suggest(null, null, CancellationToken.None);
 
         Assert.Equal(CardSuggestionsController.MaxCardsDescribed, suggester.Cards!.Count);
-        Assert.Equal("es 11", suggester.Cards[0].Spanish);
+        Assert.Equal("es 11", suggester.Cards[0].Spanish.Single());
     }
 
     [Fact]
@@ -210,7 +231,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         string databaseName, int userId, params (string Spanish, string English)[] cards)
     {
         await using var dbContext = TestDb.Create(databaseName, userId);
-        var added = cards.Select(card => new FlashCard { Spanish = card.Spanish, English = card.English }).ToList();
+        var added = cards.Select(card => new FlashCard { Words = TestDb.Words(card.Spanish, card.English) }).ToList();
         dbContext.FlashCards.AddRange(added);
         await dbContext.SaveChangesAsync();
         return added.Select(card => card.Id).ToList();

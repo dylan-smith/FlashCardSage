@@ -43,8 +43,10 @@ public class CardSuggestionsController(
 
         var cards = await dbContext.FlashCards
             .AsNoTracking()
+            .Include(card => card.Words)
             .Include(card => card.Tags.OrderBy(tag => tag.Name))
             .OrderBy(card => card.Id)
+            .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
         // The card the suggestions are to be related to, e.g. one just added. It's looked up in the user's cards, so
@@ -103,11 +105,12 @@ public class CardSuggestionsController(
     }
 
     // The suggestions trimmed, leaving out any with a blank or too-long side, and any that would be a duplicate of one
-    // of the user's cards or an earlier suggestion (either side matching, ignoring case, as when a card is saved).
+    // of the user's cards or an earlier suggestion (either side matching any of a card's words, ignoring case, as when
+    // a card is saved).
     private static IEnumerable<CardSuggestion> Usable(IEnumerable<CardSuggestion> suggested, List<FlashCard> cards)
     {
-        var spanish = new HashSet<string>(cards.Select(card => card.Spanish), StringComparer.OrdinalIgnoreCase);
-        var english = new HashSet<string>(cards.Select(card => card.English), StringComparer.OrdinalIgnoreCase);
+        var spanish = new HashSet<string>(cards.SelectMany(card => card.Spanish), StringComparer.OrdinalIgnoreCase);
+        var english = new HashSet<string>(cards.SelectMany(card => card.English), StringComparer.OrdinalIgnoreCase);
 
         foreach (var suggestion in suggested)
         {
