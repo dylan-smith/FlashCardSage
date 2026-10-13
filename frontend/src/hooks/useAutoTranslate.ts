@@ -31,6 +31,8 @@ export function useAutoTranslate(
   const [translating, setTranslating] = useState<CardSide | null>(null)
   // Whether the user has changed either side in this form, so a saved card's form doesn't open with buttons.
   const [edited, setEdited] = useState(false)
+  // The side the user last emptied, which they can fill in again with a translation of the other side.
+  const [cleared, setCleared] = useState<CardSide | null>(null)
   // A translated word's meanings, most common first, for the user to pick from. Kept after they pick one, so they
   // can change their mind, until they type again.
   const [meaningsOf, setMeaningsOf] = useState<{
@@ -72,12 +74,15 @@ export function useAutoTranslate(
     typed.current = { spanish: false, english: false }
     setAuto(null)
     setEdited(false)
+    setCleared(null)
     setMeaningsOf(null)
   }
 
   // Translates text, from side from, into the other side after delay ms.
   function schedule(from: CardSide, text: string, delay: number) {
     const target = otherSide(from)
+    // The target is being filled in, so it isn't left empty any more.
+    setCleared((side) => (side === target ? null : side))
     timer.current = setTimeout(() => {
       const controller = new AbortController()
       request.current = controller
@@ -123,6 +128,7 @@ export function useAutoTranslate(
 
     // The side stays empty when the user clears it, since they're most likely about to type something else.
     if (text === '') {
+      setCleared(side)
       if (autoSideRef.current === target) {
         // A translation of nothing is nothing.
         onChange({ [target]: '' })
@@ -158,16 +164,17 @@ export function useAutoTranslate(
     setEdited(true)
   }
 
-  // Whether the user can hand a side back to translation, filling it with a translation of the other side. That's
-  // once they've changed the form and both sides hold their own text, so either one can be translated from the
-  // other. While one side is a translation of the other, they already match.
-  function canRetranslate() {
+  // Whether the user can hand side back to translation, filling it with a translation of the other side. That's
+  // once they've changed the form and the other side has text, and side either holds their own text or they
+  // emptied it. A side they never touched that's empty, e.g. because translation failed, isn't offered. While one
+  // side is a translation of the other, they already match.
+  function canRetranslate(side: CardSide) {
     return (
       edited &&
       autoSide === null &&
       translating === null &&
-      fields.spanish.trim() !== '' &&
-      fields.english.trim() !== ''
+      fields[otherSide(side)].trim() !== '' &&
+      (fields[side].trim() !== '' || cleared === side)
     )
   }
 
