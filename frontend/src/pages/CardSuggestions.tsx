@@ -124,8 +124,10 @@ export function CardSuggestions({
           (suggestion) =>
             !cards.some(
               (card) =>
-                sameText(card.spanish, suggestion.spanish) ||
-                sameText(card.english, suggestion.english),
+                card.spanish.some((word) =>
+                  sameText(word, suggestion.spanish),
+                ) ||
+                card.english.some((word) => sameText(word, suggestion.english)),
             ),
         )
       : []

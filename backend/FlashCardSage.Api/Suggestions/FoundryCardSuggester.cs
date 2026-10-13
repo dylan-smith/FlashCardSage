@@ -118,10 +118,11 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<CardSuggesterO
         var text = new StringBuilder();
         text.AppendLine(cards.Count == 0
             ? $"The learner has no cards yet. Suggest {count} cards a beginner would want first."
-            : $"Suggest {count} new cards. These are the learner's cards, as Spanish = English [tags]:");
+            : $"Suggest {count} new cards. These are the learner's cards, as Spanish = English [tags], with a card's "
+                + "words for the same meaning separated by /:");
         foreach (var card in cards)
         {
-            text.Append("- ").Append(card.Spanish).Append(" = ").Append(card.English);
+            text.Append("- ").AppendJoin(" / ", card.Spanish).Append(" = ").AppendJoin(" / ", card.English);
             if (card.Tags.Count > 0)
             {
                 text.Append(" [").AppendJoin(", ", card.Tags.Select(tag => tag.Name)).Append(']');

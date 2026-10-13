@@ -11,8 +11,9 @@ public class FoundryCardSuggesterTests
 {
     private static readonly List<FlashCard> Cards =
     [
-        new() { Spanish = "el gato", English = "the cat", Tags = [new Tag { Name = "animals" }, new Tag { Name = "home" }] },
-        new() { Spanish = "comer", English = "to eat" }
+        new() { Words = TestDb.Words("el gato", "the cat"), Tags = [new Tag { Name = "animals" }, new Tag { Name = "home" }] },
+        new() { Words = TestDb.Words("comer", "to eat") },
+        new() { Words = TestDb.Words(["solo", "únicamente"], ["only"]) }
     ];
 
     [Fact]
@@ -44,6 +45,7 @@ public class FoundryCardSuggesterTests
         Assert.Contains("Suggest 8 new cards", prompt, StringComparison.Ordinal);
         Assert.Contains("- el gato = the cat [animals, home]", prompt, StringComparison.Ordinal);
         Assert.Contains("- comer = to eat\n", prompt.ReplaceLineEndings("\n"), StringComparison.Ordinal);
+        Assert.Contains("- solo / únicamente = only\n", prompt.ReplaceLineEndings("\n"), StringComparison.Ordinal);
     }
 
     [Fact]

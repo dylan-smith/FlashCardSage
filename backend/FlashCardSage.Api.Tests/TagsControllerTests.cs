@@ -101,8 +101,8 @@ public class TagsControllerTests
         {
             var tag = new Tag { Name = "Animals" };
             setupContext.FlashCards.AddRange(
-                new FlashCard { Spanish = "el gato", English = "the cat", Tags = [tag, new Tag { Name = "Pets" }] },
-                new FlashCard { Spanish = "el león", English = "the lion", Tags = [tag] });
+                new FlashCard { Words = TestDb.Words("el gato", "the cat"), Tags = [tag, new Tag { Name = "Pets" }] },
+                new FlashCard { Words = TestDb.Words("el león", "the lion"), Tags = [tag] });
             await setupContext.SaveChangesAsync();
             tagId = tag.Id;
         }

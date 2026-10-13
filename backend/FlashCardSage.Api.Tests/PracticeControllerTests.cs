@@ -31,19 +31,37 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
         var databaseName = Guid.NewGuid().ToString();
         await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
         {
-            otherContext.FlashCards.Add(new FlashCard { Spanish = "el perro", English = "the dog" });
+            otherContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el perro", "the dog") });
             await otherContext.SaveChangesAsync();
         }
 
         await using var dbContext = TestDb.Create(databaseName);
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
 
         var result = await CreateController(dbContext).GetNext(new PracticeSelection());
 
         var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
-        Assert.Equal((card.Id, "el gato", "the cat"), (next.Id, next.Spanish, next.English));
+        Assert.Equal((card.Id, "el gato", "the cat"), (next.Id, next.Spanish.Single(), next.English.Single()));
+    }
+
+    [Fact]
+    public async Task GetNext_ReturnsEveryTranslationOnTheCard()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await using (var setupContext = TestDb.Create(databaseName))
+        {
+            setupContext.FlashCards.Add(new FlashCard { Words = TestDb.Words(["solo", "únicamente"], ["only"]) });
+            await setupContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var result = await CreateController(dbContext).GetNext(new PracticeSelection());
+
+        var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(["solo", "únicamente"], next.Spanish);
+        Assert.Equal(["only"], next.English);
     }
 
     [Fact]
@@ -51,21 +69,21 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     {
         using var client = CreateClient();
         var empty = await client.GetAsync("/api/flashcards/practice/next");
-        var created = await client.PostAsJsonAsync("/api/flashcards", new { spanish = "el gato", english = "the cat" });
+        var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("el gato", "the cat"));
         created.EnsureSuccessStatusCode();
 
         var next = await client.GetFromJsonAsync<PracticeCard>("/api/flashcards/practice/next");
 
         Assert.Equal(HttpStatusCode.NoContent, empty.StatusCode);
-        Assert.Equal("el gato", next!.Spanish);
+        Assert.Equal(["el gato"], next!.Spanish);
     }
 
     [Fact]
     public async Task GetNext_OnlyPicksTheDecksCards()
     {
         await using var dbContext = TestDb.Create();
-        var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
-        dbContext.FlashCards.Add(new FlashCard { Spanish = "el perro", English = "the dog" });
+        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el perro", "the dog") });
         var deck = new Deck { Name = "Cats", FlashCards = [cat] };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -85,8 +103,8 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     {
         await using var dbContext = TestDb.Create();
         var tag = new Tag { Name = "Animals" };
-        var cat = new FlashCard { Spanish = "el gato", English = "the cat", Tags = [tag] };
-        dbContext.FlashCards.AddRange(cat, new FlashCard { Spanish = "la casa", English = "the house" });
+        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat"), Tags = [tag] };
+        dbContext.FlashCards.AddRange(cat, new FlashCard { Words = TestDb.Words("la casa", "the house") });
         await dbContext.SaveChangesAsync();
 
         for (var attempt = 0; attempt < 10; attempt++)
@@ -102,7 +120,7 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     public async Task GetNext_ReturnsNoContent_WhenTheDeckIsEmpty()
     {
         await using var dbContext = TestDb.Create();
-        dbContext.FlashCards.Add(new FlashCard { Spanish = "el gato", English = "the cat" });
+        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el gato", "the cat") });
         var deck = new Deck { Name = "Empty" };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();

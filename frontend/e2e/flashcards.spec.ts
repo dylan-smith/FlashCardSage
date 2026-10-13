@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, onePixelPng } from './fixtures'
+import { test, expect, cardData, onePixelPng } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
@@ -75,16 +75,47 @@ test.describe('Flash card management', () => {
       await page.getByLabel('English').fill('the tomcat')
       await add.click()
       await expect(page.getByRole('alert')).toHaveText(
-        'You already have a flash card with this Spanish.',
+        'You already have a flash card with the Spanish "el gato". Add this translation to that card instead.',
       )
 
       await page.getByLabel('Spanish').fill('el gatito')
       await page.getByLabel('English').fill('The Cat')
       await add.click()
       await expect(page.getByRole('alert')).toHaveText(
-        'You already have a flash card with this English.',
+        'You already have a flash card with the English "the cat". Add this translation to that card instead.',
       )
       await expect(page.getByRole('listitem')).toHaveCount(1)
+    })
+
+    test('adds a card with more than one translation, and practices them as one card', async ({
+      page,
+    }) => {
+      await page.getByLabel('Spanish').fill('solo')
+      await page
+        .getByRole('button', { name: 'Add Spanish translation' })
+        .click()
+      await page.getByLabel('Spanish 2', { exact: true }).fill('únicamente')
+      await page.getByLabel('English').fill('only')
+      await page.getByRole('button', { name: 'Add flash card' }).click()
+
+      const item = page.getByRole('listitem').filter({ hasText: 'únicamente' })
+      await expect(item).toContainText('solo / únicamente')
+      await expect(item).toContainText('only')
+
+      // Another card for "only" would leave practice unsure which Spanish it wants.
+      await page.getByLabel('Spanish').fill('nada más')
+      await page.getByLabel('English').fill('Only')
+      await page.getByRole('button', { name: 'Add flash card' }).click()
+      await expect(page.getByRole('alert')).toContainText(
+        'You already have a flash card with the English "only".',
+      )
+
+      await page.goto('/practice')
+      await page.getByRole('button', { name: 'Reveal' }).click()
+      await expect(
+        page.getByText('solo / únicamente', { exact: true }),
+      ).toBeVisible()
+      await expect(page.getByText('only', { exact: true })).toBeVisible()
     })
 
     test('fills in the translation, which the user can type over', async ({
@@ -313,7 +344,7 @@ test.describe('Flash card management', () => {
       request,
     }) => {
       const created = await request.post(flashCardsApiUrl, {
-        data: { spanish: 'nadar', english: 'to swim' },
+        data: cardData('nadar', 'to swim'),
       })
       expect(created.ok()).toBe(true)
       const { id } = (await created.json()) as { id: number }

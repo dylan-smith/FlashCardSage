@@ -1,4 +1,4 @@
-import { test, expect, onePixelPng } from './fixtures'
+import { test, expect, cardData, onePixelPng } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
@@ -19,9 +19,13 @@ test.describe('Practice', () => {
       )
     }
     for (const card of cards) {
-      expect((await request.post(flashCardsApiUrl, { data: card })).ok()).toBe(
-        true,
-      )
+      expect(
+        (
+          await request.post(flashCardsApiUrl, {
+            data: cardData(card.spanish, card.english),
+          })
+        ).ok(),
+      ).toBe(true)
     }
   })
 

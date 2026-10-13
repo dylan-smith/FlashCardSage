@@ -11,6 +11,7 @@ import Pagination from '@mui/material/Pagination'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
+import { formatWords } from '../api/flashCards'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { cardCount } from './cardCount'
 
@@ -74,8 +75,8 @@ export function CardPicker({
       (activeTagId === null ||
         card.tags.some((tag) => tag.id === activeTagId)) &&
       (query === '' ||
-        normalize(card.spanish).includes(query) ||
-        normalize(card.english).includes(query)),
+        card.spanish.some((word) => normalize(word).includes(query)) ||
+        card.english.some((word) => normalize(word).includes(query))),
   )
   const pageCount = Math.max(1, Math.ceil(matching.length / cardPageSize))
   const currentPage = Math.min(page, pageCount)
@@ -204,7 +205,9 @@ export function CardPicker({
                   checked={selected.has(card.id)}
                   onChange={() => toggle(card.id)}
                   slotProps={{
-                    input: { 'aria-label': `Pick "${card.spanish}"` },
+                    input: {
+                      'aria-label': `Pick "${formatWords(card.spanish)}"`,
+                    },
                   }}
                   sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
                 />
@@ -215,8 +218,8 @@ export function CardPicker({
                   sx={{ flexGrow: 1, minWidth: 0, cursor: 'pointer' }}
                 >
                   <ListItemText
-                    primary={card.spanish}
-                    secondary={card.english}
+                    primary={formatWords(card.spanish)}
+                    secondary={formatWords(card.english)}
                     sx={{ overflowWrap: 'anywhere' }}
                   />
                   {card.tags.length > 0 && (

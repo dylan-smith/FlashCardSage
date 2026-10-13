@@ -21,8 +21,8 @@ public class DecksControllerTests
         }
 
         await using var dbContext = TestDb.Create(databaseName);
-        var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
-        var dog = new FlashCard { Spanish = "el perro", English = "the dog" };
+        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+        var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
         dbContext.Decks.AddRange(new Deck { Name = "Week 1" }, new Deck { Name = "Animals", FlashCards = [dog, cat] });
         await dbContext.SaveChangesAsync();
         var controller = CreateController(dbContext);
@@ -40,7 +40,7 @@ public class DecksControllerTests
     public async Task GetById_ReturnsTheDeck()
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
         var deck = new Deck { Name = "Animals", FlashCards = [card] };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -57,9 +57,9 @@ public class DecksControllerTests
     public async Task Create_TrimsTheNameAndAddsTheCards()
     {
         await using var dbContext = TestDb.Create();
-        var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
-        var dog = new FlashCard { Spanish = "el perro", English = "the dog" };
-        dbContext.FlashCards.AddRange(cat, dog, new FlashCard { Spanish = "la casa", English = "the house" });
+        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+        var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
+        dbContext.FlashCards.AddRange(cat, dog, new FlashCard { Words = TestDb.Words("la casa", "the house") });
         await dbContext.SaveChangesAsync();
         var controller = CreateController(dbContext);
 
@@ -107,7 +107,7 @@ public class DecksControllerTests
     public async Task Create_ReturnsValidationProblem_ForAnUnknownOrAnotherUsersCard()
     {
         var databaseName = Guid.NewGuid().ToString();
-        var other = new FlashCard { Spanish = "el perro", English = "the dog" };
+        var other = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
         await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
         {
             otherContext.FlashCards.Add(other);
@@ -134,7 +134,7 @@ public class DecksControllerTests
         int deckId, catId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
+            var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
             var deck = new Deck { Name = "Anmals", FlashCards = [cat] };
             setupContext.Decks.Add(deck);
             await setupContext.SaveChangesAsync();
@@ -189,10 +189,10 @@ public class DecksControllerTests
         int deckId, catId, dogId, houseId, bookId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
-            var dog = new FlashCard { Spanish = "el perro", English = "the dog" };
-            var house = new FlashCard { Spanish = "la casa", English = "the house" };
-            var book = new FlashCard { Spanish = "el libro", English = "the book" };
+            var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+            var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
+            var house = new FlashCard { Words = TestDb.Words("la casa", "the house") };
+            var book = new FlashCard { Words = TestDb.Words("el libro", "the book") };
             var deck = new Deck { Name = "Animals", FlashCards = [cat, dog] };
             setupContext.FlashCards.AddRange(house, book);
             setupContext.Decks.Add(deck);
@@ -219,7 +219,7 @@ public class DecksControllerTests
     public async Task ChangeCards_ReturnsValidationProblem_ForAnotherUsersCard_AndChangesNothing()
     {
         var databaseName = Guid.NewGuid().ToString();
-        var other = new FlashCard { Spanish = "el perro", English = "the dog" };
+        var other = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
         await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
         {
             otherContext.FlashCards.Add(other);
@@ -227,7 +227,7 @@ public class DecksControllerTests
         }
 
         await using var dbContext = TestDb.Create(databaseName);
-        var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
         var deck = new Deck { Name = "Animals", FlashCards = [cat] };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -240,7 +240,7 @@ public class DecksControllerTests
         await using var checkContext = TestDb.Create(databaseName);
         Assert.Equal(
             [cat.Id],
-            (await checkContext.Decks.Include(item => item.FlashCards).SingleAsync()).FlashCards.Select(card => card.Id));
+            (await checkContext.Decks.Include(item => item.FlashCards).ThenInclude(card => card.Words).SingleAsync()).FlashCards.Select(card => card.Id));
     }
 
     [Fact]
@@ -250,7 +250,7 @@ public class DecksControllerTests
         int deckId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var deck = new Deck { Name = "Animals", FlashCards = [new FlashCard { Spanish = "el gato", English = "the cat" }] };
+            var deck = new Deck { Name = "Animals", FlashCards = [new FlashCard { Words = TestDb.Words("el gato", "the cat") }] };
             setupContext.Decks.Add(deck);
             await setupContext.SaveChangesAsync();
             deckId = deck.Id;
@@ -261,7 +261,7 @@ public class DecksControllerTests
 
         await using var checkContext = TestDb.Create(databaseName);
         Assert.False(await checkContext.Decks.AnyAsync());
-        Assert.Equal("el gato", (await checkContext.FlashCards.SingleAsync()).Spanish);
+        Assert.Equal("el gato", (await checkContext.FlashCards.Include(c => c.Words).SingleAsync()).Spanish.Single());
     }
 
     [Fact]
@@ -271,8 +271,8 @@ public class DecksControllerTests
         int catId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
-            var dog = new FlashCard { Spanish = "el perro", English = "the dog" };
+            var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+            var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
             setupContext.Decks.Add(new Deck { Name = "Animals", FlashCards = [cat, dog] });
             await setupContext.SaveChangesAsync();
             catId = cat.Id;
@@ -285,8 +285,8 @@ public class DecksControllerTests
         }
 
         await using var checkContext = TestDb.Create(databaseName);
-        var deck = await checkContext.Decks.Include(item => item.FlashCards).SingleAsync();
-        Assert.Equal(["el perro"], deck.FlashCards.Select(card => card.Spanish));
+        var deck = await checkContext.Decks.Include(item => item.FlashCards).ThenInclude(card => card.Words).SingleAsync();
+        Assert.Equal(["el perro"], deck.FlashCards.Select(card => card.Spanish.Single()));
     }
 
     [Fact]
