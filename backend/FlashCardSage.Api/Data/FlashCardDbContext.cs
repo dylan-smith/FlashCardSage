@@ -89,6 +89,15 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         modelBuilder.Entity<FlashCard>()
             .HasIndex(card => card.UserId);
 
+        // A user has one card for a word, so neither side can be on two of their cards (0006-*.sql).
+        modelBuilder.Entity<FlashCard>()
+            .HasIndex(card => new { card.UserId, card.Spanish })
+            .IsUnique();
+
+        modelBuilder.Entity<FlashCard>()
+            .HasIndex(card => new { card.UserId, card.English })
+            .IsUnique();
+
         modelBuilder.Entity<FlashCard>()
             .Property(card => card.Spanish)
             .HasMaxLength(200)
