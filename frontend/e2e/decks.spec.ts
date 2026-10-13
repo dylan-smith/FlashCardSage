@@ -52,7 +52,7 @@ test.describe('Decks', () => {
   }) => {
     await page.goto('/')
     await page
-      .getByRole('navigation', { name: 'Mode' })
+      .getByRole('navigation', { name: 'Manage cards' })
       .getByRole('link', { name: 'Decks' })
       .click()
     await expect(

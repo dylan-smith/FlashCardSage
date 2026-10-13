@@ -4,7 +4,7 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Container from '@mui/material/Container'
 import Typography from '@mui/material/Typography'
-import { Link, NavLink, Route, Routes, useLocation } from 'react-router'
+import { Link, Route, Routes, useLocation } from 'react-router'
 import logo from './assets/logo.svg'
 import { disableGoogleAutoSelect } from './auth/google'
 import { setSession, useSession } from './auth/session'
@@ -15,6 +15,7 @@ import FlashCardsPage from './pages/FlashCardsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
 import ScoresPage from './pages/ScoresPage'
+import TagsPage from './pages/TagsPage'
 import { trackPageView } from './telemetry'
 
 export const tagline = 'Learn a language one card at a time.'
@@ -24,17 +25,34 @@ function signOut() {
   setSession(null)
 }
 
-// The app's modes. NavLink marks the current one with aria-current.
-const modes = [
-  { to: '/', label: 'Manage cards' },
+type NavItem = { to: string; label: string }
+
+// The parts of Manage cards, each with its own page. A deck's page is part of Decks.
+const sections: NavItem[] = [
+  { to: '/', label: 'Cards' },
   { to: '/decks', label: 'Decks' },
+  { to: '/tags', label: 'Tags' },
+]
+
+// The app's modes. Manage cards is made up of the sections above.
+const modes: (NavItem & { sections?: NavItem[] })[] = [
+  { to: '/', label: 'Manage cards', sections },
   { to: '/practice', label: 'Practice' },
   { to: '/scores', label: 'Scores' },
 ]
 
+// Whether the path is the item's page or one under it. Every path is under /, so that one only matches itself.
+function isAt(pathname: string, { to }: NavItem) {
+  return pathname === to || (to !== '/' && pathname.startsWith(`${to}/`))
+}
+
 function App() {
   const { pathname } = useLocation()
   const session = useSession()
+  // None on a page that doesn't exist.
+  const currentMode = modes.find((mode) =>
+    (mode.sections ?? [mode]).some((item) => isAt(pathname, item)),
+  )
 
   // One page view for the first load and one for each route change after it, including back and forward.
   useEffect(() => {
@@ -106,28 +124,63 @@ function App() {
               mb: 3,
             }}
           >
-            {modes.map(({ to, label }) => (
-              <Button
-                key={to}
-                component={NavLink}
-                to={to}
-                // A deck's own page is part of the Decks mode, but every page is under /.
-                end={to === '/'}
-                variant={
-                  pathname === to ||
-                  (to !== '/' && pathname.startsWith(`${to}/`))
-                    ? 'contained'
-                    : 'outlined'
-                }
-              >
-                {label}
-              </Button>
-            ))}
+            {modes.map((mode) => {
+              const active = mode === currentMode
+              return (
+                <Button
+                  key={mode.to}
+                  component={Link}
+                  to={mode.to}
+                  // A mode with sections is where the user is, and the section's link is the page they're on.
+                  aria-current={
+                    active ? (mode.sections ? 'true' : 'page') : undefined
+                  }
+                  variant={active ? 'contained' : 'outlined'}
+                >
+                  {mode.label}
+                </Button>
+              )
+            })}
           </Box>
+          {currentMode?.sections && (
+            <Box
+              component="nav"
+              aria-label={currentMode.label}
+              sx={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                justifyContent: 'center',
+                gap: 1,
+                mt: -1,
+                mb: 3,
+              }}
+            >
+              {currentMode.sections.map((section) => {
+                const active = isAt(pathname, section)
+                return (
+                  <Button
+                    key={section.to}
+                    component={Link}
+                    to={section.to}
+                    aria-current={active ? 'page' : undefined}
+                    sx={{
+                      borderRadius: 0,
+                      borderBottom: 2,
+                      borderColor: active ? 'primary.main' : 'transparent',
+                      fontWeight: active ? 'bold' : undefined,
+                    }}
+                  >
+                    {section.label}
+                  </Button>
+                )
+              })}
+            </Box>
+          )}
           <Routes>
             <Route path="/" element={<FlashCardsPage />} />
             <Route path="/decks" element={<DecksPage />} />
             <Route path="/decks/:id" element={<DeckPage />} />
+            <Route path="/tags" element={<TagsPage />} />
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
             <Route path="*" element={<NotFoundPage />} />

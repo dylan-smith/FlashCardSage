@@ -81,7 +81,7 @@ test.describe('Accessibility', () => {
     }
   })
 
-  test("decks list, a deck's page with a card picked, and the new deck dialog have no detectable accessibility violations", async ({
+  test("decks list, a deck's page with a card picked, the new deck dialog and the Tags page have no detectable accessibility violations", async ({
     page,
     request,
   }) => {
@@ -127,6 +127,12 @@ test.describe('Accessibility', () => {
       await page.getByRole('button', { name: 'Add 1 card to deck…' }).click()
       await page.getByRole('menuitem', { name: 'New deck…' }).click()
       await expect(page.getByRole('dialog')).toBeVisible()
+      expect(await violations()).toEqual([])
+
+      // The Tags page, with a tag being renamed.
+      await page.goto('/tags')
+      await page.getByRole('button', { name: 'Rename tag "A11y"' }).click()
+      await expect(page.getByLabel('Tag name')).toBeFocused()
       expect(await violations()).toEqual([])
     } finally {
       await request.delete(`${decksApiUrl}/${deckId}`)

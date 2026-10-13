@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { SubmitEvent } from 'react'
 import Autocomplete from '@mui/material/Autocomplete'
 import Box from '@mui/material/Box'
@@ -53,47 +53,21 @@ export function TagsInput({
   )
 }
 
-// The user's tags with how many cards have each, to show only one tag's cards. The tag that's picked can be renamed
-// or deleted.
+// The user's tags with how many cards have each, to show only one tag's cards. Tags are renamed and deleted on the
+// Tags page.
 export function TagFilter({
   tags,
   counts,
   total,
   selected,
-  busy,
-  onSelect,
-  onRename,
-  onDelete,
+  onSelect: select,
 }: {
   tags: Tag[]
   counts: Map<number, number>
   total: number
   selected: Tag | null
-  busy: boolean
   onSelect: (tag: Tag | null) => void
-  // Resolves to whether it was renamed, so the form only closes when it was.
-  onRename: (tag: Tag, name: string) => Promise<boolean>
-  onDelete: (tag: Tag) => void
 }) {
-  // The new name being typed for the picked tag, or null when it isn't being renamed.
-  const [name, setName] = useState<string | null>(null)
-
-  async function handleRename(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (
-      selected !== null &&
-      name !== null &&
-      (await onRename(selected, name))
-    ) {
-      setName(null)
-    }
-  }
-
-  function select(tag: Tag | null) {
-    setName(null)
-    onSelect(tag)
-  }
-
   return (
     <Box sx={{ mb: 2 }}>
       <Typography
@@ -127,43 +101,11 @@ export function TagFilter({
           />
         ))}
       </Box>
-      {selected !== null &&
-        (name === null ? (
-          <Box sx={{ display: 'flex', gap: 1, mt: 1 }}>
-            <Button
-              type="button"
-              size="small"
-              disabled={busy}
-              aria-label={`Rename tag "${selected.name}"`}
-              onClick={() => setName(selected.name)}
-            >
-              Rename
-            </Button>
-            <Button
-              type="button"
-              size="small"
-              color="error"
-              disabled={busy}
-              aria-label={`Delete tag "${selected.name}"`}
-              onClick={() => onDelete(selected)}
-            >
-              Delete tag
-            </Button>
-          </Box>
-        ) : (
-          <TagRenameForm
-            name={name}
-            busy={busy}
-            onChange={setName}
-            onCancel={() => setName(null)}
-            onSave={(event) => void handleRename(event)}
-          />
-        ))}
     </Box>
   )
 }
 
-// The form for a tag's new name, which decks use too. Like the card edit form, the field gets focus when the form
+// The form for a tag's new name, used on the Tags page and for a deck's name too. Like the card edit form, the field gets focus when the form
 // appears.
 export function TagRenameForm({
   name,

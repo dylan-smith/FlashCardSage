@@ -27,7 +27,7 @@ import {
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
-import { deleteTag, listTags, renameTag } from '../api/tags'
+import { listTags } from '../api/tags'
 import type { CardSide } from '../api/translations'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import type { AutoTranslate } from '../hooks/useAutoTranslate'
@@ -320,8 +320,6 @@ function FlashCardsPage() {
   const [busyId, setBusyId] = useState<number | null>(null)
   // The user's tags in name order, including any no card has any more.
   const [tags, setTags] = useState<Tag[]>([])
-  // Set while the picked tag is being renamed or deleted.
-  const [tagBusy, setTagBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   // The user's decks, to add the picked cards to.
   const [decks, setDecks] = useState<Deck[]>([])
@@ -567,63 +565,6 @@ function FlashCardsPage() {
     setSearchParams(tag === null ? {} : { tag: String(tag.id) })
   }
 
-  async function handleTagRename(tag: Tag, name: string) {
-    const trimmed = name.trim()
-    if (!trimmed) {
-      setErrorMessage('Tag name is required.')
-      return false
-    }
-
-    setTagBusy(true)
-    setErrorMessage('')
-
-    try {
-      const renamed = await renameTag(tag.id, trimmed)
-      trackEvent('TagRenamed')
-      const rename = (item: Tag) => (item.id === renamed.id ? renamed : item)
-      setTags((current) => sortTags(current.map(rename)))
-      setCards((current) =>
-        current.map((card) => ({
-          ...card,
-          tags: sortTags(card.tags.map(rename)),
-        })),
-      )
-      return true
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'renameTag' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to rename tag.'))
-      return false
-    } finally {
-      setTagBusy(false)
-    }
-  }
-
-  // Deleting a tag takes it off its cards but leaves the cards, and goes back to showing every card.
-  async function handleTagDelete(tag: Tag) {
-    setTagBusy(true)
-    setErrorMessage('')
-
-    try {
-      await deleteTag(tag.id)
-      trackEvent('TagDeleted')
-      setTags((current) => current.filter((item) => item.id !== tag.id))
-      setCards((current) =>
-        current.map((card) => ({
-          ...card,
-          tags: card.tags.filter((item) => item.id !== tag.id),
-        })),
-      )
-      selectTag(null)
-    } catch (error) {
-      trackException(error, { operation: 'deleteTag' })
-      setErrorMessage(describeFetchError(error, 'Unable to delete tag.'))
-    } finally {
-      setTagBusy(false)
-    }
-  }
-
   return (
     <Stack spacing={2}>
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
@@ -705,10 +646,7 @@ function FlashCardsPage() {
                 counts={tagCounts}
                 total={cards.length}
                 selected={selectedTag}
-                busy={tagBusy}
                 onSelect={selectTag}
-                onRename={handleTagRename}
-                onDelete={(tag) => void handleTagDelete(tag)}
               />
             )}
             {cards.length === 0 ? (

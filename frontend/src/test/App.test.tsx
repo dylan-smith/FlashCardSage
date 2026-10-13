@@ -1038,103 +1038,140 @@ describe('App', () => {
       )
     })
 
-    it('renames the picked tag', async () => {
-      const user = userEvent.setup()
-      const calls = mockFetch(
-        async (_url, init) =>
-          init?.method === 'PUT'
-            ? jsonResponse({ id: 1, name: 'Groceries' })
-            : jsonResponse([apple, train]),
-        [food, travel],
-      )
-      renderAt('/')
-      await screen.findByText('la manzana')
+    describe('the Tags page', () => {
+      const pear: FlashCard = {
+        id: 3,
+        spanish: 'la pera',
+        english: 'the pear',
+        tags: [food],
+      }
 
-      await user.click(screen.getByRole('button', { name: 'Food (1)' }))
-      await user.click(
-        screen.getByRole('button', { name: 'Rename tag "Food"' }),
-      )
-      const name = screen.getByLabelText('Tag name')
-      expect(name).toHaveFocus()
-      await user.clear(name)
-      await user.type(name, ' Groceries ')
-      await user.click(screen.getByRole('button', { name: 'Save' }))
+      // Renders the Tags page, answering each change with the handler.
+      async function showTags(
+        handler: (url: string, init?: RequestInit) => Promise<Response> = (
+          url,
+          init,
+        ) => {
+          throw new Error(`Unexpected ${init?.method} ${url}`)
+        },
+      ) {
+        const calls = mockFetch(
+          async (url, init) =>
+            init?.method === undefined
+              ? jsonResponse([apple, train, pear])
+              : handler(url, init),
+          [food, travel],
+        )
+        renderAt('/tags')
+        await screen.findByRole('link', { name: 'Food' })
+        return calls
+      }
 
-      expect(
-        await screen.findByRole('button', { name: 'Groceries (1)' }),
-      ).toHaveAttribute('aria-pressed', 'true')
-      expect(
-        within(screen.getByRole('listitem')).getByText('Groceries'),
-      ).toBeInTheDocument()
-      expect(screen.queryByLabelText('Tag name')).not.toBeInTheDocument()
-      const put = calls.find((call) => call.init?.method === 'PUT')
-      expect(put?.url).toBe(`${tagsUrl}/1`)
-      expect(put?.init?.body).toBe(JSON.stringify({ name: 'Groceries' }))
-      expect(trackEvent).toHaveBeenCalledWith('TagRenamed')
-    })
+      it('lists the tags with how many cards have each, linking to their cards', async () => {
+        await showTags()
 
-    it("shows the API's reason when it rejects a new name", async () => {
-      const user = userEvent.setup()
-      mockFetch(
-        async (_url, init) =>
-          init?.method === 'PUT'
-            ? jsonResponse(
-                { errors: { Name: ["There's already a tag with that name."] } },
-                400,
-              )
-            : jsonResponse([apple, train]),
-        [food, travel],
-      )
-      renderAt('/')
-      await screen.findByText('la manzana')
+        const items = within(screen.getByRole('list')).getAllByRole('listitem')
+        expect(items.map((item) => item.textContent)).toEqual([
+          expect.stringContaining('Food2 cards'),
+          expect.stringContaining('Travel1 card'),
+        ])
+        expect(screen.getByRole('link', { name: 'Food' })).toHaveAttribute(
+          'href',
+          '/?tag=1',
+        )
+      })
 
-      await user.click(screen.getByRole('button', { name: 'Food (1)' }))
-      await user.click(
-        screen.getByRole('button', { name: 'Rename tag "Food"' }),
-      )
-      await user.clear(screen.getByLabelText('Tag name'))
-      await user.type(screen.getByLabelText('Tag name'), 'travel')
-      await user.click(screen.getByRole('button', { name: 'Save' }))
+      it('renames a tag', async () => {
+        const user = userEvent.setup()
+        const calls = await showTags(async () =>
+          jsonResponse({ id: 1, name: 'Groceries' }),
+        )
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        "There's already a tag with that name.",
-      )
-      expect(screen.getByLabelText('Tag name')).toHaveValue('travel')
-      expect(trackException).not.toHaveBeenCalled()
-    })
+        await user.click(
+          screen.getByRole('button', { name: 'Rename tag "Food"' }),
+        )
+        const name = screen.getByLabelText('Tag name')
+        expect(name).toHaveFocus()
+        await user.clear(name)
+        await user.type(name, ' Groceries ')
+        await user.click(screen.getByRole('button', { name: 'Save' }))
 
-    it('deletes the picked tag and shows every card again', async () => {
-      const user = userEvent.setup()
-      const calls = mockFetch(
-        async (_url, init) =>
-          init?.method === 'DELETE'
-            ? new Response(null, { status: 204 })
-            : jsonResponse([apple, train]),
-        [food, travel],
-      )
-      renderAt('/')
-      await screen.findByText('la manzana')
-
-      await user.click(screen.getByRole('button', { name: 'Food (1)' }))
-      await user.click(
-        screen.getByRole('button', { name: 'Delete tag "Food"' }),
-      )
-
-      await waitFor(() => {
         expect(
-          screen.queryByRole('button', { name: 'Food (1)' }),
+          await screen.findByRole('link', { name: 'Groceries' }),
+        ).toBeInTheDocument()
+        expect(screen.queryByLabelText('Tag name')).not.toBeInTheDocument()
+        const put = calls.find((call) => call.init?.method === 'PUT')
+        expect(put?.url).toBe(`${tagsUrl}/1`)
+        expect(put?.init?.body).toBe(JSON.stringify({ name: 'Groceries' }))
+        expect(trackEvent).toHaveBeenCalledWith('TagRenamed')
+      })
+
+      it("shows the API's reason when it rejects a new name", async () => {
+        const user = userEvent.setup()
+        await showTags(async () =>
+          jsonResponse(
+            { errors: { Name: ["There's already a tag with that name."] } },
+            400,
+          ),
+        )
+
+        await user.click(
+          screen.getByRole('button', { name: 'Rename tag "Food"' }),
+        )
+        await user.clear(screen.getByLabelText('Tag name'))
+        await user.type(screen.getByLabelText('Tag name'), 'travel')
+        await user.click(screen.getByRole('button', { name: 'Save' }))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          "There's already a tag with that name.",
+        )
+        expect(screen.getByLabelText('Tag name')).toHaveValue('travel')
+        expect(trackException).not.toHaveBeenCalled()
+      })
+
+      it('deletes a tag', async () => {
+        const user = userEvent.setup()
+        const calls = await showTags(
+          async () => new Response(null, { status: 204 }),
+        )
+
+        await user.click(
+          screen.getByRole('button', { name: 'Delete tag "Food"' }),
+        )
+
+        await waitFor(() => {
+          expect(
+            screen.queryByRole('link', { name: 'Food' }),
+          ).not.toBeInTheDocument()
+        })
+        expect(screen.getByRole('link', { name: 'Travel' })).toBeInTheDocument()
+        expect(calls.find((call) => call.init?.method === 'DELETE')?.url).toBe(
+          `${tagsUrl}/1`,
+        )
+        expect(trackEvent).toHaveBeenCalledWith('TagDeleted')
+      })
+
+      it('says when there are no tags yet', async () => {
+        mockFetch(async () => jsonResponse([]))
+        renderAt('/tags')
+
+        expect(
+          await screen.findByText(/You haven't made any tags yet\./),
+        ).toBeInTheDocument()
+      })
+
+      it("leaves renaming and deleting to the Tags page, so the cards page's chips only filter", async () => {
+        const user = userEvent.setup()
+        mockFetch(async () => jsonResponse([apple, train]), [food, travel])
+        renderAt('/')
+        await screen.findByText('la manzana')
+
+        await user.click(screen.getByRole('button', { name: 'Food (1)' }))
+
+        expect(
+          screen.queryByRole('button', { name: /^(Rename|Delete) tag/ }),
         ).not.toBeInTheDocument()
       })
-      expect(screen.getAllByRole('listitem')).toHaveLength(2)
-      expect(screen.queryByText('Food')).not.toBeInTheDocument()
-      expect(screen.getByRole('button', { name: 'All (2)' })).toHaveAttribute(
-        'aria-pressed',
-        'true',
-      )
-      expect(calls.find((call) => call.init?.method === 'DELETE')?.url).toBe(
-        `${tagsUrl}/1`,
-      )
-      expect(trackEvent).toHaveBeenCalledWith('TagDeleted')
     })
 
     it('shows every card when the tag in the address no longer exists', async () => {
@@ -1356,12 +1393,11 @@ describe('App', () => {
         expect(
           screen.getByRole('link', { name: 'Practice deck "Animals"' }),
         ).toHaveAttribute('href', '/practice?deck=7')
-        // The Decks mode stays marked on a deck's page.
+        // Decks stays marked on a deck's page.
         expect(
-          within(screen.getByRole('navigation', { name: 'Mode' })).getByRole(
-            'link',
-            { name: 'Decks' },
-          ),
+          within(
+            screen.getByRole('navigation', { name: 'Manage cards' }),
+          ).getByRole('link', { name: 'Decks' }),
         ).toHaveAttribute('aria-current', 'page')
         expect(
           screen.getByRole('tab', { name: 'In this deck (2)' }),
@@ -1712,15 +1748,43 @@ describe('App', () => {
         expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
       })
       const nav = screen.getByRole('navigation', { name: 'Mode' })
+      const hrefs = (links: HTMLElement[]) =>
+        links.map((link) => link.getAttribute('href'))
 
-      expect(
-        within(nav)
-          .getAllByRole('link')
-          .map((link) => link.getAttribute('href')),
-      ).toEqual(['/', '/decks', '/practice', '/scores'])
+      expect(hrefs(within(nav).getAllByRole('link'))).toEqual([
+        '/',
+        '/practice',
+        '/scores',
+      ])
+      // Manage cards is the section the user is in, and Cards the page in it.
       expect(
         within(nav).getByRole('link', { name: 'Manage cards' }),
+      ).toHaveAttribute('aria-current', 'true')
+      const sections = screen.getByRole('navigation', { name: 'Manage cards' })
+      expect(hrefs(within(sections).getAllByRole('link'))).toEqual([
+        '/',
+        '/decks',
+        '/tags',
+      ])
+      expect(
+        within(sections).getByRole('link', { name: 'Cards' }),
       ).toHaveAttribute('aria-current', 'page')
+
+      await user.click(within(sections).getByRole('link', { name: 'Tags' }))
+
+      expect(
+        await screen.findByRole('heading', { level: 2, name: 'Tags' }),
+      ).toBeInTheDocument()
+      expect(
+        within(sections).getByRole('link', { name: 'Tags' }),
+      ).toHaveAttribute('aria-current', 'page')
+      expect(
+        within(sections).getByRole('link', { name: 'Cards' }),
+      ).not.toHaveAttribute('aria-current')
+      expect(
+        within(nav).getByRole('link', { name: 'Manage cards' }),
+      ).toHaveAttribute('aria-current', 'true')
+
       await user.click(within(nav).getByRole('link', { name: 'Practice' }))
 
       expect(
@@ -1732,6 +1796,10 @@ describe('App', () => {
       expect(
         within(nav).getByRole('link', { name: 'Manage cards' }),
       ).not.toHaveAttribute('aria-current')
+      // Practice has no sections.
+      expect(
+        screen.queryByRole('navigation', { name: 'Manage cards' }),
+      ).not.toBeInTheDocument()
     })
   })
 

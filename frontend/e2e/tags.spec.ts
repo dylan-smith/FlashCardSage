@@ -84,16 +84,29 @@ test.describe('Tags', () => {
     await expect(item.getByText('Fruit', { exact: true })).toBeVisible()
   })
 
+  // Tags are renamed and deleted on the Tags page, under Manage cards.
+  async function goToTags(page: Page) {
+    await page
+      .getByRole('navigation', { name: 'Manage cards' })
+      .getByRole('link', { name: 'Tags' })
+      .click()
+    await expect(page.getByRole('heading', { name: 'Tags' })).toBeVisible()
+  }
+
   test('renames a tag', async ({ page }) => {
     await createFlashCard(page, 'el tren', 'the train', ['Travl'])
+    await goToTags(page)
 
-    await page.getByRole('button', { name: 'Travl (1)' }).click()
     await page.getByRole('button', { name: 'Rename tag "Travl"' }).click()
     await page.getByLabel('Tag name').fill('Travel')
     await page.getByRole('button', { name: 'Save' }).click()
 
-    await expect(page.getByRole('button', { name: 'Travel (1)' })).toBeVisible()
-    await page.reload()
+    await expect(page.getByRole('link', { name: 'Travel' })).toBeVisible()
+    await page.getByRole('link', { name: 'Travel' }).click()
+    await expect(page).toHaveURL(/\/\?tag=\d+$/)
+    await expect(
+      page.getByRole('button', { name: 'Travel (1)' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     await expect(
       page.getByRole('listitem').getByText('Travel', { exact: true }),
     ).toBeVisible()
@@ -101,13 +114,15 @@ test.describe('Tags', () => {
 
   test('deletes a tag but keeps its cards', async ({ page }) => {
     await createFlashCard(page, 'el pan', 'the bread', ['Food'])
+    await goToTags(page)
 
-    await page.getByRole('button', { name: 'Food (1)' }).click()
     await page.getByRole('button', { name: 'Delete tag "Food"' }).click()
 
-    await expect(page.getByRole('button', { name: 'Food (1)' })).toBeHidden()
-    await expect(page.getByText('el pan', { exact: true })).toBeVisible()
-    await page.reload()
+    await expect(page.getByRole('link', { name: 'Food' })).toBeHidden()
+    await page
+      .getByRole('navigation', { name: 'Manage cards' })
+      .getByRole('link', { name: 'Cards' })
+      .click()
     await expect(page.getByText('el pan', { exact: true })).toBeVisible()
     await expect(page.getByText('Food', { exact: true })).toBeHidden()
   })
