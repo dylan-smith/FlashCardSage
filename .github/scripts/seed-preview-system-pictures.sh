@@ -41,9 +41,21 @@ while IFS= read -r spanish; do
   fi
 
   # The image generator takes one piece of text for each side, as the frontend sends it. A picture takes it tens of
-  # seconds.
+  # seconds, and it refuses more than a few in a row (the sample cards' pictures were just made), which the API
+  # answers with a 502, so a failed one is tried again a minute later.
   words="$(jq -c '{spanish: (.spanish | join(" / ")), english: (.english | join(" / "))}' <<<"${card}")"
-  if ! picture="$(api --max-time 120 -X POST --data "${words}" "${API_URL}/api/flashcards/images/generate")"; then
+  picture=""
+  for attempt in 1 2 3; do
+    if picture="$(api --max-time 120 -X POST --data "${words}" "${API_URL}/api/flashcards/images/generate")"; then
+      break
+    fi
+    picture=""
+    if [ "${attempt}" -lt 3 ]; then
+      echo "Making a picture for built-in card ${id} failed; trying again in 60 seconds"
+      sleep 60
+    fi
+  done
+  if [ -z "${picture}" ]; then
     echo "::notice::No picture for built-in card ${id}: the API couldn't make one (see above)"
     continue
   fi
