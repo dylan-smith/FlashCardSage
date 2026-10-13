@@ -16,6 +16,14 @@ public class FlashCard
     [MaxLength(200)]
     public string English { get; set; } = string.Empty;
 
+    // The public URL of the card's picture, in blob storage (or on disk in local development), or null when it has
+    // none.
+    [MaxLength(MaxImageUrlLength)]
+    public string? ImageUrl { get; set; }
+
+    // Longer than any URL the image stores make, with room to spare.
+    public const int MaxImageUrlLength = 400;
+
     // The card is returned as it is, and callers only ever see their own, so the owner isn't part of it.
     [JsonIgnore]
     public int UserId { get; set; }

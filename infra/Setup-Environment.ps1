@@ -378,7 +378,7 @@ function Invoke-InitialStage {
     Set-ResourceGroup $PreviewResourceGroup
 
     Write-Step 'Resource providers'
-    # Azure AI Translator (infra/modules/translator.bicep).
+    # Azure AI Translator (infra/modules/translator.bicep) and Azure AI Foundry (infra/modules/foundry.bicep).
     Register-ResourceProvider 'Microsoft.CognitiveServices'
 
     Write-Step 'Managed identities'

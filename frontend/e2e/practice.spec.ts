@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { test, expect, onePixelPng } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
@@ -93,6 +93,30 @@ test.describe('Practice', () => {
     await page.getByRole('button', { name: 'Reveal' }).click()
     await page.getByRole('button', { name: 'Failed :(' }).click()
     await expect(sessionScore).toHaveText(/^Session score (\+50|0)$/)
+  })
+
+  test("shows the card's picture once it's revealed", async ({
+    page,
+    request,
+  }) => {
+    // Only one card, with a picture, so it's the one that comes up.
+    const response = await request.get(flashCardsApiUrl)
+    const [first, ...rest] = (await response.json()) as { id: number }[]
+    for (const { id } of rest) {
+      await request.delete(`${flashCardsApiUrl}/${id}`)
+    }
+    const put = await request.put(`${flashCardsApiUrl}/${first.id}/image`, {
+      data: onePixelPng,
+    })
+    expect(put.ok()).toBe(true)
+
+    await page.goto('/practice')
+    await expect(page.getByRole('button', { name: 'Reveal' })).toBeVisible()
+    await expect(page.getByRole('img', { name: /^Picture for/ })).toBeHidden()
+
+    await page.getByRole('button', { name: 'Reveal' }).click()
+
+    await expect(page.getByRole('img', { name: /^Picture for/ })).toBeVisible()
   })
 
   test('points to adding cards when there are none', async ({

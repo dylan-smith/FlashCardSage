@@ -280,7 +280,7 @@ public class DecksControllerTests
 
         await using (var dbContext = TestDb.Create(databaseName))
         {
-            var controller = new FlashCardsController(dbContext, NullLogger<FlashCardsController>.Instance);
+            var controller = new FlashCardsController(dbContext, new FakeImageStore(), NullLogger<FlashCardsController>.Instance);
             Assert.IsType<NoContentResult>(await controller.Delete(catId));
         }
 

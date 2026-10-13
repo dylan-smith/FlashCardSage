@@ -43,8 +43,28 @@ param translatorName string
 @secure()
 param anthropicApiKey string = ''
 
+@description('Name of the Azure AI Foundry resource the API makes cards\' pictures with. Empty turns pictures off, while there isn\'t one.')
+param foundryName string = ''
+
+@description('Name of the image model\'s deployment on the Azure AI Foundry resource.')
+param imageDeploymentName string
+
+@description('Name of the Storage Account the API keeps cards\' pictures in.')
+param storageAccountName string
+
+@description('Name of the container in the Storage Account for cards\' pictures.')
+param cardImagesContainerName string
+
 resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = {
   name: translatorName
+}
+
+resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = if (!empty(foundryName)) {
+  name: foundryName
+}
+
+resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' existing = {
+  name: storageAccountName
 }
 
 // Free and Shared plans don't support Always On.
@@ -98,11 +118,24 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       Authentication__ServiceToken: serviceToken
       Translator__Key: translator.listKeys().key1
       CardSuggestions__ApiKey: anthropicApiKey
+      // The API writes pictures with the account's key: the web app's identity can't be given a role here, since
+      // the deployment identity isn't allowed to assign roles.
+      ImageStore__StorageConnectionString: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+      ImageStore__ContainerName: cardImagesContainerName
       APPLICATIONINSIGHTS_CONNECTION_STRING: appInsightsConnectionString
       APPINSIGHTS_INSTRUMENTATIONKEY: appInsightsInstrumentationKey
       WEBSITE_ENABLE_SYNC_UPDATE_SITE: 'true'
     },
-    toObject(range(0, length(corsAllowedOrigins)), i => 'Cors__AllowedOrigins__${i}', i => corsAllowedOrigins[i])
+    toObject(range(0, length(corsAllowedOrigins)), i => 'Cors__AllowedOrigins__${i}', i => corsAllowedOrigins[i]),
+    // Without an endpoint and key the API answers picture requests with a 503, and cards go without pictures. The
+    // endpoint is the resource's Foundry one, on its subdomain (modules/foundry.bicep names it after the resource).
+    empty(foundryName)
+      ? {}
+      : {
+          ImageGeneration__Endpoint: 'https://${foundry!.name}.services.ai.azure.com/'
+          ImageGeneration__Key: foundry!.listKeys().key1
+          ImageGeneration__Deployment: imageDeploymentName
+        }
   )
 }
 

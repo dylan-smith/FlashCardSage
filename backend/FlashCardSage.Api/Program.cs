@@ -2,10 +2,12 @@ using System.Data.Common;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
+using Microsoft.Extensions.FileProviders;
 using Scalar.AspNetCore;
 
 var builder = WebApplication.CreateBuilder(args);
@@ -58,6 +60,27 @@ builder.Services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Ti
 builder.Services.Configure<CardSuggesterOptions>(builder.Configuration.GetSection(CardSuggesterOptions.SectionName));
 // The Anthropic SDK times out and retries requests itself.
 builder.Services.AddHttpClient<ICardSuggester, ClaudeCardSuggester>(client => client.Timeout = Timeout.InfiniteTimeSpan);
+builder.Services.Configure<ImageGenerationOptions>(builder.Configuration.GetSection(ImageGenerationOptions.SectionName));
+// A picture takes the model tens of seconds, and the user asked for it, so they're given that long.
+builder.Services.AddHttpClient<IImageGenerator, FoundryImageGenerator>(client =>
+    client.Timeout = TimeSpan.FromSeconds(60));
+builder.Services.Configure<ImageStoreOptions>(builder.Configuration.GetSection(ImageStoreOptions.SectionName));
+// Pictures go to Azure Blob Storage when there's a connection string, otherwise (local development, E2E tests) to
+// files the API serves itself.
+var useLocalImageStore = string.IsNullOrWhiteSpace(builder.Configuration["ImageStore:StorageConnectionString"]);
+if (useLocalImageStore)
+{
+    Console.WriteLine("[Startup] Image store: local files.");
+    builder.Services.AddHttpContextAccessor();
+    builder.Services.AddSingleton<LocalFileImageStore>();
+    builder.Services.AddSingleton<IImageStore>(services => services.GetRequiredService<LocalFileImageStore>());
+}
+else
+{
+    Console.WriteLine("[Startup] Image store: Azure Blob Storage.");
+    builder.Services.AddSingleton<IImageStore, BlobImageStore>();
+}
+
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];
@@ -149,6 +172,20 @@ else
 }
 
 app.UseCors();
+if (useLocalImageStore)
+{
+    // Before authentication, so a browser can load a picture by its URL like it does from blob storage: every
+    // endpoint needs a signed-in user otherwise (see AuthenticationSetup).
+    var localImageStore = app.Services.GetRequiredService<LocalFileImageStore>();
+    Directory.CreateDirectory(localImageStore.Directory);
+    Console.WriteLine($"[Startup] Serving pictures from {localImageStore.Directory} on {ImageStoreOptions.LocalRequestPath}.");
+    app.UseStaticFiles(new StaticFileOptions
+    {
+        FileProvider = new PhysicalFileProvider(localImageStore.Directory),
+        RequestPath = ImageStoreOptions.LocalRequestPath
+    });
+}
+
 app.UseHttpsRedirection();
 app.UseAuthentication();
 app.UseMiddleware<CurrentUserMiddleware>();

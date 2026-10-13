@@ -26,6 +26,12 @@ param sqlServerName string
 @description('Name of the Translator resource every preview shares (preview-shared.bicep), which CI looks up in the resource group. Empty turns translation off, while there isn\'t one.')
 param translatorName string = ''
 
+@description('Name of the Azure AI Foundry resource every preview shares (preview-shared.bicep), which CI looks up in the resource group. Empty turns pictures off, while there isn\'t one.')
+param foundryName string = ''
+
+@description('Name of the image model\'s deployment on the shared Azure AI Foundry resource.')
+param imageDeploymentName string = 'flux-2-pro'
+
 @description('Use the Azure SQL free offer for the database. The offer covers a limited number of databases per subscription, and can\'t be turned on for an existing database.')
 param useFreeLimit bool = true
 
@@ -56,6 +62,10 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01' existing = {
 
 resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' existing = if (!empty(translatorName)) {
   name: translatorName
+}
+
+resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = if (!empty(foundryName)) {
+  name: foundryName
 }
 
 // Free and Shared plans don't support Always On.
@@ -109,6 +119,20 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   }
 }
 
+resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01' = {
+  parent: storageAccount
+  name: 'default'
+}
+
+// The pictures on the preview's cards, which browsers load straight from here (see modules/storage.bicep).
+resource cardImagesContainer 'Microsoft.Storage/storageAccounts/blobServices/containers@2025-01-01' = {
+  parent: blobService
+  name: 'card-images'
+  properties: {
+    publicAccess: 'Blob'
+  }
+}
+
 resource appService 'Microsoft.Web/sites@2024-11-01' = {
   name: appServiceName
   location: location
@@ -144,10 +168,22 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       // Google only accepts the origins registered with it, and every preview has its own, so previews use test
       // sign-in instead: anyone can sign in as any name. Never set this in main.bicep.
       Authentication__AllowTestSignIn: 'true'
+      // The API writes pictures with the account's key (see modules/appservice.bicep).
+      ImageStore__StorageConnectionString: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
+      ImageStore__ContainerName: cardImagesContainer.name
       WEBSITE_ENABLE_SYNC_UPDATE_SITE: 'true'
     },
     // Without a key the API answers translations with a 503 and the user types both sides.
-    empty(translatorName) ? {} : { Translator__Key: translator!.listKeys().key1 }
+    empty(translatorName) ? {} : { Translator__Key: translator!.listKeys().key1 },
+    // Without an endpoint and key the API answers picture requests with a 503, and cards go without pictures (see
+    // modules/appservice.bicep for the endpoint).
+    empty(foundryName)
+      ? {}
+      : {
+          ImageGeneration__Endpoint: 'https://${foundry!.name}.services.ai.azure.com/'
+          ImageGeneration__Key: foundry!.listKeys().key1
+          ImageGeneration__Deployment: imageDeploymentName
+        }
   )
 }
 

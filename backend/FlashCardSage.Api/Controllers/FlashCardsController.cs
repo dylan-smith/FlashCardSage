@@ -1,5 +1,6 @@
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -12,7 +13,10 @@ namespace FlashCardSage.Api.Controllers;
 /// </remarks>
 [ApiController]
 [Route("api/flashcards")]
-public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCardsController> logger) : ControllerBase
+public class FlashCardsController(
+    FlashCardDbContext dbContext,
+    IImageStore imageStore,
+    ILogger<FlashCardsController> logger) : ControllerBase
 {
     public const string DuplicateSpanishMessage = "You already have a flash card with this Spanish.";
 
@@ -180,6 +184,12 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
 
         dbContext.FlashCards.Remove(card);
         await dbContext.SaveChangesAsync();
+
+        // Once the card is gone, so nothing points at the picture, it's removed too.
+        if (card.ImageUrl is { } imageUrl)
+        {
+            await imageStore.TryDeleteAsync(imageUrl, logger, CancellationToken.None);
+        }
 
         logger.LogInformation("Deleted flash card {FlashCardId}", id);
 

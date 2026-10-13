@@ -263,6 +263,26 @@ public class FlashCardsControllerTests
     }
 
     [Fact]
+    public async Task Delete_RemovesTheCardsPicture()
+    {
+        await using var dbContext = TestDb.Create();
+        var card = new FlashCard
+        {
+            Spanish = "nadar",
+            English = "to swim",
+            ImageUrl = "https://images.test/card-images/swim.jpg"
+        };
+        dbContext.FlashCards.Add(card);
+        await dbContext.SaveChangesAsync();
+        var store = new FakeImageStore();
+        var controller = new FlashCardsController(dbContext, store, NullLogger<FlashCardsController>.Instance);
+
+        Assert.IsType<NoContentResult>(await controller.Delete(card.Id));
+
+        Assert.Equal(["https://images.test/card-images/swim.jpg"], store.Deleted);
+    }
+
+    [Fact]
     public async Task Delete_ReturnsNotFound_WhenFlashCardDoesNotExist()
     {
         await using var dbContext = TestDb.Create();
@@ -513,6 +533,6 @@ public class FlashCardsControllerTests
 
     private static FlashCardsController CreateController(FlashCardDbContext dbContext)
     {
-        return new FlashCardsController(dbContext, NullLogger<FlashCardsController>.Instance);
+        return new FlashCardsController(dbContext, new FakeImageStore(), NullLogger<FlashCardsController>.Instance);
     }
 }

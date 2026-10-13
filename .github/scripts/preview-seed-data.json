@@ -1,8 +1,8 @@
 {
   "cards": [
-    { "spanish": "el gato", "english": "the cat", "tags": ["Animals"] },
+    { "spanish": "el gato", "english": "the cat", "tags": ["Animals"], "picture": true },
     { "spanish": "el perro", "english": "the dog", "tags": ["Animals"] },
-    { "spanish": "la casa", "english": "the house", "tags": ["Places"] },
+    { "spanish": "la casa", "english": "the house", "tags": ["Places"], "picture": true },
     { "spanish": "el libro", "english": "the book", "tags": ["School"] },
     { "spanish": "la escuela", "english": "the school", "tags": ["Places", "School"] },
     { "spanish": "buenos días", "english": "good morning", "tags": ["Greetings"] },
