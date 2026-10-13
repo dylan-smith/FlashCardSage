@@ -13,6 +13,7 @@ import { loadPreferences, setPreferences } from './hooks/usePreferences'
 import DeckPage from './pages/DeckPage'
 import DecksPage from './pages/DecksPage'
 import FlashCardsPage from './pages/FlashCardsPage'
+import ImportCardsPage from './pages/ImportCardsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
 import PreferencesPage from './pages/PreferencesPage'
@@ -34,6 +35,7 @@ const sections: NavItem[] = [
   { to: '/', label: 'Cards' },
   { to: '/decks', label: 'Decks' },
   { to: '/tags', label: 'Tags' },
+  { to: '/import', label: 'Import cards' },
 ]
 
 // The app's modes. Manage cards is made up of the sections above.
@@ -206,6 +208,7 @@ function App() {
             <Route path="/decks" element={<DecksPage />} />
             <Route path="/decks/:id" element={<DeckPage />} />
             <Route path="/tags" element={<TagsPage />} />
+            <Route path="/import" element={<ImportCardsPage />} />
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
             <Route path="/preferences" element={<PreferencesPage />} />

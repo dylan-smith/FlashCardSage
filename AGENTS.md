@@ -85,6 +85,10 @@ npm run test:e2e
 - Flash cards belong to a user. `FlashCardDbContext` filters them to the current user and sets the owner on new
   ones. Anything added later that hangs off a card must be reached through its card, so a new endpoint must look
   that up first, or it can reach another user's data.
+- The built-in decks users can import belong to a system user (`Subject` `system`, which no sign-in can produce). The
+  API adds any that are missing from `backend/FlashCardSage.Api/SystemDecks/system-decks.json` when it starts, and
+  only `SystemDecksController` reads them past the query filter. Importing copies them, so edit the JSON to change
+  them: a deck that's already in the database is left as it is, so a changed deck needs a new name or a script.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
 
 ### Database

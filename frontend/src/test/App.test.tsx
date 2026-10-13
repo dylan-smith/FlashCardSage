@@ -8,6 +8,7 @@ import { unreachableMessage } from '../api/flashCards'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { defaultPreferences } from '../api/preferences'
 import type { Preferences } from '../api/preferences'
+import type { SystemDeck } from '../api/systemDecks'
 import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
 import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
@@ -2805,6 +2806,194 @@ describe('App', () => {
     })
   })
 
+  describe('importing cards', () => {
+    const systemDecksUrl = 'http://localhost:5269/api/system-decks'
+    const daysTag = { id: 30, name: 'Days' }
+    const days: SystemDeck = {
+      id: 3,
+      name: 'Days of the week',
+      cards: [
+        {
+          id: 31,
+          spanish: ['lunes'],
+          english: ['Monday'],
+          tags: [daysTag],
+          imageUrl: null,
+        },
+        {
+          id: 32,
+          spanish: ['martes'],
+          english: ['Tuesday'],
+          tags: [daysTag, { id: 33, name: 'Week' }],
+          imageUrl: null,
+        },
+      ],
+    }
+    const months: SystemDeck = {
+      id: 4,
+      name: 'Months',
+      cards: [
+        {
+          id: 41,
+          spanish: ['enero'],
+          english: ['January'],
+          tags: [{ id: 42, name: 'Months' }],
+          imageUrl: null,
+        },
+      ],
+    }
+
+    // Shows the Import cards page with these built-in decks, answering anything else with the handler.
+    async function showImport(
+      handler: (url: string, init?: RequestInit) => Promise<Response> = () => {
+        throw new Error('Unexpected request')
+      },
+      decks: SystemDeck[] = [days, months],
+    ) {
+      const calls = mockFetch(async (url, init) =>
+        init?.method === undefined && url === systemDecksUrl
+          ? jsonResponse(decks)
+          : handler(url, init),
+      )
+      renderAt('/import')
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
+      })
+      return calls
+    }
+
+    it('lists the built-in decks with their card counts', async () => {
+      await showImport()
+
+      expect(
+        screen.getByRole('heading', { level: 2, name: 'Built-in decks' }),
+      ).toBeInTheDocument()
+      expect(
+        within(
+          screen.getByRole('navigation', { name: 'Manage cards' }),
+        ).getByRole('link', { name: 'Import cards' }),
+      ).toHaveAttribute('aria-current', 'page')
+      expect(screen.getByText('Days of the week')).toBeInTheDocument()
+      expect(screen.getByText('2 cards')).toBeInTheDocument()
+      expect(screen.getByText('1 card')).toBeInTheDocument()
+    })
+
+    it("shows and hides a deck's cards", async () => {
+      const user = userEvent.setup()
+      await showImport()
+      // The deck's name shows and hides its cards.
+      const toggle = screen.getByRole('button', { name: 'Days of the week' })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+
+      await user.click(toggle)
+
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
+      const cards = screen.getByRole('list', {
+        name: 'Cards in "Days of the week"',
+      })
+      // Laid out like the user's own cards, with their tags, but with nothing to pick.
+      const [monday, tuesday] = within(cards).getAllByRole('listitem')
+      expect(within(monday).getByText('lunes')).toBeInTheDocument()
+      expect(within(monday).getByText('Monday')).toBeInTheDocument()
+      expect(within(monday).getByText('Days')).toBeInTheDocument()
+      expect(within(tuesday).getByText('martes')).toBeInTheDocument()
+      expect(within(tuesday).getByText('Week')).toBeInTheDocument()
+      expect(within(cards).queryByRole('checkbox')).not.toBeInTheDocument()
+
+      await user.click(toggle)
+
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('list', { name: 'Cards in "Days of the week"' }),
+        ).not.toBeInTheDocument()
+      })
+    })
+
+    it('adds a deck and links to it', async () => {
+      const user = userEvent.setup()
+      const calls = await showImport(async () =>
+        jsonResponse(
+          {
+            deck: { id: 21, name: 'Days of the week', flashCardIds: [5, 6] },
+            importedCount: 2,
+            skippedCount: 0,
+          },
+          201,
+        ),
+      )
+
+      await user.click(
+        screen.getByRole('button', { name: 'Add deck "Days of the week"' }),
+      )
+
+      expect(
+        await screen.findByText('Added Days of the week with 2 cards.'),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Open deck' })).toHaveAttribute(
+        'href',
+        '/decks/21',
+      )
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.url).toBe(`${systemDecksUrl}/3/import`)
+      expect(trackEvent).toHaveBeenCalledWith('SystemDeckImported')
+    })
+
+    it('says how many cards were left out', async () => {
+      const user = userEvent.setup()
+      await showImport(async () =>
+        jsonResponse(
+          {
+            deck: { id: 22, name: 'Days of the week (2)', flashCardIds: [7] },
+            importedCount: 1,
+            skippedCount: 1,
+          },
+          201,
+        ),
+      )
+
+      await user.click(
+        screen.getByRole('button', { name: 'Add deck "Days of the week"' }),
+      )
+
+      expect(
+        await screen.findByText(
+          'Added Days of the week (2) with 1 card. 1 card was left out because you already have it.',
+        ),
+      ).toBeInTheDocument()
+    })
+
+    it("shows the API's message when the deck can't be added", async () => {
+      const user = userEvent.setup()
+      await showImport(async () =>
+        jsonResponse(
+          { status: 409, detail: 'You already have all of these cards.' },
+          409,
+        ),
+      )
+
+      await user.click(
+        screen.getByRole('button', { name: 'Add deck "Months"' }),
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'You already have all of these cards.',
+      )
+      expect(
+        screen.queryByRole('link', { name: 'Open deck' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it("says when the built-in decks can't be loaded", async () => {
+      mockFetch(unreachable)
+      renderAt('/import')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        unreachableMessage,
+      )
+    })
+  })
+
   describe('modes', () => {
     it('links to each mode and marks the current one', async () => {
       const user = userEvent.setup()
@@ -2836,6 +3025,7 @@ describe('App', () => {
         '/',
         '/decks',
         '/tags',
+        '/import',
       ])
       expect(
         within(sections).getByRole('link', { name: 'Cards' }),

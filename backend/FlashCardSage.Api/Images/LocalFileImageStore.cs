@@ -22,18 +22,29 @@ public class LocalFileImageStore(
         return $"{request.Scheme}://{request.Host}{ImageStoreOptions.LocalRequestPath}/{name}";
     }
 
-    // A picture is this store's by its path, whatever the address, since the API may have been reached on another
-    // one (127.0.0.1, say) when the picture was saved.
-    public async Task DeleteAsync(string url, CancellationToken cancellationToken)
+    public async Task<string?> CopyAsync(string url, CancellationToken cancellationToken)
     {
-        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
-            || !uri.AbsolutePath.StartsWith(ImageStoreOptions.LocalRequestPath + "/", StringComparison.Ordinal))
+        if (FileName(url) is not { } name)
         {
-            return;
+            return null;
         }
 
-        var name = uri.AbsolutePath[(ImageStoreOptions.LocalRequestPath.Length + 1)..];
-        if (!CardImage.IsName(name))
+        byte[] data;
+        try
+        {
+            data = await File.ReadAllBytesAsync(Path.Join(Directory, name), cancellationToken);
+        }
+        catch (FileNotFoundException)
+        {
+            return null;
+        }
+
+        return await SaveAsync(data, CardImage.ContentTypeOf(name), cancellationToken);
+    }
+
+    public async Task DeleteAsync(string url, CancellationToken cancellationToken)
+    {
+        if (FileName(url) is not { } name)
         {
             return;
         }
@@ -52,6 +63,21 @@ public class LocalFileImageStore(
                 await Task.Delay(DeleteRetryDelay, cancellationToken);
             }
         }
+    }
+
+    // The name of this store's picture at the URL, or null when it isn't one. A picture is this store's by its path,
+    // whatever the address, since the API may have been reached on another one (127.0.0.1, say) when the picture was
+    // saved.
+    private static string? FileName(string url)
+    {
+        if (!Uri.TryCreate(url, UriKind.Absolute, out var uri)
+            || !uri.AbsolutePath.StartsWith(ImageStoreOptions.LocalRequestPath + "/", StringComparison.Ordinal))
+        {
+            return null;
+        }
+
+        var name = uri.AbsolutePath[(ImageStoreOptions.LocalRequestPath.Length + 1)..];
+        return CardImage.IsName(name) ? name : null;
     }
 
     private const int DeleteAttempts = 5;

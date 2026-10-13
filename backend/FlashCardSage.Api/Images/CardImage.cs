@@ -40,6 +40,13 @@ public static partial class CardImage
         return Name().IsMatch(name);
     }
 
+    // The content type of a picture by a name NewName made, from its extension.
+    public static string ContentTypeOf(string name)
+    {
+        var extension = Path.GetExtension(name).TrimStart('.');
+        return Extensions.Single(item => item.Value == extension).Key;
+    }
+
     // Checks and decodes a picture sent as base64. The content type comes back as a store keeps it (lowercase), and
     // the error says what's wrong in words for the user.
     public static bool TryDecode(

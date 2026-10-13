@@ -2,8 +2,9 @@
 # Seeds a preview environment with the sample flash cards in preview-seed-data.json (Spanish and English words, with tags),
 # and the sample decks made from them (which name their cards by their first Spanish word), through the API so the data goes
 # through the same validation as real use. Runs after the smoke tests, which have already waited for the API to be
-# ready. A card marked "picture" gets one made by the API's image generator, so previews show pictures and exercise
-# it; a preview without a generator, or a picture that can't be made, just leaves the card without one.
+# ready. A card with a "picture" gets that file from preview-pictures, put on it through the API, so previews show
+# pictures without calling the image generator on every deployment. A picture the API doesn't accept just leaves the
+# card without one.
 #
 # Every deployment starts the preview over: it deletes every deck and flash card of the seed's user first and turns
 # their preferences back on, so whatever reviewers changed as that user is gone and the samples are never
@@ -14,6 +15,8 @@
 set -euo pipefail
 
 seed_file=.github/scripts/preview-seed-data.json
+# The sample pictures, made once by the image generator and kept at 512 pixels square, twice what the app shows.
+pictures_dir=.github/scripts/preview-pictures
 
 api() {
   curl --fail-with-body --silent --show-error --max-time 60 -H 'Content-Type: application/json' \
@@ -37,15 +40,12 @@ api -X PUT --data '{"showPictures":true,"showSuggestions":true,"autoTranslate":t
   --output /dev/null
 echo "Reset the preview's preferences"
 
-# Makes a picture of the card's words and puts it on the card. A picture takes the generator tens of seconds.
+# Puts the picture in preview-pictures with this file name on the card, as base64 like the frontend sends it.
 add_picture() {
-  local id="$1" words="$2" picture
-  if ! picture="$(api --max-time 120 -X POST --data "${words}" "${API_URL}/api/flashcards/images/generate")"; then
-    echo "::notice::No picture for flash card ${id}: the API couldn't make one (see above)"
-    return 0
-  fi
-  # Through stdin: a picture is a couple of hundred kilobytes, more than an argument can be.
-  if printf '%s' "${picture}" | api -X PUT --data-binary @- "${API_URL}/api/flashcards/${id}/image" --output /dev/null; then
+  local id="$1" file="${pictures_dir}/$2"
+  # Through stdin: a picture's base64 can be more than an argument can hold.
+  if base64 --wrap=0 "${file}" | jq -Rs '{contentType: "image/jpeg", data: .}' \
+    | api -X PUT --data-binary @- "${API_URL}/api/flashcards/${id}/image" --output /dev/null; then
     echo "Added a picture to flash card ${id}"
   else
     echo "::notice::No picture for flash card ${id}: the API didn't accept it (see above)"
@@ -61,9 +61,9 @@ for i in $(seq 0 $((count - 1))); do
   id="$(jq -c 'del(.picture)' <<<"${card}" | api -X POST --data @- "${API_URL}/api/flashcards" | jq -r .id)"
   ids="$(jq -c --arg spanish "${spanish}" --argjson id "${id}" '. + {($spanish): $id}' <<<"${ids}")"
   echo "Added flash card ${id}, \"${spanish}\""
-  if [ "$(jq -r '.picture // false' <<<"${card}")" = "true" ]; then
-    # The image generator takes one piece of text for each side, as the frontend sends it.
-    add_picture "${id}" "$(jq -c '{spanish: (.spanish | join(" / ")), english: (.english | join(" / "))}' <<<"${card}")"
+  picture="$(jq -r '.picture // empty' <<<"${card}")"
+  if [ -n "${picture}" ]; then
+    add_picture "${id}" "${picture}"
   fi
 done
 
