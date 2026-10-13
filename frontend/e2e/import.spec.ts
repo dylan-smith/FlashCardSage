@@ -34,7 +34,7 @@ test.describe('Import cards', () => {
       .getByRole('link', { name: 'Import cards' })
       .click()
 
-    await expect(page.getByText('7 cards · Days')).toBeVisible()
+    await expect(page.getByText('7 cards', { exact: true })).toBeVisible()
     await page
       .getByRole('button', { name: 'Days of the week', exact: true })
       .click()

@@ -2682,7 +2682,7 @@ describe('App', () => {
       return calls
     }
 
-    it('lists the built-in decks with their card counts and tags', async () => {
+    it('lists the built-in decks with their card counts', async () => {
       await showImport()
 
       expect(
@@ -2694,8 +2694,8 @@ describe('App', () => {
         ).getByRole('link', { name: 'Import cards' }),
       ).toHaveAttribute('aria-current', 'page')
       expect(screen.getByText('Days of the week')).toBeInTheDocument()
-      expect(screen.getByText('2 cards · Days · Week')).toBeInTheDocument()
-      expect(screen.getByText('1 card · Months')).toBeInTheDocument()
+      expect(screen.getByText('2 cards')).toBeInTheDocument()
+      expect(screen.getByText('1 card')).toBeInTheDocument()
     })
 
     it("shows and hides a deck's cards", async () => {

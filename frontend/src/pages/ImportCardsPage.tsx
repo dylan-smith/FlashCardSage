@@ -19,13 +19,6 @@ import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
 import { FlashCardRow } from './FlashCardRow'
 
-// The deck's tags, each once, in name order.
-function deckTags(deck: SystemDeck) {
-  return [
-    ...new Set(deck.cards.flatMap((card) => card.tags.map((tag) => tag.name))),
-  ].sort((a, b) => a.localeCompare(b))
-}
-
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
 function describeImport({ deck, skippedCount }: SystemDeckImport) {
   const added = `Added ${deck.name} with ${cardCount(deck.flashCardIds.length)}.`
@@ -142,7 +135,6 @@ function ImportCardsPage() {
             {decks.map((deck) => {
               const shown = shownIds.includes(deck.id)
               const cardsId = `system-deck-${deck.id}-cards`
-              const tags = deckTags(deck)
               return (
                 <ListItem
                   key={deck.id}
@@ -182,9 +174,7 @@ function ImportCardsPage() {
                           {deck.name}
                         </Button>
                       }
-                      secondary={[cardCount(deck.cards.length), ...tags].join(
-                        ' · ',
-                      )}
+                      secondary={cardCount(deck.cards.length)}
                       sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
                     />
                     <Button
