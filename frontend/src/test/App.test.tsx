@@ -8,6 +8,7 @@ import { unreachableMessage } from '../api/flashCards'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
+import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
 import { trackEvent, trackException } from '../telemetry'
 
 vi.mock('../telemetry', () => ({
@@ -544,6 +545,54 @@ describe('App', () => {
       expect(
         await screen.findByRole('list', { name: 'Suggested cards' }),
       ).toHaveTextContent('el perro')
+    })
+
+    describe('collapsing', () => {
+      afterEach(() => {
+        localStorage.removeItem(suggestionsCollapsedKey)
+      })
+
+      it('collapses and expands the suggestions, remembering the choice', async () => {
+        const user = userEvent.setup()
+        await showSuggestions(async () =>
+          jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+        )
+        await screen.findByRole('list', { name: 'Suggested cards' })
+        const toggle = screen.getByRole('button', { name: 'Suggested cards' })
+        expect(toggle).toHaveAttribute('aria-expanded', 'true')
+
+        await user.click(toggle)
+
+        expect(toggle).toHaveAttribute('aria-expanded', 'false')
+        await waitFor(() => {
+          expect(
+            screen.queryByRole('list', { name: 'Suggested cards' }),
+          ).not.toBeInTheDocument()
+        })
+        expect(localStorage.getItem(suggestionsCollapsedKey)).toBe('true')
+
+        await user.click(toggle)
+
+        expect(toggle).toHaveAttribute('aria-expanded', 'true')
+        expect(
+          await screen.findByRole('list', { name: 'Suggested cards' }),
+        ).toHaveTextContent('el perro')
+        expect(localStorage.getItem(suggestionsCollapsedKey)).toBeNull()
+      })
+
+      it('starts collapsed when the user collapsed it before', async () => {
+        localStorage.setItem(suggestionsCollapsedKey, 'true')
+        await showSuggestions(async () =>
+          jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+        )
+
+        expect(
+          await screen.findByRole('button', { name: 'Suggested cards' }),
+        ).toHaveAttribute('aria-expanded', 'false')
+        expect(
+          screen.queryByRole('list', { name: 'Suggested cards' }),
+        ).not.toBeInTheDocument()
+      })
     })
   })
 
