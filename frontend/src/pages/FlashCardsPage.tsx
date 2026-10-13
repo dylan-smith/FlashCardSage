@@ -35,6 +35,7 @@ import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
+import { usePreferences } from '../hooks/usePreferences'
 import { trackEvent, trackException } from '../telemetry'
 import { PictureField } from './FlashCardPicture'
 import { FlashCardRow } from './FlashCardRow'
@@ -331,6 +332,7 @@ function FlashCardEditForm({
   const translation = useAutoTranslate(firstWords(edit), (change) =>
     onChange(setFirstWords(change)),
   )
+  const showPictures = usePreferences()?.showPictures === true
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -379,14 +381,16 @@ function FlashCardEditForm({
           }
           size="small"
         />
-        <Box sx={{ flexBasis: '100%' }}>
-          <PictureField
-            picture={picture}
-            fields={pictureWords(edit)}
-            busy={busy}
-            size="small"
-          />
-        </Box>
+        {showPictures && (
+          <Box sx={{ flexBasis: '100%' }}>
+            <PictureField
+              picture={picture}
+              fields={pictureWords(edit)}
+              busy={busy}
+              size="small"
+            />
+          </Box>
+        )}
         <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
           <Button
             type="submit"
@@ -512,6 +516,7 @@ function FlashCardsPage() {
   const translation = useAutoTranslate(firstWords(fields), (change) =>
     setFields(setFirstWords(change)),
   )
+  const preferences = usePreferences()
   // The pictures offered by the add form and by the edit form (one card is edited at a time).
   const newPicture = useCardPicture(null)
   const editPicture = useCardPicture(edit?.imageUrl ?? null)
@@ -840,11 +845,13 @@ function FlashCardsPage() {
               setFields((current) => ({ ...current, tags: names }))
             }
           />
-          <PictureField
-            picture={newPicture}
-            fields={pictureWords(fields)}
-            busy={submitting}
-          />
+          {preferences?.showPictures === true && (
+            <PictureField
+              picture={newPicture}
+              fields={pictureWords(fields)}
+              busy={submitting}
+            />
+          )}
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button type="submit" variant="contained" disabled={submitting}>
               {submitting ? 'Saving…' : 'Add flash card'}
@@ -854,15 +861,16 @@ function FlashCardsPage() {
       </Paper>
 
       {/* With a tag in the URL, the suggestions wait for the tags, so they aren't asked for twice. */}
-      {!(loading && searchParams.has('tag')) && (
-        <CardSuggestions
-          key={`${added?.id ?? 'all'}-${selectedTag?.id ?? 'all'}`}
-          cards={cards}
-          relatedTo={added}
-          tag={selectedTag ?? undefined}
-          onAdd={handleAddSuggestion}
-        />
-      )}
+      {preferences?.showSuggestions === true &&
+        !(loading && searchParams.has('tag')) && (
+          <CardSuggestions
+            key={`${added?.id ?? 'all'}-${selectedTag?.id ?? 'all'}`}
+            cards={cards}
+            relatedTo={added}
+            tag={selectedTag ?? undefined}
+            onAdd={handleAddSuggestion}
+          />
+        )}
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       {deckNotice && (

@@ -7,10 +7,12 @@ import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import { formatWords } from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
+import { usePreferences } from '../hooks/usePreferences'
 import { thumbnailSize } from './FlashCardPicture'
 
 // One card in a list of cards, laid out the same wherever one is shown: a box to pick it (when it can be picked), its
-// picture if it has one, its Spanish and English and its tags, and any buttons for it at the end.
+// picture if it has one and the user has pictures turned on, its Spanish and English and its tags, and any buttons
+// for it at the end.
 export function FlashCardRow({
   card,
   picked = false,
@@ -23,6 +25,7 @@ export function FlashCardRow({
   actions?: ReactNode
 }) {
   const checkboxId = useId()
+  const showPictures = usePreferences()?.showPictures === true
   const spanish = formatWords(card.spanish)
 
   return (
@@ -48,7 +51,7 @@ export function FlashCardRow({
           cursor: onPick ? 'pointer' : undefined,
         }}
       >
-        {card.imageUrl !== null && (
+        {showPictures && card.imageUrl !== null && (
           <Box
             component="img"
             src={card.imageUrl}

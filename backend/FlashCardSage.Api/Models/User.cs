@@ -20,4 +20,11 @@ public class User
     public string? DisplayName { get; set; }
 
     public DateTimeOffset CreatedAt { get; set; }
+
+    // The user's preferences (see PreferencesController), all on for a new user.
+    public bool ShowPictures { get; set; } = true;
+
+    public bool ShowSuggestions { get; set; } = true;
+
+    public bool AutoTranslate { get; set; } = true;
 }

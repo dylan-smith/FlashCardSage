@@ -5,9 +5,10 @@
 # ready. A card marked "picture" gets one made by the API's image generator, so previews show pictures and exercise
 # it; a preview without a generator, or a picture that can't be made, just leaves the card without one.
 #
-# Every deployment starts the preview over: it deletes every deck and flash card of the seed's user first, so
-# whatever reviewers changed as that user is gone and the samples are never duplicated. Cards other test users made
-# are left alone. A seed that stops partway is redone in full by the next deployment.
+# Every deployment starts the preview over: it deletes every deck and flash card of the seed's user first and turns
+# their preferences back on, so whatever reviewers changed as that user is gone and the samples are never
+# duplicated. Cards other test users made are left alone. A seed that stops partway is redone in full by the next
+# deployment.
 # Requires API_URL and API_AUTH_TOKEN (the test sign-in the cards are created for), and runs from the
 # repository root.
 set -euo pipefail
@@ -30,6 +31,11 @@ for resource in decks flashcards; do
   done
   echo "Deleted the preview's ${deleted} ${resource}"
 done
+
+# The seed's user starts with everything on, as a new user does, whatever reviewers turned off.
+api -X PUT --data '{"showPictures":true,"showSuggestions":true,"autoTranslate":true}' "${API_URL}/api/preferences" \
+  --output /dev/null
+echo "Reset the preview's preferences"
 
 # Makes a picture of the card's words and puts it on the card. A picture takes the generator tens of seconds.
 add_picture() {

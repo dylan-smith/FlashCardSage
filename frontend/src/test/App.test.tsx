@@ -6,6 +6,8 @@ import App, { tagline } from '../App'
 import type { Deck } from '../api/decks'
 import { unreachableMessage } from '../api/flashCards'
 import type { FlashCard, Tag } from '../api/flashCards'
+import { defaultPreferences } from '../api/preferences'
+import type { Preferences } from '../api/preferences'
 import type { SystemDeck } from '../api/systemDecks'
 import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
@@ -23,10 +25,14 @@ type Call = { url: string; init?: RequestInit }
 const tagsUrl = 'http://localhost:5269/api/tags'
 const decksUrl = 'http://localhost:5269/api/decks'
 const suggestionsUrl = 'http://localhost:5269/api/card-suggestions'
+const preferencesUrl = 'http://localhost:5269/api/preferences'
 
-// Answers every fetch with the handler, except that loading the tags or decks gets these, and loading suggestions
-// gets what suggest answers (by default, that they aren't available). It keeps the calls, apart from the
-// suggestions, so a test can check what was sent.
+// The preferences loading them gets, which a test can change before the app renders. Null makes loading them fail.
+let preferences: Preferences | null = defaultPreferences
+
+// Answers every fetch with the handler, except that loading the tags or decks gets these, loading suggestions gets
+// what suggest answers (by default, that they aren't available), and loading the preferences gets preferences. It
+// keeps the calls, apart from the suggestions and loading the preferences, so a test can check what was sent.
 function mockFetch(
   handler: (url: string, init?: RequestInit) => Promise<Response>,
   tags: Tag[] = [],
@@ -40,6 +46,13 @@ function mockFetch(
       const url = input instanceof Request ? input.url : input.toString()
       if (url.startsWith(suggestionsUrl)) {
         return suggest(url)
+      }
+      if (init?.method === undefined && url === preferencesUrl) {
+        return Promise.resolve(
+          preferences === null
+            ? new Response(null, { status: 500 })
+            : jsonResponse(preferences),
+        )
       }
       calls.push({ url, init })
       if (init?.method === undefined && url === tagsUrl) {
@@ -92,6 +105,7 @@ async function showCards(cards: FlashCard[], tags: Tag[] = []) {
 // Signed in, since the app only shows the sign-in page otherwise. auth.test.tsx covers signing in and out.
 beforeEach(() => {
   setSession({ token: 'test:Tester', name: 'Tester', provider: 'test' })
+  preferences = defaultPreferences
 })
 
 afterEach(() => {
@@ -128,7 +142,7 @@ describe('App', () => {
     })
 
     it('shows the not found page for an unknown route', async () => {
-      mockFetch(async () => jsonResponse([]))
+      const calls = mockFetch(async () => jsonResponse([]))
 
       renderAt('/no/such/page')
 
@@ -141,7 +155,7 @@ describe('App', () => {
       expect(
         screen.getByRole('link', { name: 'Go to flash cards' }),
       ).toHaveAttribute('href', '/')
-      expect(fetch).not.toHaveBeenCalled()
+      expect(calls).toEqual([])
     })
   })
 
@@ -502,6 +516,20 @@ describe('App', () => {
         screen.queryByRole('heading', { name: 'Suggested cards' }),
       ).not.toBeInTheDocument()
       expect(trackException).not.toHaveBeenCalled()
+    })
+
+    it("isn't shown or asked for when the user turned suggestions off", async () => {
+      preferences = { ...defaultPreferences, showSuggestions: false }
+      const suggest = vi.fn(async () =>
+        jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+      )
+
+      await showSuggestions(suggest)
+
+      expect(
+        screen.queryByRole('heading', { name: 'Suggested cards' }),
+      ).not.toBeInTheDocument()
+      expect(suggest).not.toHaveBeenCalled()
     })
 
     it('adds a suggestion as a card and takes it off the suggestions', async () => {
@@ -1391,6 +1419,29 @@ describe('App', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('leaves both sides to the user when they turned translation off', async () => {
+      preferences = { ...defaultPreferences, autoTranslate: false }
+      const user = userEvent.setup()
+      const translations = mockTranslations()
+      const { spanish, english } = await showForm()
+
+      await user.type(spanish, 'el gato')
+      await waitPastTranslateDelay()
+
+      expect(translations()).toEqual([])
+      expect(english).toHaveValue('')
+      expect(screen.queryByText('Translating…')).not.toBeInTheDocument()
+
+      await user.type(english, 'the kitty')
+      await user.clear(spanish)
+      await waitPastTranslateDelay()
+
+      expect(translations()).toEqual([])
+      expect(
+        screen.queryByRole('button', { name: /^Translate from/ }),
+      ).not.toBeInTheDocument()
+    })
+
     it('translates a changed side of a card being edited', async () => {
       const user = userEvent.setup()
       const translations = mockTranslations([
@@ -2153,6 +2204,42 @@ describe('App', () => {
       expect(
         screen.getByRole('img', { name: "The card's picture" }),
       ).toBeInTheDocument()
+    })
+
+    it('neither shows pictures nor offers one when the user turned pictures off', async () => {
+      preferences = { ...defaultPreferences, showPictures: false }
+      const user = userEvent.setup()
+      const calls = mockPictures({ cards: [{ ...gato, imageUrl }] })
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      expect(
+        screen.queryByRole('img', { name: /picture/i }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Generate picture' }),
+      ).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      expect(
+        screen.queryByRole('img', { name: /picture/i }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /picture/ }),
+      ).not.toBeInTheDocument()
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      // The card keeps its picture.
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('button', { name: 'Save' }),
+        ).not.toBeInTheDocument()
+      })
+      expect(
+        calls
+          .filter((call) => call.init?.method !== undefined)
+          .map((call) => `${call.init?.method} ${call.url}`),
+      ).toEqual(['PUT http://localhost:5269/api/flashcards/7'])
     })
   })
 
@@ -3124,6 +3211,23 @@ describe('App', () => {
       ).not.toBeInTheDocument()
     })
 
+    it('shows no picture when the user turned pictures off', async () => {
+      preferences = { ...defaultPreferences, showPictures: false }
+      const user = userEvent.setup()
+      await practice({
+        ...cat,
+        side: 'Spanish',
+        imageUrl: 'http://images.test/1.png',
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+      expect(screen.getByText('the cat')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: /^Picture for/ }),
+      ).not.toBeInTheDocument()
+    })
+
     it.each([
       ['Got it!', 'GotIt'],
       ['I was close', 'WasClose'],
@@ -3474,6 +3578,125 @@ describe('App', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent(
         unreachableMessage,
       )
+    })
+  })
+
+  describe('preferences', () => {
+    const cat = {
+      id: 1,
+      spanish: ['el gato'],
+      english: ['the cat'],
+      tags: [],
+      imageUrl: 'http://images.test/1.png',
+    }
+
+    // Lists the cat, and answers saving the preferences with status, as the API would.
+    function mockPreferences(status = 200) {
+      return mockFetch(async (_url, init) => {
+        if (init?.method === 'PUT') {
+          return status === 200
+            ? new Response(init.body as string, {
+                headers: { 'Content-Type': 'application/json' },
+              })
+            : new Response(null, { status })
+        }
+        return jsonResponse([cat])
+      })
+    }
+
+    function preferenceSwitch(name: string) {
+      return screen.getByRole('switch', { name })
+    }
+
+    it('links to the page from the top, which shows the preferences the user has', async () => {
+      const user = userEvent.setup()
+      preferences = { ...defaultPreferences, showSuggestions: false }
+      mockPreferences()
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('link', { name: 'Preferences' }))
+
+      expect(
+        await screen.findByRole('heading', { level: 2, name: 'Preferences' }),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Preferences' })).toHaveAttribute(
+        'aria-current',
+        'page',
+      )
+      expect(preferenceSwitch('Show pictures')).toBeChecked()
+      expect(preferenceSwitch('Suggest cards')).not.toBeChecked()
+      expect(preferenceSwitch('Translate automatically')).toBeChecked()
+      expect(
+        preferenceSwitch('Translate automatically'),
+      ).toHaveAccessibleDescription(/you type both sides/)
+    })
+
+    it("saves a change as soon as it's made, and the app follows it", async () => {
+      const user = userEvent.setup()
+      const calls = mockPreferences()
+      renderAt('/preferences')
+
+      await user.click(
+        await screen.findByRole('switch', { name: 'Show pictures' }),
+      )
+
+      expect(preferenceSwitch('Show pictures')).not.toBeChecked()
+      expect(preferenceSwitch('Show pictures')).toHaveFocus()
+      await waitFor(() => {
+        expect(trackEvent).toHaveBeenCalledWith('PreferencesUpdated')
+      })
+      expect(
+        calls.map((call) => [call.init?.method, call.url, call.init?.body]),
+      ).toEqual([
+        [
+          'PUT',
+          'http://localhost:5269/api/preferences',
+          JSON.stringify({
+            showPictures: false,
+            showSuggestions: true,
+            autoTranslate: true,
+          }),
+        ],
+      ])
+
+      await user.click(screen.getByRole('link', { name: 'Manage cards' }))
+
+      expect(await screen.findByText('el gato')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: /picture/i }),
+      ).not.toBeInTheDocument()
+    })
+
+    it("turns a change back and says why when it isn't saved", async () => {
+      const user = userEvent.setup()
+      mockPreferences(500)
+      renderAt('/preferences')
+
+      await user.click(
+        await screen.findByRole('switch', { name: 'Suggest cards' }),
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Unable to save preferences.',
+      )
+      expect(preferenceSwitch('Suggest cards')).toBeChecked()
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'savePreferences',
+      })
+    })
+
+    it("works as it does for a new user when the preferences can't be loaded", async () => {
+      preferences = null
+      mockPreferences()
+      renderAt('/')
+
+      expect(
+        await screen.findByRole('img', { name: 'Picture for "el gato"' }),
+      ).toBeInTheDocument()
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'loadPreferences',
+      })
     })
   })
 })
