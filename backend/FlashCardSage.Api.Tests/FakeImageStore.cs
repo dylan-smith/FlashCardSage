@@ -27,6 +27,22 @@ internal sealed class FakeImageStore : IImageStore
         return Task.FromResult(url);
     }
 
+    public Exception? CopyFailure { get; init; }
+
+    // Copies a picture this store saved and hasn't deleted, like the real stores, saving the copy as a new one.
+    public async Task<string?> CopyAsync(string url, CancellationToken cancellationToken)
+    {
+        if (CopyFailure is not null)
+        {
+            throw CopyFailure;
+        }
+
+        var original = Saved.Find(item => item.Url == url);
+        return original.Url is null || Deleted.Contains(url)
+            ? null
+            : await SaveAsync(original.Data, original.ContentType, cancellationToken);
+    }
+
     public Task DeleteAsync(string url, CancellationToken cancellationToken)
     {
         Deleted.Add(url);

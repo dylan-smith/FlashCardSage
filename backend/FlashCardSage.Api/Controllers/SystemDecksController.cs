@@ -1,5 +1,6 @@
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -7,8 +8,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// The built-in decks any user can import (see SystemDeckSeeder). Importing copies the deck, its cards and their tags
-/// into the user's own, so it's then like a deck they made, and later changes to the built-in deck don't reach it.
+/// The built-in decks any user can import (see SystemDeckSeeder). Importing copies the deck, its cards, their tags and
+/// their pictures into the user's own, so it's then like a deck they made, and later changes to the built-in deck don't reach it.
 /// </summary>
 /// <remarks>
 /// The system user's decks are the only rows read past the query filter, and only here. The copies are new rows that
@@ -16,7 +17,10 @@ namespace FlashCardSage.Api.Controllers;
 /// </remarks>
 [ApiController]
 [Route("api/system-decks")]
-public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemDecksController> logger) : ControllerBase
+public class SystemDecksController(
+    FlashCardDbContext dbContext,
+    IImageStore imageStore,
+    ILogger<SystemDecksController> logger) : ControllerBase
 {
     public const string NothingToImportMessage = "You already have all of these cards.";
 
@@ -39,9 +43,9 @@ public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemD
     // Copies the deck into the user's decks, leaving out any card whose Spanish or English is already on one of their
     // cards, since a user can't have two cards for a word.
     [HttpPost("{id:int}/import")]
-    public async Task<ActionResult<SystemDeckImportResponse>> Import(int id)
+    public async Task<ActionResult<SystemDeckImportResponse>> Import(int id, CancellationToken cancellationToken)
     {
-        var systemDeck = await SystemDecks().FirstOrDefaultAsync(deck => deck.Id == id);
+        var systemDeck = await SystemDecks().FirstOrDefaultAsync(deck => deck.Id == id, cancellationToken);
 
         if (systemDeck is null)
         {
@@ -53,12 +57,14 @@ public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemD
         var cards = await dbContext.FlashCards
             .AsNoTracking()
             .Select(card => new { card.Spanish, card.English })
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
         var spanish = cards.Select(card => card.Spanish).ToHashSet(StringComparer.OrdinalIgnoreCase);
         var english = cards.Select(card => card.English).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var tags = await dbContext.Tags.ToListAsync();
+        var tags = await dbContext.Tags.ToListAsync(cancellationToken);
 
-        var deck = new Deck { Name = await UnusedDeckNameAsync(systemDeck.Name) };
+        var deck = new Deck { Name = await UnusedDeckNameAsync(systemDeck.Name, cancellationToken) };
+        // Each copy's built-in card's picture, if it has one, copied once there's something to import.
+        var pictures = new List<(FlashCard Copy, string Url)>();
         var skipped = 0;
 
         foreach (var systemCard in systemDeck.FlashCards.OrderBy(card => card.Id))
@@ -71,7 +77,7 @@ public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemD
 
             spanish.Add(systemCard.Spanish);
             english.Add(systemCard.English);
-            deck.FlashCards.Add(new FlashCard
+            var copy = new FlashCard
             {
                 Spanish = systemCard.Spanish,
                 English = systemCard.English,
@@ -79,7 +85,13 @@ public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemD
                     .Select(tag => FindOrMakeTag(tags, tag.Name))
                     .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
                     .ToList()
-            });
+            };
+            deck.FlashCards.Add(copy);
+
+            if (systemCard.ImageUrl is { } imageUrl)
+            {
+                pictures.Add((copy, imageUrl));
+            }
         }
 
         if (deck.FlashCards.Count == 0)
@@ -88,18 +100,32 @@ public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemD
             return Problem(detail: NothingToImportMessage, statusCode: StatusCodes.Status409Conflict);
         }
 
+        // Each card gets a copy of the picture, never the built-in card's own, since deleting the user's card deletes
+        // its picture.
+        foreach (var (copy, url) in pictures)
+        {
+            copy.ImageUrl = await TryCopyPictureAsync(url, cancellationToken);
+        }
+
         dbContext.Decks.Add(deck);
 
         try
         {
-            await dbContext.SaveChangesAsync();
+            await dbContext.SaveChangesAsync(CancellationToken.None);
         }
         catch (DbUpdateException)
         {
             // A card or deck saved since the checks above failed a unique index.
             dbContext.ChangeTracker.Clear();
+            await DeleteCopiedPicturesAsync(deck);
             logger.LogWarning("Refused to import system deck {DeckId} over cards saved meanwhile", id);
             return Problem(detail: ImportClashMessage, statusCode: StatusCodes.Status409Conflict);
+        }
+        catch
+        {
+            // Nothing points at the copied pictures, so they're removed rather than left behind.
+            await DeleteCopiedPicturesAsync(deck);
+            throw;
         }
 
         logger.LogInformation(
@@ -116,6 +142,29 @@ public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemD
             new SystemDeckImportResponse(DeckResponse.From(deck), deck.FlashCards.Count, skipped));
     }
 
+    // A copy of the picture, or null when it's gone or can't be copied. The picture is only a nicety, so the card is
+    // imported without one rather than failing the whole deck.
+    private async Task<string?> TryCopyPictureAsync(string url, CancellationToken cancellationToken)
+    {
+        try
+        {
+            return await imageStore.CopyAsync(url, cancellationToken);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            logger.LogWarning(ex, "A built-in card's picture couldn't be copied, so the card is imported without it");
+            return null;
+        }
+    }
+
+    private async Task DeleteCopiedPicturesAsync(Deck deck)
+    {
+        foreach (var url in deck.FlashCards.Select(card => card.ImageUrl).OfType<string>())
+        {
+            await imageStore.TryDeleteAsync(url, logger, CancellationToken.None);
+        }
+    }
+
     // The system user's decks, with their cards and the cards' tags.
     private IQueryable<Deck> SystemDecks()
     {
@@ -129,9 +178,9 @@ public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemD
 
     // The name, or else the name with the first of " (2)", " (3)" and so on that none of the user's decks has, ignoring
     // case as the database's index does.
-    private async Task<string> UnusedDeckNameAsync(string name)
+    private async Task<string> UnusedDeckNameAsync(string name, CancellationToken cancellationToken)
     {
-        var names = (await dbContext.Decks.Select(deck => deck.Name).ToListAsync())
+        var names = (await dbContext.Decks.Select(deck => deck.Name).ToListAsync(cancellationToken))
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
 
         var candidate = name;
