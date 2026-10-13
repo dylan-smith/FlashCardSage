@@ -3,6 +3,7 @@ import { test, expect } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
+const decksApiUrl = 'http://localhost:5269/api/decks'
 
 test.describe('Accessibility', () => {
   test('main page has no detectable accessibility violations', async ({
@@ -77,6 +78,67 @@ test.describe('Accessibility', () => {
       expect(results.violations).toEqual([])
     } finally {
       await request.delete(`${flashCardsApiUrl}/${id}`)
+    }
+  })
+
+  test("decks list, a deck's page with a card picked, the new deck dialog and the Tags page have no detectable accessibility violations", async ({
+    page,
+    request,
+  }) => {
+    const card = await request.post(flashCardsApiUrl, {
+      data: {
+        spanish: `A11y deck card ${Date.now()}`,
+        english: 'a check',
+        tags: ['A11y'],
+      },
+    })
+    expect(card.ok()).toBe(true)
+    const { id: cardId } = (await card.json()) as { id: number }
+    const name = `A11y deck ${Date.now()}`
+    const deck = await request.post(decksApiUrl, {
+      data: { name, flashCardIds: [cardId] },
+    })
+    expect(deck.ok()).toBe(true)
+    const { id: deckId } = (await deck.json()) as { id: number }
+
+    // Checked once nothing is fading in or out, since a button part way from disabled to enabled can fail on
+    // contrast.
+    async function violations() {
+      await page.waitForFunction(() => document.getAnimations().length === 0)
+      return (await new AxeBuilder({ page }).analyze()).violations
+    }
+
+    try {
+      await page.goto('/decks')
+      await expect(page.getByRole('link', { name, exact: true })).toBeVisible()
+      expect(await violations()).toEqual([])
+
+      await page.getByRole('link', { name, exact: true }).click()
+      await page
+        .getByRole('checkbox', { name: /^Pick "A11y deck card/ })
+        .check()
+      await expect(
+        page.getByRole('button', { name: 'Remove 1 card' }),
+      ).toBeEnabled()
+      expect(await violations()).toEqual([])
+
+      await page.goto('/')
+      await page
+        .getByRole('checkbox', { name: /^Pick "A11y deck card/ })
+        .check()
+      await page.getByRole('button', { name: 'Add 1 card to deck…' }).click()
+      await page.getByRole('menuitem', { name: 'New deck…' }).click()
+      await expect(page.getByRole('dialog')).toBeVisible()
+      expect(await violations()).toEqual([])
+
+      // The Tags page, with a tag being renamed.
+      await page.goto('/tags')
+      await page.getByRole('button', { name: 'Rename tag "A11y"' }).click()
+      await expect(page.getByLabel('Tag name')).toBeFocused()
+      expect(await violations()).toEqual([])
+    } finally {
+      await request.delete(`${decksApiUrl}/${deckId}`)
+      await request.delete(`${flashCardsApiUrl}/${cardId}`)
     }
   })
 
