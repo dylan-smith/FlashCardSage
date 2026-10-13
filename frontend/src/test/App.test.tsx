@@ -20,18 +20,25 @@ type Call = { url: string; init?: RequestInit }
 
 const tagsUrl = 'http://localhost:5269/api/tags'
 const decksUrl = 'http://localhost:5269/api/decks'
+const suggestionsUrl = 'http://localhost:5269/api/card-suggestions'
 
-// Answers every fetch with the handler, except that loading the tags or decks gets these, and keeps the calls so a
-// test can check what was sent.
+// Answers every fetch with the handler, except that loading the tags or decks gets these, and loading suggestions
+// gets what suggest answers (by default, that they aren't available). It keeps the calls, apart from the
+// suggestions, so a test can check what was sent.
 function mockFetch(
   handler: (url: string, init?: RequestInit) => Promise<Response>,
   tags: Tag[] = [],
   decks: Deck[] = [],
+  suggest: () => Promise<Response> = async () =>
+    new Response(null, { status: 503 }),
 ) {
   const calls: Call[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(
     (input: string | URL | Request, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : input.toString()
+      if (url === suggestionsUrl) {
+        return suggest()
+      }
       calls.push({ url, init })
       if (init?.method === undefined && url === tagsUrl) {
         return Promise.resolve(jsonResponse(tags))
@@ -369,6 +376,174 @@ describe('App', () => {
       expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
         operation: 'create',
       })
+    })
+  })
+
+  describe('suggested cards', () => {
+    const cat: FlashCard = {
+      id: 1,
+      spanish: 'el gato',
+      english: 'the cat',
+      tags: [],
+      imageUrl: null,
+    }
+
+    // Renders the flash cards page with these cards, answering suggestions with suggest and a new card with save.
+    async function showSuggestions(
+      suggest: () => Promise<Response>,
+      save: () => Promise<Response> = async () => {
+        throw new Error('Unexpected POST')
+      },
+    ) {
+      const calls = mockFetch(
+        async (_url, init) =>
+          init?.method === 'POST' ? save() : jsonResponse([cat]),
+        [],
+        [],
+        suggest,
+      )
+      renderAt('/')
+      await screen.findByText('el gato')
+      return calls
+    }
+
+    function suggestionList() {
+      return screen.getByRole('list', { name: 'Suggested cards' })
+    }
+
+    it('shows the suggestions, leaving out any the user has a card for', async () => {
+      await showSuggestions(async () =>
+        jsonResponse([
+          { spanish: 'el perro', english: 'the dog' },
+          { spanish: 'El Gato', english: 'the kitty' },
+          { spanish: 'el pez', english: 'the fish' },
+        ]),
+      )
+
+      expect(
+        screen.getByRole('heading', { level: 2, name: 'Suggested cards' }),
+      ).toBeInTheDocument()
+      const list = await screen.findByRole('list', { name: 'Suggested cards' })
+      const items = within(list).getAllByRole('listitem')
+      expect(items).toHaveLength(2)
+      expect(items[0]).toHaveTextContent('el perrothe dog')
+      expect(items[1]).toHaveTextContent('el pezthe fish')
+    })
+
+    it("isn't shown when suggestions aren't available", async () => {
+      await showSuggestions(async () => new Response(null, { status: 503 }))
+
+      expect(
+        screen.queryByRole('heading', { name: 'Suggested cards' }),
+      ).not.toBeInTheDocument()
+      expect(trackException).not.toHaveBeenCalled()
+    })
+
+    it('adds a suggestion as a card and takes it off the suggestions', async () => {
+      const user = userEvent.setup()
+      const calls = await showSuggestions(
+        async () =>
+          jsonResponse([
+            { spanish: 'el perro', english: 'the dog' },
+            { spanish: 'el pez', english: 'the fish' },
+          ]),
+        async () =>
+          jsonResponse(
+            {
+              id: 2,
+              spanish: 'el perro',
+              english: 'the dog',
+              tags: [],
+              imageUrl: null,
+            },
+            201,
+          ),
+      )
+      await screen.findByRole('list', { name: 'Suggested cards' })
+
+      await user.click(screen.getByRole('button', { name: 'Add "el perro"' }))
+
+      await waitFor(() => {
+        expect(within(suggestionList()).getAllByRole('listitem')).toHaveLength(
+          1,
+        )
+      })
+      expect(suggestionList()).toHaveTextContent('el pez')
+      expect(
+        screen.getByRole('button', { name: 'Edit "el perro"' }),
+      ).toBeInTheDocument()
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.init?.body).toBe(
+        JSON.stringify({ spanish: 'el perro', english: 'the dog', tags: [] }),
+      )
+      expect(trackEvent).toHaveBeenCalledWith('SuggestedFlashCardAdded')
+    })
+
+    it('keeps a suggestion that fails to save and says why', async () => {
+      const user = userEvent.setup()
+      await showSuggestions(
+        async () => jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+        async () =>
+          jsonResponse(
+            { detail: 'You already have a flash card with this English.' },
+            409,
+          ),
+      )
+      await screen.findByRole('list', { name: 'Suggested cards' })
+
+      await user.click(screen.getByRole('button', { name: 'Add "el perro"' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'You already have a flash card with this English.',
+      )
+      expect(suggestionList()).toHaveTextContent('el perro')
+      expect(trackException).not.toHaveBeenCalled()
+    })
+
+    it('asks for more suggestions', async () => {
+      const user = userEvent.setup()
+      const suggest = vi
+        .fn<() => Promise<Response>>()
+        .mockResolvedValueOnce(
+          jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse([{ spanish: 'el pez', english: 'the fish' }]),
+        )
+      await showSuggestions(suggest)
+      await screen.findByRole('list', { name: 'Suggested cards' })
+
+      await user.click(screen.getByRole('button', { name: 'More suggestions' }))
+
+      await waitFor(() => {
+        expect(suggestionList()).toHaveTextContent('el pez')
+      })
+      expect(suggestionList()).not.toHaveTextContent('el perro')
+      expect(suggest).toHaveBeenCalledTimes(2)
+    })
+
+    it('says so when suggestions fail, and tries again', async () => {
+      const user = userEvent.setup()
+      const suggest = vi
+        .fn<() => Promise<Response>>()
+        .mockResolvedValueOnce(new Response(null, { status: 502 }))
+        .mockResolvedValueOnce(
+          jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+        )
+      await showSuggestions(suggest)
+
+      expect(
+        await screen.findByText('Unable to suggest cards right now.'),
+      ).toBeInTheDocument()
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'suggest',
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+      expect(
+        await screen.findByRole('list', { name: 'Suggested cards' }),
+      ).toHaveTextContent('el perro')
     })
   })
 

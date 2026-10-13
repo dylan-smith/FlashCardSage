@@ -59,7 +59,7 @@ param translatorName string
 @allowed(['F0', 'S1'])
 param translatorSku string = 'F0'
 
-@description('Whether to deploy the Azure AI Foundry resource that makes a picture of what a card means. Without it the API answers picture requests with a 503.')
+@description('Whether to deploy the Azure AI Foundry resource that makes a picture of what a card means and suggests new cards. Without it the API answers picture and suggestion requests with a 503.')
 param deployFoundry bool = true
 
 @description('Name of the Azure AI Foundry resource. It\'s also the resource\'s subdomain, so it\'s unique across Azure.')
@@ -74,6 +74,13 @@ param foundryCapacity int = 2
 
 @description('Name of the image model\'s deployment on the Azure AI Foundry resource: the model\'s name in lowercase.')
 param imageDeploymentName string = 'flux-2-pro'
+
+@description('Name of the chat model\'s (gpt-5-mini) deployment on the Azure AI Foundry resource, which suggests new cards.')
+param suggestionDeploymentName string = 'gpt-5-mini'
+
+@description('Thousands of tokens a minute the chat model\'s deployment can use, out of the subscription\'s quota for the model.')
+@minValue(1)
+param suggestionCapacity int = 50
 
 @description('Days to keep database backups before they are deleted automatically.')
 @minValue(1)
@@ -156,6 +163,8 @@ module foundry 'modules/foundry.bicep' = if (deployFoundry) {
     location: foundryLocation
     deploymentName: imageDeploymentName
     capacity: foundryCapacity
+    suggestionDeploymentName: suggestionDeploymentName
+    suggestionCapacity: suggestionCapacity
   }
 }
 
@@ -179,6 +188,7 @@ module appService 'modules/appservice.bicep' = {
     // By name rather than from the module's outputs, which there aren't when it isn't deployed.
     foundryName: deployFoundry ? foundryName : ''
     imageDeploymentName: imageDeploymentName
+    suggestionDeploymentName: suggestionDeploymentName
     storageAccountName: storageAccountName
     cardImagesContainerName: storage.outputs.cardImagesContainerName
   }
