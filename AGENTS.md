@@ -112,3 +112,8 @@ npm run test:e2e
 - Keep PRs small and focused, and follow `.github/PULL_REQUEST_TEMPLATE.md`.
 - Make sure the backend and frontend checks pass for the areas you touched.
 - When a change affects the UI, take screenshots and attach them to the PR description.
+- Whenever you push to a branch that has an open PR, first `git fetch origin` and check whether the branch
+  conflicts with the PR's base branch (usually `main`). If it does, resolve the conflicts in the same push: merge
+  the base into the branch (don't rebase or force-push), keep both sides' intent, then rerun the checks for every
+  area the merge touched. They also catch breaks Git doesn't flag, like a type the base started using in a new
+  way. Mention the merge and anything you had to change when you report the push.

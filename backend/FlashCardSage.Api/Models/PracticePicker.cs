@@ -55,10 +55,11 @@ public static class PracticePicker
             card.ImageUrl);
     }
 
-    // Picks the next of the current user's cards to practice, at random by weight.
-    public static async Task<PracticeCard?> PickNextAsync(FlashCardDbContext dbContext, int? previousId)
+    // Picks the next of the current user's cards to practice, from the selected deck or tag, at random by weight.
+    public static async Task<PracticeCard?> PickNextAsync(
+        FlashCardDbContext dbContext, int? previousId, PracticeSelection selection)
     {
-        var cards = await dbContext.ScoreFlashCardsAsync();
+        var cards = await dbContext.ScoreFlashCardsAsync(selection);
         return Pick(cards, previousId, DateTimeOffset.UtcNow, Random.Shared.NextDouble(), Random.Shared.NextDouble());
     }
 }

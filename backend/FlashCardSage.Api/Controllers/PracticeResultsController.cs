@@ -18,12 +18,19 @@ public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<Pra
 {
     [HttpPost]
     public async Task<ActionResult<PracticeResultResponse>> Create(
-        int flashCardId, [FromBody] PracticeResultRequest request)
+        int flashCardId, [FromBody] PracticeResultRequest request, [FromQuery] PracticeSelection selection)
     {
         // The card is looked up first, since that's what limits it to the current user's cards.
         if (!await dbContext.FlashCards.AnyAsync(card => card.Id == flashCardId))
         {
             logger.LogWarning("Flash card {FlashCardId} not found for a practice result", flashCardId);
+            return NotFound();
+        }
+
+        if (!await dbContext.SelectionExistsAsync(selection))
+        {
+            logger.LogWarning(
+                "Deck {DeckId} or tag {TagId} not found to practice", selection.DeckId, selection.TagId);
             return NotFound();
         }
 
@@ -46,15 +53,16 @@ public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<Pra
         });
         await dbContext.SaveChangesAsync();
 
-        // Picked after saving, so the answer just given counts. The practiced card exists, so there's always one.
-        var next = (await PracticePicker.PickNextAsync(dbContext, flashCardId))!;
+        // Picked after saving, so the answer just given counts, from the same deck or tag. There's none when the deck
+        // or tag has lost all its cards since practice started.
+        var next = await PracticePicker.PickNextAsync(dbContext, flashCardId, selection);
 
         logger.LogInformation(
             "Recorded practice result {Outcome} ({ScoreChange}) for flash card {FlashCardId}, next is {NextFlashCardId}",
             request.Outcome,
             scoreChange,
             flashCardId,
-            next.Id);
+            next?.Id);
 
         return Ok(new PracticeResultResponse(next, scoreChange));
     }

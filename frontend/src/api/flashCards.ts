@@ -33,6 +33,14 @@ type ValidationErrorResponse = {
   errors?: Record<string, string[]>
 }
 
+// The body of another error from the API, such as a 409 for a card the user already has.
+type ProblemResponse = {
+  detail?: string
+}
+
+const duplicateMessage =
+  'You already have a flash card with this Spanish or English.'
+
 // Thrown for a response the caller should show to the user as is, such as a 400 for a blank translation.
 export class ApiError extends Error {
   readonly status: number
@@ -90,6 +98,11 @@ export async function throwIfNotSaved(response: Response, fallback: string) {
     const message = Object.values(error.errors ?? {}).flat()[0]
     throw new ApiError(400, message ?? fallback)
   }
+  // A 409 means the user already has this card.
+  if (response.status === 409) {
+    const problem = (await response.json()) as ProblemResponse
+    throw new ApiError(409, problem.detail ?? duplicateMessage)
+  }
   if (!response.ok) {
     throw new Error(fallback)
   }
@@ -126,9 +139,29 @@ export type PracticeCard = FlashCardWords & {
   imageUrl: string | null
 }
 
-// The card to start practicing with, or null when there are no cards.
-export async function getNextPracticeCard(): Promise<PracticeCard | null> {
-  const response = await apiFetch(`${flashCardsUrl}/practice/next`)
+// Which cards to practice: a deck's, a tag's, or all of them when it's empty.
+export type PracticeSelection = { deckId?: number; tagId?: number }
+
+// The selection as a query string, starting with ? unless it's empty.
+function practiceQuery({ deckId, tagId }: PracticeSelection) {
+  const params = new URLSearchParams()
+  if (deckId !== undefined) {
+    params.set('deckId', String(deckId))
+  }
+  if (tagId !== undefined) {
+    params.set('tagId', String(tagId))
+  }
+  const query = params.toString()
+  return query ? `?${query}` : ''
+}
+
+// The card to start practicing with, or null when there are no cards in the selection.
+export async function getNextPracticeCard(
+  selection: PracticeSelection = {},
+): Promise<PracticeCard | null> {
+  const response = await apiFetch(
+    `${flashCardsUrl}/practice/next${practiceQuery(selection)}`,
+  )
   if (!response.ok) {
     throw new Error('Unable to load flash cards.')
   }
@@ -137,18 +170,21 @@ export async function getNextPracticeCard(): Promise<PracticeCard | null> {
     : ((await response.json()) as PracticeCard)
 }
 
-// The card to practice next, and how much the answer raised or lowered the answered card's score.
+// The card to practice next, and how much the answer raised or lowered the answered card's score. There's no next
+// card when the deck or tag being practiced has lost all its cards since practice started.
 export type PracticeResult = {
-  next: PracticeCard
+  next: PracticeCard | null
   scoreChange: number
 }
 
-// Records the answer.
+// Records the answer, and picks the next card from the same selection.
 export async function recordPracticeResult(
   id: number,
   outcome: PracticeOutcome,
+  selection: PracticeSelection = {},
 ): Promise<PracticeResult> {
-  const response = await apiFetch(`${flashCardsUrl}/${id}/practice-results`, {
+  const url = `${flashCardsUrl}/${id}/practice-results${practiceQuery(selection)}`
+  const response = await apiFetch(url, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

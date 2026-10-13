@@ -6,9 +6,9 @@ namespace FlashCardSage.Api.Data;
 
 /// <remarks>
 /// Flash cards belong to a user. A query filter only shows the current user's, and new ones are given the current
-/// user when they're saved, so the controllers never handle the owner themselves. Tags work the same way. Practice
-/// results are filtered through their card, so they're only the current user's too, and a card's tags are only
-/// reached through the card.
+/// user when they're saved, so the controllers never handle the owner themselves. Tags and decks work the same way.
+/// Practice results are filtered through their card, so they're only the current user's too, and a card's tags are
+/// only reached through the card. A deck only gets cards that were found through the filter.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {
@@ -22,6 +22,8 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<PracticeResult> PracticeResults => Set<PracticeResult>();
 
     public DbSet<Tag> Tags => Set<Tag>();
+
+    public DbSet<Deck> Decks => Set<Deck>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -47,6 +49,12 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         {
             entry.Entity.UserId = CurrentUserId
                 ?? throw new InvalidOperationException("Tags can only be saved for a signed-in user.");
+        }
+
+        foreach (var entry in ChangeTracker.Entries<Deck>().Where(entry => entry.State == EntityState.Added))
+        {
+            entry.Entity.UserId = CurrentUserId
+                ?? throw new InvalidOperationException("Decks can only be saved for a signed-in user.");
         }
     }
 
@@ -80,6 +88,15 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
 
         modelBuilder.Entity<FlashCard>()
             .HasIndex(card => card.UserId);
+
+        // A user has one card for a word, so neither side can be on two of their cards (0006-*.sql).
+        modelBuilder.Entity<FlashCard>()
+            .HasIndex(card => new { card.UserId, card.Spanish })
+            .IsUnique();
+
+        modelBuilder.Entity<FlashCard>()
+            .HasIndex(card => new { card.UserId, card.English })
+            .IsUnique();
 
         modelBuilder.Entity<FlashCard>()
             .Property(card => card.Spanish)
@@ -143,6 +160,39 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
                 {
                     link.HasKey("FlashCardId", "TagId");
                     link.HasIndex("TagId");
+                });
+
+        modelBuilder.Entity<Deck>()
+            .HasQueryFilter(deck => deck.UserId == CurrentUserId);
+
+        modelBuilder.Entity<Deck>()
+            .HasOne<User>()
+            .WithMany()
+            .HasForeignKey(deck => deck.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<Deck>()
+            .HasIndex(deck => new { deck.UserId, deck.Name })
+            .IsUnique();
+
+        modelBuilder.Entity<Deck>()
+            .Property(deck => deck.Name)
+            .HasMaxLength(Deck.MaxNameLength)
+            .IsRequired();
+
+        // Like a tag's links, the database only cascades from the card (see 0007-CreateDecksTables.sql), so EF
+        // deletes a deck's links, which needs the deck's cards loaded when it's removed.
+        modelBuilder.Entity<Deck>()
+            .HasMany(deck => deck.FlashCards)
+            .WithMany(card => card.Decks)
+            .UsingEntity<Dictionary<string, object>>(
+                "DeckFlashCards",
+                link => link.HasOne<FlashCard>().WithMany().HasForeignKey("FlashCardId").OnDelete(DeleteBehavior.Cascade),
+                link => link.HasOne<Deck>().WithMany().HasForeignKey("DeckId").OnDelete(DeleteBehavior.ClientCascade),
+                link =>
+                {
+                    link.HasKey("DeckId", "FlashCardId");
+                    link.HasIndex("FlashCardId");
                 });
     }
 }
