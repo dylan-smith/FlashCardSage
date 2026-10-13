@@ -31,15 +31,15 @@ function mockFetch(
   handler: (url: string, init?: RequestInit) => Promise<Response>,
   tags: Tag[] = [],
   decks: Deck[] = [],
-  suggest: () => Promise<Response> = async () =>
+  suggest: (url: string) => Promise<Response> = async () =>
     new Response(null, { status: 503 }),
 ) {
   const calls: Call[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(
     (input: string | URL | Request, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : input.toString()
-      if (url === suggestionsUrl) {
-        return suggest()
+      if (url.startsWith(suggestionsUrl)) {
+        return suggest(url)
       }
       calls.push({ url, init })
       if (init?.method === undefined && url === tagsUrl) {
@@ -392,7 +392,7 @@ describe('App', () => {
 
     // Renders the flash cards page with these cards, answering suggestions with suggest and a new card with save.
     async function showSuggestions(
-      suggest: () => Promise<Response>,
+      suggest: (url: string) => Promise<Response>,
       save: () => Promise<Response> = async () => {
         throw new Error('Unexpected POST')
       },
@@ -522,6 +522,50 @@ describe('App', () => {
       })
       expect(suggestionList()).not.toHaveTextContent('el perro')
       expect(suggest).toHaveBeenCalledTimes(2)
+    })
+
+    it('suggests cards related to a card just added', async () => {
+      const user = userEvent.setup()
+      const suggest = vi
+        .fn<(url: string) => Promise<Response>>()
+        .mockResolvedValueOnce(
+          jsonResponse([{ spanish: 'el pez', english: 'the fish' }]),
+        )
+        .mockResolvedValueOnce(
+          jsonResponse([{ spanish: 'el collar', english: 'the collar' }]),
+        )
+      await showSuggestions(suggest, async () =>
+        jsonResponse(
+          {
+            id: 2,
+            spanish: 'el perro',
+            english: 'the dog',
+            tags: [],
+            imageUrl: null,
+          },
+          201,
+        ),
+      )
+      await screen.findByRole('list', { name: 'Suggested cards' })
+
+      await user.type(
+        screen.getByLabelText('Spanish', { exact: false }),
+        'el perro',
+      )
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'the dog',
+      )
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      await waitFor(() => {
+        expect(suggestionList()).toHaveTextContent('el collar')
+      })
+      expect(suggestionList()).not.toHaveTextContent('el pez')
+      expect(
+        screen.getByText('New words and phrases that go with “el perro”.'),
+      ).toBeInTheDocument()
+      expect(suggest).toHaveBeenLastCalledWith(`${suggestionsUrl}?relatedTo=2`)
     })
 
     it('says so when suggestions fail, and tries again', async () => {
