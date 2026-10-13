@@ -164,7 +164,7 @@ function FlashCardEditForm({
         sx={{
           display: 'flex',
           flexDirection: { xs: 'column', sm: 'row' },
-          // The picture goes on a row of its own under the fields.
+          // The picture goes on a row of its own under the fields, and Save and Cancel under it.
           flexWrap: 'wrap',
           flexGrow: 1,
           gap: 1,
@@ -201,8 +201,15 @@ function FlashCardEditForm({
           onChange={(names) => onChange({ tags: names })}
           size="small"
         />
-        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, mt: { sm: 0.5 } }}>
-          {' '}
+        <Box sx={{ flexBasis: '100%' }}>
+          <PictureField
+            picture={picture}
+            fields={edit}
+            busy={busy}
+            size="small"
+          />
+        </Box>
+        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
           <Button
             type="submit"
             variant="contained"
@@ -214,14 +221,6 @@ function FlashCardEditForm({
           <Button type="button" size="small" disabled={busy} onClick={onCancel}>
             Cancel
           </Button>
-        </Box>
-        <Box sx={{ flexBasis: '100%' }}>
-          <PictureField
-            picture={picture}
-            fields={edit}
-            busy={busy}
-            size="small"
-          />
         </Box>
       </Box>
     </ListItem>
