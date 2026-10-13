@@ -611,9 +611,9 @@ jobs:
           API_AUTH_TOKEN: 'test:Preview User'
 
       # A few of the built-in decks' cards get pictures, which nothing in the app can give them, so reviewers can see
-      # them on the Import cards page and copied by an import. The script makes and uploads them, and the step after
-      # puts them on the cards.
-      - name: Make pictures for some built-in cards
+      # them on the Import cards page and copied by an import. The script uploads them from preview-pictures, and the
+      # step after puts them on the cards.
+      - name: Upload pictures for some built-in cards
         if: steps.current.outputs.current == 'true'
         id: system-pictures
         run: bash .github/scripts/seed-preview-system-pictures.sh
