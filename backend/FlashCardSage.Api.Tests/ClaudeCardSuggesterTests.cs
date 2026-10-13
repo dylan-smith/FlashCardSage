@@ -21,8 +21,9 @@ public class ClaudeCardSuggesterTests
         var handler = new FakeHandler(HttpStatusCode.OK, Message(
             """{"cards":[{"spanish":"el perro","english":"the dog"},{"spanish":"beber","english":"to drink"}]}"""));
         using var httpClient = new HttpClient(handler);
+        using var suggester = CreateSuggester(httpClient);
 
-        var suggestions = await CreateSuggester(httpClient).SuggestAsync(Cards, 8, CancellationToken.None);
+        var suggestions = await suggester.SuggestAsync(Cards, 8, CancellationToken.None);
 
         Assert.Equal([new("el perro", "the dog"), new("beber", "to drink")], suggestions);
         var request = Assert.Single(handler.Requests);
@@ -46,8 +47,9 @@ public class ClaudeCardSuggesterTests
     {
         var handler = new FakeHandler(HttpStatusCode.OK, Message("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
+        using var suggester = CreateSuggester(httpClient);
 
-        var suggestions = await CreateSuggester(httpClient).SuggestAsync([], 5, CancellationToken.None);
+        var suggestions = await suggester.SuggestAsync([], 5, CancellationToken.None);
 
         Assert.Empty(suggestions);
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
@@ -62,9 +64,10 @@ public class ClaudeCardSuggesterTests
             HttpStatusCode.BadRequest,
             """{"type":"error","error":{"type":"invalid_request_error","message":"bad"}}""");
         using var httpClient = new HttpClient(handler);
+        using var suggester = CreateSuggester(httpClient);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSuggester(httpClient).SuggestAsync(Cards, 8, CancellationToken.None));
+            suggester.SuggestAsync(Cards, 8, CancellationToken.None));
     }
 
     [Fact]
@@ -72,9 +75,10 @@ public class ClaudeCardSuggesterTests
     {
         var handler = new FakeHandler(HttpStatusCode.OK, Message("", stopReason: "refusal"));
         using var httpClient = new HttpClient(handler);
+        using var suggester = CreateSuggester(httpClient);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSuggester(httpClient).SuggestAsync(Cards, 8, CancellationToken.None));
+            suggester.SuggestAsync(Cards, 8, CancellationToken.None));
     }
 
     [Fact]
@@ -82,9 +86,10 @@ public class ClaudeCardSuggesterTests
     {
         var handler = new FakeHandler(HttpStatusCode.OK, Message("Here are some cards!"));
         using var httpClient = new HttpClient(handler);
+        using var suggester = CreateSuggester(httpClient);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSuggester(httpClient).SuggestAsync(Cards, 8, CancellationToken.None));
+            suggester.SuggestAsync(Cards, 8, CancellationToken.None));
     }
 
     [Theory]
@@ -94,7 +99,7 @@ public class ClaudeCardSuggesterTests
     public void IsAvailable_DependsOnTheApiKey(string apiKey, bool expected)
     {
         using var httpClient = new HttpClient();
-        var suggester = new ClaudeCardSuggester(httpClient, Options.Create(new CardSuggesterOptions { ApiKey = apiKey }));
+        using var suggester = new ClaudeCardSuggester(httpClient, Options.Create(new CardSuggesterOptions { ApiKey = apiKey }));
 
         Assert.Equal(expected, suggester.IsAvailable);
     }
@@ -116,7 +121,6 @@ public class ClaudeCardSuggesterTests
             model = "claude-test",
             content = new[] { new { type = "text", text } },
             stop_reason = stopReason,
-            stop_sequence = (string?)null,
             usage = new { input_tokens = 100, output_tokens = 50 }
         });
     }

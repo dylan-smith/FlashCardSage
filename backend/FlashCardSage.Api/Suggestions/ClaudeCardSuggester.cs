@@ -9,7 +9,8 @@ using Microsoft.Extensions.Options;
 namespace FlashCardSage.Api.Suggestions;
 
 // Asks Claude for new cards that build on the ones the user has: the same topics and level, written the same way.
-public class ClaudeCardSuggester(HttpClient httpClient, IOptions<CardSuggesterOptions> options) : ICardSuggester
+public sealed class ClaudeCardSuggester(HttpClient httpClient, IOptions<CardSuggesterOptions> options)
+    : ICardSuggester, IDisposable
 {
     private const string SystemPrompt = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
@@ -44,21 +45,27 @@ public class ClaudeCardSuggester(HttpClient httpClient, IOptions<CardSuggesterOp
 
     private readonly CardSuggesterOptions options = options.Value;
 
+    // The page waits for suggestions, so a slow answer is retried once at most. The SDK keeps its own timeout, which
+    // the HttpClient's mustn't cut short. Disposing the client disposes the HttpClient too, so it lives as long as
+    // this suggester, which DI disposes once the request is done.
+    private readonly AnthropicClient client = new()
+    {
+        ApiKey = options.Value.ApiKey,
+        HttpClient = httpClient,
+        Timeout = TimeSpan.FromSeconds(45),
+        MaxRetries = 1
+    };
+
     public bool IsAvailable => !string.IsNullOrWhiteSpace(options.ApiKey);
+
+    public void Dispose()
+    {
+        client.Dispose();
+    }
 
     public async Task<IReadOnlyList<CardSuggestion>> SuggestAsync(
         IReadOnlyList<FlashCard> cards, int count, CancellationToken cancellationToken)
     {
-        // The page waits for suggestions, so a slow answer is retried once at most. The SDK keeps its own timeout,
-        // which the HttpClient's mustn't cut short.
-        var client = new AnthropicClient
-        {
-            ApiKey = options.ApiKey,
-            HttpClient = httpClient,
-            Timeout = TimeSpan.FromSeconds(45),
-            MaxRetries = 1
-        };
-
         BetaMessage message;
         try
         {
