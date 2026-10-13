@@ -16,7 +16,7 @@ test.describe('Accessibility', () => {
     await expect(
       page.getByRole('heading', { name: 'Add flash card' }),
     ).toBeVisible()
-    await expect(page.getByLabel('Loading')).toBeHidden()
+    await expect(page.getByLabel('Loading', { exact: true })).toBeHidden()
 
     const results = await new AxeBuilder({ page }).analyze()
 

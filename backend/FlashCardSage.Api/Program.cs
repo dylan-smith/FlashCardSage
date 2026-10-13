@@ -3,6 +3,7 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
+using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
@@ -56,6 +57,9 @@ builder.Services.AddOpenApi();
 builder.Services.Configure<TranslatorOptions>(builder.Configuration.GetSection(TranslatorOptions.SectionName));
 // Translation fills in a field while the user types, so a slow answer is no better than none.
 builder.Services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.Configure<CardSuggesterOptions>(builder.Configuration.GetSection(CardSuggesterOptions.SectionName));
+// The page shows suggestions as soon as they come, and they're only a nicety, so a slow answer isn't waited out.
+builder.Services.AddHttpClient<ICardSuggester, FoundryCardSuggester>(client => client.Timeout = TimeSpan.FromSeconds(45));
 builder.Services.Configure<ImageGenerationOptions>(builder.Configuration.GetSection(ImageGenerationOptions.SectionName));
 // A picture takes the model tens of seconds, and the user asked for it, so they're given that long.
 builder.Services.AddHttpClient<IImageGenerator, FoundryImageGenerator>(client =>

@@ -27,6 +27,7 @@ import {
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
+import type { CardSuggestion } from '../api/cardSuggestions'
 import { listTags } from '../api/tags'
 import type { CardSide } from '../api/translations'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
@@ -36,6 +37,7 @@ import type { CardPicture } from '../hooks/useCardPicture'
 import { trackEvent, trackException } from '../telemetry'
 import { PictureField, thumbnailSize } from './FlashCardPicture'
 import { AddToDeck } from './AddToDeck'
+import { CardSuggestions } from './CardSuggestions'
 import { cardCount } from './cardCount'
 import { deckNameRequiredMessage } from './DecksPage'
 import { TagFilter, TagsInput } from './FlashCardTags'
@@ -573,6 +575,24 @@ function FlashCardsPage() {
     }
   }
 
+  // Adds a suggested card as it is, returning whether it was saved.
+  async function handleAddSuggestion(suggestion: CardSuggestion) {
+    setErrorMessage('')
+
+    try {
+      const created = await createFlashCard({ ...suggestion, tags: [] })
+      trackEvent('SuggestedFlashCardAdded')
+      setCards((current) => [...current, created])
+      return true
+    } catch (error) {
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'addSuggestion' })
+      }
+      setErrorMessage(describeFetchError(error, 'Unable to save flash card.'))
+      return false
+    }
+  }
+
   async function handleEditSave(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     if (edit === null) {
@@ -687,6 +707,8 @@ function FlashCardsPage() {
           </Stack>
         </Box>
       </Paper>
+
+      <CardSuggestions cards={cards} onAdd={handleAddSuggestion} />
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       {deckNotice && (

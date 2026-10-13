@@ -11,6 +11,7 @@ A flash card app for learning a language, with:
 - Sign in with a Google account; each user only sees their own flash cards
 - Add, edit and delete flash cards (each card is a Spanish word or phrase and its English translation)
 - Type either side of a card and the other is filled in with a translation from Azure AI Translator; type over it to change it
+- A handful of suggested new cards, which gpt-5-mini on Azure AI Foundry picks to go with your cards; add one with a click
 - Ask for a picture of what a card means, made by FLUX.2-pro on Azure AI Foundry, which goes on the card when you save it unless you discard it; practice mode shows it once the card is revealed
 - RESTful API with OpenAPI support
 
@@ -37,6 +38,8 @@ To use SQL Server for local development instead, set `UseInMemoryDatabase` to `f
 Translation (`POST /api/translations`, which fills in the other side of a card as the user types) is off locally: without a `Translator:Key` the API answers it with a 503, and the frontend leaves both sides to the user. To try it, give the API the key of an Azure AI Translator resource (such as the preview one, `flashcardsage-preview-translator`) with `dotnet user-secrets set Translator:Key <key>` in `backend/FlashCardSage.Api`. The E2E tests stand in for the translator with Playwright's `page.route`.
 
 Pictures (`POST /api/flashcards/images/generate`, which makes a picture of what a card means) are off locally the same way: without `ImageGeneration:Endpoint` and `ImageGeneration:Key` the API answers with a 503, and the form says pictures aren't available. To try it, give the API the endpoint and a key of an Azure AI Foundry resource with a `flux-2-pro` deployment (such as the preview one, `flashcardsage-preview-foundry`) with `dotnet user-secrets set ImageGeneration:Endpoint https://<name>.services.ai.azure.com/` and `dotnet user-secrets set ImageGeneration:Key <key>`. Pictures put on cards go to Azure Blob Storage when `ImageStore:StorageConnectionString` is set; otherwise (locally and in the E2E tests) the API keeps them as files in `backend/FlashCardSage.Api/App_Data/card-images` and serves them on `/card-images`. The E2E tests stand in for the generator with `page.route` and go through the real local image store.
+
+Card suggestions (`GET /api/card-suggestions`, a handful of new cards that go with the user's) are off locally too: without `CardSuggestions:Endpoint` and `CardSuggestions:Key` the API answers with a 503, and the cards page leaves out the Suggested cards section. To try it, use the same Foundry resource, which has a `gpt-5-mini` deployment too, with `dotnet user-secrets set CardSuggestions:Endpoint https://<name>.openai.azure.com/` and `dotnet user-secrets set CardSuggestions:Key <key>`. The E2E tests stand in for the model with `page.route`.
 
 ### Frontend
 
@@ -183,7 +186,7 @@ infra/
 ├── modules/
 │   ├── alerts.bicep     # Alert rules, action group, availability test, Slack notifier and budget
 │   ├── appservice.bicep # App Service Plan + App Service (Linux/.NET 10) and its app settings
-│   ├── foundry.bicep    # Azure AI Foundry with the image model (FLUX.2-pro), which the API makes cards' pictures with
+│   ├── foundry.bicep    # Azure AI Foundry with the image model (FLUX.2-pro) and the chat model (gpt-5-mini), which the API makes cards' pictures and suggests new cards with
 │   ├── monitoring.bicep # Log Analytics Workspace + Application Insights
 │   ├── sql.bicep        # Azure SQL Server (Entra-only auth) + serverless Database and its diagnostic logs
 │   ├── storage.bicep    # Storage Account for the frontend static website, its custom domain and the cards' pictures
@@ -273,7 +276,7 @@ Previews live in the `FlashCardSage-Preview` resource group and are kept cheap b
 | App Service plan `FlashCardSage-Preview-Plan` | Shared | Free (F1) Linux plan: 60 CPU minutes a day, 1 GB and at most 10 web apps, shared by every preview. When the minutes run out, every preview stops until the next day. `appServicePlanSku` in `preview-shared.bicepparam` can raise it to B1 |
 | SQL server `flashcardsage-preview-sql` | Shared | Entra-only auth; the `flashcardsage-preview-deploy` identity is its Entra admin (set by `preview-shared.bicep`) |
 | Translator `flashcardsage-preview-translator` | Shared | Azure AI Translator on the S1 tier (about $10 per million characters, nothing when unused), since production has the subscription's one free (F0) Translator. Each preview deployment finds it in the resource group, and a preview runs without translation while it doesn't exist |
-| Azure AI Foundry `flashcardsage-preview-foundry` | Shared | Makes cards' pictures with its `flux-2-pro` deployment (a few cents a picture, nothing when unused). Its deployment shares the subscription's per-minute quota for the model with production's, so each is kept small. Each preview deployment finds it in the resource group, and a preview runs without pictures while it doesn't exist |
+| Azure AI Foundry `flashcardsage-preview-foundry` | Shared | Makes cards' pictures with its `flux-2-pro` deployment (a few cents a picture, nothing when unused), and suggests new cards with its `gpt-5-mini` deployment (a fraction of a cent a time). Its deployments share the subscription's per-minute quotas for the model with production's, so each is kept small. Each preview deployment finds it in the resource group, and a preview runs without pictures while it doesn't exist |
 | Web app `flashcardsage-pr-<N>` | Per PR | Same settings as production minus Application Insights (telemetry is off). The API URL has a random suffix, so take it from the PR comment |
 | Database `FlashCardSage-pr-<N>` | Per PR | Serverless, auto-pauses after an hour, is reset to sample flash cards on every deployment (see below), and uses the [SQL free offer](https://learn.microsoft.com/azure/azure-sql/database/free-offer) like production. The offer covers 10 databases per subscription including production's; if a deployment fails because they're used up, close stale PRs or set `useFreeLimit = false` in `preview.bicepparam` (about $0.25 an hour while active, nothing while paused) |
 | Storage account `flashcardsagepr<N><suffix>` | Per PR | Static website and the `card-images` container, deployed exactly like production. Storage account names are unique across Azure, so the name ends with 5 characters derived from the resource group |
@@ -299,6 +302,7 @@ Setting up previews for a new environment: create the `FlashCardSage-Preview` re
 | Frontend | Azure Storage Account (static website) | `https://flashcardsage.com` (the [custom domain](#custom-domain)); the web endpoint `https://flashcardsage.z22.web.core.windows.net` also works |
 | Database | Azure SQL serverless database (Entra-only auth) | — |
 | Translation | Azure AI Translator `flashcardsage-translator` (free F0 tier: 2 million characters a month) | Called by the API with the key from its app settings |
+| Card suggestions | The same Azure AI Foundry resource, with a Global Standard deployment of `gpt-5-mini` (OpenAI), billed per token (a fraction of a cent per page visit) | Called by the API with the resource's key from its app settings, through its Azure OpenAI v1 chat completions API (`https://flashcardsage-foundry.openai.azure.com/openai/v1/chat/completions`) |
 | Pictures | Azure AI Foundry `flashcardsage-foundry` in `westus3` with a Global Standard deployment of `FLUX.2-pro` (Black Forest Labs), billed per megapixel (a few cents a picture). The OpenAI image models (`gpt-image-1-mini` and the like) have no quota on this free-tier subscription, which is why it's FLUX. The pictures themselves are in the `card-images` container of the storage account, readable by anyone with a picture's random URL | Called by the API with the key from its app settings, through the resource's Black Forest Labs API (`/providers/blackforestlabs/v1/flux-2-pro`); browsers load the pictures from `https://flashcardsage.blob.core.windows.net/card-images/` |
 
 The image model's deployment takes a slice of the subscription's per-minute quota for the model (`az cognitiveservices usage list -l westus3 --query "[?name.value=='AIServices.GlobalStandard.FLUX.2-pro'].limit"`), shared with the previews' deployment. Setting `deployFoundry` to `false` in `main.bicepparam` (and `preview-shared.bicepparam`) deploys no Foundry resource; the API then answers picture requests with a 503 and the form says pictures aren't available.
