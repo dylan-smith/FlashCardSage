@@ -58,6 +58,7 @@ public class FoundryCardSuggesterTests
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
         var prompt = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!;
         Assert.StartsWith("The learner just added the card el gato = the cat.", prompt, StringComparison.Ordinal);
+        Assert.Contains("After lunes = Monday", prompt, StringComparison.Ordinal);
         Assert.Contains("- comer = to eat", prompt, StringComparison.Ordinal);
     }
 

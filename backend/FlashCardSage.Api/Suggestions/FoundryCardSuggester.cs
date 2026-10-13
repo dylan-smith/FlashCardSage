@@ -119,7 +119,10 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<CardSuggesterO
         if (relatedTo is not null)
         {
             text.AppendLine($"The learner just added the card {relatedTo.Spanish} = {relatedTo.English}. Every new "
-                + "card must be closely related to it: on the same topic, or words and phrases used with it.");
+                + "card must be closely related to it: on the same topic, or words and phrases used with it. For "
+                + "example, after el perro = the dog, good next cards are el gato = the cat, el caballo = the horse "
+                + "and la vaca = the cow. After lunes = Monday, they're martes = Tuesday, miércoles = Wednesday and "
+                + "the other days of the week.");
         }
         text.AppendLine(cards.Count == 0
             ? $"The learner has no cards yet. Suggest {count} cards a beginner would want first."
