@@ -58,15 +58,16 @@ public class FoundryImageGeneratorTests
     }
 
     [Theory]
-    [InlineData("nadar", "to swim", "the Spanish \"nadar\" (\"to swim\" in English)")]
-    [InlineData("nadar", "", "the Spanish \"nadar\"")]
-    [InlineData("", "to swim", "the English \"to swim\"")]
-    public void Prompt_NamesTheSidesThatAreFilledIn_AndAsksForNoText(string spanish, string english, string subject)
+    [InlineData("nadar", "to swim", "to swim")]
+    [InlineData("", "to swim", "to swim")]
+    [InlineData("nadar", "", "the Spanish word nadar")]
+    public void Prompt_DescribesTheEnglishOrElseTheSpanish_AndAsksForNoWriting(string spanish, string english, string subject)
     {
         var prompt = FoundryImageGenerator.Prompt(spanish, english);
 
-        Assert.Contains($"showing the meaning of {subject}.", prompt, StringComparison.Ordinal);
-        Assert.Contains("No text", prompt, StringComparison.Ordinal);
+        Assert.Contains($"showing the idea of: {subject}.", prompt, StringComparison.Ordinal);
+        Assert.Contains("no writing at all", prompt, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"", prompt, StringComparison.Ordinal);
     }
 
     [Theory]

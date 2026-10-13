@@ -54,19 +54,17 @@ public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerati
             : new GeneratedImage(ContentType, image);
     }
 
-    // What the model is asked for. Either side can be blank, since the user may not have typed both yet.
+    // What the model is asked for. The English side describes the idea best, and the model tends to write any
+    // word it's handed into the picture, so the Spanish is only used when there's no English yet (either side can
+    // be blank while the user is typing).
     public static string Prompt(string spanish, string english)
     {
         ArgumentNullException.ThrowIfNull(spanish);
         ArgumentNullException.ThrowIfNull(english);
-        var subject = (spanish.Length, english.Length) switch
-        {
-            ( > 0, > 0) => $"the Spanish \"{spanish}\" (\"{english}\" in English)",
-            ( > 0, _) => $"the Spanish \"{spanish}\"",
-            _ => $"the English \"{english}\""
-        };
-        return "A simple, friendly illustration for a language-learning flash card, showing the meaning of "
-            + $"{subject}. No text, letters, captions or watermarks.";
+        var subject = english.Length > 0 ? english : $"the Spanish word {spanish}";
+        return "A simple, friendly, flat illustration for a language-learning flash card, showing the idea of: "
+            + $"{subject}. The picture contains no writing at all: no text, letters, words, labels, captions or "
+            + "watermarks.";
     }
 
     // Whether an error response is a safety system's. Its code is on the error, or on the error inside it.
