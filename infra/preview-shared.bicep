@@ -1,12 +1,12 @@
-// The resources every pull request's preview environment shares: an App Service plan, a SQL server and a
-// Translator. The deploy-preview CI job deploys this template from the PR's base branch (not the PR) before
-// deploying the PR's own resources (preview.bicep), so every preview shares one configuration and a PR can't
-// change it for the others, or revert a newer one from its older checkout. A change here reaches previews once
-// it's merged.
+// The resources every pull request's preview environment shares: an App Service plan, a SQL server, a Translator
+// and an Azure OpenAI resource. The deploy-preview CI job deploys this template from the PR's base branch (not the
+// PR) before deploying the PR's own resources (preview.bicep), so every preview shares one configuration and a PR
+// can't change it for the others, or revert a newer one from its older checkout. A change here reaches previews
+// once it's merged.
 //
-// The resources mirror the production modules (modules/appservice.bicep, modules/sql.bicep and
-// modules/translator.bicep) without their
-// monitoring, so keep their settings in sync when changing a module. Nothing here touches production.
+// The resources mirror the production modules (modules/appservice.bicep, modules/sql.bicep, modules/translator.bicep
+// and modules/openai.bicep) without their monitoring, so keep their settings in sync when changing a module. Nothing
+// here touches production.
 targetScope = 'resourceGroup'
 
 @description('Azure region for resources.')
@@ -29,6 +29,15 @@ param sqlEntraAdminObjectId string
 
 @description('Name of the Azure AI Translator resource shared by every preview.')
 param translatorName string
+
+@description('Whether to deploy the Azure OpenAI resource. Off until the subscription has quota for the image model (see main.bicepparam); previews run without pictures meanwhile.')
+param deployOpenAi bool = false
+
+@description('Name of the Azure OpenAI resource shared by every preview, which is also its subdomain.')
+param openAiName string
+
+@description('Azure region for the Azure OpenAI resource: one the image model (gpt-image-1-mini) is offered in.')
+param openAiLocation string
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2024-11-01' = {
   name: appServicePlanName
@@ -83,5 +92,38 @@ resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
   }
   properties: {
     publicNetworkAccess: 'Enabled'
+  }
+}
+
+// Previews make cards' pictures with an Azure OpenAI resource of their own (as modules/openai.bicep makes
+// production's), so they never touch production's. Its deployment of the image model shares the subscription's
+// quota for the model with production's, so it's kept small.
+resource openAi 'Microsoft.CognitiveServices/accounts@2025-06-01' = if (deployOpenAi) {
+  name: openAiName
+  location: openAiLocation
+  kind: 'OpenAI'
+  sku: {
+    name: 'S0'
+  }
+  properties: {
+    customSubDomainName: openAiName
+    publicNetworkAccess: 'Enabled'
+  }
+}
+
+resource imageModel 'Microsoft.CognitiveServices/accounts/deployments@2025-06-01' = if (deployOpenAi) {
+  parent: openAi
+  name: 'gpt-image-1-mini'
+  sku: {
+    name: 'GlobalStandard'
+    capacity: 2
+  }
+  properties: {
+    model: {
+      format: 'OpenAI'
+      name: 'gpt-image-1-mini'
+      version: '2025-10-06'
+    }
+    versionUpgradeOption: 'OnceNewDefaultVersionAvailable'
   }
 }

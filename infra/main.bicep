@@ -59,6 +59,22 @@ param translatorName string
 @allowed(['F0', 'S1'])
 param translatorSku string = 'F0'
 
+@description('Whether to deploy the Azure OpenAI resource that makes a picture of what a card means. Off until the subscription has quota for the image model (see main.bicepparam); without it the API answers picture requests with a 503.')
+param deployOpenAi bool = false
+
+@description('Name of the Azure OpenAI resource. It\'s also the resource\'s subdomain, so it\'s unique across Azure.')
+param openAiName string
+
+@description('Azure region for the Azure OpenAI resource, which must be one the image model (gpt-image-1-mini) is offered in.')
+param openAiLocation string
+
+@description('How many pictures a minute the image model\'s deployment can make, out of the subscription\'s quota for the model.')
+@minValue(1)
+param openAiCapacity int = 2
+
+@description('Name of the image model\'s deployment on the Azure OpenAI resource.')
+param imageDeploymentName string = 'gpt-image-1-mini'
+
 @description('Days to keep database backups before they are deleted automatically.')
 @minValue(1)
 param backupRetentionDays int = 30
@@ -133,6 +149,16 @@ module translator 'modules/translator.bicep' = {
   }
 }
 
+module openAi 'modules/openai.bicep' = if (deployOpenAi) {
+  name: 'openai'
+  params: {
+    name: openAiName
+    location: openAiLocation
+    deploymentName: imageDeploymentName
+    capacity: openAiCapacity
+  }
+}
+
 module appService 'modules/appservice.bicep' = {
   name: 'appservice'
   params: {
@@ -150,7 +176,15 @@ module appService 'modules/appservice.bicep' = {
     googleClientId: googleClientId
     serviceToken: serviceToken
     translatorName: translator.outputs.name
+    // By name rather than from the module's outputs, which there aren't when it isn't deployed.
+    openAiName: deployOpenAi ? openAiName : ''
+    imageDeploymentName: imageDeploymentName
+    storageAccountName: storageAccountName
+    cardImagesContainerName: storage.outputs.cardImagesContainerName
   }
+  dependsOn: [
+    openAi
+  ]
 }
 
 module workbook 'modules/workbook.bicep' = {

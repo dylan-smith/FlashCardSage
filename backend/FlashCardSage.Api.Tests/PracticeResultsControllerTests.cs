@@ -187,7 +187,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         // The only card comes up again, with the side sent by name. I was close leaves a new card at 0.
         Assert.Matches(
-            $$"""^\{"next":\{"id":{{card.Id}},.*"side":"(Spanish|English)"\},"scoreChange":0\}$""",
+            $$"""^\{"next":\{"id":{{card.Id}},.*"side":"(Spanish|English)","imageUrl":null\},"scoreChange":0\}$""",
             await response.Content.ReadAsStringAsync());
     }
 

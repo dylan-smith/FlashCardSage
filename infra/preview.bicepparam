@@ -12,6 +12,9 @@ param sqlServerName = 'flashcardsage-preview-sql'
 // The Translator every preview shares, which CI finds in the resource group (PREVIEW_TRANSLATOR_NAME); empty turns
 // translation off
 param translatorName = readEnvironmentVariable('PREVIEW_TRANSLATOR_NAME', '')
+// The Azure OpenAI resource every preview shares, which CI finds in the resource group (PREVIEW_OPENAI_NAME); empty
+// turns pictures off
+param openAiName = readEnvironmentVariable('PREVIEW_OPENAI_NAME', '')
 
 // The free offer covers 10 databases per subscription, one of which is production's. Turn this off if a
 // deployment fails because they're used up (an existing database keeps the setting it was created with).

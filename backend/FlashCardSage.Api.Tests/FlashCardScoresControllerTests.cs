@@ -39,7 +39,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         var response = await GetAsync(dbContext);
 
-        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0, null)], response.Cards);
+        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0, null, null)], response.Cards);
     }
 
     [Theory]
@@ -129,7 +129,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         var response = await GetAsync(dbContext);
 
-        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0, null)], response.Cards);
+        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0, null, null)], response.Cards);
         Assert.Equal((0, 100), (response.Total, response.Maximum));
     }
 

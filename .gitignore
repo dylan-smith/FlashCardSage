@@ -421,3 +421,6 @@ FodyWeavers.xsd
 *.msix
 *.msm
 *.msp
+
+# Pictures kept by the local image store (backend/FlashCardSage.Api/Images/LocalFileImageStore.cs)
+backend/FlashCardSage.Api/App_Data/

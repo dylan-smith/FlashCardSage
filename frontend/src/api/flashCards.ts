@@ -14,9 +14,10 @@ export type FlashCardWords = {
   english: string
 }
 
-// The API sends a card's tags in name order.
+// The API sends a card's tags in name order. imageUrl is the card's picture, or null for a card without one.
 export type FlashCard = FlashCardWords & {
   tags: Tag[]
+  imageUrl: string | null
 }
 
 // What the user types in for a card, sent when it's created or changed. Tags are by name, and a new name makes a
@@ -118,9 +119,11 @@ export type PracticeOutcome = 'GotIt' | 'WasClose' | 'Failed'
 // The side of a card shown first in practice, by the name the API sends.
 export type PracticeSide = 'Spanish' | 'English'
 
-// A card the API picked to practice, and the side to show first.
+// A card the API picked to practice, and the side to show first. Its picture, if it has one, is shown once the
+// card is revealed.
 export type PracticeCard = FlashCardWords & {
   side: PracticeSide
+  imageUrl: string | null
 }
 
 // The card to start practicing with, or null when there are no cards.

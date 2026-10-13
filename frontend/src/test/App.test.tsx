@@ -133,8 +133,20 @@ describe('App', () => {
     it('shows a loading state, then the cards in order', async () => {
       mockFetch(async () =>
         jsonResponse([
-          { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
-          { id: 2, spanish: 'el perro', english: 'the dog', tags: [] },
+          {
+            id: 1,
+            spanish: 'el gato',
+            english: 'the cat',
+            tags: [],
+            imageUrl: null,
+          },
+          {
+            id: 2,
+            spanish: 'el perro',
+            english: 'the dog',
+            tags: [],
+            imageUrl: null,
+          },
         ]),
       )
 
@@ -192,7 +204,13 @@ describe('App', () => {
       const calls = mockFetch(async (_url, init) =>
         init?.method === 'POST'
           ? jsonResponse(
-              { id: 7, spanish: 'el gato', english: 'the cat', tags: [] },
+              {
+                id: 7,
+                spanish: 'el gato',
+                english: 'the cat',
+                tags: [],
+                imageUrl: null,
+              },
               201,
             )
           : jsonResponse([]),
@@ -318,10 +336,23 @@ describe('App', () => {
               spanish: 'el perro',
               english: 'the dog',
               tags: [],
+              imageUrl: null,
             })
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
-              { id: 2, spanish: 'la casa', english: 'the house', tags: [] },
+              {
+                id: 1,
+                spanish: 'el gato',
+                english: 'the cat',
+                tags: [],
+                imageUrl: null,
+              },
+              {
+                id: 2,
+                spanish: 'la casa',
+                english: 'the house',
+                tags: [],
+                imageUrl: null,
+              },
             ]),
       )
       renderAt('/')
@@ -358,7 +389,13 @@ describe('App', () => {
     it('can be cancelled, keeping the old card', async () => {
       const user = userEvent.setup()
       const { calls } = await showCards([
-        { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+        {
+          id: 1,
+          spanish: 'el gato',
+          english: 'the cat',
+          tags: [],
+          imageUrl: null,
+        },
       ])
 
       await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
@@ -375,7 +412,13 @@ describe('App', () => {
     it('asks for the English instead of saving a blank one', async () => {
       const user = userEvent.setup()
       const { calls } = await showCards([
-        { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+        {
+          id: 1,
+          spanish: 'el gato',
+          english: 'the cat',
+          tags: [],
+          imageUrl: null,
+        },
       ])
 
       await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
@@ -395,7 +438,13 @@ describe('App', () => {
         init?.method === 'PUT'
           ? new Response(null, { status: 500 })
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+              {
+                id: 1,
+                spanish: 'el gato',
+                english: 'the cat',
+                tags: [],
+                imageUrl: null,
+              },
             ]),
       )
       renderAt('/')
@@ -446,10 +495,10 @@ describe('App', () => {
         }
         // These tests don't tag cards, so a saved card has no tags.
         if (init?.method === 'POST') {
-          return jsonResponse({ id: 7, ...body, tags: [] }, 201)
+          return jsonResponse({ id: 7, ...body, tags: [], imageUrl: null }, 201)
         }
         if (init?.method === 'PUT') {
-          return jsonResponse({ id: 1, ...body, tags: [] })
+          return jsonResponse({ id: 1, ...body, tags: [], imageUrl: null })
         }
         return jsonResponse(cards)
       })
@@ -728,7 +777,13 @@ describe('App', () => {
     it('translates a changed side of a card being edited', async () => {
       const user = userEvent.setup()
       const translations = mockTranslations([
-        { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+        {
+          id: 1,
+          spanish: 'el gato',
+          english: 'the cat',
+          tags: [],
+          imageUrl: null,
+        },
       ])
       await showForm()
 
@@ -756,8 +811,20 @@ describe('App', () => {
         init?.method === 'DELETE'
           ? new Response(null, { status: 204 })
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
-              { id: 2, spanish: 'la casa', english: 'the house', tags: [] },
+              {
+                id: 1,
+                spanish: 'el gato',
+                english: 'the cat',
+                tags: [],
+                imageUrl: null,
+              },
+              {
+                id: 2,
+                spanish: 'la casa',
+                english: 'the house',
+                tags: [],
+                imageUrl: null,
+              },
             ]),
       )
       renderAt('/')
@@ -781,7 +848,13 @@ describe('App', () => {
         init?.method === 'DELETE'
           ? new Response(null, { status: 204 })
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+              {
+                id: 1,
+                spanish: 'el gato',
+                english: 'the cat',
+                tags: [],
+                imageUrl: null,
+              },
             ]),
       )
       renderAt('/')
@@ -798,7 +871,13 @@ describe('App', () => {
         init?.method === 'DELETE'
           ? new Response(null, { status: 500 })
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+              {
+                id: 1,
+                spanish: 'el gato',
+                english: 'the cat',
+                tags: [],
+                imageUrl: null,
+              },
             ]),
       )
       renderAt('/')
@@ -824,12 +903,14 @@ describe('App', () => {
       spanish: 'la manzana',
       english: 'the apple',
       tags: [food],
+      imageUrl: null,
     }
     const train = {
       id: 2,
       spanish: 'el tren',
       english: 'the train',
       tags: [travel],
+      imageUrl: null,
     }
 
     it("shows each card's tags and only the picked tag's cards", async () => {
@@ -1079,6 +1160,277 @@ describe('App', () => {
     })
   })
 
+  describe('pictures', () => {
+    const picture = { contentType: 'image/png', data: 'iVBORw0KGgo=' }
+    const generateUrl = 'http://localhost:5269/api/flashcards/images/generate'
+    const imageUrl = 'http://images.test/7.png'
+    const gato = {
+      id: 7,
+      spanish: 'el gato',
+      english: 'the cat',
+      tags: [],
+      imageUrl: null,
+    }
+
+    // Answers a request for a picture as told, and saves a card and its picture as the API would. Translation is
+    // off, as it is locally.
+    function mockPictures({
+      generate = () => jsonResponse(picture),
+      putStatus = 200,
+      cards = [] as FlashCard[],
+    } = {}) {
+      return mockFetch(async (url, init) => {
+        if (url === generateUrl) {
+          return generate()
+        }
+        if (url.endsWith('/api/translations')) {
+          return new Response(null, { status: 503 })
+        }
+        if (init?.method === 'POST') {
+          return jsonResponse(gato, 201)
+        }
+        if (url.endsWith('/image')) {
+          return putStatus === 200
+            ? jsonResponse({
+                ...gato,
+                imageUrl: init?.method === 'PUT' ? imageUrl : null,
+              })
+            : new Response(null, { status: putStatus })
+        }
+        if (init?.method === 'PUT') {
+          return jsonResponse({ ...cards[0], spanish: 'el gatos' })
+        }
+        return jsonResponse(cards)
+      })
+    }
+
+    // Types the Spanish of a new card and asks for a picture of it.
+    async function generatePicture(user: ReturnType<typeof userEvent.setup>) {
+      await user.type(
+        screen.getByLabelText('Spanish', { exact: false }),
+        'el gato',
+      )
+      await user.click(screen.getByRole('button', { name: 'Generate picture' }))
+      return await screen.findByRole('img', { name: 'Generated picture' })
+    }
+
+    it('offers a picture of the words, which is discarded unless the user adds it', async () => {
+      const user = userEvent.setup()
+      const calls = mockPictures()
+      renderAt('/')
+      await screen.findByText('No flash cards yet.')
+      expect(
+        screen.getByRole('button', { name: 'Generate picture' }),
+      ).toBeDisabled()
+
+      const preview = await generatePicture(user)
+
+      expect(preview).toHaveAttribute(
+        'src',
+        'data:image/png;base64,iVBORw0KGgo=',
+      )
+      const generate = calls.find((call) => call.url === generateUrl)
+      expect(generate?.init?.method).toBe('POST')
+      expect(generate?.init?.body).toBe(
+        JSON.stringify({ spanish: 'el gato', english: '' }),
+      )
+      expect(
+        screen.getByRole('checkbox', { name: 'Add this picture to the card' }),
+      ).not.toBeChecked()
+      expect(trackEvent).toHaveBeenCalledWith('FlashCardImageGenerated')
+
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'the cat',
+      )
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(await screen.findByText('el gato')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: 'Generated picture' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: 'Picture for "el gato"' }),
+      ).not.toBeInTheDocument()
+      expect(calls.some((call) => call.url.endsWith('/image'))).toBe(false)
+    })
+
+    it('puts the picture on the card when the user adds it', async () => {
+      const user = userEvent.setup()
+      const calls = mockPictures()
+      renderAt('/')
+      await screen.findByText('No flash cards yet.')
+      await generatePicture(user)
+
+      await user.click(
+        screen.getByRole('checkbox', { name: 'Add this picture to the card' }),
+      )
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'the cat',
+      )
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(
+        await screen.findByRole('img', { name: 'Picture for "el gato"' }),
+      ).toHaveAttribute('src', imageUrl)
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.url).toBe('http://localhost:5269/api/flashcards/7/image')
+      expect(put?.init?.body).toBe(JSON.stringify(picture))
+      expect(
+        screen.queryByRole('img', { name: 'Generated picture' }),
+      ).not.toBeInTheDocument()
+      expect(trackEvent).toHaveBeenCalledWith('FlashCardImageAdded')
+    })
+
+    it('can discard the picture and ask for another', async () => {
+      const user = userEvent.setup()
+      const calls = mockPictures()
+      renderAt('/')
+      await screen.findByText('No flash cards yet.')
+      await generatePicture(user)
+
+      await user.click(screen.getByRole('button', { name: 'Discard' }))
+
+      expect(
+        screen.queryByRole('img', { name: 'Generated picture' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Generate picture' }),
+      ).toBeEnabled()
+
+      await user.click(screen.getByRole('button', { name: 'Generate picture' }))
+
+      expect(
+        await screen.findByRole('img', { name: 'Generated picture' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Generate another picture' }),
+      ).toBeInTheDocument()
+      expect(calls.filter((call) => call.url === generateUrl)).toHaveLength(2)
+    })
+
+    it.each([
+      [503, "Pictures aren't available."],
+      [422, "That card can't be illustrated. Try other words."],
+      [502, 'Unable to make a picture.'],
+    ])(
+      'says why when the API answers %i instead of a picture',
+      async (status, message) => {
+        const user = userEvent.setup()
+        mockPictures({ generate: () => new Response(null, { status }) })
+        renderAt('/')
+        await screen.findByText('No flash cards yet.')
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el gato',
+        )
+        await user.click(
+          screen.getByRole('button', { name: 'Generate picture' }),
+        )
+
+        expect(await screen.findByText(message)).toBeInTheDocument()
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        expect(
+          screen.queryByRole('img', { name: 'Generated picture' }),
+        ).not.toBeInTheDocument()
+      },
+    )
+
+    it("keeps the card when its picture can't be added", async () => {
+      const user = userEvent.setup()
+      mockPictures({ putStatus: 500 })
+      renderAt('/')
+      await screen.findByText('No flash cards yet.')
+      await generatePicture(user)
+      await user.click(
+        screen.getByRole('checkbox', { name: 'Add this picture to the card' }),
+      )
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'the cat',
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        "Flash card saved, but the picture couldn't be added.",
+      )
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: /^Picture for/ }),
+      ).not.toBeInTheDocument()
+      expect(screen.getByLabelText('Spanish', { exact: false })).toHaveValue('')
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'picture',
+      })
+    })
+
+    it("shows each card's picture, and takes it off when the user removes it", async () => {
+      const user = userEvent.setup()
+      const calls = mockPictures({ cards: [{ ...gato, imageUrl }] })
+      renderAt('/')
+      expect(
+        await screen.findByRole('img', { name: 'Picture for "el gato"' }),
+      ).toHaveAttribute('src', imageUrl)
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      const item = screen.getByRole('listitem')
+      expect(
+        within(item).getByRole('img', { name: "The card's picture" }),
+      ).toHaveAttribute('src', imageUrl)
+      await user.click(
+        within(item).getByRole('button', { name: 'Remove picture' }),
+      )
+      expect(
+        within(item).queryByRole('img', { name: "The card's picture" }),
+      ).not.toBeInTheDocument()
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('button', { name: 'Save' }),
+        ).not.toBeInTheDocument()
+      })
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: /^Picture for/ }),
+      ).not.toBeInTheDocument()
+      expect(
+        calls
+          .filter((call) => call.init?.method !== undefined)
+          .map((call) => `${call.init?.method} ${call.url}`),
+      ).toEqual([
+        'PUT http://localhost:5269/api/flashcards/7',
+        'DELETE http://localhost:5269/api/flashcards/7/image',
+      ])
+      expect(trackEvent).toHaveBeenCalledWith('FlashCardImageRemoved')
+    })
+
+    it('keeps the picture when the edit is cancelled', async () => {
+      const user = userEvent.setup()
+      const calls = mockPictures({ cards: [{ ...gato, imageUrl }] })
+      renderAt('/')
+      await screen.findByRole('img', { name: 'Picture for "el gato"' })
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      await user.click(screen.getByRole('button', { name: 'Remove picture' }))
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(
+        screen.getByRole('img', { name: 'Picture for "el gato"' }),
+      ).toHaveAttribute('src', imageUrl)
+      expect(calls).toHaveLength(2)
+
+      // The next edit starts over with the picture still there.
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      expect(
+        screen.getByRole('img', { name: "The card's picture" }),
+      ).toBeInTheDocument()
+    })
+  })
+
   describe('modes', () => {
     it('links to each mode and marks the current one', async () => {
       const user = userEvent.setup()
@@ -1190,6 +1542,36 @@ describe('App', () => {
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
 
       expect(screen.getByText('el perro')).toBeInTheDocument()
+    })
+
+    it("shows the card's picture only once it's revealed", async () => {
+      const user = userEvent.setup()
+      await practice({
+        ...cat,
+        side: 'Spanish',
+        imageUrl: 'http://images.test/1.png',
+      })
+
+      expect(
+        screen.queryByRole('img', { name: 'Picture for "el gato"' }),
+      ).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+      expect(
+        screen.getByRole('img', { name: 'Picture for "el gato"' }),
+      ).toHaveAttribute('src', 'http://images.test/1.png')
+    })
+
+    it('shows no picture for a card without one', async () => {
+      const user = userEvent.setup()
+      await practice({ ...cat, side: 'Spanish', imageUrl: null })
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+      expect(
+        screen.queryByRole('img', { name: /^Picture for/ }),
+      ).not.toBeInTheDocument()
     })
 
     it.each([

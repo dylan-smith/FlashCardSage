@@ -30,7 +30,8 @@ public static class FlashCardScoring
                 card.Spanish,
                 card.English,
                 PracticeScore.FromOutcomes(resultsByCard[card.Id].Select(result => result.Outcome)),
-                resultsByCard[card.Id].FirstOrDefault()?.PracticedAt))
+                resultsByCard[card.Id].FirstOrDefault()?.PracticedAt,
+                card.ImageUrl))
             .ToList();
     }
 }

@@ -48,7 +48,11 @@ public static class PracticePicker
 
         var card = choices[index];
         return new PracticeCard(
-            card.Id, card.Spanish, card.English, sideRoll < 0.5 ? PracticeSide.Spanish : PracticeSide.English);
+            card.Id,
+            card.Spanish,
+            card.English,
+            sideRoll < 0.5 ? PracticeSide.Spanish : PracticeSide.English,
+            card.ImageUrl);
     }
 
     // Picks the next of the current user's cards to practice, at random by weight.

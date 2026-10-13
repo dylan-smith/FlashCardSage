@@ -199,6 +199,22 @@ function PracticePage() {
                     side={otherSide}
                     text={prompt[sides[otherSide].field]}
                   />
+                  {/* Only once revealed, so the picture doesn't give the answer away. */}
+                  {prompt.imageUrl !== null && (
+                    <Box
+                      component="img"
+                      src={prompt.imageUrl}
+                      alt={`Picture for "${prompt.spanish}"`}
+                      sx={{
+                        width: 240,
+                        maxWidth: '100%',
+                        height: 240,
+                        objectFit: 'cover',
+                        borderRadius: 1,
+                        alignSelf: 'center',
+                      }}
+                    />
+                  )}
                 </>
               )}
             </Stack>

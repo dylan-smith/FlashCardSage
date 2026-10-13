@@ -26,7 +26,10 @@ import { deleteTag, listTags, renameTag } from '../api/tags'
 import type { CardSide } from '../api/translations'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import type { AutoTranslate } from '../hooks/useAutoTranslate'
+import { useCardPicture } from '../hooks/useCardPicture'
+import type { CardPicture } from '../hooks/useCardPicture'
 import { trackEvent, trackException } from '../telemetry'
+import { PictureField, thumbnailSize } from './FlashCardPicture'
 import { TagFilter, TagsInput } from './FlashCardTags'
 
 export const spanishRequiredMessage = 'Spanish is required.'
@@ -34,8 +37,8 @@ export const englishRequiredMessage = 'English is required.'
 
 const emptyFields: FlashCardFields = { spanish: '', english: '', tags: [] }
 
-// A card being edited, with its tags by name as they're typed in.
-type EditedFlashCard = FlashCardFields & { id: number }
+// A card being edited, with its tags by name as they're typed in, and the picture it has.
+type EditedFlashCard = FlashCardFields & { id: number; imageUrl: string | null }
 
 // Trims both sides of a card, or returns the message for the first one left blank. The API tidies up the tags.
 function trimFields(fields: FlashCardFields): FlashCardFields | string {
@@ -128,6 +131,7 @@ function translationNote(
 function FlashCardEditForm({
   edit,
   tags,
+  picture,
   busy,
   onChange,
   onCancel,
@@ -135,6 +139,7 @@ function FlashCardEditForm({
 }: {
   edit: EditedFlashCard
   tags: Tag[]
+  picture: CardPicture
   busy: boolean
   onChange: (change: Partial<FlashCardFields>) => void
   onCancel: () => void
@@ -153,11 +158,14 @@ function FlashCardEditForm({
         component="form"
         onSubmit={(event) => {
           translation.cancel()
+          picture.cancel()
           onSave(event)
         }}
         sx={{
           display: 'flex',
           flexDirection: { xs: 'column', sm: 'row' },
+          // The picture goes on a row of its own under the fields.
+          flexWrap: 'wrap',
           flexGrow: 1,
           gap: 1,
           // Top-aligned, so a field's translation note under it doesn't push it out of line with the other.
@@ -207,17 +215,26 @@ function FlashCardEditForm({
             Cancel
           </Button>
         </Box>
+        <Box sx={{ flexBasis: '100%' }}>
+          <PictureField
+            picture={picture}
+            fields={edit}
+            busy={busy}
+            size="small"
+          />
+        </Box>
       </Box>
     </ListItem>
   )
 }
 
-// One card in the list: its Spanish and English and its tags with Edit and Delete buttons, or, while it's being
-// edited, the form above.
+// One card in the list: its picture, if it has one, its Spanish and English and its tags with Edit and Delete
+// buttons, or, while it's being edited, the form above.
 function FlashCardItem({
   card,
   edit,
   tags,
+  picture,
   busy,
   onEdit,
   onEditChange,
@@ -228,6 +245,7 @@ function FlashCardItem({
   card: FlashCard
   edit: EditedFlashCard | null
   tags: Tag[]
+  picture: CardPicture
   busy: boolean
   onEdit: () => void
   onEditChange: (change: Partial<FlashCardFields>) => void
@@ -240,6 +258,7 @@ function FlashCardItem({
       <FlashCardEditForm
         edit={edit}
         tags={tags}
+        picture={picture}
         busy={busy}
         onChange={onEditChange}
         onCancel={onEditCancel}
@@ -250,6 +269,21 @@ function FlashCardItem({
 
   return (
     <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
+      {card.imageUrl !== null && (
+        <Box
+          component="img"
+          src={card.imageUrl}
+          alt={`Picture for "${card.spanish}"`}
+          loading="lazy"
+          sx={{
+            width: thumbnailSize,
+            height: thumbnailSize,
+            objectFit: 'cover',
+            borderRadius: 1,
+            flexShrink: 0,
+          }}
+        />
+      )}
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
         <ListItemText
           primary={card.spanish}
@@ -308,6 +342,9 @@ function FlashCardsPage() {
   const translation = useAutoTranslate(fields, (change) =>
     setFields((current) => ({ ...current, ...change })),
   )
+  // The pictures offered by the add form and by the edit form (one card is edited at a time).
+  const newPicture = useCardPicture(null)
+  const editPicture = useCardPicture(edit?.imageUrl ?? null)
 
   // The tag whose cards are shown is in the URL, so the back button and a refresh keep it. One that doesn't exist
   // (any more) shows every card.
@@ -365,9 +402,28 @@ function FlashCardsPage() {
     })
   }
 
+  // Puts the picture the user chose on a card that's just been saved. The card is saved whatever happens to the
+  // picture, so a failure is reported and the card kept as it is.
+  async function withPicture(
+    picture: CardPicture,
+    card: FlashCard,
+    failureMessage: string,
+  ) {
+    try {
+      return (await picture.apply(card.id)) ?? card
+    } catch (error) {
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'picture' })
+      }
+      setErrorMessage(describeFetchError(error, failureMessage))
+      return card
+    }
+  }
+
   async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
     translation.cancel()
+    newPicture.cancel()
 
     const trimmed = trimFields(fields)
     if (typeof trimmed === 'string') {
@@ -383,8 +439,14 @@ function FlashCardsPage() {
       trackEvent('FlashCardCreated')
       setFields(emptyFields)
       translation.reset()
-      setCards((current) => [...current, created])
-      addNewTags(created)
+      const card = await withPicture(
+        newPicture,
+        created,
+        "Flash card saved, but the picture couldn't be added.",
+      )
+      newPicture.reset()
+      setCards((current) => [...current, card])
+      addNewTags(card)
     } catch (error) {
       // A rejected card is the user's to fix, not a failure to report.
       if (!(error instanceof ApiError)) {
@@ -414,10 +476,16 @@ function FlashCardsPage() {
     try {
       const updated = await updateFlashCard(edit.id, trimmed)
       trackEvent('FlashCardUpdated')
-      setCards((current) =>
-        current.map((card) => (card.id === updated.id ? updated : card)),
+      const card = await withPicture(
+        editPicture,
+        updated,
+        "Flash card saved, but its picture couldn't be changed.",
       )
-      addNewTags(updated)
+      editPicture.reset()
+      setCards((current) =>
+        current.map((item) => (item.id === card.id ? card : item)),
+      )
+      addNewTags(card)
       setEdit(null)
     } catch (error) {
       if (!(error instanceof ApiError)) {
@@ -548,6 +616,11 @@ function FlashCardsPage() {
               setFields((current) => ({ ...current, tags: names }))
             }
           />
+          <PictureField
+            picture={newPicture}
+            fields={fields}
+            busy={submitting}
+          />
           <Stack direction={{ xs: 'column', sm: 'row' }} spacing={1}>
             <Button type="submit" variant="contained" disabled={submitting}>
               {submitting ? 'Saving…' : 'Add flash card'}
@@ -596,14 +669,17 @@ function FlashCardsPage() {
                     card={card}
                     edit={edit?.id === card.id ? edit : null}
                     tags={tags}
+                    picture={editPicture}
                     busy={busyId === card.id}
                     onEdit={() => {
                       setErrorMessage('')
+                      editPicture.reset()
                       setEdit({
                         id: card.id,
                         spanish: card.spanish,
                         english: card.english,
                         tags: card.tags.map((tag) => tag.name),
+                        imageUrl: card.imageUrl,
                       })
                     }}
                     onEditChange={(change) =>
@@ -613,6 +689,7 @@ function FlashCardsPage() {
                     }
                     onEditCancel={() => {
                       setErrorMessage('')
+                      editPicture.reset()
                       setEdit(null)
                     }}
                     onEditSave={(event) => void handleEditSave(event)}

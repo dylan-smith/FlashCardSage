@@ -20,6 +20,19 @@ param storageAccountName = 'flashcardsage'
 param translatorName = 'flashcardsage-translator'
 param translatorSku = 'F0'
 
+// Azure OpenAI, which makes a picture of what a card means with gpt-image-1-mini. The model is only offered in some
+// regions (eastus2, westus3, polandcentral, swedencentral and uaenorth as of October 2026), not westus2, so the
+// resource is in the nearest of them. The subscription's quota for the model is shared with the previews' resource.
+//
+// Off until the subscription has quota for the model: the gpt-image series needs access approval
+// (https://aka.ms/oai/gptimage1access), and in October 2026 `az cognitiveservices usage list -l westus3` showed a
+// limit of 0 for OpenAI.GlobalStandard.gpt-image-1-mini. Deploying it then would fail, and with it every deployment.
+// Until it's on, the API answers picture requests with a 503 and the form says pictures aren't available.
+param deployOpenAi = false
+param openAiName = 'flashcardsage-openai'
+param openAiLocation = 'westus3'
+param openAiCapacity = 2
+
 // Database backups (BACPAC exports taken by CI before migrations, in the db-backups container)
 param backupRetentionDays = 30
 

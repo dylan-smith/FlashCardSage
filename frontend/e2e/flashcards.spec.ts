@@ -1,5 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect } from './fixtures'
+import { test, expect, onePixelPng } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
@@ -201,6 +201,113 @@ test.describe('Flash card management', () => {
       await page.getByRole('button', { name: 'Delete "el gato"' }).click()
 
       await expect(page.getByText('No flash cards yet.')).toBeVisible()
+    })
+  })
+
+  test.describe('Pictures', () => {
+    // Where the E2E backend keeps the pictures it's given (see Images/LocalFileImageStore.cs).
+    const pictureUrlPrefix = 'http://localhost:5269/card-images/'
+
+    test.beforeEach(async ({ page }) => {
+      // The E2E backend has no image generator, so stand in for Azure OpenAI.
+      await page.route('**/api/flashcards/images/generate', async (route) => {
+        await route.fulfill({ json: onePixelPng })
+      })
+    })
+
+    test('discards the picture unless the user adds it', async ({ page }) => {
+      await page.getByLabel('Spanish').fill('nadar')
+      await page.getByLabel('English').fill('to swim')
+      await page.getByRole('button', { name: 'Generate picture' }).click()
+      await expect(
+        page.getByRole('img', { name: 'Generated picture' }),
+      ).toBeVisible()
+      await expect(
+        page.getByRole('checkbox', { name: 'Add this picture to the card' }),
+      ).not.toBeChecked()
+
+      await page.getByRole('button', { name: 'Add flash card' }).click()
+
+      const item = page.getByRole('listitem').filter({ hasText: 'nadar' })
+      await expect(item).toBeVisible()
+      await expect(item.getByRole('img')).toBeHidden()
+      await expect(
+        page.getByRole('img', { name: 'Generated picture' }),
+      ).toBeHidden()
+    })
+
+    test('puts the picture on the card when the user adds it', async ({
+      page,
+      request,
+    }) => {
+      await page.getByLabel('Spanish').fill('nadar')
+      await page.getByLabel('English').fill('to swim')
+      await page.getByRole('button', { name: 'Generate picture' }).click()
+      await page
+        .getByRole('checkbox', { name: 'Add this picture to the card' })
+        .check()
+
+      await page.getByRole('button', { name: 'Add flash card' }).click()
+
+      const picture = page.getByRole('img', { name: 'Picture for "nadar"' })
+      await expect(picture).toBeVisible()
+      const src = await picture.getAttribute('src')
+      expect(src).toMatch(new RegExp(`^${pictureUrlPrefix}[0-9a-f]{32}\\.png$`))
+      // The backend keeps the picture and serves it without the user's token, like blob storage would.
+      const served = await request.get(src!, { headers: { Authorization: '' } })
+      expect(served.status()).toBe(200)
+      expect(served.headers()['content-type']).toBe('image/png')
+
+      await page.reload()
+      await expect(
+        page.getByRole('img', { name: 'Picture for "nadar"' }),
+      ).toHaveAttribute('src', src!)
+    })
+
+    test('takes the picture off the card when the user removes it', async ({
+      page,
+      request,
+    }) => {
+      const created = await request.post(flashCardsApiUrl, {
+        data: { spanish: 'nadar', english: 'to swim' },
+      })
+      expect(created.ok()).toBe(true)
+      const { id } = (await created.json()) as { id: number }
+      const put = await request.put(`${flashCardsApiUrl}/${id}/image`, {
+        data: onePixelPng,
+      })
+      expect(put.ok()).toBe(true)
+      const { imageUrl } = (await put.json()) as { imageUrl: string }
+      await page.reload()
+      await expect(
+        page.getByRole('img', { name: 'Picture for "nadar"' }),
+      ).toBeVisible()
+
+      await page.getByRole('button', { name: 'Edit "nadar"' }).click()
+      await expect(
+        page.getByRole('img', { name: "The card's picture" }),
+      ).toBeVisible()
+      await page.getByRole('button', { name: 'Remove picture' }).click()
+      await expect(
+        page.getByRole('img', { name: "The card's picture" }),
+      ).toBeHidden()
+      await page.getByRole('button', { name: 'Save' }).click()
+
+      await expect(page.getByRole('button', { name: 'Save' })).toBeHidden()
+      await expect(
+        page.getByRole('img', { name: 'Picture for "nadar"' }),
+      ).toBeHidden()
+      await page.reload()
+      await expect(page.getByText('nadar', { exact: true })).toBeVisible()
+      await expect(
+        page.getByRole('img', { name: 'Picture for "nadar"' }),
+      ).toBeHidden()
+      // The picture itself is gone too.
+      expect(
+        (
+          await request.get(imageUrl, { headers: { Authorization: '' } })
+        ).status(),
+      ).not.toBe(200)
     })
   })
 

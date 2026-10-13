@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # Seeds a preview environment with the sample flash cards in preview-seed-data.json (Spanish and English pairs, with tags),
 # through the API so the data goes through the same validation as real use. Runs after the smoke tests, which
-# have already waited for the API to be ready.
+# have already waited for the API to be ready. A card marked "picture" gets one made by the API's image generator,
+# so previews show pictures and exercise it; a preview without a generator, or a picture that can't be made, just
+# leaves the card without one.
 #
 # Every deployment starts the preview over: it deletes every flash card of the seed's user first, so whatever
 # reviewers changed as that user is gone and the samples are never duplicated. Cards other test users made are
@@ -26,11 +28,29 @@ for id in $(jq -r '.[].id' <<<"${existing}"); do
 done
 echo "Deleted the preview's ${deleted} flash card(s)"
 
+# Makes a picture of the card's words and puts it on the card. A picture takes the generator tens of seconds.
+add_picture() {
+  local id="$1" words="$2" picture
+  if ! picture="$(api --max-time 120 -X POST --data "${words}" "${API_URL}/api/flashcards/images/generate")"; then
+    echo "::notice::No picture for flash card ${id}: the API couldn't make one (see above)"
+    return 0
+  fi
+  if api -X PUT --data "${picture}" "${API_URL}/api/flashcards/${id}/image" --output /dev/null; then
+    echo "Added a picture to flash card ${id}"
+  else
+    echo "::notice::No picture for flash card ${id}: the API didn't accept it (see above)"
+  fi
+}
+
 count="$(jq length "${seed_file}")"
 for i in $(seq 0 $((count - 1))); do
-  spanish="$(jq -r ".[${i}].spanish" "${seed_file}")"
-  id="$(jq -c ".[${i}]" "${seed_file}" | api -X POST --data @- "${API_URL}/api/flashcards" | jq -r .id)"
+  card="$(jq -c ".[${i}]" "${seed_file}")"
+  spanish="$(jq -r .spanish <<<"${card}")"
+  id="$(jq -c 'del(.picture)' <<<"${card}" | api -X POST --data @- "${API_URL}/api/flashcards" | jq -r .id)"
   echo "Added flash card ${id}, \"${spanish}\""
+  if [ "$(jq -r '.picture // false' <<<"${card}")" = "true" ]; then
+    add_picture "${id}" "$(jq -c '{spanish, english}' <<<"${card}")"
+  fi
 done
 
 echo "Seeded the preview with ${count} flash cards"
