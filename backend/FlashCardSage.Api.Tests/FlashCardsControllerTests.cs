@@ -5,6 +5,7 @@ using FlashCardSage.Api.Models;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
@@ -413,6 +414,94 @@ public class FlashCardsControllerTests
         Assert.IsType<NoContentResult>(await controller.Delete(card.Id));
         Assert.False(await dbContext.FlashCards.AnyAsync());
         Assert.Equal("Animals", (await dbContext.Tags.SingleAsync()).Name);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsTheSavedCard_WhenAUniqueIndexFailsBecauseItWasAlreadySaved()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var interceptor = new UniqueIndexInterceptor(() => SaveCardAsync(databaseName, "el gato", "the cat", "Animals"));
+        await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat", Tags = ["Animals"] });
+
+        var created = Assert.IsType<CreatedAtActionResult>(result.Result);
+        var card = Assert.IsType<FlashCard>(created.Value);
+        Assert.Equal(("el gato", "the cat", "Animals"), (card.Spanish, card.English, card.Tags.Single().Name));
+        var saved = await dbContext.FlashCards.SingleAsync();
+        Assert.Equal(saved.Id, card.Id);
+        Assert.Equal(saved.Id, created.RouteValues?["id"]);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsConflict_WhenAUniqueIndexFailsBecauseAnotherCardWasSavedFirst()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var interceptor = new UniqueIndexInterceptor(() => SaveCardAsync(databaseName, "el gatito", "the cat"));
+        await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
+
+        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateEnglishMessage);
+        Assert.Equal("el gatito", (await dbContext.FlashCards.SingleAsync()).Spanish);
+    }
+
+    [Fact]
+    public async Task Create_Rethrows_WhenTheSaveFailsWithNoClashingCard()
+    {
+        await using var dbContext = TestDb.Create(interceptors: new UniqueIndexInterceptor(() => Task.CompletedTask));
+        var controller = CreateController(dbContext);
+
+        await Assert.ThrowsAsync<DbUpdateException>(() =>
+            controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" }));
+    }
+
+    [Fact]
+    public async Task Update_ReturnsConflict_WhenAUniqueIndexFailsBecauseAnotherCardWasSavedFirst()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var cardId = await SaveCardAsync(databaseName, "el gato", "the cat");
+        var interceptor = new UniqueIndexInterceptor(() => SaveCardAsync(databaseName, "el perro", "the dog"));
+        await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Update(cardId, new FlashCardRequest { Spanish = "El Perro", English = "the cat" });
+
+        AssertDuplicateProblem(result.Result, FlashCardsController.DuplicateSpanishMessage);
+        var savedCard = await dbContext.FlashCards.SingleAsync(item => item.Id == cardId);
+        Assert.Equal(("el gato", "the cat"), (savedCard.Spanish, savedCard.English));
+    }
+
+    // Saves a card for the test user through a context of its own, as another request would.
+    private static async Task<int> SaveCardAsync(string databaseName, string spanish, string english, params string[] tags)
+    {
+        await using var dbContext = TestDb.Create(databaseName);
+        var card = new FlashCard { Spanish = spanish, English = english, Tags = [.. tags.Select(name => new Tag { Name = name })] };
+        dbContext.FlashCards.Add(card);
+        await dbContext.SaveChangesAsync();
+        return card.Id;
+    }
+
+    // Fails the first save as a unique index would, after running saveFirst (e.g. another request saving a card in
+    // the meantime). The in-memory database has no unique indexes of its own.
+    private sealed class UniqueIndexInterceptor(Func<Task> saveFirst) : SaveChangesInterceptor
+    {
+        private bool failed;
+
+        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
+            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
+        {
+            if (failed)
+            {
+                return result;
+            }
+
+            failed = true;
+            await saveFirst();
+            throw new DbUpdateException("Cannot insert duplicate key row in object 'dbo.FlashCards'.");
+        }
     }
 
     private static void AssertDuplicateProblem(IActionResult? result, string message)
