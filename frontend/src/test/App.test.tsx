@@ -2511,13 +2511,13 @@ describe('App', () => {
     it("shows and hides a deck's cards", async () => {
       const user = userEvent.setup()
       await showImport()
-      const show = screen.getByRole('button', {
-        name: 'Show cards in "Days of the week"',
-      })
-      expect(show).toHaveAttribute('aria-expanded', 'false')
+      // The deck's name shows and hides its cards.
+      const toggle = screen.getByRole('button', { name: 'Days of the week' })
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
 
-      await user.click(show)
+      await user.click(toggle)
 
+      expect(toggle).toHaveAttribute('aria-expanded', 'true')
       const cards = screen.getByRole('list', {
         name: 'Cards in "Days of the week"',
       })
@@ -2527,12 +2527,9 @@ describe('App', () => {
           .map((item) => item.textContent),
       ).toEqual(['lunes — Monday', 'martes — Tuesday'])
 
-      await user.click(
-        screen.getByRole('button', {
-          name: 'Hide cards in "Days of the week"',
-        }),
-      )
+      await user.click(toggle)
 
+      expect(toggle).toHaveAttribute('aria-expanded', 'false')
       await waitFor(() => {
         expect(
           screen.queryByRole('list', { name: 'Cards in "Days of the week"' }),

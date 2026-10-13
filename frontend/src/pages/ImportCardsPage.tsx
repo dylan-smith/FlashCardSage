@@ -9,6 +9,7 @@ import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router'
 import { describeFetchError } from '../api/flashCards'
@@ -149,31 +150,51 @@ function ImportCardsPage() {
                   sx={{ py: 1, display: 'block' }}
                 >
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    {/* The name shows and hides the deck's cards, with an arrow like the suggested cards' heading. */}
                     <ListItemText
-                      primary={deck.name}
+                      primary={
+                        <Button
+                          type="button"
+                          color="inherit"
+                          aria-expanded={shown}
+                          aria-controls={cardsId}
+                          onClick={() => toggleShown(deck.id)}
+                          endIcon={
+                            <SvgIcon
+                              sx={{
+                                transform: shown ? 'none' : 'rotate(-90deg)',
+                                transition: 'transform 150ms',
+                              }}
+                            >
+                              <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
+                            </SvgIcon>
+                          }
+                          sx={{
+                            font: 'inherit',
+                            textTransform: 'none',
+                            textAlign: 'left',
+                            ml: -1,
+                            px: 1,
+                            py: 0,
+                          }}
+                        >
+                          {deck.name}
+                        </Button>
+                      }
                       secondary={[cardCount(deck.cards.length), ...tags].join(
                         ' · ',
                       )}
                       sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
                     />
-                    <Box sx={{ display: 'flex', flexShrink: 0 }}>
-                      <Button
-                        aria-expanded={shown}
-                        aria-controls={cardsId}
-                        aria-label={`${shown ? 'Hide' : 'Show'} cards in "${deck.name}"`}
-                        onClick={() => toggleShown(deck.id)}
-                      >
-                        {shown ? 'Hide cards' : 'Show cards'}
-                      </Button>
-                      <Button
-                        variant="contained"
-                        aria-label={`Add deck "${deck.name}"`}
-                        disabled={busyId !== null}
-                        onClick={() => void handleImport(deck)}
-                      >
-                        {busyId === deck.id ? 'Adding…' : 'Add'}
-                      </Button>
-                    </Box>
+                    <Button
+                      variant="contained"
+                      aria-label={`Add deck "${deck.name}"`}
+                      disabled={busyId !== null}
+                      onClick={() => void handleImport(deck)}
+                      sx={{ flexShrink: 0 }}
+                    >
+                      {busyId === deck.id ? 'Adding…' : 'Add'}
+                    </Button>
                   </Box>
                   <Collapse in={shown} id={cardsId} unmountOnExit>
                     <List
