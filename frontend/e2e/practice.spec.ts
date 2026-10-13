@@ -122,7 +122,7 @@ test.describe('Practice', () => {
     const picture = page.getByRole('img', { name: /^Picture for/ })
     await expect(picture).toBeVisible()
 
-    // Beside the card's text on a wide screen, and below it on a phone.
+    // To the left of the card's text on a wide screen, and below it on a phone.
     const text = page.getByText(first.spanish, { exact: true })
     async function box(locator: typeof picture) {
       const found = await locator.boundingBox()
@@ -131,7 +131,7 @@ test.describe('Practice', () => {
     }
     let pictureBox = await box(picture)
     let textBox = await box(text)
-    expect(pictureBox.x).toBeGreaterThanOrEqual(textBox.x + textBox.width)
+    expect(pictureBox.x + pictureBox.width).toBeLessThanOrEqual(textBox.x)
 
     await page.setViewportSize({ width: 375, height: 800 })
     pictureBox = await box(picture)

@@ -310,9 +310,10 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
           )
         ) : (
           <Stack spacing={3}>
-            {/* The picture sits beside the text, or below it on a narrow screen. */}
+            {/* The picture sits to the left of the text, or below it on a narrow screen. The row is reversed so the
+                text still comes first for screen readers. */}
             <Stack
-              direction={{ xs: 'column', sm: 'row' }}
+              direction={{ xs: 'column', sm: 'row-reverse' }}
               spacing={3}
               aria-live="polite"
               sx={{ alignItems: 'center', py: 2 }}
