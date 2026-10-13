@@ -83,7 +83,7 @@ async function visit(browser: Browser, title: string) {
     await expect(
       page.getByRole('heading', { name: 'FlashCardSage' }),
     ).toBeVisible()
-    await expect(page.getByLabel('Loading')).toBeHidden({
+    await expect(page.getByLabel('Loading', { exact: true })).toBeHidden({
       timeout: FIRST_LOAD_TIMEOUT_MS,
     })
 
