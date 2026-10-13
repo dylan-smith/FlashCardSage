@@ -10,7 +10,6 @@ import FormControlLabel from '@mui/material/FormControlLabel'
 import Link from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
@@ -34,7 +33,8 @@ import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
 import { trackEvent, trackException } from '../telemetry'
-import { PictureField, thumbnailSize } from './FlashCardPicture'
+import { PictureField } from './FlashCardPicture'
+import { FlashCardRow } from './FlashCardRow'
 import { AddToDeck } from './AddToDeck'
 import { cardCount } from './cardCount'
 import { deckNameRequiredMessage } from './DecksPage'
@@ -235,8 +235,7 @@ function FlashCardEditForm({
   )
 }
 
-// One card in the list: a box to pick it, its picture if it has one, its Spanish and English and its tags with Edit
-// and Delete buttons, or, while it's being edited, the form above.
+// One card in the list, with Edit and Delete buttons, or, while it's being edited, the form above.
 function FlashCardItem({
   card,
   edit,
@@ -279,65 +278,36 @@ function FlashCardItem({
   }
 
   return (
-    <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
-      <Checkbox
-        checked={picked}
-        onChange={onPick}
-        slotProps={{ input: { 'aria-label': `Pick "${card.spanish}"` } }}
-        sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
-      />
-      {card.imageUrl !== null && (
-        <Box
-          component="img"
-          src={card.imageUrl}
-          alt={`Picture for "${card.spanish}"`}
-          loading="lazy"
-          sx={{
-            // Smaller on a phone, so the card's words keep room next to the pick box and buttons.
-            width: { xs: thumbnailSize / 2, sm: thumbnailSize },
-            height: { xs: thumbnailSize / 2, sm: thumbnailSize },
-            objectFit: 'cover',
-            borderRadius: 1,
-            flexShrink: 0,
-          }}
-        />
-      )}
-      <Box sx={{ flexGrow: 1, minWidth: 0 }}>
-        <ListItemText
-          primary={card.spanish}
-          secondary={card.english}
-          sx={{ overflowWrap: 'anywhere' }}
-        />
-        {card.tags.length > 0 && (
-          <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 0.5, mb: 0.5 }}>
-            {card.tags.map((tag) => (
-              <Chip key={tag.id} label={tag.name} size="small" />
-            ))}
-          </Box>
-        )}
-      </Box>
-      <Button
-        type="button"
-        size="small"
-        disabled={busy}
-        aria-label={`Edit "${card.spanish}"`}
-        onClick={onEdit}
-        sx={{ flexShrink: 0 }}
-      >
-        Edit
-      </Button>
-      <Button
-        type="button"
-        size="small"
-        color="error"
-        disabled={busy}
-        aria-label={`Delete "${card.spanish}"`}
-        onClick={onDelete}
-        sx={{ flexShrink: 0 }}
-      >
-        Delete
-      </Button>
-    </ListItem>
+    <FlashCardRow
+      card={card}
+      picked={picked}
+      onPick={onPick}
+      actions={
+        <>
+          <Button
+            type="button"
+            size="small"
+            disabled={busy}
+            aria-label={`Edit "${card.spanish}"`}
+            onClick={onEdit}
+            sx={{ flexShrink: 0 }}
+          >
+            Edit
+          </Button>
+          <Button
+            type="button"
+            size="small"
+            color="error"
+            disabled={busy}
+            aria-label={`Delete "${card.spanish}"`}
+            onClick={onDelete}
+            sx={{ flexShrink: 0 }}
+          >
+            Delete
+          </Button>
+        </>
+      }
+    />
   )
 }
 

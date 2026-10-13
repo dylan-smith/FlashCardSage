@@ -1848,6 +1848,30 @@ describe('App', () => {
         ).not.toBeInTheDocument()
       })
 
+      it("shows the cards' pictures on both tabs", async () => {
+        const user = userEvent.setup()
+        mockDeckApi(animals, undefined, [
+          { ...cat, imageUrl: 'http://images.test/1.png' },
+          dog,
+          { ...house, imageUrl: 'http://images.test/3.png' },
+          song,
+        ])
+        await showPage('/decks/7')
+
+        expect(
+          screen.getByRole('img', { name: 'Picture for "el gato"' }),
+        ).toHaveAttribute('src', 'http://images.test/1.png')
+        expect(
+          screen.queryByRole('img', { name: 'Picture for "el perro"' }),
+        ).not.toBeInTheDocument()
+
+        await user.click(screen.getByRole('tab', { name: 'Add cards (2)' }))
+
+        expect(
+          screen.getByRole('img', { name: 'Picture for "la casa"' }),
+        ).toHaveAttribute('src', 'http://images.test/3.png')
+      })
+
       it('finds cards by either side, whatever their accents and case', async () => {
         const user = userEvent.setup()
         mockDeckApi({ ...animals, flashCardIds: [] })
