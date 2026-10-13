@@ -22,7 +22,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     private static readonly string Png = Convert.ToBase64String(CardImageTests.Png);
 
     // Where the app-level tests' pictures go, instead of the API project's App_Data.
-    private readonly string pictures = Path.Combine(Path.GetTempPath(), $"FlashCardSage-{Guid.NewGuid():N}");
+    private readonly string pictures = Path.Join(Path.GetTempPath(), $"FlashCardSage-{Guid.NewGuid():N}");
 
     public void Dispose()
     {

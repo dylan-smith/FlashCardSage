@@ -8,7 +8,7 @@ namespace FlashCardSage.Api.Tests;
 
 public sealed class LocalFileImageStoreTests : IDisposable
 {
-    private readonly string root = Path.Combine(Path.GetTempPath(), $"FlashCardSage-{Guid.NewGuid():N}");
+    private readonly string root = Path.Join(Path.GetTempPath(), $"FlashCardSage-{Guid.NewGuid():N}");
 
     public void Dispose()
     {
@@ -23,13 +23,13 @@ public sealed class LocalFileImageStoreTests : IDisposable
     {
         var store = CreateStore("App_Data/pictures");
 
-        Assert.Equal(Path.GetFullPath(Path.Combine(root, "App_Data", "pictures")), store.Directory);
+        Assert.Equal(Path.GetFullPath(Path.Join(root, "App_Data", "pictures")), store.Directory);
     }
 
     [Fact]
     public void Directory_IsAnAbsoluteLocalPathAsItIs()
     {
-        var elsewhere = Path.Combine(root, "elsewhere");
+        var elsewhere = Path.Join(root, "elsewhere");
 
         var store = CreateStore(elsewhere);
 
@@ -45,7 +45,8 @@ public sealed class LocalFileImageStoreTests : IDisposable
         var url = await store.SaveAsync(CardImageTests.Png, "image/png", CancellationToken.None);
 
         Assert.Matches(@"^http://localhost:5269/card-images/[0-9a-f]{32}\.png$", url);
-        var file = Path.Combine(store.Directory, url["http://localhost:5269/card-images/".Length..]);
+        var file = Assert.Single(Directory.GetFiles(store.Directory));
+        Assert.EndsWith("/" + Path.GetFileName(file), url, StringComparison.Ordinal);
         Assert.Equal(CardImageTests.Png, await File.ReadAllBytesAsync(file));
     }
 
@@ -71,9 +72,9 @@ public sealed class LocalFileImageStoreTests : IDisposable
     {
         var store = CreateStore("pictures");
         Directory.CreateDirectory(store.Directory);
-        var keep = Path.Combine(store.Directory, "keep.png");
+        var keep = Path.Join(store.Directory, "keep.png");
         await File.WriteAllBytesAsync(keep, CardImageTests.Png);
-        var named = Path.Combine(store.Directory, "0123456789abcdef0123456789abcdef.png");
+        var named = Path.Join(store.Directory, "0123456789abcdef0123456789abcdef.png");
         await File.WriteAllBytesAsync(named, CardImageTests.Png);
 
         await store.DeleteAsync(url, CancellationToken.None);

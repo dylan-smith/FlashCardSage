@@ -9,16 +9,16 @@ public class LocalFileImageStore(
     IHostEnvironment environment,
     IHttpContextAccessor httpContextAccessor) : IImageStore
 {
-    // Where the files are, as a full path.
+    // Where the files are, as a full path: LocalPath under the content root, or LocalPath itself when it's absolute.
     public string Directory { get; } =
-        Path.GetFullPath(Path.Combine(environment.ContentRootPath, options.Value.LocalPath));
+        Path.GetFullPath(options.Value.LocalPath, environment.ContentRootPath);
 
     public async Task<string> SaveAsync(ReadOnlyMemory<byte> data, string contentType, CancellationToken cancellationToken)
     {
         var request = httpContextAccessor.HttpContext?.Request
             ?? throw new InvalidOperationException("A picture can only be saved while handling a request.");
         var name = CardImage.NewName(contentType);
-        await File.WriteAllBytesAsync(Path.Combine(Directory, name), data, cancellationToken);
+        await File.WriteAllBytesAsync(Path.Join(Directory, name), data, cancellationToken);
         return $"{request.Scheme}://{request.Host}{ImageStoreOptions.LocalRequestPath}/{name}";
     }
 
@@ -39,7 +39,7 @@ public class LocalFileImageStore(
         }
 
         // On Windows the file can't be deleted while it's still being sent to a browser, which doesn't last long.
-        var path = Path.Combine(Directory, name);
+        var path = Path.Join(Directory, name);
         for (var attempt = 1; ; attempt++)
         {
             try
