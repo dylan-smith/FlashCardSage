@@ -48,12 +48,16 @@ function storeCollapsed(collapsed: boolean) {
 }
 
 // A handful of new cards suggested from the user's cards, each with a button that adds it. The section isn't shown
-// when suggestions aren't available, and a suggestion the user has since added a card for is left out.
+// when suggestions aren't available, and a suggestion the user has since added a card for is left out. With relatedTo
+// (e.g. a card just added), the suggestions are related to that card. Give it a key that changes with relatedTo, so
+// new suggestions load when it does.
 export function CardSuggestions({
   cards,
+  relatedTo,
   onAdd,
 }: {
   cards: FlashCardWords[]
+  relatedTo?: FlashCardWords
   onAdd: (suggestion: CardSuggestion) => Promise<boolean>
 }) {
   const [state, setState] = useState<SuggestionsState>({ status: 'loading' })
@@ -63,9 +67,11 @@ export function CardSuggestions({
   const [adding, setAdding] = useState<CardSuggestion | null>(null)
   const [collapsed, setCollapsed] = useState(readCollapsed)
 
+  const relatedToId = relatedTo?.id
+
   useEffect(() => {
     const controller = new AbortController()
-    listCardSuggestions(controller.signal)
+    listCardSuggestions(relatedToId, controller.signal)
       .then((suggestions) => {
         setState(
           suggestions === null
@@ -82,7 +88,7 @@ export function CardSuggestions({
     return () => {
       controller.abort()
     }
-  }, [request])
+  }, [request, relatedToId])
 
   function refresh() {
     setState({ status: 'loading' })
@@ -162,7 +168,9 @@ export function CardSuggestions({
       </Typography>
       <Collapse in={!collapsed} id="suggested-cards-content" unmountOnExit>
         <Typography color="text.secondary" sx={{ mb: 1 }}>
-          New words and phrases that go with your cards.
+          {relatedTo
+            ? `New words and phrases that go with “${relatedTo.spanish}”.`
+            : 'New words and phrases that go with your cards.'}
         </Typography>
         {state.status === 'loading' ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>

@@ -327,6 +327,8 @@ function FlashCardsPage() {
   // The user's tags in name order, including any no card has any more.
   const [tags, setTags] = useState<Tag[]>([])
   const [errorMessage, setErrorMessage] = useState('')
+  // The card last added with the form, which the suggestions are related to.
+  const [addedId, setAddedId] = useState<number | null>(null)
   // The user's decks, to add the picked cards to.
   const [decks, setDecks] = useState<Deck[]>([])
   // The cards picked to add to a deck.
@@ -365,6 +367,8 @@ function FlashCardsPage() {
     .map((card) => card.id)
   const allPicked =
     visibleCards.length > 0 && pickedIds.length === visibleCards.length
+  // Looked up so an edit shows in the suggestions, and once the card is deleted they go back to all the cards.
+  const added = cards.find((card) => card.id === addedId)
 
   // Loads the list and the tags once. The page starts out loading, and the other actions keep both up to date
   // themselves.
@@ -533,6 +537,7 @@ function FlashCardsPage() {
       )
       newPicture.reset()
       setCards((current) => [...current, card])
+      setAddedId(card.id)
       addNewTags(card)
     } catch (error) {
       // A rejected card is the user's to fix, not a failure to report.
@@ -678,7 +683,12 @@ function FlashCardsPage() {
         </Box>
       </Paper>
 
-      <CardSuggestions cards={cards} onAdd={handleAddSuggestion} />
+      <CardSuggestions
+        key={added?.id ?? 'all'}
+        cards={cards}
+        relatedTo={added}
+        onAdd={handleAddSuggestion}
+      />
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       {deckNotice && (
