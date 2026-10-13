@@ -25,6 +25,7 @@ import type {
   Tag,
 } from '../api/flashCards'
 import { listTags } from '../api/tags'
+import { usePreferences } from '../hooks/usePreferences'
 import { trackEvent, trackException } from '../telemetry'
 
 // Which field of a card holds each side, and its language.
@@ -196,6 +197,7 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
   const revealRef = useRef<HTMLButtonElement>(null)
   const firstOutcomeRef = useRef<HTMLButtonElement>(null)
   const answeredRef = useRef(false)
+  const showPictures = usePreferences()?.showPictures === true
 
   // The API picks the first card here, and each one after that when an answer is saved.
   useEffect(() => {
@@ -343,7 +345,7 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
                 )}
               </Stack>
               {/* Only once revealed, so the picture doesn't give the answer away. */}
-              {revealed && prompt.imageUrl !== null && (
+              {revealed && showPictures && prompt.imageUrl !== null && (
                 <Box
                   component="img"
                   src={prompt.imageUrl}

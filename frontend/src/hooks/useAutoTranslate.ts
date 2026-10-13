@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { translate } from '../api/translations'
 import type { CardSide, CardText } from '../api/translations'
+import { usePreferences } from './usePreferences'
 
 // How long the user has to stop typing before their side is translated, so each keystroke doesn't send a request.
 export const translateDelayMs = 1000
@@ -16,7 +17,7 @@ function otherSide(side: CardSide): CardSide {
 // typed in themselves isn't filled in while it has text, so they can override a translation by typing over it,
 // and retranslate hands a side back to translation. A side they haven't typed in (such as a saved card's other
 // side) is filled in. When translation fails or isn't available, nothing is filled in and the user types both
-// sides.
+// sides. The same goes when the user has turned translation off in their preferences (or they haven't loaded yet).
 //
 // fields is the word on each side that's translated, which on a card with more than one word on a side is the
 // first. onChange gets each change to them, the user's own and the translations, and must merge it into the
@@ -25,6 +26,7 @@ export function useAutoTranslate(
   fields: CardText,
   onChange: (change: Partial<CardText>) => void,
 ) {
+  const enabled = usePreferences()?.autoTranslate === true
   // The side last filled in by a translation, which is still the translation.
   const [autoSide, setAutoSide] = useState<CardSide | null>(null)
   // The side a translation is being fetched for.
@@ -117,6 +119,9 @@ export function useAutoTranslate(
     onChange({ [side]: value })
     cancel()
     setMeaningsOf(null)
+    if (!enabled) {
+      return
+    }
 
     const text = value.trim()
     const target = otherSide(side)
@@ -171,6 +176,7 @@ export function useAutoTranslate(
   function canRetranslate(side: CardSide) {
     return (
       edited &&
+      enabled &&
       autoSide === null &&
       translating === null &&
       fields[otherSide(side)].trim() !== '' &&
