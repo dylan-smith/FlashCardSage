@@ -58,7 +58,7 @@ builder.Services.Configure<TranslatorOptions>(builder.Configuration.GetSection(T
 builder.Services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
 builder.Services.Configure<ImageGenerationOptions>(builder.Configuration.GetSection(ImageGenerationOptions.SectionName));
 // A picture takes the model tens of seconds, and the user asked for it, so they're given that long.
-builder.Services.AddHttpClient<IImageGenerator, AzureOpenAiImageGenerator>(client =>
+builder.Services.AddHttpClient<IImageGenerator, FoundryImageGenerator>(client =>
     client.Timeout = TimeSpan.FromSeconds(60));
 builder.Services.Configure<ImageStoreOptions>(builder.Configuration.GetSection(ImageStoreOptions.SectionName));
 // Pictures go to Azure Blob Storage when there's a connection string, otherwise (local development, E2E tests) to

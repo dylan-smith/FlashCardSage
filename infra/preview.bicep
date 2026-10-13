@@ -26,11 +26,11 @@ param sqlServerName string
 @description('Name of the Translator resource every preview shares (preview-shared.bicep), which CI looks up in the resource group. Empty turns translation off, while there isn\'t one.')
 param translatorName string = ''
 
-@description('Name of the Azure OpenAI resource every preview shares (preview-shared.bicep), which CI looks up in the resource group. Empty turns pictures off, while there isn\'t one.')
-param openAiName string = ''
+@description('Name of the Azure AI Foundry resource every preview shares (preview-shared.bicep), which CI looks up in the resource group. Empty turns pictures off, while there isn\'t one.')
+param foundryName string = ''
 
-@description('Name of the image model\'s deployment on the shared Azure OpenAI resource.')
-param imageDeploymentName string = 'gpt-image-1-mini'
+@description('Name of the image model\'s deployment on the shared Azure AI Foundry resource.')
+param imageDeploymentName string = 'flux-2-pro'
 
 @description('Use the Azure SQL free offer for the database. The offer covers a limited number of databases per subscription, and can\'t be turned on for an existing database.')
 param useFreeLimit bool = true
@@ -64,8 +64,8 @@ resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' existing =
   name: translatorName
 }
 
-resource openAi 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = if (!empty(openAiName)) {
-  name: openAiName
+resource foundry 'Microsoft.CognitiveServices/accounts@2025-06-01' existing = if (!empty(foundryName)) {
+  name: foundryName
 }
 
 // Free and Shared plans don't support Always On.
@@ -175,12 +175,13 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
     },
     // Without a key the API answers translations with a 503 and the user types both sides.
     empty(translatorName) ? {} : { Translator__Key: translator!.listKeys().key1 },
-    // Without an endpoint and key the API answers picture requests with a 503, and cards go without pictures.
-    empty(openAiName)
+    // Without an endpoint and key the API answers picture requests with a 503, and cards go without pictures (see
+    // modules/appservice.bicep for the endpoint).
+    empty(foundryName)
       ? {}
       : {
-          ImageGeneration__Endpoint: openAi!.properties.endpoint
-          ImageGeneration__Key: openAi!.listKeys().key1
+          ImageGeneration__Endpoint: 'https://${foundry!.name}.services.ai.azure.com/'
+          ImageGeneration__Key: foundry!.listKeys().key1
           ImageGeneration__Deployment: imageDeploymentName
         }
   )

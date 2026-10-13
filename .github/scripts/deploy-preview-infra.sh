@@ -52,13 +52,13 @@ PREVIEW_TRANSLATOR_NAME="$(az cognitiveservices account list \
   --query "[?kind == 'TextTranslation'] | [0].name" \
   --output tsv)"
 export PREVIEW_TRANSLATOR_NAME
-# The Azure OpenAI resource every preview shares, found the same way. Empty, which turns pictures off, when there
-# isn't one.
-PREVIEW_OPENAI_NAME="$(az cognitiveservices account list \
+# The Azure AI Foundry resource every preview shares, found the same way. Empty, which turns pictures off, when
+# there isn't one.
+PREVIEW_FOUNDRY_NAME="$(az cognitiveservices account list \
   --resource-group "${PREVIEW_RESOURCE_GROUP}" \
-  --query "[?kind == 'OpenAI'] | [0].name" \
+  --query "[?kind == 'AIServices'] | [0].name" \
   --output tsv)"
-export PREVIEW_OPENAI_NAME
+export PREVIEW_FOUNDRY_NAME
 
 # Read just before the deployment, after the migrations check, which may have deleted the database.
 PREVIEW_DATABASE_TAGS="$(az resource list \

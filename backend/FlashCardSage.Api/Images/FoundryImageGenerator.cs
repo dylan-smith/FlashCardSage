@@ -1,19 +1,23 @@
+using System.Net.Http.Headers;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Images;
 
-// Calls the Azure OpenAI image generation API for the deployment of an image model (gpt-image-1-mini). The picture
-// comes back as base64, at the lowest quality and as a compressed JPEG, which is plenty for a thumbnail or a
-// practice card and keeps each picture around a hundred kilobytes.
-public class AzureOpenAiImageGenerator(HttpClient httpClient, IOptions<ImageGenerationOptions> options) : IImageGenerator
+// Calls the Black Forest Labs API of an Azure AI Foundry resource for its deployment of a FLUX image model
+// (FLUX.2-pro). The picture comes back as base64, as a JPEG of a megapixel, which is the least the model bills for
+// and plenty for a thumbnail or a practice card.
+public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerationOptions> options) : IImageGenerator
 {
     public const string ContentType = "image/jpeg";
 
-    // The error codes Azure OpenAI answers with when its content filter refuses the words or the picture.
+    // A megapixel, square.
+    public const int Size = 1024;
+
+    // The error codes the service answers with when a safety system refuses the words or the picture.
     private static readonly string[] ContentFilterCodes =
-        ["contentFilter", "content_policy_violation", "ResponsibleAIPolicyViolation"];
+        ["contentFilter", "content_policy_violation", "content_moderation", "ResponsibleAIPolicyViolation"];
 
     private readonly ImageGenerationOptions options = options.Value;
 
@@ -21,13 +25,14 @@ public class AzureOpenAiImageGenerator(HttpClient httpClient, IOptions<ImageGene
 
     public async Task<GeneratedImage> GenerateAsync(string spanish, string english, CancellationToken cancellationToken)
     {
-        var url = $"{options.Endpoint.TrimEnd('/')}/openai/deployments/{options.Deployment}/images/generations"
+        // The deployment is named after its model, which is also the model's path in the API.
+        var url = $"{options.Endpoint.TrimEnd('/')}/providers/blackforestlabs/v1/{options.Deployment}"
             + $"?api-version={options.ApiVersion}";
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
-            Content = JsonContent.Create(new GenerationRequest(Prompt(spanish, english)))
+            Content = JsonContent.Create(new GenerationRequest(options.Deployment, Prompt(spanish, english)))
         };
-        request.Headers.Add("api-key", options.Key);
+        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.Key);
 
         using var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
@@ -64,7 +69,7 @@ public class AzureOpenAiImageGenerator(HttpClient httpClient, IOptions<ImageGene
             + $"{subject}. No text, letters, captions or watermarks.";
     }
 
-    // Whether an error response is the content filter's. Its code is on the error, or on the error inside it.
+    // Whether an error response is a safety system's. Its code is on the error, or on the error inside it.
     private static bool IsContentFiltered(string body)
     {
         try
@@ -92,12 +97,12 @@ public class AzureOpenAiImageGenerator(HttpClient httpClient, IOptions<ImageGene
     }
 
     private sealed record GenerationRequest(
+        [property: JsonPropertyName("model")] string Model,
         [property: JsonPropertyName("prompt")] string Prompt,
-        [property: JsonPropertyName("n")] int Count = 1,
-        [property: JsonPropertyName("size")] string Size = "1024x1024",
-        [property: JsonPropertyName("quality")] string Quality = "low",
+        [property: JsonPropertyName("width")] int Width = Size,
+        [property: JsonPropertyName("height")] int Height = Size,
         [property: JsonPropertyName("output_format")] string OutputFormat = "jpeg",
-        [property: JsonPropertyName("output_compression")] int OutputCompression = 80);
+        [property: JsonPropertyName("num_images")] int NumImages = 1);
 
     private sealed record GenerationResult([property: JsonPropertyName("data")] IReadOnlyList<GeneratedData>? Data);
 

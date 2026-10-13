@@ -59,21 +59,21 @@ param translatorName string
 @allowed(['F0', 'S1'])
 param translatorSku string = 'F0'
 
-@description('Whether to deploy the Azure OpenAI resource that makes a picture of what a card means. Off until the subscription has quota for the image model (see main.bicepparam); without it the API answers picture requests with a 503.')
-param deployOpenAi bool = false
+@description('Whether to deploy the Azure AI Foundry resource that makes a picture of what a card means. Without it the API answers picture requests with a 503.')
+param deployFoundry bool = true
 
-@description('Name of the Azure OpenAI resource. It\'s also the resource\'s subdomain, so it\'s unique across Azure.')
-param openAiName string
+@description('Name of the Azure AI Foundry resource. It\'s also the resource\'s subdomain, so it\'s unique across Azure.')
+param foundryName string
 
-@description('Azure region for the Azure OpenAI resource, which must be one the image model (gpt-image-1-mini) is offered in.')
-param openAiLocation string
+@description('Azure region for the Azure AI Foundry resource, which must be one the image model (FLUX.2-pro) is offered in.')
+param foundryLocation string
 
 @description('How many pictures a minute the image model\'s deployment can make, out of the subscription\'s quota for the model.')
 @minValue(1)
-param openAiCapacity int = 2
+param foundryCapacity int = 2
 
-@description('Name of the image model\'s deployment on the Azure OpenAI resource.')
-param imageDeploymentName string = 'gpt-image-1-mini'
+@description('Name of the image model\'s deployment on the Azure AI Foundry resource: the model\'s name in lowercase.')
+param imageDeploymentName string = 'flux-2-pro'
 
 @description('Days to keep database backups before they are deleted automatically.')
 @minValue(1)
@@ -149,13 +149,13 @@ module translator 'modules/translator.bicep' = {
   }
 }
 
-module openAi 'modules/openai.bicep' = if (deployOpenAi) {
-  name: 'openai'
+module foundry 'modules/foundry.bicep' = if (deployFoundry) {
+  name: 'foundry'
   params: {
-    name: openAiName
-    location: openAiLocation
+    name: foundryName
+    location: foundryLocation
     deploymentName: imageDeploymentName
-    capacity: openAiCapacity
+    capacity: foundryCapacity
   }
 }
 
@@ -177,13 +177,13 @@ module appService 'modules/appservice.bicep' = {
     serviceToken: serviceToken
     translatorName: translator.outputs.name
     // By name rather than from the module's outputs, which there aren't when it isn't deployed.
-    openAiName: deployOpenAi ? openAiName : ''
+    foundryName: deployFoundry ? foundryName : ''
     imageDeploymentName: imageDeploymentName
     storageAccountName: storageAccountName
     cardImagesContainerName: storage.outputs.cardImagesContainerName
   }
   dependsOn: [
-    openAi
+    foundry
   ]
 }
 
