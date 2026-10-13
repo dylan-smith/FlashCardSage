@@ -1,8 +1,6 @@
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Checkbox from '@mui/material/Checkbox'
 import CircularProgress from '@mui/material/CircularProgress'
-import FormControlLabel from '@mui/material/FormControlLabel'
 import Typography from '@mui/material/Typography'
 import { cardImageDataUrl } from '../api/cardImages'
 import type { FlashCardFields } from '../api/flashCards'
@@ -12,8 +10,8 @@ import type { CardPicture } from '../hooks/useCardPicture'
 export const thumbnailSize = 96
 
 // A card's picture in a form: the one it has, with a button to take it off, and a button that asks the API for
-// one of the card's words. A generated picture is shown for the user to look at, and only goes on the card when
-// they tick the box, so a picture they don't want is discarded.
+// one of the card's words. A generated picture is shown for the user to look at, and goes on the card when it's
+// saved unless they discard it.
 export function PictureField({
   picture,
   fields,
@@ -71,17 +69,6 @@ export function PictureField({
               objectFit: 'cover',
               borderRadius: 1,
             }}
-          />
-          <FormControlLabel
-            control={
-              <Checkbox
-                checked={picture.chosen}
-                onChange={(event) => picture.choose(event.target.checked)}
-                disabled={busy}
-                size={size}
-              />
-            }
-            label="Add this picture to the card"
           />
           <Button
             {...buttonProps}

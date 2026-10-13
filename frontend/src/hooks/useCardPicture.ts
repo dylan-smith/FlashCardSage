@@ -10,16 +10,13 @@ import type { FlashCard, FlashCardFields } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 
 // The picture a card form offers: the card's own, if it has one, and one the API makes on request. A generated
-// picture is only put on the card when the user says so, so unless they do it's discarded when the card is saved
-// or the form is cleared. Saving the card itself is the form's job; apply puts the user's choice on the saved
-// card.
+// picture goes on the card when it's saved, unless the user discards it first (or the form is cleared).
+// Saving the card itself is the form's job; apply puts the user's choice on the saved card.
 //
 // current is the picture the card has now (null for a new card), so the form can show it and take it off.
 export function useCardPicture(current: string | null) {
   // The picture the API made, until it's put on the card or discarded.
   const [generated, setGenerated] = useState<CardImage | null>(null)
-  // Whether the user chose to put the generated picture on the card. Off until they say so.
-  const [chosen, setChosen] = useState(false)
   // Whether the user asked for the card's own picture to be taken off.
   const [removed, setRemoved] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -57,7 +54,6 @@ export function useCardPicture(current: string | null) {
       )
       if (!controller.signal.aborted) {
         setGenerated(image)
-        setChosen(false)
         trackEvent('FlashCardImageGenerated')
       }
     } catch (error) {
@@ -76,16 +72,10 @@ export function useCardPicture(current: string | null) {
     }
   }
 
-  // Whether the generated picture goes on the card.
-  function choose(value: boolean) {
-    setChosen(value)
-  }
-
   // Throws the generated picture away.
   function discard() {
     cancel()
     setGenerated(null)
-    setChosen(false)
     setErrorMessage('')
   }
 
@@ -101,10 +91,10 @@ export function useCardPicture(current: string | null) {
     setRemoved(false)
   }
 
-  // Puts the user's choice on the saved card: the generated picture when they chose it, or none when they took
+  // Puts the user's choice on the saved card: the generated picture unless they discarded it, or none when they took
   // the card's off. Returns the card as the API returns it, or null when there was nothing to do.
   async function apply(id: number): Promise<FlashCard | null> {
-    if (generated !== null && chosen) {
+    if (generated !== null) {
       const card = await putCardImage(id, generated)
       trackEvent('FlashCardImageAdded')
       return card
@@ -121,11 +111,9 @@ export function useCardPicture(current: string | null) {
     // The card's own picture, as the form should show it: none once the user has taken it off.
     current: removed ? null : current,
     generated,
-    chosen,
     generating,
     errorMessage,
     generate,
-    choose,
     discard,
     remove,
     reset,

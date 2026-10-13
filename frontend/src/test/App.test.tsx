@@ -1332,7 +1332,7 @@ describe('App', () => {
       return await screen.findByRole('img', { name: 'Generated picture' })
     }
 
-    it('offers a picture of the words, which is discarded unless the user adds it', async () => {
+    it('offers a picture of the words, which the user can discard before saving', async () => {
       const user = userEvent.setup()
       const calls = mockPictures()
       renderAt('/')
@@ -1352,10 +1352,9 @@ describe('App', () => {
       expect(generate?.init?.body).toBe(
         JSON.stringify({ spanish: 'el gato', english: '' }),
       )
-      expect(
-        screen.getByRole('checkbox', { name: 'Add this picture to the card' }),
-      ).not.toBeChecked()
       expect(trackEvent).toHaveBeenCalledWith('FlashCardImageGenerated')
+
+      await user.click(screen.getByRole('button', { name: 'Discard' }))
 
       await user.type(
         screen.getByLabelText('English', { exact: false }),
@@ -1373,16 +1372,13 @@ describe('App', () => {
       expect(calls.some((call) => call.url.endsWith('/image'))).toBe(false)
     })
 
-    it('puts the picture on the card when the user adds it', async () => {
+    it("puts the picture on the card when it's saved", async () => {
       const user = userEvent.setup()
       const calls = mockPictures()
       renderAt('/')
       await screen.findByText('No flash cards yet.')
       await generatePicture(user)
 
-      await user.click(
-        screen.getByRole('checkbox', { name: 'Add this picture to the card' }),
-      )
       await user.type(
         screen.getByLabelText('English', { exact: false }),
         'the cat',
@@ -1462,9 +1458,6 @@ describe('App', () => {
       renderAt('/')
       await screen.findByText('No flash cards yet.')
       await generatePicture(user)
-      await user.click(
-        screen.getByRole('checkbox', { name: 'Add this picture to the card' }),
-      )
       await user.type(
         screen.getByLabelText('English', { exact: false }),
         'the cat',

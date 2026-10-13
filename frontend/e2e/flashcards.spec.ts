@@ -237,16 +237,14 @@ test.describe('Flash card management', () => {
       })
     })
 
-    test('discards the picture unless the user adds it', async ({ page }) => {
+    test('discards the picture when the user asks', async ({ page }) => {
       await page.getByLabel('Spanish').fill('nadar')
       await page.getByLabel('English').fill('to swim')
       await page.getByRole('button', { name: 'Generate picture' }).click()
       await expect(
         page.getByRole('img', { name: 'Generated picture' }),
       ).toBeVisible()
-      await expect(
-        page.getByRole('checkbox', { name: 'Add this picture to the card' }),
-      ).not.toBeChecked()
+      await page.getByRole('button', { name: 'Discard' }).click()
 
       await page.getByRole('button', { name: 'Add flash card' }).click()
 
@@ -258,16 +256,16 @@ test.describe('Flash card management', () => {
       ).toBeHidden()
     })
 
-    test('puts the picture on the card when the user adds it', async ({
+    test("puts the picture on the card when it's saved", async ({
       page,
       request,
     }) => {
       await page.getByLabel('Spanish').fill('nadar')
       await page.getByLabel('English').fill('to swim')
       await page.getByRole('button', { name: 'Generate picture' }).click()
-      await page
-        .getByRole('checkbox', { name: 'Add this picture to the card' })
-        .check()
+      await expect(
+        page.getByRole('img', { name: 'Generated picture' }),
+      ).toBeVisible()
 
       await page.getByRole('button', { name: 'Add flash card' }).click()
 

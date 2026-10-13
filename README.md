@@ -11,7 +11,7 @@ A flash card app for learning a language, with:
 - Sign in with a Google account; each user only sees their own flash cards
 - Add, edit and delete flash cards (each card is a Spanish word or phrase and its English translation)
 - Type either side of a card and the other is filled in with a translation from Azure AI Translator; type over it to change it
-- Ask for a picture of what a card means, made by FLUX.2-pro on Azure AI Foundry, and add it to the card if you like it; practice mode shows it once the card is revealed
+- Ask for a picture of what a card means, made by FLUX.2-pro on Azure AI Foundry, which goes on the card when you save it unless you discard it; practice mode shows it once the card is revealed
 - RESTful API with OpenAPI support
 
 ## Prerequisites

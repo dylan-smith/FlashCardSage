@@ -293,8 +293,9 @@ function FlashCardItem({
           alt={`Picture for "${card.spanish}"`}
           loading="lazy"
           sx={{
-            width: thumbnailSize,
-            height: thumbnailSize,
+            // Smaller on a phone, so the card's words keep room next to the pick box and buttons.
+            width: { xs: thumbnailSize / 2, sm: thumbnailSize },
+            height: { xs: thumbnailSize / 2, sm: thumbnailSize },
             objectFit: 'cover',
             borderRadius: 1,
             flexShrink: 0,
