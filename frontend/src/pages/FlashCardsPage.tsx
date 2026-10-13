@@ -81,8 +81,8 @@ const otherSideNames: Record<CardSide, string> = {
 }
 
 // The note under a side translation fills in: whether it's being translated or was, when a single word has more
-// than one meaning, the others to pick from instead, and once the user has put something else in, a button that
-// hands it back to translation.
+// than one meaning, the others to pick from instead, and once the user has put something else in or emptied it, a
+// button that hands it back to translation.
 function translationNote(
   translation: AutoTranslate,
   side: CardSide,
@@ -92,7 +92,7 @@ function translationNote(
   const others = translation
     .meanings(side)
     .filter((meaning) => meaning !== value)
-  const canRetranslate = translation.canRetranslate()
+  const canRetranslate = translation.canRetranslate(side)
   if (others.length === 0 && !canRetranslate) {
     return note
   }

@@ -742,6 +742,9 @@ describe('App', () => {
       await waitPastTranslateDelay()
       expect(english).toHaveValue('')
       expect(translations()).toHaveLength(1)
+      expect(
+        screen.getByRole('button', { name: 'Translate from Spanish' }),
+      ).toBeInTheDocument()
 
       await user.type(english, 'the kitty')
       await user.click(
@@ -852,6 +855,9 @@ describe('App', () => {
       expect(english).toHaveValue('')
       expect(screen.queryByRole('alert')).not.toBeInTheDocument()
       expect(screen.queryByText('Translating…')).not.toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /^Translate from/ }),
+      ).not.toBeInTheDocument()
     })
 
     it('translates a changed side of a card being edited', async () => {
@@ -880,6 +886,34 @@ describe('App', () => {
       await user.click(within(item).getByRole('button', { name: 'Save' }))
 
       expect(await screen.findByText('the dog')).toBeInTheDocument()
+      expect(translations()).toHaveLength(1)
+    })
+
+    it('translates a cleared side of a card being edited with its button', async () => {
+      const user = userEvent.setup()
+      const translations = mockTranslations([
+        {
+          id: 1,
+          spanish: 'el gato',
+          english: 'a cat',
+          tags: [],
+          imageUrl: null,
+        },
+      ])
+      await showForm()
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      const item = screen.getAllByRole('listitem')[0]
+      const english = within(item).getByLabelText('English')
+      expect(
+        within(item).queryByRole('button', { name: /^Translate from/ }),
+      ).not.toBeInTheDocument()
+      await user.clear(english)
+      await user.click(
+        within(item).getByRole('button', { name: 'Translate from Spanish' }),
+      )
+
+      await waitFor(() => expect(english).toHaveValue('the cat'))
       expect(translations()).toHaveLength(1)
     })
   })
