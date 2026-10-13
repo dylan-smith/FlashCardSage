@@ -34,7 +34,7 @@ public class CardSuggestionsController(
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<IEnumerable<CardSuggestion>>> Suggest(
-        int? relatedTo, CancellationToken cancellationToken)
+        int? relatedTo, int? tag, CancellationToken cancellationToken)
     {
         if (!suggester.IsAvailable)
         {
@@ -59,12 +59,33 @@ public class CardSuggestionsController(
             }
         }
 
+        // The tag whose cards the user is looking at, which the suggestions are to go under. Like the card, it's looked
+        // up in the user's tags.
+        Tag? selectedTag = null;
+        if (tag is { } tagId)
+        {
+            selectedTag = await dbContext.Tags
+                .AsNoTracking()
+                .SingleOrDefaultAsync(item => item.Id == tagId, cancellationToken);
+            if (selectedTag is null)
+            {
+                return NotFound();
+            }
+        }
+
+        // The newest cards, but with a tag, its cards come before the others, so a long list can't leave them out.
+        var described = cards
+            .OrderBy(card => selectedTag is not null && card.Tags.Any(item => item.Id == selectedTag.Id))
+            .ThenBy(card => card.Id)
+            .TakeLast(MaxCardsDescribed)
+            .OrderBy(card => card.Id)
+            .ToList();
+
         IReadOnlyList<CardSuggestion> suggested;
         try
         {
             suggested = await suggester.SuggestAsync(
-                cards.TakeLast(MaxCardsDescribed).ToList(), related, SuggestionCount + ExtraRequested,
-                cancellationToken);
+                described, related, selectedTag, SuggestionCount + ExtraRequested, cancellationToken);
         }
         // A timeout surfaces as a cancellation the caller didn't ask for.
         catch (Exception ex) when (ex is HttpRequestException

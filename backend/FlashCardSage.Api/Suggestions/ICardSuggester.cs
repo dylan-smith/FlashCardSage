@@ -8,10 +8,11 @@ public interface ICardSuggester
     bool IsAvailable { get; }
 
     // New cards that go with the user's cards, as the service suggests them, which can include ones the user already
-    // has. With relatedTo, one of the cards (e.g. one just added), they're related to that card. Throws
+    // has. With relatedTo, one of the cards (e.g. one just added), they're related to that card, and with tag, one of
+    // the user's tags (e.g. the one whose cards they're looking at), they go under that tag. Throws
     // HttpRequestException if the service fails.
     Task<IReadOnlyList<CardSuggestion>> SuggestAsync(
-        IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, int count, CancellationToken cancellationToken);
+        IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, int count, CancellationToken cancellationToken);
 }
 
 // A card the user doesn't have yet.

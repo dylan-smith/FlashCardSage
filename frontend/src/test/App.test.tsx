@@ -567,6 +567,99 @@ describe('App', () => {
       expect(suggest).toHaveBeenLastCalledWith(`${suggestionsUrl}?relatedTo=2`)
     })
 
+    describe('for a tag', () => {
+      const food = { id: 5, name: 'Food' }
+      const bread: FlashCard = {
+        id: 3,
+        spanish: 'el pan',
+        english: 'the bread',
+        tags: [food],
+        imageUrl: null,
+      }
+
+      // Renders the page at path with the cat and the bread, answering suggestions with suggest and a new card with
+      // the cheese.
+      function showTagged(
+        path: string,
+        suggest: (url: string) => Promise<Response>,
+      ) {
+        const calls = mockFetch(
+          async (_url, init) =>
+            init?.method === 'POST'
+              ? jsonResponse(
+                  {
+                    id: 4,
+                    spanish: 'el queso',
+                    english: 'the cheese',
+                    tags: [food],
+                    imageUrl: null,
+                  },
+                  201,
+                )
+              : jsonResponse([cat, bread]),
+          [food],
+          [],
+          suggest,
+        )
+        renderAt(path)
+        return calls
+      }
+
+      it('suggests cards for the picked tag and adds them with it', async () => {
+        const user = userEvent.setup()
+        const suggest = vi
+          .fn<(url: string) => Promise<Response>>()
+          .mockResolvedValueOnce(
+            jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+          )
+          .mockResolvedValueOnce(
+            jsonResponse([{ spanish: 'el queso', english: 'the cheese' }]),
+          )
+        const calls = showTagged('/', suggest)
+        await screen.findByRole('list', { name: 'Suggested cards' })
+
+        await user.click(screen.getByRole('button', { name: 'Food (1)' }))
+
+        await waitFor(() => {
+          expect(suggestionList()).toHaveTextContent('el queso')
+        })
+        expect(suggest).toHaveBeenLastCalledWith(`${suggestionsUrl}?tag=5`)
+        expect(
+          screen.getByText('New words and phrases for your “Food” cards.'),
+        ).toBeInTheDocument()
+
+        await user.click(screen.getByRole('button', { name: 'Add "el queso"' }))
+
+        expect(
+          await screen.findByRole('button', { name: 'Edit "el queso"' }),
+        ).toBeInTheDocument()
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.init?.body).toBe(
+          JSON.stringify({
+            spanish: 'el queso',
+            english: 'the cheese',
+            tags: ['Food'],
+          }),
+        )
+      })
+
+      it('waits for the tags when the page opens on one', async () => {
+        const suggest = vi
+          .fn<(url: string) => Promise<Response>>()
+          .mockResolvedValue(
+            jsonResponse([{ spanish: 'el queso', english: 'the cheese' }]),
+          )
+        showTagged('/?tag=5', suggest)
+
+        expect(
+          await screen.findByRole('list', { name: 'Suggested cards' }),
+        ).toHaveTextContent('el queso')
+        expect(suggest).toHaveBeenCalledExactlyOnceWith(
+          `${suggestionsUrl}?tag=5`,
+        )
+      })
+    })
+
     it('says so when suggestions fail, and tries again', async () => {
       const user = userEvent.setup()
       const suggest = vi
