@@ -22,12 +22,42 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         await SeedAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
         var suggester = new FakeSuggester { Result = [new("  el pájaro ", " the bird"), new("el pez", "the fish")] };
 
-        var result = await CreateController(databaseName, suggester).Suggest(CancellationToken.None);
+        var result = await CreateController(databaseName, suggester).Suggest(null, CancellationToken.None);
 
         var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal([new("el pájaro", "the bird"), new("el pez", "the fish")], suggestions);
         Assert.Equal(["el gato", "el perro"], suggester.Cards!.Select(card => card.Spanish));
+        Assert.Null(suggester.RelatedTo);
         Assert.Equal(CardSuggestionsController.SuggestionCount + 3, suggester.Count);
+    }
+
+    [Fact]
+    public async Task Suggest_RelatesTheSuggestionsToTheGivenCard()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var ids = await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"), ("el perro", "the dog"));
+        var suggester = new FakeSuggester { Result = [new("el collar", "the collar")] };
+
+        var result = await CreateController(databaseName, suggester).Suggest(ids[1], CancellationToken.None);
+
+        var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal([new("el collar", "the collar")], suggestions);
+        Assert.Equal("el perro", suggester.RelatedTo?.Spanish);
+        Assert.Equal(2, suggester.Cards!.Count);
+    }
+
+    [Fact]
+    public async Task Suggest_ReturnsNotFound_ForAnotherUsersCard()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
+        var others = await SeedAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
+        var suggester = new FakeSuggester();
+
+        var result = await CreateController(databaseName, suggester).Suggest(others[0], CancellationToken.None);
+
+        Assert.IsType<NotFoundResult>(result.Result);
+        Assert.Null(suggester.Cards);
     }
 
     [Fact]
@@ -50,7 +80,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
             ]
         };
 
-        var result = await CreateController(databaseName, suggester).Suggest(CancellationToken.None);
+        var result = await CreateController(databaseName, suggester).Suggest(null, CancellationToken.None);
 
         var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal([new("el pez", "the fish"), new("el ratón", "the mouse")], suggestions);
@@ -64,7 +94,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
             Result = Enumerable.Range(1, 8).Select(i => new CardSuggestion($"es {i}", $"en {i}")).ToList()
         };
 
-        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(CancellationToken.None);
+        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(null, CancellationToken.None);
 
         var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
         Assert.Equal(CardSuggestionsController.SuggestionCount, suggestions.Count);
@@ -80,7 +110,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         await SeedAsync(databaseName, TestDb.UserId, many);
         var suggester = new FakeSuggester();
 
-        await CreateController(databaseName, suggester).Suggest(CancellationToken.None);
+        await CreateController(databaseName, suggester).Suggest(null, CancellationToken.None);
 
         Assert.Equal(CardSuggestionsController.MaxCardsDescribed, suggester.Cards!.Count);
         Assert.Equal("es 11", suggester.Cards[0].Spanish);
@@ -91,7 +121,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     {
         var suggester = new FakeSuggester { IsAvailable = false };
 
-        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(CancellationToken.None);
+        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(null, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ObjectResult>(result.Result).StatusCode);
         Assert.Null(suggester.Cards);
@@ -102,7 +132,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     {
         var suggester = new FakeSuggester { Failure = new HttpRequestException("boom") };
 
-        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(CancellationToken.None);
+        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(null, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
     }
@@ -112,7 +142,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     {
         var suggester = new FakeSuggester { Failure = new TaskCanceledException("timed out") };
 
-        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(CancellationToken.None);
+        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(null, CancellationToken.None);
 
         Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
     }
@@ -137,11 +167,15 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
-    private static async Task SeedAsync(string databaseName, int userId, params (string Spanish, string English)[] cards)
+    // Adds the cards for the user, returning their IDs.
+    private static async Task<List<int>> SeedAsync(
+        string databaseName, int userId, params (string Spanish, string English)[] cards)
     {
         await using var dbContext = TestDb.Create(databaseName, userId);
-        dbContext.FlashCards.AddRange(cards.Select(card => new FlashCard { Spanish = card.Spanish, English = card.English }));
+        var added = cards.Select(card => new FlashCard { Spanish = card.Spanish, English = card.English }).ToList();
+        dbContext.FlashCards.AddRange(added);
         await dbContext.SaveChangesAsync();
+        return added.Select(card => card.Id).ToList();
     }
 
     private static CardSuggestionsController CreateController(string databaseName, ICardSuggester suggester)
@@ -178,12 +212,15 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
 
         public IReadOnlyList<FlashCard>? Cards { get; private set; }
 
+        public FlashCard? RelatedTo { get; private set; }
+
         public int? Count { get; private set; }
 
         public Task<IReadOnlyList<CardSuggestion>> SuggestAsync(
-            IReadOnlyList<FlashCard> cards, int count, CancellationToken cancellationToken)
+            IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, int count, CancellationToken cancellationToken)
         {
             Cards = cards;
+            RelatedTo = relatedTo;
             Count = count;
             return Failure is null ? Task.FromResult(Result) : Task.FromException<IReadOnlyList<CardSuggestion>>(Failure);
         }
