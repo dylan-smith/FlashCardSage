@@ -29,7 +29,7 @@ test.describe('Accessibility', () => {
     const ids: number[] = []
     for (const title of [`A11y card ${Date.now()}`, 'Another a11y card']) {
       const response = await request.post(flashCardsApiUrl, {
-        data: { spanish: title, english: 'an accessibility check' },
+        data: { spanish: title, english: `${title} in English` },
       })
       expect(response.ok()).toBe(true)
       ids.push(((await response.json()) as { id: number }).id)
@@ -60,8 +60,9 @@ test.describe('Accessibility', () => {
     page,
     request,
   }) => {
+    const spanish = `A11y practice ${Date.now()}`
     const response = await request.post(flashCardsApiUrl, {
-      data: { spanish: `A11y practice ${Date.now()}`, english: 'a check' },
+      data: { spanish, english: `${spanish} in English` },
     })
     expect(response.ok()).toBe(true)
     const { id } = (await response.json()) as { id: number }
@@ -85,7 +86,7 @@ test.describe('Accessibility', () => {
   }) => {
     const spanish = `A11y scores ${Date.now()}`
     const response = await request.post(flashCardsApiUrl, {
-      data: { spanish, english: 'a check' },
+      data: { spanish, english: `${spanish} in English` },
     })
     expect(response.ok()).toBe(true)
     const { id } = (await response.json()) as { id: number }
