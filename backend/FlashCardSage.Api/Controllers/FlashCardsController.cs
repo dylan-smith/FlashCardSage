@@ -14,6 +14,10 @@ namespace FlashCardSage.Api.Controllers;
 [Route("api/flashcards")]
 public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCardsController> logger) : ControllerBase
 {
+    public const string DuplicateSpanishMessage = "You already have a flash card with this Spanish.";
+
+    public const string DuplicateEnglishMessage = "You already have a flash card with this English.";
+
     // In the order they were made, so a list of words stays in the order it was typed in.
     [HttpGet]
     public async Task<ActionResult<IEnumerable<FlashCard>>> GetAll()
@@ -58,6 +62,12 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
             return ValidationProblem(ModelState);
         }
 
+        if (await FindDuplicateAsync(spanish, english, exceptId: null) is { } duplicateMessage)
+        {
+            logger.LogWarning("Refused a duplicate flash card");
+            return Problem(detail: duplicateMessage, statusCode: StatusCodes.Status409Conflict);
+        }
+
         var card = new FlashCard
         {
             Spanish = spanish,
@@ -89,6 +99,12 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
         if (!TryTrim(request, out var spanish, out var english, out var tagNames))
         {
             return ValidationProblem(ModelState);
+        }
+
+        if (await FindDuplicateAsync(spanish, english, exceptId: id) is { } duplicateMessage)
+        {
+            logger.LogWarning("Refused to make flash card {FlashCardId} a duplicate", id);
+            return Problem(detail: duplicateMessage, statusCode: StatusCodes.Status409Conflict);
         }
 
         var tags = await FindOrMakeTagsAsync(tagNames);
@@ -173,5 +189,24 @@ public class FlashCardsController(FlashCardDbContext dbContext, ILogger<FlashCar
                 ?? new Tag { Name = name })
             .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
+    }
+
+    // The message for a side another of the user's cards already has, ignoring case, or null when neither is taken.
+    // A word with more than one translation belongs on one card (e.g. "the bank / the bench"), or the user wouldn't
+    // know which answer a card wants, so either side matching is a duplicate. The cards are compared in memory, since
+    // the in-memory database used in development can't ignore case in a query.
+    private async Task<string?> FindDuplicateAsync(string spanish, string english, int? exceptId)
+    {
+        var cards = await dbContext.FlashCards
+            .AsNoTracking()
+            .Where(card => card.Id != exceptId)
+            .Select(card => new { card.Spanish, card.English })
+            .ToListAsync();
+
+        return cards.Any(card => string.Equals(card.Spanish, spanish, StringComparison.OrdinalIgnoreCase))
+            ? DuplicateSpanishMessage
+            : cards.Any(card => string.Equals(card.English, english, StringComparison.OrdinalIgnoreCase))
+                ? DuplicateEnglishMessage
+                : null;
     }
 }

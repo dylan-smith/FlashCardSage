@@ -283,6 +283,41 @@ describe('App', () => {
       expect(trackException).not.toHaveBeenCalled()
     })
 
+    it('says so when the user already has a card for the word', async () => {
+      const user = userEvent.setup()
+      mockFetch(async (_url, init) =>
+        init?.method === 'POST'
+          ? jsonResponse(
+              { detail: 'You already have a flash card with this Spanish.' },
+              409,
+            )
+          : jsonResponse([
+              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+            ]),
+      )
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.type(
+        screen.getByLabelText('Spanish', { exact: false }),
+        'el gato',
+      )
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'the tomcat',
+      )
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'You already have a flash card with this Spanish.',
+      )
+      expect(screen.getAllByRole('listitem')).toHaveLength(1)
+      expect(screen.getByLabelText('Spanish', { exact: false })).toHaveValue(
+        'el gato',
+      )
+      expect(trackException).not.toHaveBeenCalled()
+    })
+
     it('shows an error when saving fails', async () => {
       const user = userEvent.setup()
       mockFetch(async (_url, init) =>
@@ -394,6 +429,36 @@ describe('App', () => {
       )
       expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
       expect(calls).toHaveLength(2)
+    })
+
+    it('stays in edit mode when the change would duplicate another card', async () => {
+      const user = userEvent.setup()
+      mockFetch(async (_url, init) =>
+        init?.method === 'PUT'
+          ? jsonResponse(
+              { detail: 'You already have a flash card with this English.' },
+              409,
+            )
+          : jsonResponse([
+              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+              { id: 2, spanish: 'el perro', english: 'the dog', tags: [] },
+            ]),
+      )
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      const item = screen.getAllByRole('listitem')[0]
+      const english = within(item).getByLabelText('English')
+      await user.clear(english)
+      await user.type(english, 'the dog')
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'You already have a flash card with this English.',
+      )
+      expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
+      expect(trackException).not.toHaveBeenCalled()
     })
 
     it('shows an error and stays in edit mode when saving fails', async () => {
