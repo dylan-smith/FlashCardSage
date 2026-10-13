@@ -121,7 +121,7 @@ test.describe('Tags', () => {
     await expect(page.getByRole('link', { name: 'Food' })).toBeHidden()
     await page
       .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: 'Cards' })
+      .getByRole('link', { name: 'Cards', exact: true })
       .click()
     await expect(page.getByText('el pan', { exact: true })).toBeVisible()
     await expect(page.getByText('Food', { exact: true })).toBeHidden()
