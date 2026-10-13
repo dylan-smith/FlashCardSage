@@ -65,7 +65,7 @@ test.describe('Import cards', () => {
       .getByRole('navigation', { name: 'Manage cards' })
       .getByRole('link', { name: 'Tags' })
       .click()
-    await expect(page.getByText('Days', { exact: true })).toBeVisible()
+    await expect(page.getByRole('link', { name: 'Days' })).toBeVisible()
     await page
       .getByRole('navigation', { name: 'Manage cards' })
       .getByRole('link', { name: 'Import cards' })
