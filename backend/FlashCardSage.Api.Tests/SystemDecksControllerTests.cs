@@ -41,14 +41,15 @@ public class SystemDecksControllerTests
         var decks = Assert.IsAssignableFrom<IEnumerable<SystemDeckResponse>>(
             Assert.IsType<OkObjectResult>(result.Result).Value).ToList();
         Assert.Equal(["Days", "Months"], decks.Select(deck => deck.Name));
+        // Sent like the user's own cards, with their tags in name order.
         Assert.Equal(
             [
-                new SystemDeckCard("lunes", "Monday", ["Days"]),
-                new SystemDeckCard("martes", "Tuesday", ["Days", "Week"]),
-                new SystemDeckCard("miércoles", "Wednesday", ["Days"])
+                ("lunes", "Monday", "Days"),
+                ("martes", "Tuesday", "Days, Week"),
+                ("miércoles", "Wednesday", "Days")
             ],
-            decks[0].Cards,
-            SystemDeckCardComparer.Instance);
+            decks[0].Cards.Select(card =>
+                (card.Spanish, card.English, string.Join(", ", card.Tags.Select(tag => tag.Name)))));
     }
 
     [Fact]
@@ -195,23 +196,5 @@ public class SystemDecksControllerTests
     private static SystemDecksController CreateController(FlashCardDbContext dbContext)
     {
         return new SystemDecksController(dbContext, NullLogger<SystemDecksController>.Instance);
-    }
-
-    // Records compare their lists by reference, so the cards are compared by value here.
-    private sealed class SystemDeckCardComparer : IEqualityComparer<SystemDeckCard>
-    {
-        public static readonly SystemDeckCardComparer Instance = new();
-
-        public bool Equals(SystemDeckCard? x, SystemDeckCard? y)
-        {
-            return x is not null && y is not null
-                && (x.Spanish, x.English) == (y.Spanish, y.English)
-                && x.Tags.SequenceEqual(y.Tags);
-        }
-
-        public int GetHashCode(SystemDeckCard obj)
-        {
-            return HashCode.Combine(obj.Spanish, obj.English);
-        }
     }
 }

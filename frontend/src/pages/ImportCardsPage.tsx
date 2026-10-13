@@ -17,12 +17,13 @@ import { importSystemDeck, listSystemDecks } from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
+import { FlashCardRow } from './FlashCardRow'
 
 // The deck's tags, each once, in name order.
 function deckTags(deck: SystemDeck) {
-  return [...new Set(deck.cards.flatMap((card) => card.tags))].sort((a, b) =>
-    a.localeCompare(b),
-  )
+  return [
+    ...new Set(deck.cards.flatMap((card) => card.tags.map((tag) => tag.name))),
+  ].sort((a, b) => a.localeCompare(b))
 }
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
@@ -197,17 +198,18 @@ function ImportCardsPage() {
                     </Button>
                   </Box>
                   <Collapse in={shown} id={cardsId} unmountOnExit>
+                    {/* Laid out like the user's own cards, set in a little under the deck. */}
                     <List
-                      dense
                       disablePadding
                       aria-label={`Cards in "${deck.name}"`}
+                      // The deck's own divider is under the last card.
+                      sx={{
+                        pl: 2,
+                        '& > li:last-of-type': { borderBottom: 'none' },
+                      }}
                     >
                       {deck.cards.map((card) => (
-                        <ListItem key={card.spanish} sx={{ pl: 2 }}>
-                          <ListItemText
-                            primary={`${card.spanish} — ${card.english}`}
-                          />
-                        </ListItem>
+                        <FlashCardRow key={card.id} card={card} />
                       ))}
                     </List>
                   </Collapse>

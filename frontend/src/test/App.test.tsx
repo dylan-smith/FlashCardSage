@@ -2459,18 +2459,39 @@ describe('App', () => {
 
   describe('importing cards', () => {
     const systemDecksUrl = 'http://localhost:5269/api/system-decks'
+    const daysTag = { id: 30, name: 'Days' }
     const days: SystemDeck = {
       id: 3,
       name: 'Days of the week',
       cards: [
-        { spanish: 'lunes', english: 'Monday', tags: ['Days'] },
-        { spanish: 'martes', english: 'Tuesday', tags: ['Days', 'Week'] },
+        {
+          id: 31,
+          spanish: 'lunes',
+          english: 'Monday',
+          tags: [daysTag],
+          imageUrl: null,
+        },
+        {
+          id: 32,
+          spanish: 'martes',
+          english: 'Tuesday',
+          tags: [daysTag, { id: 33, name: 'Week' }],
+          imageUrl: null,
+        },
       ],
     }
     const months: SystemDeck = {
       id: 4,
       name: 'Months',
-      cards: [{ spanish: 'enero', english: 'January', tags: ['Months'] }],
+      cards: [
+        {
+          id: 41,
+          spanish: 'enero',
+          english: 'January',
+          tags: [{ id: 42, name: 'Months' }],
+          imageUrl: null,
+        },
+      ],
     }
 
     // Shows the Import cards page with these built-in decks, answering anything else with the handler.
@@ -2521,11 +2542,14 @@ describe('App', () => {
       const cards = screen.getByRole('list', {
         name: 'Cards in "Days of the week"',
       })
-      expect(
-        within(cards)
-          .getAllByRole('listitem')
-          .map((item) => item.textContent),
-      ).toEqual(['lunes — Monday', 'martes — Tuesday'])
+      // Laid out like the user's own cards, with their tags, but with nothing to pick.
+      const [monday, tuesday] = within(cards).getAllByRole('listitem')
+      expect(within(monday).getByText('lunes')).toBeInTheDocument()
+      expect(within(monday).getByText('Monday')).toBeInTheDocument()
+      expect(within(monday).getByText('Days')).toBeInTheDocument()
+      expect(within(tuesday).getByText('martes')).toBeInTheDocument()
+      expect(within(tuesday).getByText('Week')).toBeInTheDocument()
+      expect(within(cards).queryByRole('checkbox')).not.toBeInTheDocument()
 
       await user.click(toggle)
 

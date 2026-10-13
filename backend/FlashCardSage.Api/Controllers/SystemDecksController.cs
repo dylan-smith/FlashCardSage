@@ -124,7 +124,7 @@ public class SystemDecksController(FlashCardDbContext dbContext, ILogger<SystemD
             .AsNoTracking()
             .Where(deck => dbContext.Users.Any(user => user.Id == deck.UserId && user.Subject == Models.User.SystemSubject))
             .Include(deck => deck.FlashCards)
-            .ThenInclude(card => card.Tags);
+            .ThenInclude(card => card.Tags.OrderBy(tag => tag.Name));
     }
 
     // The name, or else the name with the first of " (2)", " (3)" and so on that none of the user's decks has, ignoring

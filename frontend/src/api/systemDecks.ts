@@ -2,19 +2,14 @@ import { apiBaseUrl } from '../config'
 import { apiFetch } from './client'
 import type { Deck } from './decks'
 import { throwIfNotSaved } from './flashCards'
+import type { FlashCard } from './flashCards'
 
-// A card on a built-in deck. The user doesn't have it, so it's sent in full.
-export type SystemDeckCard = {
-  spanish: string
-  english: string
-  tags: string[]
-}
-
-// A built-in deck any user can import, with its cards in order.
+// A built-in deck any user can import, with its cards in order. The user doesn't have them, so they're sent in full,
+// like the user's own cards.
 export type SystemDeck = {
   id: number
   name: string
-  cards: SystemDeckCard[]
+  cards: FlashCard[]
 }
 
 // The user's new deck, made from a built-in one, and how many of its cards were left out because the user already

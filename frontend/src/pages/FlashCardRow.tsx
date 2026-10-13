@@ -8,40 +8,42 @@ import ListItemText from '@mui/material/ListItemText'
 import type { FlashCard } from '../api/flashCards'
 import { thumbnailSize } from './FlashCardPicture'
 
-// One card in a list of cards to pick from, laid out the same wherever one is shown: a box to pick it, its picture
-// if it has one, its Spanish and English and its tags, and any buttons for it at the end.
+// One card in a list of cards, laid out the same wherever one is shown: a box to pick it (when it can be picked), its
+// picture if it has one, its Spanish and English and its tags, and any buttons for it at the end.
 export function FlashCardRow({
   card,
-  picked,
+  picked = false,
   onPick,
   actions,
 }: {
   card: FlashCard
-  picked: boolean
-  onPick: () => void
+  picked?: boolean
+  onPick?: () => void
   actions?: ReactNode
 }) {
   const checkboxId = useId()
 
   return (
     <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
-      <Checkbox
-        id={checkboxId}
-        checked={picked}
-        onChange={onPick}
-        slotProps={{ input: { 'aria-label': `Pick "${card.spanish}"` } }}
-        sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
-      />
+      {onPick && (
+        <Checkbox
+          id={checkboxId}
+          checked={picked}
+          onChange={onPick}
+          slotProps={{ input: { 'aria-label': `Pick "${card.spanish}"` } }}
+          sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
+        />
+      )}
       {/* Clicking the card's picture or words picks it too, which helps when picking a lot of cards. */}
       <Box
-        component="label"
-        htmlFor={checkboxId}
+        component={onPick ? 'label' : 'div'}
+        htmlFor={onPick ? checkboxId : undefined}
         sx={{
           display: 'flex',
           gap: 1,
           flexGrow: 1,
           minWidth: 0,
-          cursor: 'pointer',
+          cursor: onPick ? 'pointer' : undefined,
         }}
       >
         {card.imageUrl !== null && (
