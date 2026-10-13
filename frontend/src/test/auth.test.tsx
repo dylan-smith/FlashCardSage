@@ -55,10 +55,21 @@ describe('signing in', () => {
     const user = userEvent.setup()
     const fetchMock = vi
       .spyOn(globalThis, 'fetch')
-      .mockResolvedValue(
-        jsonResponse([
-          { id: 1, spanish: 'buenos días', english: 'good morning' },
-        ]),
+      .mockImplementation(async (input) =>
+        jsonResponse(
+          (input instanceof Request ? input.url : input.toString()).endsWith(
+            '/api/tags',
+          )
+            ? []
+            : [
+                {
+                  id: 1,
+                  spanish: 'buenos días',
+                  english: 'good morning',
+                  tags: [],
+                },
+              ],
+        ),
       )
     renderAt('/')
 
@@ -94,7 +105,9 @@ describe('signing in', () => {
 describe('signed in', () => {
   it('signs out', async () => {
     const user = userEvent.setup()
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]))
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      jsonResponse([]),
+    )
     setSession({ token: 'test:Bob', name: 'Bob', provider: 'test' })
     renderAt('/')
     await screen.findByText('No flash cards yet.')
@@ -122,7 +135,9 @@ describe('signed in', () => {
   })
 
   it('keeps a sign-in from an earlier visit', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(jsonResponse([]))
+    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      jsonResponse([]),
+    )
     setSession({ token: 'test:Dana', name: 'Dana', provider: 'test' })
 
     renderAt('/')

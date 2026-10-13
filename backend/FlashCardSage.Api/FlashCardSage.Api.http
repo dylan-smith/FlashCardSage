@@ -16,7 +16,8 @@ Authorization: Bearer {{token}}
 
 {
   "spanish": "el gato",
-  "english": "the cat"
+  "english": "the cat",
+  "tags": ["Animals"]
 }
 
 ###
@@ -57,6 +58,29 @@ Authorization: Bearer {{token}}
 ###
 
 GET {{FlashCardSage.Api_HostAddress}}/api/flashcards/scores
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###
+
+GET {{FlashCardSage.Api_HostAddress}}/api/tags
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+###
+
+PUT {{FlashCardSage.Api_HostAddress}}/api/tags/1
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "name": "Pets"
+}
+
+###
+
+DELETE {{FlashCardSage.Api_HostAddress}}/api/tags/1
 Accept: {{contentType}}
 Authorization: Bearer {{token}}
 

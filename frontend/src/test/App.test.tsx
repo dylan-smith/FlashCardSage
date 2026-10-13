@@ -4,6 +4,7 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App, { tagline } from '../App'
 import { unreachableMessage } from '../api/flashCards'
+import type { FlashCard, Tag } from '../api/flashCards'
 import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
 import { trackEvent, trackException } from '../telemetry'
@@ -16,16 +17,22 @@ vi.mock('../telemetry', () => ({
 
 type Call = { url: string; init?: RequestInit }
 
-// Answers every fetch with the handler, and keeps the calls so a test can check what was sent.
+const tagsUrl = 'http://localhost:5269/api/tags'
+
+// Answers every fetch with the handler, except that loading the tags gets these tags, and keeps the calls so a test
+// can check what was sent.
 function mockFetch(
   handler: (url: string, init?: RequestInit) => Promise<Response>,
+  tags: Tag[] = [],
 ) {
   const calls: Call[] = []
   vi.spyOn(globalThis, 'fetch').mockImplementation(
     (input: string | URL | Request, init?: RequestInit) => {
       const url = input instanceof Request ? input.url : input.toString()
       calls.push({ url, init })
-      return handler(url, init)
+      return url === tagsUrl && init?.method === undefined
+        ? Promise.resolve(jsonResponse(tags))
+        : handler(url, init)
     },
   )
   return calls
@@ -51,16 +58,14 @@ function renderAt(path: string) {
   )
 }
 
-// Renders the flash cards page with these cards already loaded.
-async function showCards(
-  cards: { id: number; spanish: string; english: string }[],
-) {
+// Renders the flash cards page with these cards and tags already loaded.
+async function showCards(cards: FlashCard[], tags: Tag[] = []) {
   const calls = mockFetch(async (url, init) => {
     if (init?.method === undefined) {
       return jsonResponse(cards)
     }
     throw new Error(`Unexpected ${init.method} ${url}`)
-  })
+  }, tags)
   renderAt('/')
   await waitFor(() => {
     expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
@@ -128,8 +133,8 @@ describe('App', () => {
     it('shows a loading state, then the cards in order', async () => {
       mockFetch(async () =>
         jsonResponse([
-          { id: 1, spanish: 'el gato', english: 'the cat' },
-          { id: 2, spanish: 'el perro', english: 'the dog' },
+          { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+          { id: 2, spanish: 'el perro', english: 'the dog', tags: [] },
         ]),
       )
 
@@ -186,7 +191,10 @@ describe('App', () => {
       const user = userEvent.setup()
       const calls = mockFetch(async (_url, init) =>
         init?.method === 'POST'
-          ? jsonResponse({ id: 7, spanish: 'el gato', english: 'the cat' }, 201)
+          ? jsonResponse(
+              { id: 7, spanish: 'el gato', english: 'the cat', tags: [] },
+              201,
+            )
           : jsonResponse([]),
       )
       renderAt('/')
@@ -210,7 +218,7 @@ describe('App', () => {
       const post = calls.find((call) => call.init?.method === 'POST')
       expect(post?.url).toBe('http://localhost:5269/api/flashcards')
       expect(post?.init?.body).toBe(
-        JSON.stringify({ spanish: 'el gato', english: 'the cat' }),
+        JSON.stringify({ spanish: 'el gato', english: 'the cat', tags: [] }),
       )
       expect(trackEvent).toHaveBeenCalledWith('FlashCardCreated')
     })
@@ -229,7 +237,7 @@ describe('App', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Spanish is required.',
       )
-      expect(calls).toHaveLength(1)
+      expect(calls).toHaveLength(2)
     })
 
     it('asks for the English instead of sending a blank one', async () => {
@@ -245,7 +253,7 @@ describe('App', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(
         'English is required.',
       )
-      expect(calls).toHaveLength(1)
+      expect(calls).toHaveLength(2)
     })
 
     it("shows the API's reason when it rejects the card", async () => {
@@ -305,10 +313,15 @@ describe('App', () => {
       const user = userEvent.setup()
       const calls = mockFetch(async (_url, init) =>
         init?.method === 'PUT'
-          ? jsonResponse({ id: 1, spanish: 'el perro', english: 'the dog' })
+          ? jsonResponse({
+              id: 1,
+              spanish: 'el perro',
+              english: 'the dog',
+              tags: [],
+            })
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat' },
-              { id: 2, spanish: 'la casa', english: 'the house' },
+              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+              { id: 2, spanish: 'la casa', english: 'the house', tags: [] },
             ]),
       )
       renderAt('/')
@@ -337,7 +350,7 @@ describe('App', () => {
       const put = calls.find((call) => call.init?.method === 'PUT')
       expect(put?.url).toBe('http://localhost:5269/api/flashcards/1')
       expect(put?.init?.body).toBe(
-        JSON.stringify({ spanish: 'el perro', english: 'the dog' }),
+        JSON.stringify({ spanish: 'el perro', english: 'the dog', tags: [] }),
       )
       expect(trackEvent).toHaveBeenCalledWith('FlashCardUpdated')
     })
@@ -345,7 +358,7 @@ describe('App', () => {
     it('can be cancelled, keeping the old card', async () => {
       const user = userEvent.setup()
       const { calls } = await showCards([
-        { id: 1, spanish: 'el gato', english: 'the cat' },
+        { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
       ])
 
       await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
@@ -356,13 +369,13 @@ describe('App', () => {
 
       expect(screen.getByText('el gato')).toBeInTheDocument()
       expect(screen.queryByText('changed')).not.toBeInTheDocument()
-      expect(calls).toHaveLength(1)
+      expect(calls).toHaveLength(2)
     })
 
     it('asks for the English instead of saving a blank one', async () => {
       const user = userEvent.setup()
       const { calls } = await showCards([
-        { id: 1, spanish: 'el gato', english: 'the cat' },
+        { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
       ])
 
       await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
@@ -373,7 +386,7 @@ describe('App', () => {
         'English is required.',
       )
       expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
-      expect(calls).toHaveLength(1)
+      expect(calls).toHaveLength(2)
     })
 
     it('shows an error and stays in edit mode when saving fails', async () => {
@@ -381,7 +394,9 @@ describe('App', () => {
       mockFetch(async (_url, init) =>
         init?.method === 'PUT'
           ? new Response(null, { status: 500 })
-          : jsonResponse([{ id: 1, spanish: 'el gato', english: 'the cat' }]),
+          : jsonResponse([
+              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+            ]),
       )
       renderAt('/')
       await screen.findByText('el gato')
@@ -415,7 +430,7 @@ describe('App', () => {
     // Answers translations with translate (by default from the dictionary, and a 503 for anything else), saves
     // cards as sent and lists cards.
     function mockTranslations(
-      cards: { id: number; spanish: string; english: string }[] = [],
+      cards: FlashCard[] = [],
       translate: (text: string) => Promise<Response> = async (text) =>
         text in dictionary
           ? jsonResponse({ translation: dictionary[text] })
@@ -429,11 +444,12 @@ describe('App', () => {
         if (url.endsWith('/api/translations')) {
           return translate(body.text)
         }
+        // These tests don't tag cards, so a saved card has no tags.
         if (init?.method === 'POST') {
-          return jsonResponse({ id: 7, ...body }, 201)
+          return jsonResponse({ id: 7, ...body, tags: [] }, 201)
         }
         if (init?.method === 'PUT') {
-          return jsonResponse({ id: 1, ...body })
+          return jsonResponse({ id: 1, ...body, tags: [] })
         }
         return jsonResponse(cards)
       })
@@ -712,7 +728,7 @@ describe('App', () => {
     it('translates a changed side of a card being edited', async () => {
       const user = userEvent.setup()
       const translations = mockTranslations([
-        { id: 1, spanish: 'el gato', english: 'the cat' },
+        { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
       ])
       await showForm()
 
@@ -740,8 +756,8 @@ describe('App', () => {
         init?.method === 'DELETE'
           ? new Response(null, { status: 204 })
           : jsonResponse([
-              { id: 1, spanish: 'el gato', english: 'the cat' },
-              { id: 2, spanish: 'la casa', english: 'the house' },
+              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+              { id: 2, spanish: 'la casa', english: 'the house', tags: [] },
             ]),
       )
       renderAt('/')
@@ -764,7 +780,9 @@ describe('App', () => {
       mockFetch(async (_url, init) =>
         init?.method === 'DELETE'
           ? new Response(null, { status: 204 })
-          : jsonResponse([{ id: 1, spanish: 'el gato', english: 'the cat' }]),
+          : jsonResponse([
+              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+            ]),
       )
       renderAt('/')
       await screen.findByText('el gato')
@@ -779,7 +797,9 @@ describe('App', () => {
       mockFetch(async (_url, init) =>
         init?.method === 'DELETE'
           ? new Response(null, { status: 500 })
-          : jsonResponse([{ id: 1, spanish: 'el gato', english: 'the cat' }]),
+          : jsonResponse([
+              { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+            ]),
       )
       renderAt('/')
       await screen.findByText('el gato')
@@ -793,6 +813,269 @@ describe('App', () => {
       expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
         operation: 'delete',
       })
+    })
+  })
+
+  describe('tags', () => {
+    const food = { id: 1, name: 'Food' }
+    const travel = { id: 2, name: 'Travel' }
+    const apple = {
+      id: 1,
+      spanish: 'la manzana',
+      english: 'the apple',
+      tags: [food],
+    }
+    const train = {
+      id: 2,
+      spanish: 'el tren',
+      english: 'the train',
+      tags: [travel],
+    }
+
+    it("shows each card's tags and only the picked tag's cards", async () => {
+      const user = userEvent.setup()
+      await showCards([apple, train], [food, travel])
+
+      const filter = screen.getByRole('group', { name: 'Show cards tagged' })
+      expect(
+        within(filter)
+          .getAllByRole('button')
+          .map((chip) => chip.textContent),
+      ).toEqual(['All (2)', 'Food (1)', 'Travel (1)'])
+      expect(
+        within(screen.getAllByRole('listitem')[0]).getByText('Food'),
+      ).toBeInTheDocument()
+
+      await user.click(
+        within(filter).getByRole('button', { name: 'Travel (1)' }),
+      )
+
+      expect(screen.getAllByRole('listitem')).toHaveLength(1)
+      expect(screen.getByText('el tren')).toBeInTheDocument()
+      expect(
+        within(filter).getByRole('button', { name: 'Travel (1)' }),
+      ).toHaveAttribute('aria-pressed', 'true')
+
+      await user.click(within(filter).getByRole('button', { name: 'All (2)' }))
+
+      expect(screen.getAllByRole('listitem')).toHaveLength(2)
+    })
+
+    it('says so when no card has the picked tag', async () => {
+      const user = userEvent.setup()
+      await showCards([apple], [food, travel])
+
+      await user.click(screen.getByRole('button', { name: 'Travel (0)' }))
+
+      expect(
+        screen.getByText('No flash cards with this tag.'),
+      ).toBeInTheDocument()
+    })
+
+    it('sends the tags typed in for a new card and adds new ones to the list', async () => {
+      const user = userEvent.setup()
+      const calls = mockFetch(
+        async (_url, init) =>
+          init?.method === 'POST'
+            ? jsonResponse(
+                {
+                  id: 3,
+                  spanish: 'el pan',
+                  english: 'the bread',
+                  tags: [{ id: 3, name: 'Bakery' }, food],
+                },
+                201,
+              )
+            : jsonResponse([apple]),
+        [food],
+      )
+      renderAt('/')
+      await screen.findByText('la manzana')
+
+      await user.type(
+        screen.getByLabelText('Spanish', { exact: false }),
+        'el pan',
+      )
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'the bread',
+      )
+      const tagsInput = screen.getByLabelText('Tags')
+      await user.type(tagsInput, 'Food{Enter}')
+      // Left typed in without Enter, it's still added when the form is sent.
+      await user.type(tagsInput, 'Bakery')
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(await screen.findByText('el pan')).toBeInTheDocument()
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.init?.body).toBe(
+        JSON.stringify({
+          spanish: 'el pan',
+          english: 'the bread',
+          tags: ['Food', 'Bakery'],
+        }),
+      )
+      expect(
+        screen.getByRole('button', { name: 'Bakery (1)' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Food (2)' }),
+      ).toBeInTheDocument()
+    })
+
+    it("changes a card's tags", async () => {
+      const user = userEvent.setup()
+      const calls = mockFetch(
+        async (_url, init) =>
+          init?.method === 'PUT'
+            ? jsonResponse({ ...apple, tags: [food, travel] })
+            : jsonResponse([apple]),
+        [food, travel],
+      )
+      renderAt('/')
+      await screen.findByText('la manzana')
+
+      await user.click(
+        screen.getByRole('button', { name: 'Edit "la manzana"' }),
+      )
+      const item = screen.getAllByRole('listitem')[0]
+      expect(
+        within(item).getByRole('button', { name: 'Food' }),
+      ).toBeInTheDocument()
+      await user.type(within(item).getByLabelText('Tags'), 'Travel{Enter}')
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      expect(
+        await screen.findByRole('button', { name: 'Travel (1)' }),
+      ).toBeInTheDocument()
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.init?.body).toBe(
+        JSON.stringify({
+          spanish: 'la manzana',
+          english: 'the apple',
+          tags: ['Food', 'Travel'],
+        }),
+      )
+    })
+
+    it('renames the picked tag', async () => {
+      const user = userEvent.setup()
+      const calls = mockFetch(
+        async (_url, init) =>
+          init?.method === 'PUT'
+            ? jsonResponse({ id: 1, name: 'Groceries' })
+            : jsonResponse([apple, train]),
+        [food, travel],
+      )
+      renderAt('/')
+      await screen.findByText('la manzana')
+
+      await user.click(screen.getByRole('button', { name: 'Food (1)' }))
+      await user.click(
+        screen.getByRole('button', { name: 'Rename tag "Food"' }),
+      )
+      const name = screen.getByLabelText('Tag name')
+      expect(name).toHaveFocus()
+      await user.clear(name)
+      await user.type(name, ' Groceries ')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(
+        await screen.findByRole('button', { name: 'Groceries (1)' }),
+      ).toHaveAttribute('aria-pressed', 'true')
+      expect(
+        within(screen.getByRole('listitem')).getByText('Groceries'),
+      ).toBeInTheDocument()
+      expect(screen.queryByLabelText('Tag name')).not.toBeInTheDocument()
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.url).toBe(`${tagsUrl}/1`)
+      expect(put?.init?.body).toBe(JSON.stringify({ name: 'Groceries' }))
+      expect(trackEvent).toHaveBeenCalledWith('TagRenamed')
+    })
+
+    it("shows the API's reason when it rejects a new name", async () => {
+      const user = userEvent.setup()
+      mockFetch(
+        async (_url, init) =>
+          init?.method === 'PUT'
+            ? jsonResponse(
+                { errors: { Name: ["There's already a tag with that name."] } },
+                400,
+              )
+            : jsonResponse([apple, train]),
+        [food, travel],
+      )
+      renderAt('/')
+      await screen.findByText('la manzana')
+
+      await user.click(screen.getByRole('button', { name: 'Food (1)' }))
+      await user.click(
+        screen.getByRole('button', { name: 'Rename tag "Food"' }),
+      )
+      await user.clear(screen.getByLabelText('Tag name'))
+      await user.type(screen.getByLabelText('Tag name'), 'travel')
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        "There's already a tag with that name.",
+      )
+      expect(screen.getByLabelText('Tag name')).toHaveValue('travel')
+      expect(trackException).not.toHaveBeenCalled()
+    })
+
+    it('deletes the picked tag and shows every card again', async () => {
+      const user = userEvent.setup()
+      const calls = mockFetch(
+        async (_url, init) =>
+          init?.method === 'DELETE'
+            ? new Response(null, { status: 204 })
+            : jsonResponse([apple, train]),
+        [food, travel],
+      )
+      renderAt('/')
+      await screen.findByText('la manzana')
+
+      await user.click(screen.getByRole('button', { name: 'Food (1)' }))
+      await user.click(
+        screen.getByRole('button', { name: 'Delete tag "Food"' }),
+      )
+
+      await waitFor(() => {
+        expect(
+          screen.queryByRole('button', { name: 'Food (1)' }),
+        ).not.toBeInTheDocument()
+      })
+      expect(screen.getAllByRole('listitem')).toHaveLength(2)
+      expect(screen.queryByText('Food')).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'All (2)' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+      expect(calls.find((call) => call.init?.method === 'DELETE')?.url).toBe(
+        `${tagsUrl}/1`,
+      )
+      expect(trackEvent).toHaveBeenCalledWith('TagDeleted')
+    })
+
+    it('shows every card when the tag in the address no longer exists', async () => {
+      mockFetch(async () => jsonResponse([apple, train]), [food])
+
+      renderAt('/?tag=99')
+
+      expect(await screen.findAllByRole('listitem')).toHaveLength(2)
+      expect(screen.getByRole('button', { name: 'All (2)' })).toHaveAttribute(
+        'aria-pressed',
+        'true',
+      )
+    })
+
+    it('starts with the tag in the address picked', async () => {
+      mockFetch(async () => jsonResponse([apple, train]), [food, travel])
+
+      renderAt('/?tag=2')
+
+      expect(await screen.findAllByRole('listitem')).toHaveLength(1)
+      expect(screen.getByText('el tren')).toBeInTheDocument()
     })
   })
 

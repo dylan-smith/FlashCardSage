@@ -237,6 +237,126 @@ public class FlashCardsControllerTests
         Assert.IsType<NotFoundResult>(await controller.Delete(otherId));
     }
 
+    [Fact]
+    public async Task Create_MakesNewTags_AndReusesExistingOnesWhateverTheirCase()
+    {
+        await using var dbContext = TestDb.Create();
+        dbContext.Tags.Add(new Tag { Name = "Food" });
+        await dbContext.SaveChangesAsync();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest
+        {
+            Spanish = "la manzana",
+            English = "the apple",
+            Tags = [" Fruit ", "food", "", "  ", "FRUIT"]
+        });
+
+        var card = Assert.IsType<FlashCard>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+        Assert.Equal(["Food", "Fruit"], card.Tags.Select(tag => tag.Name));
+        Assert.Equal(["Food", "Fruit"], await dbContext.Tags.OrderBy(tag => tag.Name).Select(tag => tag.Name).ToListAsync());
+        Assert.All(await dbContext.Tags.ToListAsync(), tag => Assert.Equal(TestDb.UserId, tag.UserId));
+    }
+
+    [Fact]
+    public async Task Create_ReturnsValidationProblem_WhenATagIsTooLong()
+    {
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest
+        {
+            Spanish = "el gato",
+            English = "the cat",
+            Tags = [new string('a', Tag.MaxNameLength + 1)]
+        });
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
+        Assert.Equal(["Tags can be at most 50 characters."], problem.Errors["Tags"]);
+        Assert.False(await dbContext.FlashCards.AnyAsync());
+        Assert.False(await dbContext.Tags.AnyAsync());
+    }
+
+    [Fact]
+    public async Task Create_DoesNotReuseAnotherUsersTag()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            otherContext.Tags.Add(new Tag { Name = "Food" });
+            await otherContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new FlashCardRequest { Spanish = "el pan", English = "the bread", Tags = ["Food"] });
+
+        var card = Assert.IsType<FlashCard>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+        Assert.Equal(TestDb.UserId, Assert.Single(card.Tags).UserId);
+        Assert.Equal(2, await dbContext.Tags.IgnoreQueryFilters().CountAsync());
+    }
+
+    [Fact]
+    public async Task Update_ReplacesTheCardsTags()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        int cardId;
+        await using (var setupContext = TestDb.Create(databaseName))
+        {
+            var card = new FlashCard { Spanish = "lunes", English = "Monday", Tags = [new Tag { Name = "Days" }, new Tag { Name = "Food" }] };
+            setupContext.FlashCards.Add(card);
+            await setupContext.SaveChangesAsync();
+            cardId = card.Id;
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Update(cardId, new FlashCardRequest { Spanish = "lunes", English = "Monday", Tags = ["days", "Weekdays"] });
+
+        var updatedCard = Assert.IsType<FlashCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(["Days", "Weekdays"], updatedCard.Tags.Select(tag => tag.Name));
+
+        await using var checkContext = TestDb.Create(databaseName);
+        var savedCard = await checkContext.FlashCards.Include(card => card.Tags).SingleAsync();
+        Assert.Equal(["Days", "Weekdays"], savedCard.Tags.Select(tag => tag.Name).Order());
+        // The tag that came off the card is still there to use again.
+        Assert.Equal(3, await checkContext.Tags.CountAsync());
+    }
+
+    [Fact]
+    public async Task GetAll_ReturnsEachCardsTagsInNameOrder()
+    {
+        await using var dbContext = TestDb.Create();
+        dbContext.FlashCards.Add(new FlashCard { Spanish = "enero", English = "January", Tags = [new Tag { Name = "Months" }, new Tag { Name = "Calendar" }] });
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var controller = CreateController(dbContext);
+
+        var result = await controller.GetAll();
+
+        var cards = Assert.IsAssignableFrom<IEnumerable<FlashCard>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(["Calendar", "Months"], Assert.Single(cards).Tags.Select(tag => tag.Name));
+    }
+
+    [Fact]
+    public async Task Delete_KeepsTheCardsTags()
+    {
+        await using var dbContext = TestDb.Create();
+        var card = new FlashCard { Spanish = "el gato", English = "the cat", Tags = [new Tag { Name = "Animals" }] };
+        dbContext.FlashCards.Add(card);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+
+        var controller = CreateController(dbContext);
+
+        Assert.IsType<NoContentResult>(await controller.Delete(card.Id));
+        Assert.False(await dbContext.FlashCards.AnyAsync());
+        Assert.Equal("Animals", (await dbContext.Tags.SingleAsync()).Name);
+    }
+
     private static FlashCardsController CreateController(FlashCardDbContext dbContext)
     {
         return new FlashCardsController(dbContext, NullLogger<FlashCardsController>.Instance);
