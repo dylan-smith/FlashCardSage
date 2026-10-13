@@ -497,7 +497,7 @@ function FlashCardsPage() {
   // The user's tags in name order, including any no card has any more.
   const [tags, setTags] = useState<Tag[]>([])
   const [errorMessage, setErrorMessage] = useState('')
-  // The card last added with the form, which the suggestions are related to.
+  // The card last added with the form since a tag was picked, which the suggestions are related to.
   const [addedId, setAddedId] = useState<number | null>(null)
   // The user's decks, to add the picked cards to.
   const [decks, setDecks] = useState<Deck[]>([])
@@ -720,7 +720,7 @@ function FlashCardsPage() {
     }
   }
 
-  // Adds a suggested card as it is, returning whether it was saved.
+  // Adds a suggested card as it is, with the tag whose cards are shown, returning whether it was saved.
   async function handleAddSuggestion(suggestion: CardSuggestion) {
     setErrorMessage('')
 
@@ -728,7 +728,7 @@ function FlashCardsPage() {
       const created = await createFlashCard({
         spanish: [suggestion.spanish],
         english: [suggestion.english],
-        tags: [],
+        tags: selectedTag === null ? [] : [selectedTag.name],
       })
       trackEvent('SuggestedFlashCardAdded')
       setCards((current) => [...current, created])
@@ -799,6 +799,8 @@ function FlashCardsPage() {
 
   function selectTag(tag: Tag | null) {
     setPicked(new Set())
+    // The suggestions go back to being about the tag's cards, not a card added before.
+    setAddedId(null)
     setSearchParams(tag === null ? {} : { tag: String(tag.id) })
   }
 
@@ -851,12 +853,16 @@ function FlashCardsPage() {
         </Box>
       </Paper>
 
-      <CardSuggestions
-        key={added?.id ?? 'all'}
-        cards={cards}
-        relatedTo={added}
-        onAdd={handleAddSuggestion}
-      />
+      {/* With a tag in the URL, the suggestions wait for the tags, so they aren't asked for twice. */}
+      {!(loading && searchParams.has('tag')) && (
+        <CardSuggestions
+          key={`${added?.id ?? 'all'}-${selectedTag?.id ?? 'all'}`}
+          cards={cards}
+          relatedTo={added}
+          tag={selectedTag ?? undefined}
+          onAdd={handleAddSuggestion}
+        />
+      )}
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
       {deckNotice && (

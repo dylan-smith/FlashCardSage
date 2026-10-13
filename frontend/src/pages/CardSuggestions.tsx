@@ -12,7 +12,7 @@ import Typography from '@mui/material/Typography'
 import { listCardSuggestions } from '../api/cardSuggestions'
 import type { CardSuggestion } from '../api/cardSuggestions'
 import { formatWords } from '../api/flashCards'
-import type { FlashCardWords } from '../api/flashCards'
+import type { FlashCardWords, Tag } from '../api/flashCards'
 import { trackException } from '../telemetry'
 
 type SuggestionsState =
@@ -23,6 +23,19 @@ type SuggestionsState =
 
 function sameText(a: string, b: string) {
   return a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
+}
+
+// What the suggestions are for, under the heading.
+function describe(relatedTo?: FlashCardWords, tag?: Tag) {
+  if (relatedTo) {
+    const kind = tag
+      ? `New “${tag.name}” words and phrases`
+      : 'New words and phrases'
+    return `${kind} that go with “${formatWords(relatedTo.spanish)}”.`
+  }
+  return tag
+    ? `New words and phrases for your “${tag.name}” cards.`
+    : 'New words and phrases that go with your cards.'
 }
 
 // Kept in localStorage so the section stays collapsed across reloads once the user collapses it.
@@ -50,15 +63,18 @@ function storeCollapsed(collapsed: boolean) {
 
 // A handful of new cards suggested from the user's cards, each with a button that adds it. The section isn't shown
 // when suggestions aren't available, and a suggestion the user has since added a card for is left out. With relatedTo
-// (e.g. a card just added), the suggestions are related to that card. Give it a key that changes with relatedTo, so
-// new suggestions load when it does.
+// (e.g. a card just added), the suggestions are related to that card, and with tag (e.g. the one whose cards are
+// shown), they go under that tag. Give it a key that changes with relatedTo and tag, so new suggestions load when they
+// do.
 export function CardSuggestions({
   cards,
   relatedTo,
+  tag,
   onAdd,
 }: {
   cards: FlashCardWords[]
   relatedTo?: FlashCardWords
+  tag?: Tag
   onAdd: (suggestion: CardSuggestion) => Promise<boolean>
 }) {
   const [state, setState] = useState<SuggestionsState>({ status: 'loading' })
@@ -69,10 +85,14 @@ export function CardSuggestions({
   const [collapsed, setCollapsed] = useState(readCollapsed)
 
   const relatedToId = relatedTo?.id
+  const tagId = tag?.id
 
   useEffect(() => {
     const controller = new AbortController()
-    listCardSuggestions(relatedToId, controller.signal)
+    listCardSuggestions(
+      { relatedTo: relatedToId, tag: tagId },
+      controller.signal,
+    )
       .then((suggestions) => {
         setState(
           suggestions === null
@@ -89,7 +109,7 @@ export function CardSuggestions({
     return () => {
       controller.abort()
     }
-  }, [request, relatedToId])
+  }, [request, relatedToId, tagId])
 
   function refresh() {
     setState({ status: 'loading' })
@@ -171,9 +191,7 @@ export function CardSuggestions({
       </Typography>
       <Collapse in={!collapsed} id="suggested-cards-content" unmountOnExit>
         <Typography color="text.secondary" sx={{ mb: 1 }}>
-          {relatedTo
-            ? `New words and phrases that go with “${formatWords(relatedTo.spanish)}”.`
-            : 'New words and phrases that go with your cards.'}
+          {describe(relatedTo, tag)}
         </Typography>
         {state.status === 'loading' ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
