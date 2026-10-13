@@ -1,7 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import type { FlashCardFields } from '../api/flashCards'
 import { translate } from '../api/translations'
-import type { CardSide } from '../api/translations'
+import type { CardSide, CardText } from '../api/translations'
 import { usePreferences } from './usePreferences'
 
 // How long the user has to stop typing before their side is translated, so each keystroke doesn't send a request.
@@ -20,11 +19,12 @@ function otherSide(side: CardSide): CardSide {
 // side) is filled in. When translation fails or isn't available, nothing is filled in and the user types both
 // sides. The same goes when the user has turned translation off in their preferences (or they haven't loaded yet).
 //
-// onChange gets each change to the fields, the user's own and the translations, and must merge it into the
+// fields is the word on each side that's translated, which on a card with more than one word on a side is the
+// first. onChange gets each change to them, the user's own and the translations, and must merge it into the
 // current fields rather than the ones it was created with.
 export function useAutoTranslate(
-  fields: FlashCardFields,
-  onChange: (change: Partial<FlashCardFields>) => void,
+  fields: CardText,
+  onChange: (change: Partial<CardText>) => void,
 ) {
   const enabled = usePreferences()?.autoTranslate === true
   // The side last filled in by a translation, which is still the translation.

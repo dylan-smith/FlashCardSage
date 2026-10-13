@@ -14,6 +14,7 @@ import { listDecks } from '../api/decks'
 import type { Deck } from '../api/decks'
 import {
   describeFetchError,
+  formatWords,
   getNextPracticeCard,
   recordPracticeResult,
 } from '../api/flashCards'
@@ -331,14 +332,14 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
               >
                 <CardSide
                   side={prompt.side}
-                  text={prompt[sides[prompt.side].field]}
+                  text={formatWords(prompt[sides[prompt.side].field])}
                 />
                 {revealed && (
                   <>
                     <Divider />
                     <CardSide
                       side={otherSide}
-                      text={prompt[sides[otherSide].field]}
+                      text={formatWords(prompt[sides[otherSide].field])}
                     />
                   </>
                 )}
@@ -348,7 +349,7 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
                 <Box
                   component="img"
                   src={prompt.imageUrl}
-                  alt={`Picture for "${prompt.spanish}"`}
+                  alt={`Picture for "${formatWords(prompt.spanish)}"`}
                   sx={{
                     width: 240,
                     maxWidth: '100%',

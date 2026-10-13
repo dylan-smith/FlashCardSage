@@ -72,8 +72,8 @@ export function CardPicker({
       (activeTagId === null ||
         card.tags.some((tag) => tag.id === activeTagId)) &&
       (query === '' ||
-        normalize(card.spanish).includes(query) ||
-        normalize(card.english).includes(query)),
+        card.spanish.some((word) => normalize(word).includes(query)) ||
+        card.english.some((word) => normalize(word).includes(query))),
   )
   const pageCount = Math.max(1, Math.ceil(matching.length / cardPageSize))
   const currentPage = Math.min(page, pageCount)

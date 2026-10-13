@@ -98,10 +98,10 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
         var webFactory = CreateFactory();
         using var alice = CreateClient(webFactory, $"test:Alice {Guid.NewGuid()}");
         using var bob = CreateClient(webFactory, $"test:Bob {Guid.NewGuid()}");
-        var created = await alice.PostAsJsonAsync("/api/flashcards", new { spanish = "buenos días", english = "good morning" });
+        var created = await alice.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("buenos días", "good morning"));
         var card = await created.Content.ReadFromJsonAsync<IdResponse>();
 
-        Assert.Equal(HttpStatusCode.Created, (await bob.PostAsJsonAsync("/api/flashcards", new { spanish = "buenos días", english = "good morning" })).StatusCode);
+        Assert.Equal(HttpStatusCode.Created, (await bob.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("buenos días", "good morning"))).StatusCode);
         Assert.Equal(HttpStatusCode.NotFound, (await bob.GetAsync($"/api/flashcards/{card!.Id}")).StatusCode);
         var bobsCards = await bob.GetFromJsonAsync<List<IdResponse>>("/api/flashcards");
         Assert.DoesNotContain(bobsCards!, item => item.Id == card.Id);

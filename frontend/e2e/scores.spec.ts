@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { test, expect, cardData } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
@@ -30,7 +30,7 @@ test.describe('Scores', () => {
     ]
     for (const { spanish, english, outcomes } of answers) {
       const response = await request.post(flashCardsApiUrl, {
-        data: { spanish, english },
+        data: cardData(spanish, english),
       })
       expect(response.ok()).toBe(true)
       const { id } = (await response.json()) as { id: number }

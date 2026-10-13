@@ -1,5 +1,11 @@
 import AxeBuilder from '@axe-core/playwright'
-import { test, expect, onePixelPng, sessionStorageEntry } from './fixtures'
+import {
+  test,
+  expect,
+  cardData,
+  onePixelPng,
+  sessionStorageEntry,
+} from './fixtures'
 
 // The backend started by playwright.config.ts.
 const apiUrl = 'http://localhost:5269/api'
@@ -28,7 +34,7 @@ test('the user can turn off pictures, suggestions and translation', async ({
     extraHTTPHeaders: { Authorization: `Bearer ${token}` },
   })
   const created = await request.post(`${apiUrl}/flashcards`, {
-    data: { spanish: 'el gato', english: 'the cat' },
+    data: cardData('el gato', 'the cat'),
   })
   expect(created.ok()).toBe(true)
   const { id } = (await created.json()) as { id: number }

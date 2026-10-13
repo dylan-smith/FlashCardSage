@@ -1,5 +1,5 @@
 import AxeBuilder from '@axe-core/playwright'
-import { test, expect, onePixelPng } from './fixtures'
+import { test, expect, cardData, onePixelPng } from './fixtures'
 
 // The backend started by playwright.config.ts.
 const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
@@ -30,7 +30,7 @@ test.describe('Accessibility', () => {
     const ids: number[] = []
     for (const title of [`A11y card ${Date.now()}`, 'Another a11y card']) {
       const response = await request.post(flashCardsApiUrl, {
-        data: { spanish: title, english: `${title} in English` },
+        data: cardData(title, `${title} in English`),
       })
       expect(response.ok()).toBe(true)
       ids.push(((await response.json()) as { id: number }).id)
@@ -71,7 +71,7 @@ test.describe('Accessibility', () => {
   }) => {
     const spanish = `A11y practice ${Date.now()}`
     const response = await request.post(flashCardsApiUrl, {
-      data: { spanish, english: `${spanish} in English` },
+      data: cardData(spanish, `${spanish} in English`),
     })
     expect(response.ok()).toBe(true)
     const { id } = (await response.json()) as { id: number }
@@ -99,11 +99,7 @@ test.describe('Accessibility', () => {
     request,
   }) => {
     const card = await request.post(flashCardsApiUrl, {
-      data: {
-        spanish: `A11y deck card ${Date.now()}`,
-        english: 'a check',
-        tags: ['A11y'],
-      },
+      data: cardData(`A11y deck card ${Date.now()}`, 'a check', ['A11y']),
     })
     expect(card.ok()).toBe(true)
     const { id: cardId } = (await card.json()) as { id: number }
@@ -161,7 +157,7 @@ test.describe('Accessibility', () => {
   }) => {
     const spanish = `A11y scores ${Date.now()}`
     const response = await request.post(flashCardsApiUrl, {
-      data: { spanish, english: `${spanish} in English` },
+      data: cardData(spanish, `${spanish} in English`),
     })
     expect(response.ok()).toBe(true)
     const { id } = (await response.json()) as { id: number }

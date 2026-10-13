@@ -1,15 +1,17 @@
 {
   "cards": [
-    { "spanish": "el gato", "english": "the cat", "tags": ["Animals"], "picture": true },
-    { "spanish": "el perro", "english": "the dog", "tags": ["Animals"] },
-    { "spanish": "la casa", "english": "the house", "tags": ["Places"], "picture": true },
-    { "spanish": "el libro", "english": "the book", "tags": ["School"] },
-    { "spanish": "la escuela", "english": "the school", "tags": ["Places", "School"] },
-    { "spanish": "buenos días", "english": "good morning", "tags": ["Greetings"] },
-    { "spanish": "gracias", "english": "thank you", "tags": ["Phrases"] },
-    { "spanish": "por favor", "english": "please", "tags": ["Phrases"] },
-    { "spanish": "¿cómo estás?", "english": "how are you?", "tags": ["Greetings"] },
-    { "spanish": "hasta luego", "english": "see you later", "tags": ["Greetings"] }
+    { "spanish": ["el gato"], "english": ["the cat"], "tags": ["Animals"], "picture": true },
+    { "spanish": ["el perro"], "english": ["the dog"], "tags": ["Animals"] },
+    { "spanish": ["la casa"], "english": ["the house"], "tags": ["Places"], "picture": true },
+    { "spanish": ["el libro"], "english": ["the book"], "tags": ["School"] },
+    { "spanish": ["la escuela"], "english": ["the school"], "tags": ["Places", "School"] },
+    { "spanish": ["buenos días"], "english": ["good morning"], "tags": ["Greetings"] },
+    { "spanish": ["gracias"], "english": ["thank you"], "tags": ["Phrases"] },
+    { "spanish": ["por favor"], "english": ["please"], "tags": ["Phrases"] },
+    { "spanish": ["¿cómo estás?"], "english": ["how are you?"], "tags": ["Greetings"] },
+    { "spanish": ["hasta luego"], "english": ["see you later"], "tags": ["Greetings"] },
+    { "spanish": ["solo", "únicamente"], "english": ["only"], "tags": ["Phrases"] },
+    { "spanish": ["como"], "english": ["like", "as"], "tags": ["Phrases"] }
   ],
   "decks": [
     { "name": "Week 1", "cards": ["el gato", "el perro", "la casa", "gracias"] },
