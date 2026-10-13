@@ -1,9 +1,11 @@
-// The resources every pull request's preview environment shares: an App Service plan and a SQL server. The
-// deploy-preview CI job deploys this template from the PR's base branch (not the PR) before deploying the PR's
-// own resources (preview.bicep), so every preview shares one configuration and a PR can't change it for the
-// others, or revert a newer one from its older checkout. A change here reaches previews once it's merged.
+// The resources every pull request's preview environment shares: an App Service plan, a SQL server and a
+// Translator. The deploy-preview CI job deploys this template from the PR's base branch (not the PR) before
+// deploying the PR's own resources (preview.bicep), so every preview shares one configuration and a PR can't
+// change it for the others, or revert a newer one from its older checkout. A change here reaches previews once
+// it's merged.
 //
-// The resources mirror the production modules (modules/appservice.bicep and modules/sql.bicep) without their
+// The resources mirror the production modules (modules/appservice.bicep, modules/sql.bicep and
+// modules/translator.bicep) without their
 // monitoring, so keep their settings in sync when changing a module. Nothing here touches production.
 targetScope = 'resourceGroup'
 
@@ -24,6 +26,9 @@ param sqlEntraAdminLogin string
 
 @description('Object ID of the preview deployment identity.')
 param sqlEntraAdminObjectId string
+
+@description('Name of the Azure AI Translator resource shared by every preview.')
+param translatorName string
 
 resource appServicePlan 'Microsoft.Web/serverfarms@2024-11-01' = {
   name: appServicePlanName
@@ -64,5 +69,19 @@ resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2023-08-01' = {
   properties: {
     startIpAddress: '0.0.0.0'
     endIpAddress: '0.0.0.0'
+  }
+}
+
+// Previews translate with a Translator of their own, so they never touch production's. Production has the
+// subscription's one free (F0) Translator, so this one is paid per character, which previews barely use.
+resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
+  name: translatorName
+  location: 'global'
+  kind: 'TextTranslation'
+  sku: {
+    name: 'S1'
+  }
+  properties: {
+    publicNetworkAccess: 'Enabled'
   }
 }

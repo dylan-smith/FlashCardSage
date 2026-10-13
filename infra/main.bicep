@@ -52,6 +52,13 @@ param googleClientId string
 @minLength(32)
 param serviceToken string
 
+@description('Name of the Azure AI Translator resource that translates one side of a card into the other.')
+param translatorName string
+
+@description('Pricing tier of the Translator resource: F0 (free, one per subscription) or S1 (paid per character).')
+@allowed(['F0', 'S1'])
+param translatorSku string = 'F0'
+
 @description('Days to keep database backups before they are deleted automatically.')
 @minValue(1)
 param backupRetentionDays int = 30
@@ -118,6 +125,14 @@ module sql 'modules/sql.bicep' = {
   }
 }
 
+module translator 'modules/translator.bicep' = {
+  name: 'translator'
+  params: {
+    name: translatorName
+    sku: translatorSku
+  }
+}
+
 module appService 'modules/appservice.bicep' = {
   name: 'appservice'
   params: {
@@ -134,6 +149,7 @@ module appService 'modules/appservice.bicep' = {
     corsAllowedOrigins: union([storage.outputs.frontendOrigin], [replace(storage.outputs.primaryWebEndpoint, '.net/', '.net')])
     googleClientId: googleClientId
     serviceToken: serviceToken
+    translatorName: translator.outputs.name
   }
 }
 

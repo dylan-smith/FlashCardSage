@@ -15,6 +15,11 @@ param appServicePlanSku = 'F1'
 // Storage Account (frontend static website; globally unique, lowercase, 3-24 characters)
 param storageAccountName = 'flashcardsage'
 
+// Azure AI Translator, which fills in the other side of a card as the user types (F0 is free; a subscription can
+// only have one, so previews use S1)
+param translatorName = 'flashcardsage-translator'
+param translatorSku = 'F0'
+
 // Database backups (BACPAC exports taken by CI before migrations, in the db-backups container)
 param backupRetentionDays = 30
 

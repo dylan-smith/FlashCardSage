@@ -6,6 +6,7 @@ import App, { tagline } from '../App'
 import { unreachableMessage } from '../api/flashCards'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { setSession } from '../auth/session'
+import { translateDelayMs } from '../hooks/useAutoTranslate'
 import { trackEvent, trackException } from '../telemetry'
 
 vi.mock('../telemetry', () => ({
@@ -414,6 +415,340 @@ describe('App', () => {
     })
   })
 
+  describe('auto translation', () => {
+    // waitFor gives up after a second by default, which is about how long a translation waits for typing to stop.
+    const untilTranslated = { timeout: translateDelayMs + 1000 }
+
+    const autoTranslated = 'Auto-translated: edit to change'
+
+    const dictionary: Record<string, string> = {
+      'el gato': 'the cat',
+      'the dog': 'el perro',
+      'el perro': 'the dog',
+    }
+
+    // Answers translations with translate (by default from the dictionary, and a 503 for anything else), saves
+    // cards as sent and lists cards.
+    function mockTranslations(
+      cards: FlashCard[] = [],
+      translate: (text: string) => Promise<Response> = async (text) =>
+        text in dictionary
+          ? jsonResponse({ translation: dictionary[text] })
+          : new Response(null, { status: 503 }),
+    ) {
+      const calls = mockFetch(async (url, init) => {
+        const body =
+          typeof init?.body === 'string'
+            ? (JSON.parse(init.body) as Record<string, string>)
+            : {}
+        if (url.endsWith('/api/translations')) {
+          return translate(body.text)
+        }
+        // These tests don't tag cards, so a saved card has no tags.
+        if (init?.method === 'POST') {
+          return jsonResponse({ id: 7, ...body, tags: [] }, 201)
+        }
+        if (init?.method === 'PUT') {
+          return jsonResponse({ id: 1, ...body, tags: [] })
+        }
+        return jsonResponse(cards)
+      })
+      return () => calls.filter((call) => call.url.endsWith('/translations'))
+    }
+
+    // Long enough for a translation to have been sent, for checking that one wasn't.
+    function waitPastTranslateDelay() {
+      return new Promise((resolve) =>
+        setTimeout(resolve, translateDelayMs + 200),
+      )
+    }
+
+    async function showForm() {
+      renderAt('/')
+      await waitFor(() => {
+        expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
+      })
+      return {
+        spanish: screen.getAllByLabelText('Spanish', { exact: false })[0],
+        english: screen.getAllByLabelText('English', { exact: false })[0],
+      }
+    }
+
+    it('fills in the English from the Spanish, once the user stops typing', async () => {
+      const user = userEvent.setup()
+      const translations = mockTranslations()
+      const { spanish, english } = await showForm()
+
+      await user.type(spanish, 'el gato')
+
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+      expect(screen.getByText(autoTranslated)).toBeInTheDocument()
+      expect(translations()).toHaveLength(1)
+      expect(translations()[0].url).toBe(
+        'http://localhost:5269/api/translations',
+      )
+      expect(translations()[0].init?.body).toBe(
+        JSON.stringify({ text: 'el gato', from: 'Spanish' }),
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(await screen.findByText('the cat')).toBeInTheDocument()
+      expect(english).toHaveValue('')
+      expect(screen.queryByText(autoTranslated)).not.toBeInTheDocument()
+    })
+
+    it('fills in the Spanish from the English', async () => {
+      const user = userEvent.setup()
+      const translations = mockTranslations()
+      const { spanish, english } = await showForm()
+
+      await user.type(english, 'the dog')
+
+      await waitFor(
+        () => expect(spanish).toHaveValue('el perro'),
+        untilTranslated,
+      )
+      expect(translations()[0].init?.body).toBe(
+        JSON.stringify({ text: 'the dog', from: 'English' }),
+      )
+    })
+
+    it('keeps what the user typed over a translation', async () => {
+      const user = userEvent.setup()
+      const translations = mockTranslations()
+      const { spanish, english } = await showForm()
+      await user.type(spanish, 'el gato')
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+
+      await user.clear(english)
+      await user.type(english, 'the kitty')
+      await user.type(spanish, ' negro')
+      await waitPastTranslateDelay()
+
+      expect(english).toHaveValue('the kitty')
+      expect(screen.queryByText(autoTranslated)).not.toBeInTheDocument()
+      expect(translations()).toHaveLength(1)
+    })
+
+    it("doesn't overwrite what the user types while a translation is on its way", async () => {
+      const user = userEvent.setup()
+      let answer: (response: Response) => void = () => {}
+      const translations = mockTranslations(
+        [],
+        () =>
+          new Promise((resolve) => {
+            answer = resolve
+          }),
+      )
+      const { spanish, english } = await showForm()
+      await user.type(spanish, 'el gato')
+      await waitFor(
+        () => expect(translations()).toHaveLength(1),
+        untilTranslated,
+      )
+      expect(screen.getByText('Translating…')).toBeInTheDocument()
+
+      await user.type(english, 'my cat')
+      answer(jsonResponse({ translation: 'the cat' }))
+      await waitPastTranslateDelay()
+
+      expect(english).toHaveValue('my cat')
+      expect(screen.queryByText('Translating…')).not.toBeInTheDocument()
+    })
+
+    it("offers a word's other meanings, and keeps the one the user picks", async () => {
+      const user = userEvent.setup()
+      mockTranslations([], async () =>
+        jsonResponse({
+          translation: 'silla',
+          alternatives: ['cátedra', 'presidente'],
+        }),
+      )
+      const { spanish, english } = await showForm()
+
+      await user.type(english, 'chair')
+      await waitFor(() => expect(spanish).toHaveValue('silla'), untilTranslated)
+      expect(screen.getByText('Other meanings:')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'silla' }),
+      ).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'presidente' }))
+
+      expect(spanish).toHaveValue('presidente')
+      expect(screen.queryByText(autoTranslated)).not.toBeInTheDocument()
+      expect(screen.getByRole('button', { name: 'silla' })).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'presidente' }),
+      ).not.toBeInTheDocument()
+
+      await user.type(english, 's')
+      await waitPastTranslateDelay()
+
+      expect(spanish).toHaveValue('presidente')
+      expect(screen.queryByText('Other meanings:')).not.toBeInTheDocument()
+    })
+
+    it('leaves a cleared side empty, and translates it again with its button', async () => {
+      const user = userEvent.setup()
+      const translations = mockTranslations()
+      const { spanish, english } = await showForm()
+      await user.type(spanish, 'el gato')
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+      expect(
+        screen.queryByRole('button', { name: 'Translate from Spanish' }),
+      ).not.toBeInTheDocument()
+
+      await user.clear(english)
+      await waitPastTranslateDelay()
+      expect(english).toHaveValue('')
+      expect(translations()).toHaveLength(1)
+
+      await user.type(english, 'the kitty')
+      await user.click(
+        screen.getByRole('button', { name: 'Translate from Spanish' }),
+      )
+
+      await waitFor(() => expect(english).toHaveValue('the cat'))
+      expect(screen.getByText(autoTranslated)).toBeInTheDocument()
+      expect(translations()).toHaveLength(2)
+      expect(translations()[1].init?.body).toBe(
+        JSON.stringify({ text: 'el gato', from: 'Spanish' }),
+      )
+    })
+
+    it('translates what the user typed over a translation the other way', async () => {
+      const user = userEvent.setup()
+      mockTranslations()
+      const { spanish, english } = await showForm()
+      await user.type(spanish, 'el gato')
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+
+      await user.clear(english)
+      await user.type(english, 'the dog')
+      await user.click(
+        screen.getByRole('button', { name: 'Translate from English' }),
+      )
+
+      await waitFor(() => expect(spanish).toHaveValue('el perro'))
+      expect(english).toHaveValue('the dog')
+      expect(screen.getByText(autoTranslated)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: /^Translate from/ }),
+      ).not.toBeInTheDocument()
+    })
+
+    it('hands a side back to translation with its button', async () => {
+      const user = userEvent.setup()
+      mockTranslations([], async () =>
+        jsonResponse({
+          translation: 'silla',
+          alternatives: ['cátedra', 'presidente'],
+        }),
+      )
+      const { spanish, english } = await showForm()
+      await user.type(english, 'chair')
+      await waitFor(() => expect(spanish).toHaveValue('silla'), untilTranslated)
+      await user.click(screen.getByRole('button', { name: 'presidente' }))
+
+      await user.click(
+        screen.getByRole('button', { name: 'Translate from English' }),
+      )
+
+      await waitFor(() => expect(spanish).toHaveValue('silla'))
+      expect(screen.getByText(autoTranslated)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('button', { name: 'Translate from English' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'presidente' }),
+      ).toBeInTheDocument()
+    })
+
+    it("doesn't offer other meanings for a phrase", async () => {
+      const user = userEvent.setup()
+      mockTranslations()
+      const { spanish, english } = await showForm()
+
+      await user.type(spanish, 'el gato')
+
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+      expect(screen.queryByText('Other meanings:')).not.toBeInTheDocument()
+    })
+
+    it('clears a translation when its side is cleared', async () => {
+      const user = userEvent.setup()
+      mockTranslations()
+      const { spanish, english } = await showForm()
+      await user.type(spanish, 'el gato')
+      await waitFor(
+        () => expect(english).toHaveValue('the cat'),
+        untilTranslated,
+      )
+
+      await user.clear(spanish)
+
+      expect(english).toHaveValue('')
+      expect(screen.queryByText(autoTranslated)).not.toBeInTheDocument()
+    })
+
+    it('leaves the other side to the user when translation fails', async () => {
+      const user = userEvent.setup()
+      const translations = mockTranslations()
+      const { spanish, english } = await showForm()
+
+      await user.type(spanish, 'la casa')
+      await waitFor(
+        () => expect(translations()).toHaveLength(1),
+        untilTranslated,
+      )
+      await waitPastTranslateDelay()
+
+      expect(english).toHaveValue('')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+      expect(screen.queryByText('Translating…')).not.toBeInTheDocument()
+    })
+
+    it('translates a changed side of a card being edited', async () => {
+      const user = userEvent.setup()
+      const translations = mockTranslations([
+        { id: 1, spanish: 'el gato', english: 'the cat', tags: [] },
+      ])
+      await showForm()
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      const item = screen.getAllByRole('listitem')[0]
+      const spanish = within(item).getByLabelText('Spanish')
+      const english = within(item).getByLabelText('English')
+      await user.clear(spanish)
+      await user.type(spanish, 'el perro')
+      await waitFor(
+        () => expect(english).toHaveValue('the dog'),
+        untilTranslated,
+      )
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      expect(await screen.findByText('the dog')).toBeInTheDocument()
+      expect(translations()).toHaveLength(1)
+    })
+  })
+
   describe('deleting a card', () => {
     it('removes the card from the list', async () => {
       const user = userEvent.setup()
@@ -789,12 +1124,20 @@ describe('App', () => {
     // the status when it isn't saved.
     async function practice(
       first: unknown,
-      { next = { ...dog, side: 'Spanish' }, status = 200 } = {},
+      {
+        next = { ...dog, side: 'Spanish' },
+        status = 200,
+        scoreChanges = [0],
+      }: { next?: unknown; status?: number; scoreChanges?: number[] } = {},
     ) {
+      let answers = 0
       const calls = mockFetch(async (_url, init) => {
         if (init?.method === 'POST') {
+          // Each answer gets the next score change, and the last one after that.
+          const scoreChange =
+            scoreChanges[Math.min(answers++, scoreChanges.length - 1)]
           return status === 200
-            ? jsonResponse({ next })
+            ? jsonResponse({ next, scoreChange })
             : new Response(null, { status })
         }
         return first === null
@@ -897,6 +1240,46 @@ describe('App', () => {
       expect(screen.queryByText('the cat')).not.toBeInTheDocument()
     })
 
+    it('adds up how much each answer changes the score into a session score', async () => {
+      const user = userEvent.setup()
+      await practice(
+        { ...cat, side: 'Spanish' },
+        { next: { ...cat, side: 'Spanish' }, scoreChanges: [50, 30, -80] },
+      )
+
+      expect(screen.getByText(/^Session score/)).toHaveTextContent(
+        'Session score 0',
+      )
+
+      for (const [label, expected] of [
+        ['Got it!', '+50'],
+        ['Got it!', '+80'],
+        ['Failed :(', '0'],
+        ['Failed :(', '-80'],
+      ]) {
+        await user.click(screen.getByRole('button', { name: 'Reveal' }))
+        await user.click(screen.getByRole('button', { name: label }))
+        await waitFor(() => {
+          expect(screen.getByText(/^Session score/)).toHaveTextContent(
+            `Session score ${expected}`,
+          )
+        })
+      }
+    })
+
+    it('keeps the session score when saving the answer fails', async () => {
+      const user = userEvent.setup()
+      await practice({ ...cat, side: 'Spanish' }, { status: 500 })
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+      expect(await screen.findByRole('alert')).toBeInTheDocument()
+      expect(screen.getByText(/^Session score/)).toHaveTextContent(
+        'Session score 0',
+      )
+    })
+
     it('shows an error and keeps the card when saving the answer fails', async () => {
       const user = userEvent.setup()
       await practice({ ...cat, side: 'Spanish' }, { status: 500 })
@@ -970,6 +1353,29 @@ describe('App', () => {
       ])
       expect(screen.getByText('la casa')).toHaveAttribute('lang', 'es')
       expect(calls[0].url).toMatch(/\/api\/flashcards\/scores$/)
+    })
+
+    it('shades each card from red for a low score to green for a high one', async () => {
+      mockFetch(async () =>
+        jsonResponse({
+          total: 150,
+          maximum: 300,
+          cards: [
+            { id: 3, spanish: 'la casa', english: 'the house', score: 0 },
+            { id: 2, spanish: 'el perro', english: 'the dog', score: 50 },
+            { id: 1, spanish: 'el gato', english: 'the cat', score: 100 },
+          ],
+        }),
+      )
+      renderAt('/scores')
+
+      await screen.findByText('Total score 150 / 300 (50%)')
+      const items = within(
+        screen.getByRole('list', { name: 'Card scores' }),
+      ).getAllByRole('listitem')
+      expect(items[0]).toHaveStyle({ backgroundColor: 'hsl(0, 70%, 90%)' })
+      expect(items[1]).toHaveStyle({ backgroundColor: 'hsl(60, 70%, 90%)' })
+      expect(items[2]).toHaveStyle({ backgroundColor: 'hsl(120, 70%, 90%)' })
     })
 
     it('links to adding cards when there are none', async () => {

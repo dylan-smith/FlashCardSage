@@ -44,6 +44,14 @@ if [ ! -f "${shared_dir}/preview-shared.bicep" ]; then
   shared_dir=infra
 fi
 deploy "preview-shared-pr-${PR_NUMBER}" "${shared_dir}/preview-shared.bicep" "${shared_dir}/preview-shared.bicepparam"
+# The Translator every preview shares (preview-shared.bicep), read by infra/preview.bicepparam. It's looked up in the
+# resource group rather than taken from the deployment above, so a PR whose base branch doesn't declare it yet still
+# uses it once it exists. Empty, which turns translation off, when there isn't one.
+PREVIEW_TRANSLATOR_NAME="$(az cognitiveservices account list \
+  --resource-group "${PREVIEW_RESOURCE_GROUP}" \
+  --query "[?kind == 'TextTranslation'] | [0].name" \
+  --output tsv)"
+export PREVIEW_TRANSLATOR_NAME
 
 # Read just before the deployment, after the migrations check, which may have deleted the database.
 PREVIEW_DATABASE_TAGS="$(az resource list \
