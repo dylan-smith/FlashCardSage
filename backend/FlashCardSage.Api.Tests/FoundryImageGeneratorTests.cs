@@ -26,6 +26,9 @@ public class FoundryImageGeneratorTests
             "https://foundry.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview",
             request.Url);
         Assert.Equal("Bearer secret-key", request.Authorization);
+        // The service refuses a chunked body.
+        Assert.Equal(request.Body!.Length, request.ContentLength);
+        Assert.Equal("application/json", request.ContentType);
         using var body = JsonDocument.Parse(request.Body!);
         var root = body.RootElement;
         Assert.Equal("flux-2-pro", root.GetProperty("model").GetString());
@@ -85,11 +88,12 @@ public class FoundryImageGeneratorTests
     }
 
     [Theory]
-    [InlineData(HttpStatusCode.Unauthorized, """{"error":{"code":"401","message":"Access denied"}}""")]
-    [InlineData(HttpStatusCode.BadRequest, """{"error":{"code":"invalid_request_error","message":"bad size"}}""")]
-    [InlineData(HttpStatusCode.TooManyRequests, "")]
-    [InlineData(HttpStatusCode.InternalServerError, "not json")]
-    public async Task GenerateAsync_Throws_WhenTheServiceFails(HttpStatusCode status, string body)
+    [InlineData(HttpStatusCode.Unauthorized, """{"error":{"code":"401","message":"Access denied"}}""", "The image generator answered 401 (401).")]
+    [InlineData(HttpStatusCode.BadRequest, """{"error":{"code":"no_content_length_header","message":"Content-Length header is required to make request."}}""", "The image generator answered 400 (no_content_length_header).")]
+    [InlineData(HttpStatusCode.TooManyRequests, "", "The image generator answered 429.")]
+    [InlineData(HttpStatusCode.InternalServerError, "not json", "The image generator answered 500.")]
+    [InlineData(HttpStatusCode.InternalServerError, """{"error":"boom"}""", "The image generator answered 500.")]
+    public async Task GenerateAsync_Throws_WhenTheServiceFails_NamingItsErrorCode(HttpStatusCode status, string body, string message)
     {
         var handler = new FakeHandler(_ => (status, body));
         using var httpClient = new HttpClient(handler);
@@ -98,6 +102,7 @@ public class FoundryImageGeneratorTests
             CreateGenerator(httpClient).GenerateAsync("x", "y", CancellationToken.None));
 
         Assert.Equal(status, exception.StatusCode);
+        Assert.Equal(message, exception.Message);
     }
 
     [Theory]
@@ -132,7 +137,8 @@ public class FoundryImageGeneratorTests
         return new FoundryImageGenerator(httpClient, Options.Create(options));
     }
 
-    private sealed record SentRequest(HttpMethod Method, string Url, string? Authorization, string? Body);
+    private sealed record SentRequest(
+        HttpMethod Method, string Url, string? Authorization, string? Body, long? ContentLength, string? ContentType);
 
     // Answers each request by its URL, and keeps what was sent.
     private sealed class FakeHandler(Func<string, (HttpStatusCode Status, string Body)> respond) : HttpMessageHandler
@@ -148,7 +154,9 @@ public class FoundryImageGeneratorTests
                 request.Method,
                 url,
                 request.Headers.Authorization?.ToString(),
-                request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken)));
+                request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken),
+                request.Content?.Headers.ContentLength,
+                request.Content?.Headers.ContentType?.ToString()));
             var (status, body) = respond(url);
             return new HttpResponseMessage(status)
             {

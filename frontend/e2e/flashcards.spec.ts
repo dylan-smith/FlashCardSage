@@ -291,9 +291,19 @@ test.describe('Flash card management', () => {
       await expect(
         page.getByRole('img', { name: "The card's picture" }),
       ).toBeHidden()
+      // The picture comes off after the card is saved, so wait for that before reloading, or the reload cuts it
+      // short. (The Save button reads "Saving…" meanwhile, so it can't be waited for by name.)
+      const removed = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/image') &&
+          response.request().method() === 'DELETE',
+      )
       await page.getByRole('button', { name: 'Save' }).click()
+      expect((await removed).status()).toBe(200)
 
-      await expect(page.getByRole('button', { name: 'Save' })).toBeHidden()
+      await expect(
+        page.getByRole('button', { name: 'Edit "nadar"' }),
+      ).toBeVisible()
       await expect(
         page.getByRole('img', { name: 'Picture for "nadar"' }),
       ).toBeHidden()

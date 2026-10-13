@@ -28,23 +28,29 @@ public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerati
         // The deployment is named after its model, which is also the model's path in the API.
         var url = $"{options.Endpoint.TrimEnd('/')}/providers/blackforestlabs/v1/{options.Deployment}"
             + $"?api-version={options.ApiVersion}";
+        // The service refuses a request without a Content-Length, so the body is serialized up front rather than
+        // streamed (which JsonContent would send chunked).
+        var body = JsonSerializer.SerializeToUtf8Bytes(new GenerationRequest(options.Deployment, Prompt(spanish, english)));
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
-            Content = JsonContent.Create(new GenerationRequest(options.Deployment, Prompt(spanish, english)))
+            Content = new ByteArrayContent(body)
         };
+        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.Key);
 
         using var response = await httpClient.SendAsync(request, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
-            var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            if (IsContentFiltered(body))
+            var error = await response.Content.ReadAsStringAsync(cancellationToken);
+            if (IsContentFiltered(error))
             {
                 throw new ImageContentFilteredException("The image generator's safety system refused the words.");
             }
 
+            // The service's error code says what went wrong (its message might echo the words, so it's left out).
+            var code = ErrorCode(error) is { } errorCode ? $" ({errorCode})" : string.Empty;
             throw new HttpRequestException(
-                $"The image generator answered {(int)response.StatusCode}.", null, response.StatusCode);
+                $"The image generator answered {(int)response.StatusCode}{code}.", null, response.StatusCode);
         }
 
         var result = await response.Content.ReadFromJsonAsync<GenerationResult>(cancellationToken);
@@ -67,31 +73,37 @@ public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerati
             + "watermarks.";
     }
 
-    // Whether an error response is a safety system's. Its code is on the error, or on the error inside it.
+    // Whether an error response is a safety system's, by its code.
     private static bool IsContentFiltered(string body)
+    {
+        return ErrorCode(body) is { } code && ContentFilterCodes.Contains(code, StringComparer.OrdinalIgnoreCase);
+    }
+
+    // The code of an error response: the one on the error inside the error when there is one, else the error's.
+    private static string? ErrorCode(string body)
     {
         try
         {
             using var document = JsonDocument.Parse(body);
             return document.RootElement.ValueKind == JsonValueKind.Object
                 && document.RootElement.TryGetProperty("error", out var error)
-                && (HasContentFilterCode(error)
-                    || (error.ValueKind == JsonValueKind.Object
-                        && error.TryGetProperty("inner_error", out var innerError)
-                        && HasContentFilterCode(innerError)));
+                && error.ValueKind == JsonValueKind.Object
+                ? (error.TryGetProperty("inner_error", out var innerError) ? CodeOf(innerError) : null) ?? CodeOf(error)
+                : null;
         }
         catch (JsonException)
         {
-            return false;
+            return null;
         }
     }
 
-    private static bool HasContentFilterCode(JsonElement error)
+    private static string? CodeOf(JsonElement error)
     {
         return error.ValueKind == JsonValueKind.Object
             && error.TryGetProperty("code", out var code)
             && code.ValueKind == JsonValueKind.String
-            && ContentFilterCodes.Contains(code.GetString(), StringComparer.OrdinalIgnoreCase);
+            ? code.GetString()
+            : null;
     }
 
     private sealed record GenerationRequest(
