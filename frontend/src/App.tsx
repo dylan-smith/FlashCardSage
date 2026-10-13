@@ -9,6 +9,7 @@ import logo from './assets/logo.svg'
 import { disableGoogleAutoSelect } from './auth/google'
 import { setSession, useSession } from './auth/session'
 import SignInPage from './auth/SignInPage'
+import DeckPage from './pages/DeckPage'
 import DecksPage from './pages/DecksPage'
 import FlashCardsPage from './pages/FlashCardsPage'
 import NotFoundPage from './pages/NotFoundPage'
@@ -110,8 +111,14 @@ function App() {
                 key={to}
                 component={NavLink}
                 to={to}
-                end
-                variant={pathname === to ? 'contained' : 'outlined'}
+                // A deck's own page is part of the Decks mode, but every page is under /.
+                end={to === '/'}
+                variant={
+                  pathname === to ||
+                  (to !== '/' && pathname.startsWith(`${to}/`))
+                    ? 'contained'
+                    : 'outlined'
+                }
               >
                 {label}
               </Button>
@@ -120,6 +127,7 @@ function App() {
           <Routes>
             <Route path="/" element={<FlashCardsPage />} />
             <Route path="/decks" element={<DecksPage />} />
+            <Route path="/decks/:id" element={<DeckPage />} />
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
             <Route path="*" element={<NotFoundPage />} />

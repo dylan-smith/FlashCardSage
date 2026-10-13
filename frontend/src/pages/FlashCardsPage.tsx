@@ -3,8 +3,11 @@ import type { ReactNode, SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
+import FormControlLabel from '@mui/material/FormControlLabel'
+import Link from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
@@ -12,7 +15,9 @@ import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { useSearchParams } from 'react-router'
+import { Link as RouterLink, useSearchParams } from 'react-router'
+import { changeDeckCards, createDeck, listDecks } from '../api/decks'
+import type { Deck } from '../api/decks'
 import {
   ApiError,
   createFlashCard,
@@ -27,6 +32,9 @@ import type { CardSide } from '../api/translations'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { trackEvent, trackException } from '../telemetry'
+import { AddToDeck } from './AddToDeck'
+import { cardCount } from './cardCount'
+import { deckNameRequiredMessage } from './DecksPage'
 import { TagFilter, TagsInput } from './FlashCardTags'
 
 export const spanishRequiredMessage = 'Spanish is required.'
@@ -212,13 +220,15 @@ function FlashCardEditForm({
   )
 }
 
-// One card in the list: its Spanish and English and its tags with Edit and Delete buttons, or, while it's being
-// edited, the form above.
+// One card in the list: a box to pick it, its Spanish and English and its tags with Edit and Delete buttons, or,
+// while it's being edited, the form above.
 function FlashCardItem({
   card,
   edit,
   tags,
   busy,
+  picked,
+  onPick,
   onEdit,
   onEditChange,
   onEditCancel,
@@ -229,6 +239,8 @@ function FlashCardItem({
   edit: EditedFlashCard | null
   tags: Tag[]
   busy: boolean
+  picked: boolean
+  onPick: () => void
   onEdit: () => void
   onEditChange: (change: Partial<FlashCardFields>) => void
   onEditCancel: () => void
@@ -250,6 +262,12 @@ function FlashCardItem({
 
   return (
     <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
+      <Checkbox
+        checked={picked}
+        onChange={onPick}
+        slotProps={{ input: { 'aria-label': `Pick "${card.spanish}"` } }}
+        sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
+      />
       <Box sx={{ flexGrow: 1, minWidth: 0 }}>
         <ListItemText
           primary={card.spanish}
@@ -305,6 +323,16 @@ function FlashCardsPage() {
   // Set while the picked tag is being renamed or deleted.
   const [tagBusy, setTagBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
+  // The user's decks, to add the picked cards to.
+  const [decks, setDecks] = useState<Deck[]>([])
+  // The cards picked to add to a deck.
+  const [picked, setPicked] = useState<Set<number>>(new Set())
+  const [deckBusy, setDeckBusy] = useState(false)
+  // Says which deck the picked cards went into.
+  const [deckNotice, setDeckNotice] = useState<{
+    deck: Deck
+    count: number
+  } | null>(null)
   const translation = useAutoTranslate(fields, (change) =>
     setFields((current) => ({ ...current, ...change })),
   )
@@ -324,6 +352,12 @@ function FlashCardsPage() {
   for (const tag of cards.flatMap((card) => card.tags)) {
     tagCounts.set(tag.id, (tagCounts.get(tag.id) ?? 0) + 1)
   }
+  // Only the picked cards that are shown count, so a card hidden by the tag filter is never added to a deck.
+  const pickedIds = visibleCards
+    .filter((card) => picked.has(card.id))
+    .map((card) => card.id)
+  const allPicked =
+    visibleCards.length > 0 && pickedIds.length === visibleCards.length
 
   // Loads the list and the tags once. The page starts out loading, and the other actions keep both up to date
   // themselves.
@@ -354,6 +388,89 @@ function FlashCardsPage() {
       cancelled = true
     }
   }, [])
+
+  // The decks are only needed to add cards to one, so the list still shows if they don't load.
+  useEffect(() => {
+    let cancelled = false
+    listDecks()
+      .then((loaded) => {
+        if (!cancelled) {
+          setDecks(loaded)
+        }
+      })
+      .catch((error: unknown) => {
+        if (!cancelled) {
+          trackException(error, { operation: 'loadDecks' })
+        }
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  function togglePicked(id: number) {
+    setPicked((current) => {
+      const next = new Set(current)
+      if (!next.delete(id)) {
+        next.add(id)
+      }
+      return next
+    })
+  }
+
+  async function handleAddToDeck(deck: Deck) {
+    setDeckBusy(true)
+    setErrorMessage('')
+    setDeckNotice(null)
+    try {
+      const updated = await changeDeckCards(deck.id, { add: pickedIds })
+      trackEvent('DeckCardsAdded')
+      setDecks((current) =>
+        current.map((item) => (item.id === updated.id ? updated : item)),
+      )
+      setDeckNotice({ deck: updated, count: pickedIds.length })
+      setPicked(new Set())
+    } catch (error) {
+      trackException(error, { operation: 'addToDeck' })
+      setErrorMessage(
+        describeFetchError(error, 'Unable to add the cards to the deck.'),
+      )
+    } finally {
+      setDeckBusy(false)
+    }
+  }
+
+  // Resolves to why the deck wasn't made, or null when it was.
+  async function handleCreateDeck(name: string) {
+    const trimmed = name.trim()
+    if (!trimmed) {
+      return deckNameRequiredMessage
+    }
+
+    setDeckBusy(true)
+    setErrorMessage('')
+    setDeckNotice(null)
+    try {
+      const created = await createDeck({
+        name: trimmed,
+        flashCardIds: pickedIds,
+      })
+      trackEvent('DeckCreated')
+      setDecks((current) =>
+        [...current, created].sort((a, b) =>
+          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
+        ),
+      )
+      setDeckNotice({ deck: created, count: pickedIds.length })
+      setPicked(new Set())
+      return null
+    } catch (error) {
+      trackException(error, { operation: 'createDeck' })
+      return describeFetchError(error, 'Unable to save deck.')
+    } finally {
+      setDeckBusy(false)
+    }
+  }
 
   // A saved card can have tags the API just made for new names, so they're added to the user's tags.
   function addNewTags(card: FlashCard) {
@@ -446,6 +563,7 @@ function FlashCardsPage() {
   }
 
   function selectTag(tag: Tag | null) {
+    setPicked(new Set())
     setSearchParams(tag === null ? {} : { tag: String(tag.id) })
   }
 
@@ -557,6 +675,19 @@ function FlashCardsPage() {
       </Paper>
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+      {deckNotice && (
+        <Alert
+          severity="success"
+          role="status"
+          onClose={() => setDeckNotice(null)}
+        >
+          Added {cardCount(deckNotice.count)} to{' '}
+          <Link component={RouterLink} to={`/decks/${deckNotice.deck.id}`}>
+            {deckNotice.deck.name}
+          </Link>
+          .
+        </Alert>
+      )}
 
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
         <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
@@ -589,37 +720,76 @@ function FlashCardsPage() {
                 No flash cards with this tag.
               </Typography>
             ) : (
-              <List disablePadding>
-                {visibleCards.map((card) => (
-                  <FlashCardItem
-                    key={card.id}
-                    card={card}
-                    edit={edit?.id === card.id ? edit : null}
-                    tags={tags}
-                    busy={busyId === card.id}
-                    onEdit={() => {
-                      setErrorMessage('')
-                      setEdit({
-                        id: card.id,
-                        spanish: card.spanish,
-                        english: card.english,
-                        tags: card.tags.map((tag) => tag.name),
-                      })
-                    }}
-                    onEditChange={(change) =>
-                      setEdit((current) =>
-                        current === null ? null : { ...current, ...change },
-                      )
+              <>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    gap: 1,
+                  }}
+                >
+                  <FormControlLabel
+                    label={`Pick all ${visibleCards.length}`}
+                    control={
+                      <Checkbox
+                        checked={allPicked}
+                        indeterminate={pickedIds.length > 0 && !allPicked}
+                        onChange={() =>
+                          setPicked(
+                            new Set(
+                              allPicked
+                                ? []
+                                : visibleCards.map((card) => card.id),
+                            ),
+                          )
+                        }
+                      />
                     }
-                    onEditCancel={() => {
-                      setErrorMessage('')
-                      setEdit(null)
-                    }}
-                    onEditSave={(event) => void handleEditSave(event)}
-                    onDelete={() => void handleDelete(card)}
                   />
-                ))}
-              </List>
+                  <AddToDeck
+                    decks={decks}
+                    count={pickedIds.length}
+                    busy={deckBusy}
+                    onAdd={(deck) => void handleAddToDeck(deck)}
+                    onCreate={handleCreateDeck}
+                  />
+                </Box>
+                <List disablePadding>
+                  {visibleCards.map((card) => (
+                    <FlashCardItem
+                      key={card.id}
+                      card={card}
+                      edit={edit?.id === card.id ? edit : null}
+                      tags={tags}
+                      busy={busyId === card.id}
+                      picked={picked.has(card.id)}
+                      onPick={() => togglePicked(card.id)}
+                      onEdit={() => {
+                        setErrorMessage('')
+                        setEdit({
+                          id: card.id,
+                          spanish: card.spanish,
+                          english: card.english,
+                          tags: card.tags.map((tag) => tag.name),
+                        })
+                      }}
+                      onEditChange={(change) =>
+                        setEdit((current) =>
+                          current === null ? null : { ...current, ...change },
+                        )
+                      }
+                      onEditCancel={() => {
+                        setErrorMessage('')
+                        setEdit(null)
+                      }}
+                      onEditSave={(event) => void handleEditSave(event)}
+                      onDelete={() => void handleDelete(card)}
+                    />
+                  ))}
+                </List>
+              </>
             )}
           </>
         )}

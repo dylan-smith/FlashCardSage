@@ -128,65 +128,119 @@ public class DecksControllerTests
     }
 
     [Fact]
-    public async Task Update_RenamesTheDeckAndReplacesItsCards()
+    public async Task Rename_TrimsTheNameAndKeepsTheCards()
     {
         var databaseName = Guid.NewGuid().ToString();
-        int deckId, catId, dogId, houseId;
+        int deckId, catId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
             var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
-            var dog = new FlashCard { Spanish = "el perro", English = "the dog" };
-            var house = new FlashCard { Spanish = "la casa", English = "the house" };
-            var deck = new Deck { Name = "Anmals", FlashCards = [cat, dog] };
-            setupContext.FlashCards.Add(house);
+            var deck = new Deck { Name = "Anmals", FlashCards = [cat] };
             setupContext.Decks.Add(deck);
             await setupContext.SaveChangesAsync();
-            (deckId, catId, dogId, houseId) = (deck.Id, cat.Id, dog.Id, house.Id);
+            (deckId, catId) = (deck.Id, cat.Id);
         }
 
         await using var dbContext = TestDb.Create(databaseName);
-        var controller = CreateController(dbContext);
+        var result = await CreateController(dbContext).Rename(deckId, new DeckNameRequest { Name = "  Animals " });
 
-        var result = await controller.Update(deckId, new DeckRequest { Name = "Things", FlashCardIds = [houseId, dogId] });
-
-        var updated = Assert.IsType<DeckResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
-        Assert.Equal("Things", updated.Name);
-        Assert.Equal(new[] { dogId, houseId }.Order(), updated.FlashCardIds);
+        var renamed = Assert.IsType<DeckResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal("Animals", renamed.Name);
+        Assert.Equal([catId], renamed.FlashCardIds);
         await using var checkContext = TestDb.Create(databaseName);
         var saved = await checkContext.Decks.Include(deck => deck.FlashCards).SingleAsync();
-        Assert.Equal("Things", saved.Name);
-        Assert.Equal(new[] { dogId, houseId }.Order(), saved.FlashCards.Select(card => card.Id).Order());
-        // The card taken out of the deck is still there.
-        Assert.True(await checkContext.FlashCards.AnyAsync(card => card.Id == catId));
+        Assert.Equal("Animals", saved.Name);
+        Assert.Equal([catId], saved.FlashCards.Select(card => card.Id));
     }
 
     [Fact]
-    public async Task Update_AllowsKeepingTheSameName()
+    public async Task Rename_AllowsChangingOnlyTheCase()
     {
         await using var dbContext = TestDb.Create();
         var deck = new Deck { Name = "Animals" };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
-        var controller = CreateController(dbContext);
 
-        var result = await controller.Update(deck.Id, new DeckRequest { Name = "animals" });
+        var result = await CreateController(dbContext).Rename(deck.Id, new DeckNameRequest { Name = "animals" });
 
         Assert.Equal("animals", Assert.IsType<DeckResponse>(Assert.IsType<OkObjectResult>(result.Result).Value).Name);
     }
 
-    [Fact]
-    public async Task Update_ReturnsValidationProblem_WhenAnotherDeckHasTheName()
+    [Theory]
+    [InlineData("FOOD", "There's already a deck with that name.")]
+    [InlineData("  ", "Deck name is required.")]
+    public async Task Rename_ReturnsValidationProblem_ForATakenOrBlankName(string name, string message)
     {
         await using var dbContext = TestDb.Create();
         var deck = new Deck { Name = "Animals" };
         dbContext.Decks.AddRange(deck, new Deck { Name = "Food" });
         await dbContext.SaveChangesAsync();
-        var controller = CreateController(dbContext);
 
-        var result = await controller.Update(deck.Id, new DeckRequest { Name = "FOOD" });
+        var result = await CreateController(dbContext).Rename(deck.Id, new DeckNameRequest { Name = name });
 
         var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal(["There's already a deck with that name."], problem.Errors["Name"]);
+        Assert.Equal([message], problem.Errors["Name"]);
+    }
+
+    [Fact]
+    public async Task ChangeCards_AddsAndRemovesOnlyTheCardsGiven()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        int deckId, catId, dogId, houseId, bookId;
+        await using (var setupContext = TestDb.Create(databaseName))
+        {
+            var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
+            var dog = new FlashCard { Spanish = "el perro", English = "the dog" };
+            var house = new FlashCard { Spanish = "la casa", English = "the house" };
+            var book = new FlashCard { Spanish = "el libro", English = "the book" };
+            var deck = new Deck { Name = "Animals", FlashCards = [cat, dog] };
+            setupContext.FlashCards.AddRange(house, book);
+            setupContext.Decks.Add(deck);
+            await setupContext.SaveChangesAsync();
+            (deckId, catId, dogId, houseId, bookId) = (deck.Id, cat.Id, dog.Id, house.Id, book.Id);
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        // The cat is added again and the book removed without being in the deck, which changes nothing.
+        var result = await CreateController(dbContext).ChangeCards(
+            deckId, new DeckCardsRequest { Add = [houseId, catId, houseId], Remove = [dogId, bookId] });
+
+        var changed = Assert.IsType<DeckResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var expected = new[] { catId, houseId }.Order();
+        Assert.Equal(expected, changed.FlashCardIds);
+        await using var checkContext = TestDb.Create(databaseName);
+        var saved = await checkContext.Decks.Include(deck => deck.FlashCards).SingleAsync();
+        Assert.Equal(expected, saved.FlashCards.Select(card => card.Id).Order());
+        // The card taken out of the deck is still there.
+        Assert.Equal(4, await checkContext.FlashCards.CountAsync());
+    }
+
+    [Fact]
+    public async Task ChangeCards_ReturnsValidationProblem_ForAnotherUsersCard_AndChangesNothing()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var other = new FlashCard { Spanish = "el perro", English = "the dog" };
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            otherContext.FlashCards.Add(other);
+            await otherContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var cat = new FlashCard { Spanish = "el gato", English = "the cat" };
+        var deck = new Deck { Name = "Animals", FlashCards = [cat] };
+        dbContext.Decks.Add(deck);
+        await dbContext.SaveChangesAsync();
+
+        var result = await CreateController(dbContext).ChangeCards(
+            deck.Id, new DeckCardsRequest { Add = [other.Id], Remove = [cat.Id] });
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
+        Assert.Equal(["Some of those flash cards no longer exist."], problem.Errors["Add"]);
+        await using var checkContext = TestDb.Create(databaseName);
+        Assert.Equal(
+            [cat.Id],
+            (await checkContext.Decks.Include(item => item.FlashCards).SingleAsync()).FlashCards.Select(card => card.Id));
     }
 
     [Fact]
@@ -252,7 +306,8 @@ public class DecksControllerTests
         var controller = CreateController(dbContext);
 
         Assert.IsType<NotFoundResult>((await controller.GetById(otherId)).Result);
-        Assert.IsType<NotFoundResult>((await controller.Update(otherId, new DeckRequest { Name = "Mine" })).Result);
+        Assert.IsType<NotFoundResult>((await controller.Rename(otherId, new DeckNameRequest { Name = "Mine" })).Result);
+        Assert.IsType<NotFoundResult>((await controller.ChangeCards(otherId, new DeckCardsRequest())).Result);
         Assert.IsType<NotFoundResult>(await controller.Delete(otherId));
         Assert.Equal("Theirs", (await dbContext.Decks.IgnoreQueryFilters().SingleAsync()).Name);
     }

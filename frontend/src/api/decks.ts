@@ -9,10 +9,16 @@ export type Deck = {
   flashCardIds: number[]
 }
 
-// What's sent when a deck is created or changed. The ids are every card in the deck, replacing the ones it had.
+// What's sent to make a deck. It can start out with cards, such as the ones picked on the cards page.
 export type DeckFields = {
   name: string
   flashCardIds: number[]
+}
+
+// Cards to put in a deck and take out of it. A deck can hold hundreds, so only the ones that change are sent.
+export type DeckCardsChange = {
+  add?: number[]
+  remove?: number[]
 }
 
 export const decksUrl = `${apiBaseUrl}/api/decks`
@@ -26,28 +32,57 @@ export async function listDecks(): Promise<Deck[]> {
   return (await response.json()) as Deck[]
 }
 
-async function saveDeck(
+// The deck, or null when the user has no deck with that id (any more).
+export async function getDeck(id: number): Promise<Deck | null> {
+  const response = await apiFetch(`${decksUrl}/${id}`)
+  if (response.status === 404) {
+    return null
+  }
+  if (!response.ok) {
+    throw new Error('Unable to load the deck.')
+  }
+  return (await response.json()) as Deck
+}
+
+async function sendDeck(
   url: string,
-  method: 'POST' | 'PUT',
-  fields: DeckFields,
+  method: 'POST' | 'PUT' | 'PATCH',
+  body: unknown,
+  fallback: string,
 ) {
   const response = await apiFetch(url, {
     method,
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify(fields),
+    body: JSON.stringify(body),
   })
-  await throwIfNotSaved(response, 'Unable to save deck.')
+  await throwIfNotSaved(response, fallback)
   return (await response.json()) as Deck
 }
 
 export function createDeck(fields: DeckFields) {
-  return saveDeck(decksUrl, 'POST', fields)
+  return sendDeck(decksUrl, 'POST', fields, 'Unable to save deck.')
 }
 
-export function updateDeck(id: number, fields: DeckFields) {
-  return saveDeck(`${decksUrl}/${id}`, 'PUT', fields)
+// Renames the deck, leaving its cards as they are.
+export function renameDeck(id: number, name: string) {
+  return sendDeck(
+    `${decksUrl}/${id}`,
+    'PUT',
+    { name },
+    'Unable to rename deck.',
+  )
+}
+
+// Returns the deck with all its cards after the change.
+export function changeDeckCards(id: number, change: DeckCardsChange) {
+  return sendDeck(
+    `${decksUrl}/${id}/cards`,
+    'PATCH',
+    { add: change.add ?? [], remove: change.remove ?? [] },
+    'Unable to change the deck.',
+  )
 }
 
 // Leaves the deck's cards as they are. A 404 means the deck is already gone, which is what the caller wanted.

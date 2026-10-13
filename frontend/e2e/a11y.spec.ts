@@ -80,7 +80,7 @@ test.describe('Accessibility', () => {
     }
   })
 
-  test('decks page, with a deck being edited, has no detectable accessibility violations', async ({
+  test("decks list, a deck's page with a card picked, and the new deck dialog have no detectable accessibility violations", async ({
     page,
     request,
   }) => {
@@ -100,17 +100,33 @@ test.describe('Accessibility', () => {
     expect(deck.ok()).toBe(true)
     const { id: deckId } = (await deck.json()) as { id: number }
 
+    // Checked once nothing is fading in or out, since a button part way from disabled to enabled can fail on
+    // contrast.
+    async function violations() {
+      await page.waitForFunction(() => document.getAnimations().length === 0)
+      return (await new AxeBuilder({ page }).analyze()).violations
+    }
+
     try {
       await page.goto('/decks')
-      // Editing shows the picked card's chip as well as the deck in the list.
-      await page.getByRole('button', { name: `Edit deck "${name}"` }).click()
+      await expect(page.getByRole('link', { name, exact: true })).toBeVisible()
+      expect(await violations()).toEqual([])
+
+      await page.getByRole('link', { name, exact: true }).click()
+      await page.getByRole('checkbox', { name: /^A11y deck card/ }).check()
       await expect(
-        page.getByRole('button', { name: 'Save deck' }),
-      ).toBeVisible()
+        page.getByRole('button', { name: 'Remove 1 card' }),
+      ).toBeEnabled()
+      expect(await violations()).toEqual([])
 
-      const results = await new AxeBuilder({ page }).analyze()
-
-      expect(results.violations).toEqual([])
+      await page.goto('/')
+      await page
+        .getByRole('checkbox', { name: /^Pick "A11y deck card/ })
+        .check()
+      await page.getByRole('button', { name: 'Add 1 card to deck…' }).click()
+      await page.getByRole('menuitem', { name: 'New deck…' }).click()
+      await expect(page.getByRole('dialog')).toBeVisible()
+      expect(await violations()).toEqual([])
     } finally {
       await request.delete(`${decksApiUrl}/${deckId}`)
       await request.delete(`${flashCardsApiUrl}/${cardId}`)

@@ -163,19 +163,24 @@ export function TagFilter({
   )
 }
 
-// The form for a tag's new name. Like the card edit form, the field gets focus when the form appears.
-function TagRenameForm({
+// The form for a tag's new name, which decks use too. Like the card edit form, the field gets focus when the form
+// appears.
+export function TagRenameForm({
   name,
   busy,
   onChange,
   onCancel,
   onSave,
+  label = 'Tag name',
+  maxLength = tagMaxLength,
 }: {
   name: string
   busy: boolean
   onChange: (name: string) => void
   onCancel: () => void
   onSave: (event: SubmitEvent<HTMLFormElement>) => void
+  label?: string
+  maxLength?: number
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
 
@@ -197,11 +202,11 @@ function TagRenameForm({
       }}
     >
       <TextField
-        label="Tag name"
+        label={label}
         value={name}
         onChange={(event) => onChange(event.target.value)}
         inputRef={inputRef}
-        slotProps={{ htmlInput: { maxLength: tagMaxLength } }}
+        slotProps={{ htmlInput: { maxLength } }}
         size="small"
       />
       <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>

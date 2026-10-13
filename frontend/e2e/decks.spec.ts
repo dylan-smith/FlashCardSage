@@ -60,20 +60,36 @@ test.describe('Decks', () => {
     ).toBeVisible()
 
     await page.getByLabel('Deck name').fill('Week 1')
-    await page
-      .getByRole('group', { name: 'Add the cards tagged' })
-      .getByRole('button', { name: 'Animals' })
-      .click()
-    await page.getByRole('combobox', { name: 'Cards' }).click()
-    await page.getByRole('option', { name: 'la casa — the house' }).click()
     await page.getByRole('button', { name: 'Create deck' }).click()
 
-    const deck = page.getByRole('listitem').filter({ hasText: 'Week 1' })
-    await expect(deck).toContainText('3 cards')
+    // A new deck opens on adding cards. All of a tag's cards go in at once.
+    await expect(page).toHaveURL(/\/decks\/\d+$/)
+    await expect(
+      page.getByRole('tab', { name: 'Add cards (4)' }),
+    ).toHaveAttribute('aria-selected', 'true')
+    await page
+      .getByRole('group', { name: 'Show cards tagged' })
+      .getByRole('button', { name: 'Animals' })
+      .click()
+    await page.getByRole('checkbox', { name: 'Select all 2' }).check()
+    await page.getByRole('button', { name: 'Add 2 cards' }).click()
+    await expect(page.getByRole('status')).toHaveText(
+      'Added 2 cards to the deck.',
+    )
+
+    // Then a card found by searching.
+    await page.getByRole('searchbox', { name: 'Search' }).fill('house')
+    await page.getByRole('checkbox', { name: /^la casa/ }).check()
+    await page.getByRole('button', { name: 'Add 1 card' }).click()
+    await expect(page.getByRole('status')).toHaveText(
+      'Added 1 card to the deck.',
+    )
 
     // Still there after a reload, so it was saved.
     await page.reload()
-    await expect(deck).toContainText('3 cards')
+    await expect(
+      page.getByRole('tab', { name: 'In this deck (3)' }),
+    ).toHaveAttribute('aria-selected', 'true')
 
     await page.getByRole('link', { name: 'Practice deck "Week 1"' }).click()
     await expect(page).toHaveURL(/\/practice\?deck=\d+$/)
@@ -81,6 +97,31 @@ test.describe('Decks', () => {
       'Deck: Week 1',
     )
     await practiceOnly(page, ['el gato', 'el perro', 'la casa'])
+  })
+
+  test('puts cards picked on the cards page into a new deck, and takes one out again', async ({
+    page,
+  }) => {
+    await page.goto('/')
+    await page.getByRole('checkbox', { name: 'Pick "la casa"' }).check()
+    await page.getByRole('checkbox', { name: 'Pick "el libro"' }).check()
+    await page.getByRole('button', { name: 'Add 2 cards to deck…' }).click()
+    await page.getByRole('menuitem', { name: 'New deck…' }).click()
+    const dialog = page.getByRole('dialog', { name: 'New deck with 2 cards' })
+    await dialog.getByLabel('Deck name').fill('Things')
+    await dialog.getByRole('button', { name: 'Create deck' }).click()
+
+    const status = page.getByRole('status')
+    await expect(status).toHaveText('Added 2 cards to Things.')
+    await status.getByRole('link', { name: 'Things' }).click()
+
+    await expect(page.getByRole('heading', { name: 'Things' })).toBeVisible()
+    await page.getByRole('checkbox', { name: /^el libro/ }).check()
+    await page.getByRole('button', { name: 'Remove 1 card' }).click()
+    await expect(
+      page.getByRole('tab', { name: 'In this deck (1)' }),
+    ).toBeVisible()
+    await expect(page.getByRole('checkbox', { name: /^la casa/ })).toBeVisible()
   })
 
   test('practices only the cards with the tag picked', async ({ page }) => {

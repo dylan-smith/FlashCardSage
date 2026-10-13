@@ -117,8 +117,19 @@ Accept: {{contentType}}
 Authorization: Bearer {{token}}
 
 {
-  "name": "Week 1",
-  "flashCardIds": [1, 2]
+  "name": "Week one"
+}
+
+###
+
+PATCH {{FlashCardSage.Api_HostAddress}}/api/decks/1/cards
+Content-Type: {{contentType}}
+Accept: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "add": [2, 3],
+  "remove": [1]
 }
 
 ###

@@ -244,7 +244,9 @@ describe('App', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(
         'Spanish is required.',
       )
-      expect(calls).toHaveLength(2)
+      expect(calls.filter((call) => call.init?.method !== undefined)).toEqual(
+        [],
+      )
     })
 
     it('asks for the English instead of sending a blank one', async () => {
@@ -260,7 +262,9 @@ describe('App', () => {
       expect(screen.getByRole('alert')).toHaveTextContent(
         'English is required.',
       )
-      expect(calls).toHaveLength(2)
+      expect(calls.filter((call) => call.init?.method !== undefined)).toEqual(
+        [],
+      )
     })
 
     it("shows the API's reason when it rejects the card", async () => {
@@ -376,7 +380,9 @@ describe('App', () => {
 
       expect(screen.getByText('el gato')).toBeInTheDocument()
       expect(screen.queryByText('changed')).not.toBeInTheDocument()
-      expect(calls).toHaveLength(2)
+      expect(calls.filter((call) => call.init?.method !== undefined)).toEqual(
+        [],
+      )
     })
 
     it('asks for the English instead of saving a blank one', async () => {
@@ -393,7 +399,9 @@ describe('App', () => {
         'English is required.',
       )
       expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
-      expect(calls).toHaveLength(2)
+      expect(calls.filter((call) => call.init?.method !== undefined)).toEqual(
+        [],
+      )
     })
 
     it('shows an error and stays in edit mode when saving fails', async () => {
@@ -1106,199 +1114,522 @@ describe('App', () => {
       english: 'the house',
       tags: [],
     }
+    const song: FlashCard = {
+      id: 4,
+      spanish: 'la canción',
+      english: 'the song',
+      tags: [],
+    }
+    const cards = [cat, dog, house, song]
     const animals: Deck = { id: 7, name: 'Animals', flashCardIds: [1, 2] }
 
-    // Renders the decks page with these loaded, answering every change with the handler.
-    async function showDecks(
-      decks: Deck[],
+    // Answers loading the cards and a deck, and every change with the handler.
+    function mockDeckApi(
+      deck: Deck | null,
       handler: (url: string, init?: RequestInit) => Promise<Response> = (
         url,
         init,
       ) => {
         throw new Error(`Unexpected ${init?.method} ${url}`)
       },
+      allCards: FlashCard[] = cards,
     ) {
-      const calls = mockFetch(
-        async (url, init) =>
-          init?.method === undefined
-            ? jsonResponse([cat, dog, house])
-            : handler(url, init),
+      return mockFetch(
+        async (url, init) => {
+          if (init?.method !== undefined) {
+            return handler(url, init)
+          }
+          if (url.startsWith(`${decksUrl}/`)) {
+            return deck === null
+              ? new Response(null, { status: 404 })
+              : jsonResponse(deck)
+          }
+          return jsonResponse(allCards)
+        },
         [pets],
-        decks,
+        deck === null ? [] : [deck],
       )
-      renderAt('/decks')
+    }
+
+    async function showPage(path: string) {
+      renderAt(path)
       await waitFor(() => {
         expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
       })
-      return calls
     }
 
-    it('lists the decks with how many cards each has', async () => {
-      await showDecks([animals, { id: 8, name: 'Home', flashCardIds: [3] }])
+    // The card checkboxes in the tab shown, by their Spanish.
+    function cardBox(spanish: string) {
+      return screen.getByRole('checkbox', {
+        name: new RegExp(`^${spanish}(?!\\d)`),
+      })
+    }
 
-      const items = within(screen.getByRole('list')).getAllByRole('listitem')
-      expect(items.map((item) => item.textContent)).toEqual([
-        expect.stringContaining('Animals2 cards'),
-        expect.stringContaining('Home1 card'),
-      ])
-      expect(
-        screen.getByRole('link', { name: 'Practice deck "Animals"' }),
-      ).toHaveAttribute('href', '/practice?deck=7')
+    describe('the list', () => {
+      it('lists the decks with how many cards each has', async () => {
+        mockFetch(
+          async () => jsonResponse([]),
+          [],
+          [animals, { id: 8, name: 'Home', flashCardIds: [3] }],
+        )
+        await showPage('/decks')
+
+        const items = within(screen.getByRole('list')).getAllByRole('listitem')
+        expect(items.map((item) => item.textContent)).toEqual([
+          expect.stringContaining('Animals2 cards'),
+          expect.stringContaining('Home1 card'),
+        ])
+        expect(screen.getByRole('link', { name: 'Animals' })).toHaveAttribute(
+          'href',
+          '/decks/7',
+        )
+        expect(
+          screen.getByRole('link', { name: 'Practice deck "Animals"' }),
+        ).toHaveAttribute('href', '/practice?deck=7')
+      })
+
+      it('says when there are no decks yet', async () => {
+        mockFetch(async () => jsonResponse([]))
+        await showPage('/decks')
+
+        expect(
+          screen.getByText("You haven't made any decks yet."),
+        ).toBeInTheDocument()
+      })
+
+      it('creates a deck and opens it on adding cards', async () => {
+        const user = userEvent.setup()
+        const created: Deck = { id: 9, name: 'Week 1', flashCardIds: [] }
+        const calls = mockDeckApi(created, async () =>
+          jsonResponse(created, 201),
+        )
+        await showPage('/decks')
+
+        await user.type(
+          screen.getByLabelText('Deck name', { exact: false }),
+          ' Week 1 ',
+        )
+        await user.click(screen.getByRole('button', { name: 'Create deck' }))
+
+        expect(
+          await screen.findByRole('heading', { level: 2, name: 'Week 1' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (4)' }),
+        ).toHaveAttribute('aria-selected', 'true')
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.url).toBe(decksUrl)
+        expect(post?.init?.body).toBe(
+          JSON.stringify({ name: 'Week 1', flashCardIds: [] }),
+        )
+        expect(trackEvent).toHaveBeenCalledWith('DeckCreated')
+      })
+
+      it('shows why the API refused a deck', async () => {
+        const user = userEvent.setup()
+        mockDeckApi(animals, async () =>
+          jsonResponse(
+            { errors: { Name: ["There's already a deck with that name."] } },
+            400,
+          ),
+        )
+        await showPage('/decks')
+
+        await user.type(
+          screen.getByLabelText('Deck name', { exact: false }),
+          'animals',
+        )
+        await user.click(screen.getByRole('button', { name: 'Create deck' }))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          "There's already a deck with that name.",
+        )
+        expect(
+          screen.getByLabelText('Deck name', { exact: false }),
+        ).toHaveValue('animals')
+      })
+
+      it('deletes a deck', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(
+          animals,
+          async () => new Response(null, { status: 204 }),
+        )
+        await showPage('/decks')
+
+        await user.click(
+          screen.getByRole('button', { name: 'Delete deck "Animals"' }),
+        )
+
+        expect(
+          await screen.findByText("You haven't made any decks yet."),
+        ).toBeInTheDocument()
+        const del = calls.find((call) => call.init?.method === 'DELETE')
+        expect(del?.url).toBe(`${decksUrl}/7`)
+        expect(trackEvent).toHaveBeenCalledWith('DeckDeleted')
+      })
+
+      it('shows an error when loading fails', async () => {
+        vi.spyOn(globalThis, 'fetch').mockImplementation(unreachable)
+        renderAt('/decks')
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          unreachableMessage,
+        )
+      })
     })
 
-    it('says when there are no decks yet', async () => {
-      await showDecks([])
+    describe("a deck's page", () => {
+      it("shows the deck's cards, with the rest to add on the other tab", async () => {
+        const user = userEvent.setup()
+        mockDeckApi(animals)
+        await showPage('/decks/7')
 
-      expect(
-        screen.getByText("You haven't made any decks yet."),
-      ).toBeInTheDocument()
+        expect(
+          screen.getByRole('heading', { level: 2, name: 'Animals' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('link', { name: 'Practice deck "Animals"' }),
+        ).toHaveAttribute('href', '/practice?deck=7')
+        // The Decks mode stays marked on a deck's page.
+        expect(
+          within(screen.getByRole('navigation', { name: 'Mode' })).getByRole(
+            'link',
+            { name: 'Decks' },
+          ),
+        ).toHaveAttribute('aria-current', 'page')
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (2)' }),
+        ).toHaveAttribute('aria-selected', 'true')
+        expect(cardBox('el gato')).toBeInTheDocument()
+        expect(cardBox('el perro')).toBeInTheDocument()
+        expect(
+          screen.queryByRole('checkbox', { name: /^la casa/ }),
+        ).not.toBeInTheDocument()
+
+        await user.click(screen.getByRole('tab', { name: 'Add cards (2)' }))
+
+        expect(cardBox('la casa')).toBeInTheDocument()
+        expect(cardBox('la canción')).toBeInTheDocument()
+        expect(
+          screen.queryByRole('checkbox', { name: /^el gato/ }),
+        ).not.toBeInTheDocument()
+      })
+
+      it('finds cards by either side, whatever their accents and case', async () => {
+        const user = userEvent.setup()
+        mockDeckApi({ ...animals, flashCardIds: [] })
+        await showPage('/decks/7')
+
+        await user.type(
+          screen.getByRole('searchbox', { name: 'Search' }),
+          'CANCION',
+        )
+
+        expect(cardBox('la canción')).toBeInTheDocument()
+        expect(
+          screen.getAllByRole('checkbox', { name: /^(el|la) / }),
+        ).toHaveLength(1)
+
+        await user.clear(screen.getByRole('searchbox', { name: 'Search' }))
+        await user.type(
+          screen.getByRole('searchbox', { name: 'Search' }),
+          'the dog',
+        )
+
+        expect(
+          screen.getAllByRole('checkbox', { name: /^(el|la) / }),
+        ).toHaveLength(1)
+        expect(cardBox('el perro')).toBeInTheDocument()
+      })
+
+      it('adds every card with a tag, and stays on adding cards', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi({ ...animals, flashCardIds: [3] }, async () =>
+          jsonResponse({ ...animals, flashCardIds: [1, 2, 3] }),
+        )
+        await showPage('/decks/7')
+        await user.click(screen.getByRole('tab', { name: 'Add cards (3)' }))
+
+        await user.click(
+          within(
+            screen.getByRole('group', { name: 'Show cards tagged' }),
+          ).getByRole('button', { name: 'Pets' }),
+        )
+        await user.click(screen.getByRole('checkbox', { name: 'Select all 2' }))
+        await user.click(screen.getByRole('button', { name: 'Add 2 cards' }))
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Added 2 cards to the deck.',
+        )
+        const patch = calls.find((call) => call.init?.method === 'PATCH')
+        expect(patch?.url).toBe(`${decksUrl}/7/cards`)
+        expect(patch?.init?.body).toBe(
+          JSON.stringify({ add: [1, 2], remove: [] }),
+        )
+        expect(screen.getByText('3 cards')).toBeInTheDocument()
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (1)' }),
+        ).toHaveAttribute('aria-selected', 'true')
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (3)' }),
+        ).toBeInTheDocument()
+        expect(trackEvent).toHaveBeenCalledWith('DeckCardsAdded')
+      })
+
+      it('removes the cards picked', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(animals, async () =>
+          jsonResponse({ ...animals, flashCardIds: [2] }),
+        )
+        await showPage('/decks/7')
+
+        expect(
+          screen.getByRole('button', { name: 'Remove cards' }),
+        ).toBeDisabled()
+        await user.click(cardBox('el gato'))
+        await user.click(screen.getByRole('button', { name: 'Remove 1 card' }))
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Removed 1 card from the deck.',
+        )
+        const patch = calls.find((call) => call.init?.method === 'PATCH')
+        expect(patch?.init?.body).toBe(JSON.stringify({ add: [], remove: [1] }))
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (1)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByRole('checkbox', { name: /^el gato/ }),
+        ).not.toBeInTheDocument()
+      })
+
+      it('keeps the cards picked and says why when the change fails', async () => {
+        const user = userEvent.setup()
+        mockDeckApi(animals, async () => new Response(null, { status: 500 }))
+        await showPage('/decks/7')
+
+        await user.click(cardBox('el gato'))
+        await user.click(screen.getByRole('button', { name: 'Remove 1 card' }))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          'Unable to change the deck.',
+        )
+        expect(cardBox('el gato')).toBeChecked()
+      })
+
+      it('shows a page of 50 cards at a time, and can pick all of them at once', async () => {
+        const user = userEvent.setup()
+        const many = Array.from({ length: 120 }, (_, index) => ({
+          id: index + 1,
+          spanish: `palabra ${index + 1}`,
+          english: `word ${index + 1}`,
+          tags: [],
+        }))
+        mockDeckApi(
+          { ...animals, flashCardIds: many.map((card) => card.id) },
+          undefined,
+          many,
+        )
+        await showPage('/decks/7')
+
+        expect(screen.getByText('1–50 of 120')).toBeInTheDocument()
+        expect(cardBox('palabra 50')).toBeInTheDocument()
+        expect(
+          screen.queryByRole('checkbox', { name: /^palabra 51(?!\d)/ }),
+        ).not.toBeInTheDocument()
+
+        await user.click(screen.getByRole('button', { name: 'Go to page 3' }))
+
+        expect(screen.getByText('101–120 of 120')).toBeInTheDocument()
+        expect(cardBox('palabra 120')).toBeInTheDocument()
+
+        await user.click(
+          screen.getByRole('checkbox', { name: 'Select all 120' }),
+        )
+
+        expect(
+          screen.getByRole('button', { name: 'Remove 120 cards' }),
+        ).toBeEnabled()
+      })
+
+      it('renames the deck', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(animals, async () =>
+          jsonResponse({ ...animals, name: 'Pets' }),
+        )
+        await showPage('/decks/7')
+
+        await user.click(screen.getByRole('button', { name: 'Rename' }))
+        const name = screen.getByLabelText('Deck name')
+        expect(name).toHaveFocus()
+        await user.clear(name)
+        await user.type(name, 'Pets')
+        await user.click(screen.getByRole('button', { name: 'Save' }))
+
+        expect(
+          await screen.findByRole('heading', { level: 2, name: 'Pets' }),
+        ).toBeInTheDocument()
+        const put = calls.find((call) => call.init?.method === 'PUT')
+        expect(put?.url).toBe(`${decksUrl}/7`)
+        expect(put?.init?.body).toBe(JSON.stringify({ name: 'Pets' }))
+        expect(trackEvent).toHaveBeenCalledWith('DeckRenamed')
+      })
+
+      it('deletes the deck and goes back to the list', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(
+          animals,
+          async () => new Response(null, { status: 204 }),
+        )
+        await showPage('/decks/7')
+
+        await user.click(screen.getByRole('button', { name: 'Delete deck' }))
+
+        expect(
+          await screen.findByRole('heading', { level: 2, name: 'New deck' }),
+        ).toBeInTheDocument()
+        expect(calls.find((call) => call.init?.method === 'DELETE')?.url).toBe(
+          `${decksUrl}/7`,
+        )
+      })
+
+      it('says so when the deck is gone', async () => {
+        mockDeckApi(null)
+        await showPage('/decks/7')
+
+        expect(
+          screen.getByRole('heading', { level: 2, name: 'Deck not found' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('link', { name: 'Go to decks' }),
+        ).toHaveAttribute('href', '/decks')
+      })
     })
 
-    it('creates a deck from the cards with a tag and cards picked one by one', async () => {
-      const user = userEvent.setup()
-      const calls = await showDecks([], async () =>
-        jsonResponse({ id: 9, name: 'Week 1', flashCardIds: [1, 2, 3] }, 201),
-      )
+    describe('adding cards from the cards page', () => {
+      async function showCardsWithDecks(
+        handler: (url: string, init?: RequestInit) => Promise<Response>,
+        path = '/',
+      ) {
+        const calls = mockFetch(
+          async (url, init) =>
+            init?.method === undefined
+              ? jsonResponse(cards)
+              : handler(url, init),
+          [pets],
+          [animals],
+        )
+        await showPage(path)
+        return calls
+      }
 
-      await user.type(
-        screen.getByLabelText('Deck name', { exact: false }),
-        ' Week 1 ',
-      )
-      await user.click(
-        within(
-          screen.getByRole('group', { name: 'Add the cards tagged' }),
-        ).getByRole('button', { name: 'Pets' }),
-      )
-      // Both of the tag's cards are in, so it has nothing more to add.
-      expect(
-        screen.queryByRole('group', { name: 'Add the cards tagged' }),
-      ).not.toBeInTheDocument()
-      await user.click(screen.getByRole('combobox', { name: 'Cards' }))
-      await user.click(
-        screen.getByRole('option', { name: 'la casa — the house' }),
-      )
-      await user.click(screen.getByRole('button', { name: 'Create deck' }))
+      it('adds the cards picked to a deck', async () => {
+        const user = userEvent.setup()
+        const calls = await showCardsWithDecks(async () =>
+          jsonResponse({ ...animals, flashCardIds: [1, 2, 3] }),
+        )
 
-      expect(await screen.findByText('Week 1')).toBeInTheDocument()
-      expect(screen.getByText('3 cards')).toBeInTheDocument()
-      const post = calls.find((call) => call.init?.method === 'POST')
-      expect(post?.url).toBe(decksUrl)
-      expect(post?.init?.body).toBe(
-        JSON.stringify({ name: 'Week 1', flashCardIds: [1, 2, 3] }),
-      )
-      expect(trackEvent).toHaveBeenCalledWith('DeckCreated')
-      expect(screen.getByLabelText('Deck name', { exact: false })).toHaveValue(
-        '',
-      )
-    })
+        expect(
+          screen.getByRole('button', { name: 'Add to deck…' }),
+        ).toBeDisabled()
+        await user.click(
+          screen.getByRole('checkbox', { name: 'Pick "la casa"' }),
+        )
+        await user.click(
+          screen.getByRole('button', { name: 'Add 1 card to deck…' }),
+        )
+        await user.click(screen.getByRole('menuitem', { name: 'Animals' }))
 
-    it('shows why the API refused a deck', async () => {
-      const user = userEvent.setup()
-      await showDecks([animals], async () =>
-        jsonResponse(
-          { errors: { Name: ["There's already a deck with that name."] } },
-          400,
-        ),
-      )
+        const status = await screen.findByRole('status')
+        expect(status).toHaveTextContent('Added 1 card to Animals.')
+        expect(
+          within(status).getByRole('link', { name: 'Animals' }),
+        ).toHaveAttribute('href', '/decks/7')
+        const patch = calls.find((call) => call.init?.method === 'PATCH')
+        expect(patch?.url).toBe(`${decksUrl}/7/cards`)
+        expect(patch?.init?.body).toBe(JSON.stringify({ add: [3], remove: [] }))
+        expect(
+          screen.getByRole('checkbox', { name: 'Pick "la casa"' }),
+        ).not.toBeChecked()
+      })
 
-      await user.type(
-        screen.getByLabelText('Deck name', { exact: false }),
-        'animals',
-      )
-      await user.click(screen.getByRole('button', { name: 'Create deck' }))
+      it("only picks all of the picked tag's cards", async () => {
+        const user = userEvent.setup()
+        const calls = await showCardsWithDecks(
+          async () => jsonResponse({ ...animals }),
+          '/?tag=4',
+        )
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        "There's already a deck with that name.",
-      )
-      expect(screen.getByLabelText('Deck name', { exact: false })).toHaveValue(
-        'animals',
-      )
-    })
+        await user.click(screen.getByRole('checkbox', { name: 'Pick all 2' }))
+        await user.click(
+          screen.getByRole('button', { name: 'Add 2 cards to deck…' }),
+        )
+        await user.click(screen.getByRole('menuitem', { name: 'Animals' }))
 
-    it('edits a deck in the form', async () => {
-      const user = userEvent.setup()
-      const calls = await showDecks([animals], async () =>
-        jsonResponse({ id: 7, name: 'Pets', flashCardIds: [1] }),
-      )
+        await screen.findByRole('status')
+        expect(
+          calls.find((call) => call.init?.method === 'PATCH')?.init?.body,
+        ).toBe(JSON.stringify({ add: [1, 2], remove: [] }))
+      })
 
-      await user.click(
-        screen.getByRole('button', { name: 'Edit deck "Animals"' }),
-      )
+      it('makes a new deck from the cards picked', async () => {
+        const user = userEvent.setup()
+        let attempts = 0
+        const calls = await showCardsWithDecks(async () =>
+          attempts++ === 0
+            ? jsonResponse(
+                {
+                  errors: { Name: ["There's already a deck with that name."] },
+                },
+                400,
+              )
+            : jsonResponse({ id: 9, name: 'Home', flashCardIds: [3, 4] }, 201),
+        )
 
-      expect(
-        screen.getByRole('heading', { level: 2, name: 'Edit deck' }),
-      ).toBeInTheDocument()
-      const name = screen.getByLabelText('Deck name', { exact: false })
-      expect(name).toHaveValue('Animals')
-      expect(name).toHaveFocus()
-      expect(
-        screen.getByRole('button', { name: 'el perro — the dog' }),
-      ).toBeInTheDocument()
-      await user.clear(name)
-      await user.type(name, 'Pets')
-      // Takes the dog out of the deck.
-      await user.click(
-        within(
-          screen.getByRole('button', { name: 'el perro — the dog' }),
-        ).getByTestId('CancelIcon'),
-      )
-      await user.click(screen.getByRole('button', { name: 'Save deck' }))
+        await user.click(
+          screen.getByRole('checkbox', { name: 'Pick "la casa"' }),
+        )
+        await user.click(
+          screen.getByRole('checkbox', { name: 'Pick "la canción"' }),
+        )
+        await user.click(
+          screen.getByRole('button', { name: 'Add 2 cards to deck…' }),
+        )
+        await user.click(screen.getByRole('menuitem', { name: 'New deck…' }))
+        const dialog = await screen.findByRole('dialog', {
+          name: 'New deck with 2 cards',
+        })
+        await user.type(within(dialog).getByLabelText('Deck name'), 'animals')
+        await user.click(
+          within(dialog).getByRole('button', { name: 'Create deck' }),
+        )
 
-      expect(await screen.findByText('1 card')).toBeInTheDocument()
-      const put = calls.find((call) => call.init?.method === 'PUT')
-      expect(put?.url).toBe(`${decksUrl}/7`)
-      expect(put?.init?.body).toBe(
-        JSON.stringify({ name: 'Pets', flashCardIds: [1] }),
-      )
-      expect(trackEvent).toHaveBeenCalledWith('DeckUpdated')
-      expect(
-        screen.getByRole('heading', { level: 2, name: 'New deck' }),
-      ).toBeInTheDocument()
-    })
+        // The API's reason is shown in the dialog, which stays open to fix the name.
+        expect(
+          await within(dialog).findByText(
+            "There's already a deck with that name.",
+          ),
+        ).toBeInTheDocument()
 
-    it('can cancel an edit', async () => {
-      const user = userEvent.setup()
-      await showDecks([animals])
+        await user.clear(within(dialog).getByLabelText('Deck name'))
+        await user.type(within(dialog).getByLabelText('Deck name'), 'Home')
+        await user.click(
+          within(dialog).getByRole('button', { name: 'Create deck' }),
+        )
 
-      await user.click(
-        screen.getByRole('button', { name: 'Edit deck "Animals"' }),
-      )
-      await user.click(screen.getByRole('button', { name: 'Cancel' }))
-
-      expect(screen.getByLabelText('Deck name', { exact: false })).toHaveValue(
-        '',
-      )
-      expect(
-        screen.getByRole('button', { name: 'Create deck' }),
-      ).toBeInTheDocument()
-    })
-
-    it('deletes a deck', async () => {
-      const user = userEvent.setup()
-      const calls = await showDecks(
-        [animals],
-        async () => new Response(null, { status: 204 }),
-      )
-
-      await user.click(
-        screen.getByRole('button', { name: 'Delete deck "Animals"' }),
-      )
-
-      expect(
-        await screen.findByText("You haven't made any decks yet."),
-      ).toBeInTheDocument()
-      const del = calls.find((call) => call.init?.method === 'DELETE')
-      expect(del?.url).toBe(`${decksUrl}/7`)
-      expect(trackEvent).toHaveBeenCalledWith('DeckDeleted')
-    })
-
-    it('shows an error when loading fails', async () => {
-      mockFetch(unreachable)
-      renderAt('/decks')
-
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        unreachableMessage,
-      )
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Added 2 cards to Home.',
+        )
+        await waitFor(() => {
+          expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+        })
+        const posts = calls.filter(
+          (call) => call.init?.method === 'POST' && call.url === decksUrl,
+        )
+        expect(posts.at(-1)?.init?.body).toBe(
+          JSON.stringify({ name: 'Home', flashCardIds: [3, 4] }),
+        )
+      })
     })
   })
 

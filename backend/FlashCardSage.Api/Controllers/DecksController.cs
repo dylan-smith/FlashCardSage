@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// The user's decks, each a named set of their cards to practice. Saving a deck replaces its cards, so adding all
-/// the cards with a tag is done by sending their ids.
+/// The user's decks, each a named set of their cards to practice. A deck can hold hundreds of cards, so they're
+/// added and removed a few at a time (or all the ones the user picked) rather than sent in full with each change.
 /// </summary>
 /// <remarks>
 /// Like FlashCardsController, log statements include ids only, never a deck's name.
@@ -55,8 +55,8 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
     [HttpPost]
     public async Task<ActionResult<DeckResponse>> Create([FromBody] DeckRequest request)
     {
-        var decks = await dbContext.Decks.ToListAsync();
-        var (name, cards) = await ValidateAsync(request, decks, id: null);
+        var name = await ValidateNameAsync(request.Name, id: null);
+        var cards = await FindCardsAsync(request.FlashCardIds, nameof(request.FlashCardIds));
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
@@ -71,31 +71,67 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
         return CreatedAtAction(nameof(GetById), new { id = deck.Id }, DeckResponse.From(deck));
     }
 
+    // Renames the deck, leaving its cards as they are.
     [HttpPut("{id:int}")]
-    public async Task<ActionResult<DeckResponse>> Update(int id, [FromBody] DeckRequest request)
+    public async Task<ActionResult<DeckResponse>> Rename(int id, [FromBody] DeckNameRequest request)
     {
-        var decks = await dbContext.Decks.ToListAsync();
-        var deck = decks.FirstOrDefault(item => item.Id == id);
+        var deck = await dbContext.Decks
+            .Include(item => item.FlashCards)
+            .FirstOrDefaultAsync(item => item.Id == id);
 
         if (deck is null)
         {
-            logger.LogWarning("Deck {DeckId} not found for update", id);
+            logger.LogWarning("Deck {DeckId} not found for rename", id);
             return NotFound();
         }
 
-        var (name, cards) = await ValidateAsync(request, decks, id);
+        var name = await ValidateNameAsync(request.Name, id);
         if (!ModelState.IsValid)
         {
             return ValidationProblem(ModelState);
         }
 
-        // The deck's current cards are loaded so EF can work out which links to add and remove.
-        await dbContext.Entry(deck).Collection(item => item.FlashCards).LoadAsync();
         deck.Name = name;
-        deck.FlashCards = cards;
         await dbContext.SaveChangesAsync();
 
-        logger.LogInformation("Updated deck {DeckId} with {Count} flash cards", id, cards.Count);
+        logger.LogInformation("Renamed deck {DeckId}", id);
+
+        return Ok(DeckResponse.From(deck));
+    }
+
+    // Adds and removes cards, and returns the deck with all its cards.
+    [HttpPatch("{id:int}/cards")]
+    public async Task<ActionResult<DeckResponse>> ChangeCards(int id, [FromBody] DeckCardsRequest request)
+    {
+        // The deck's cards are loaded so EF can work out which links to add and remove.
+        var deck = await dbContext.Decks
+            .Include(item => item.FlashCards)
+            .FirstOrDefaultAsync(item => item.Id == id);
+
+        if (deck is null)
+        {
+            logger.LogWarning("Deck {DeckId} not found to change its cards", id);
+            return NotFound();
+        }
+
+        var added = await FindCardsAsync(request.Add, nameof(request.Add));
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        // Removing a card that's gone, or that isn't in the deck, is what the caller wanted already.
+        var removed = request.Remove.ToHashSet();
+        deck.FlashCards.RemoveAll(card => removed.Contains(card.Id));
+        var kept = deck.FlashCards.Select(card => card.Id).ToHashSet();
+        deck.FlashCards.AddRange(added.Where(card => !kept.Contains(card.Id) && !removed.Contains(card.Id)));
+        await dbContext.SaveChangesAsync();
+
+        logger.LogInformation(
+            "Changed deck {DeckId}'s flash cards, adding {AddCount} and removing {RemoveCount}",
+            id,
+            request.Add.Count,
+            request.Remove.Count);
 
         return Ok(DeckResponse.From(deck));
     }
@@ -122,34 +158,51 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
         return NoContent();
     }
 
-    // Trims the name and finds the cards, adding a model error if the name is blank or another of the user's decks
-    // (any but the one with this id) already has it, or if any of the cards isn't one of the user's.
-    private async Task<(string Name, List<FlashCard> Cards)> ValidateAsync(
-        DeckRequest request, List<Deck> decks, int? id)
+    // Trims the name, adding a model error if it's blank or another of the user's decks (any but the one with this
+    // id) already has it.
+    private async Task<string> ValidateNameAsync(string requested, int? id)
     {
-        var name = request.Name.Trim();
+        var name = requested.Trim();
 
         if (name.Length == 0)
         {
-            ModelState.AddModelError(nameof(request.Name), "Deck name is required.");
-        }
-        // Names are unique whatever their case, as the database's index is.
-        else if (decks.Any(item => item.Id != id && string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase)))
-        {
-            ModelState.AddModelError(nameof(request.Name), "There's already a deck with that name.");
+            ModelState.AddModelError("Name", "Deck name is required.");
+            return name;
         }
 
-        // Found through the query filter, so another user's cards can't be put in the deck.
-        var cardIds = request.FlashCardIds.Distinct().ToList();
+        // Names are unique whatever their case, as the database's index is. A person's decks are few, so they're
+        // matched here rather than in SQL.
+        var names = await dbContext.Decks
+            .Where(deck => deck.Id != id)
+            .Select(deck => deck.Name)
+            .ToListAsync();
+        if (names.Any(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase)))
+        {
+            ModelState.AddModelError("Name", "There's already a deck with that name.");
+        }
+
+        return name;
+    }
+
+    // The user's cards with these ids, adding a model error on the field if any of them isn't one. Found through the
+    // query filter, so another user's cards can't be put in a deck.
+    private async Task<List<FlashCard>> FindCardsAsync(List<int> ids, string field)
+    {
+        var cardIds = ids.Distinct().ToList();
+        if (cardIds.Count == 0)
+        {
+            return [];
+        }
+
         var cards = await dbContext.FlashCards
             .Where(card => cardIds.Contains(card.Id))
             .ToListAsync();
 
         if (cards.Count != cardIds.Count)
         {
-            ModelState.AddModelError(nameof(request.FlashCardIds), "Some of those flash cards no longer exist.");
+            ModelState.AddModelError(field, "Some of those flash cards no longer exist.");
         }
 
-        return (name, cards);
+        return cards;
     }
 }
