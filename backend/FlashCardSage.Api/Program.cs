@@ -2,6 +2,7 @@ using System.Data.Common;
 using Azure.Monitor.OpenTelemetry.AspNetCore;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Scalar.AspNetCore;
@@ -50,6 +51,9 @@ builder.Services.AddControllers();
 // from auto-pausing.
 builder.Services.AddHealthChecks();
 builder.Services.AddOpenApi();
+builder.Services.Configure<TranslatorOptions>(builder.Configuration.GetSection(TranslatorOptions.SectionName));
+// Translation fills in a field while the user types, so a slow answer is no better than none.
+builder.Services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];

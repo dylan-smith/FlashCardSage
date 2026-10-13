@@ -12,3 +12,5 @@ param sqlServerName = 'flashcardsage-preview-sql'
 // with the identity's once it's created; the first preview deployment fails until then.
 param sqlEntraAdminLogin = 'flashcardsage-preview-deploy'
 param sqlEntraAdminObjectId = '62ce86fe-94aa-4f21-981e-a5a4184602d1'
+
+param translatorName = 'flashcardsage-preview-translator'

@@ -126,11 +126,17 @@ export async function getNextPracticeCard(): Promise<PracticeCard | null> {
     : ((await response.json()) as PracticeCard)
 }
 
-// Records the answer and returns the card to practice next.
+// The card to practice next, and how much the answer raised or lowered the answered card's score.
+export type PracticeResult = {
+  next: PracticeCard
+  scoreChange: number
+}
+
+// Records the answer.
 export async function recordPracticeResult(
   id: number,
   outcome: PracticeOutcome,
-): Promise<PracticeCard> {
+): Promise<PracticeResult> {
   const response = await apiFetch(`${flashCardsUrl}/${id}/practice-results`, {
     method: 'POST',
     headers: {
@@ -141,7 +147,7 @@ export async function recordPracticeResult(
   if (!response.ok) {
     throw new Error('Unable to save your answer.')
   }
-  return ((await response.json()) as { next: PracticeCard }).next
+  return (await response.json()) as PracticeResult
 }
 
 // A card's score out of 100, from how many times in a row it was last answered with Got it! in practice.

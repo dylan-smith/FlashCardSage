@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import type { SubmitEvent } from 'react'
+import type { ReactNode, SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
@@ -20,6 +21,9 @@ import {
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields } from '../api/flashCards'
+import type { CardSide } from '../api/translations'
+import { useAutoTranslate } from '../hooks/useAutoTranslate'
+import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { trackEvent, trackException } from '../telemetry'
 
 export const spanishRequiredMessage = 'Spanish is required.'
@@ -40,6 +44,72 @@ function trimFields(fields: FlashCardFields): FlashCardFields | string {
   return { spanish, english }
 }
 
+// A side's input is limited like the API's, and its note is a div, since it can hold the meanings' chips.
+const fieldSlotProps = {
+  htmlInput: { maxLength: 200 },
+  formHelperText: { component: 'div' },
+} as const
+
+// The other side's name, for the button that translates it again.
+const otherSideNames: Record<CardSide, string> = {
+  spanish: 'English',
+  english: 'Spanish',
+}
+
+// The note under a side translation fills in: whether it's being translated or was, when a single word has more
+// than one meaning, the others to pick from instead, and once the user has put something else in, a button that
+// hands it back to translation.
+function translationNote(
+  translation: AutoTranslate,
+  side: CardSide,
+  value: string,
+): ReactNode {
+  const note = translation.helperText(side)
+  const others = translation
+    .meanings(side)
+    .filter((meaning) => meaning !== value)
+  const canRetranslate = translation.canRetranslate()
+  if (others.length === 0 && !canRetranslate) {
+    return note
+  }
+  return (
+    <>
+      {note}
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 0.5,
+          mt: note ? 0.5 : 0,
+        }}
+      >
+        {others.length > 0 && 'Other meanings:'}
+        {others.map((meaning) => (
+          <Chip
+            key={meaning}
+            label={meaning}
+            size="small"
+            variant="outlined"
+            onClick={() => translation.choose(side, meaning)}
+          />
+        ))}
+        {canRetranslate && (
+          <Button
+            type="button"
+            variant="outlined"
+            size="small"
+            onClick={() => translation.retranslate(side)}
+            sx={{ py: 0.25 }}
+          >
+            Translate from {otherSideNames[side]}
+          </Button>
+        )}
+      </Box>
+    </>
+  )
+}
+
 // The form that replaces a card in the list while it's being changed. The Spanish field gets focus when the
 // form appears, since the user just asked to edit it.
 function FlashCardEditForm({
@@ -56,6 +126,7 @@ function FlashCardEditForm({
   onSave: (event: SubmitEvent<HTMLFormElement>) => void
 }) {
   const inputRef = useRef<HTMLInputElement>(null)
+  const translation = useAutoTranslate(edit, onChange)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -65,33 +136,43 @@ function FlashCardEditForm({
     <ListItem divider disablePadding sx={{ py: 1 }}>
       <Box
         component="form"
-        onSubmit={onSave}
+        onSubmit={(event) => {
+          translation.cancel()
+          onSave(event)
+        }}
         sx={{
           display: 'flex',
           flexDirection: { xs: 'column', sm: 'row' },
           flexGrow: 1,
           gap: 1,
-          alignItems: { xs: 'stretch', sm: 'center' },
+          // Top-aligned, so a field's translation note under it doesn't push it out of line with the other.
+          alignItems: { xs: 'stretch', sm: 'flex-start' },
         }}
       >
         <TextField
           label="Spanish"
           value={edit.spanish}
-          onChange={(event) => onChange({ spanish: event.target.value })}
+          onChange={(event) =>
+            translation.change('spanish', event.target.value)
+          }
+          helperText={translationNote(translation, 'spanish', edit.spanish)}
           inputRef={inputRef}
-          slotProps={{ htmlInput: { maxLength: 200 } }}
+          slotProps={fieldSlotProps}
           size="small"
           fullWidth
         />
         <TextField
           label="English"
           value={edit.english}
-          onChange={(event) => onChange({ english: event.target.value })}
-          slotProps={{ htmlInput: { maxLength: 200 } }}
+          onChange={(event) =>
+            translation.change('english', event.target.value)
+          }
+          helperText={translationNote(translation, 'english', edit.english)}
+          slotProps={fieldSlotProps}
           size="small"
           fullWidth
         />
-        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
+        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0, mt: { sm: 0.5 } }}>
           <Button
             type="submit"
             variant="contained"
@@ -186,6 +267,9 @@ function FlashCardsPage() {
   // The card whose edit is being saved or that is being deleted, so its buttons can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
+  const translation = useAutoTranslate(fields, (change) =>
+    setFields((current) => ({ ...current, ...change })),
+  )
 
   // Loads the list once. The page starts out loading, and the other actions keep the list up to date themselves.
   useEffect(() => {
@@ -217,6 +301,7 @@ function FlashCardsPage() {
 
   async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
+    translation.cancel()
 
     const trimmed = trimFields(fields)
     if (typeof trimmed === 'string') {
@@ -231,6 +316,7 @@ function FlashCardsPage() {
       const created = await createFlashCard(trimmed)
       trackEvent('FlashCardCreated')
       setFields(emptyFields)
+      translation.reset()
       setCards((current) => [...current, created])
     } catch (error) {
       // A rejected card is the user's to fix, not a failure to report.
@@ -307,12 +393,10 @@ function FlashCardsPage() {
             label="Spanish"
             value={fields.spanish}
             onChange={(event) =>
-              setFields((current) => ({
-                ...current,
-                spanish: event.target.value,
-              }))
+              translation.change('spanish', event.target.value)
             }
-            slotProps={{ htmlInput: { maxLength: 200 } }}
+            helperText={translationNote(translation, 'spanish', fields.spanish)}
+            slotProps={fieldSlotProps}
             required
             placeholder="e.g. el gato"
           />
@@ -321,12 +405,10 @@ function FlashCardsPage() {
             label="English"
             value={fields.english}
             onChange={(event) =>
-              setFields((current) => ({
-                ...current,
-                english: event.target.value,
-              }))
+              translation.change('english', event.target.value)
             }
-            slotProps={{ htmlInput: { maxLength: 200 } }}
+            helperText={translationNote(translation, 'english', fields.english)}
+            slotProps={fieldSlotProps}
             required
             placeholder="e.g. the cat"
           />

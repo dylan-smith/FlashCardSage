@@ -10,6 +10,7 @@ A flash card app for learning a language, with:
 
 - Sign in with a Google account; each user only sees their own flash cards
 - Add, edit and delete flash cards (each card is a Spanish word or phrase and its English translation)
+- Type either side of a card and the other is filled in with a translation from Azure AI Translator; type over it to change it
 - RESTful API with OpenAPI support
 
 ## Prerequisites
@@ -31,6 +32,8 @@ dotnet run
 The API starts at `http://localhost:5269` by default. In development mode an in-memory database is used automatically (configured in `appsettings.Development.json`). The OpenAPI document is served at `/openapi/v1.json`, and you can explore the API interactively with Scalar at `/scalar` (e.g. `http://localhost:5269/scalar`). Both are available in every environment, including production.
 
 To use SQL Server for local development instead, set `UseInMemoryDatabase` to `false` and update the connection string in `backend/FlashCardSage.Api/appsettings.Development.json`.
+
+Translation (`POST /api/translations`, which fills in the other side of a card as the user types) is off locally: without a `Translator:Key` the API answers it with a 503, and the frontend leaves both sides to the user. To try it, give the API the key of an Azure AI Translator resource (such as the preview one, `flashcardsage-preview-translator`) with `dotnet user-secrets set Translator:Key <key>` in `backend/FlashCardSage.Api`. The E2E tests stand in for the translator with Playwright's `page.route`.
 
 ### Frontend
 
@@ -171,7 +174,7 @@ infra/
 ├── main.bicepparam      # Production parameter values (resource names, regions, SKUs)
 ├── preview.bicep        # A pull request's preview environment (see PR preview environments)
 ├── preview.bicepparam   # Preview parameter values
-├── preview-shared.bicep # The App Service plan and SQL server every preview shares
+├── preview-shared.bicep # The App Service plan, SQL server and Translator every preview shares
 ├── preview-shared.bicepparam # Their parameter values
 ├── Setup-Environment.ps1 # One-time setup of what the templates don't create (see Setting up a new environment)
 ├── modules/
@@ -180,6 +183,7 @@ infra/
 │   ├── monitoring.bicep # Log Analytics Workspace + Application Insights
 │   ├── sql.bicep        # Azure SQL Server (Entra-only auth) + serverless Database and its diagnostic logs
 │   ├── storage.bicep    # Storage Account for the frontend static website and its custom domain
+│   ├── translator.bicep # Azure AI Translator, which the API translates cards with
 │   └── workbook.bicep   # "FlashCardSage Health" Azure Monitor Workbook
 └── workbooks/
     └── health.workbook.json # Workbook content, with placeholder tokens for resource IDs
@@ -187,7 +191,7 @@ infra/
 
 The `deploy-infrastructure` CI job runs `infra/main.bicep` on every push to `main`, ensuring the Azure environment is always in sync with the declared configuration. All other deployment jobs depend on this job.
 
-The template owns **all** App Service app settings (connection string, CORS origin, Application Insights), so add new settings in `infra/modules/appservice.bicep` rather than in the portal — anything set by hand is removed on the next deployment. The static website (`$web` container, `index.html` documents) is a data-plane setting that ARM can't manage, so CI enables it with `az storage blob service-properties update`.
+The template owns **all** App Service app settings (connection string, CORS origin, Application Insights, the Translator key, which it reads from the Translator resource itself), so add new settings in `infra/modules/appservice.bicep` rather than in the portal — anything set by hand is removed on the next deployment. The static website (`$web` container, `index.html` documents) is a data-plane setting that ARM can't manage, so CI enables it with `az storage blob service-properties update`.
 
 The **FlashCardSage Health** workbook (Application Insights → Workbooks, or in the resource group) shows API, frontend and infrastructure health on one page. It combines Application Insights telemetry, App Service and SQL logs from the workspace, and platform metrics for the App Service, SQL database and Storage account. Its **Overview** tab starts with any active alerts and shows the `/health` availability test results. Its **Overall** tile is the worst of the colored tiles, so it answers "is the app healthy?" at a glance. Exceptions only count against health when they need attention: API exceptions logged below Error (such as retried SQL connections while the database resumes), automated test traffic (smoke tests and Generate Load, which run in headless Chrome) and browser network errors the user recovered from are counted as expected, and the exception tables give the reason for each. Its **Alerts** tab shows how often each alert rule fired, when, and how long it took to resolve, for up to the last 30 days (how long Azure keeps fired alerts). Viewers with Reader on only the resource group don't see the subscription-wide Service Health alert there, and budget notifications are listed separately because they come from Cost Management. Its **Costs** tab shows this month's spend and forecast against the monthly budget, with a daily actual-and-forecast chart, then what the resource group costs in total, by service, by day and by resource, from Azure Cost Management (viewers need at least Reader on the resource group). Its **Investigate** tab links to the portal tools, logs and deployment history to check when digging into an incident, and says where to look when each alert fires. Its Application Insights time charts mark each backend deployment with the release annotation `azure/webapps-deploy` adds (green for success, red for a failed deployment). The workbook is also owned by the template, so edits made only in the portal are overwritten on the next deployment. To change it, edit it in the portal, copy the JSON from **Edit → Advanced Editor**, swap the resource IDs and site URLs back to the `__*__` tokens listed in `infra/modules/workbook.bicep`, and commit it to `infra/workbooks/health.workbook.json`.
 
@@ -264,6 +268,7 @@ Previews live in the `FlashCardSage-Preview` resource group and are kept cheap b
 |----------|------------------|-------|
 | App Service plan `FlashCardSage-Preview-Plan` | Shared | Free (F1) Linux plan: 60 CPU minutes a day, 1 GB and at most 10 web apps, shared by every preview. When the minutes run out, every preview stops until the next day. `appServicePlanSku` in `preview-shared.bicepparam` can raise it to B1 |
 | SQL server `flashcardsage-preview-sql` | Shared | Entra-only auth; the `flashcardsage-preview-deploy` identity is its Entra admin (set by `preview-shared.bicep`) |
+| Translator `flashcardsage-preview-translator` | Shared | Azure AI Translator on the S1 tier (about $10 per million characters, nothing when unused), since production has the subscription's one free (F0) Translator. Each preview deployment finds it in the resource group, and a preview runs without translation while it doesn't exist |
 | Web app `flashcardsage-pr-<N>` | Per PR | Same settings as production minus Application Insights (telemetry is off). The API URL has a random suffix, so take it from the PR comment |
 | Database `FlashCardSage-pr-<N>` | Per PR | Serverless, auto-pauses after an hour, is reset to sample flash cards on every deployment (see below), and uses the [SQL free offer](https://learn.microsoft.com/azure/azure-sql/database/free-offer) like production. The offer covers 10 databases per subscription including production's; if a deployment fails because they're used up, close stale PRs or set `useFreeLimit = false` in `preview.bicepparam` (about $0.25 an hour while active, nothing while paused) |
 | Storage account `flashcardsagepr<N><suffix>` | Per PR | Static website, deployed exactly like production. Storage account names are unique across Azure, so the name ends with 5 characters derived from the resource group |
@@ -288,6 +293,7 @@ Setting up previews for a new environment: create the `FlashCardSage-Preview` re
 | Backend API | Azure App Service (Linux/.NET 10) | `https://flashcardsage-<suffix>.westus2-01.azurewebsites.net` (Azure picks the suffix; it's the `AZURE_BACKEND_URL` variable) |
 | Frontend | Azure Storage Account (static website) | `https://flashcardsage.com` (the [custom domain](#custom-domain)); the web endpoint `https://flashcardsage.z22.web.core.windows.net` also works |
 | Database | Azure SQL serverless database (Entra-only auth) | — |
+| Translation | Azure AI Translator `flashcardsage-translator` (free F0 tier: 2 million characters a month) | Called by the API with the key from its app settings |
 | Monitoring | Log Analytics + Application Insights (App Service HTTP/console/app/platform logs and SQL errors, timeouts, blocks, deadlocks and automatic tuning go to the `FlashCardSage` workspace), plus the **FlashCardSage Health** workbook | — |
 
 ### Custom Domain
