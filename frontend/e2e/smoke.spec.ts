@@ -51,9 +51,12 @@ test('smoke: can add, edit and delete a flash card', async ({ page }) => {
     await expect(page.getByText(renamed, { exact: true })).toBeVisible()
   } finally {
     // Best-effort cleanup so we don't leave data behind if the test fails mid-run.
+    // It targets this run's card (renamed or not), since the preview's cards outlive runs and an earlier
+    // run's leftover could otherwise be deleted instead, leaving this one behind.
     await page
-      .getByRole('button', { name: /^Delete "Smoke Test / })
-      .first()
+      .getByRole('button', {
+        name: new RegExp(`^Delete "(${title}|${renamed})"$`),
+      })
       .click()
       .catch(() => {})
   }
