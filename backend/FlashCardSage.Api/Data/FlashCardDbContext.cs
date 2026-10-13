@@ -176,7 +176,7 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
             .HasMaxLength(Deck.MaxNameLength)
             .IsRequired();
 
-        // Like a tag's links, the database only cascades from the card (see 0006-CreateDecksTables.sql), so EF
+        // Like a tag's links, the database only cascades from the card (see 0007-CreateDecksTables.sql), so EF
         // deletes a deck's links, which needs the deck's cards loaded when it's removed.
         modelBuilder.Entity<Deck>()
             .HasMany(deck => deck.FlashCards)
