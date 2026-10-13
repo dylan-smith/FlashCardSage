@@ -35,7 +35,8 @@ add_picture() {
     echo "::notice::No picture for flash card ${id}: the API couldn't make one (see above)"
     return 0
   fi
-  if api -X PUT --data "${picture}" "${API_URL}/api/flashcards/${id}/image" --output /dev/null; then
+  # Through stdin: a picture is a couple of hundred kilobytes, more than an argument can be.
+  if printf '%s' "${picture}" | api -X PUT --data-binary @- "${API_URL}/api/flashcards/${id}/image" --output /dev/null; then
     echo "Added a picture to flash card ${id}"
   else
     echo "::notice::No picture for flash card ${id}: the API didn't accept it (see above)"
