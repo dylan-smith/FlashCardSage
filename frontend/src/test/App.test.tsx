@@ -1262,9 +1262,7 @@ describe('App', () => {
 
     // The card checkboxes in the tab shown, by their Spanish.
     function cardBox(spanish: string) {
-      return screen.getByRole('checkbox', {
-        name: new RegExp(`^${spanish}(?!\\d)`),
-      })
+      return screen.getByRole('checkbox', { name: `Pick "${spanish}"` })
     }
 
     describe('the list', () => {
@@ -1405,7 +1403,7 @@ describe('App', () => {
         expect(cardBox('el gato')).toBeInTheDocument()
         expect(cardBox('el perro')).toBeInTheDocument()
         expect(
-          screen.queryByRole('checkbox', { name: /^la casa/ }),
+          screen.queryByRole('checkbox', { name: 'Pick "la casa"' }),
         ).not.toBeInTheDocument()
 
         await user.click(screen.getByRole('tab', { name: 'Add cards (2)' }))
@@ -1413,7 +1411,7 @@ describe('App', () => {
         expect(cardBox('la casa')).toBeInTheDocument()
         expect(cardBox('la canción')).toBeInTheDocument()
         expect(
-          screen.queryByRole('checkbox', { name: /^el gato/ }),
+          screen.queryByRole('checkbox', { name: 'Pick "el gato"' }),
         ).not.toBeInTheDocument()
       })
 
@@ -1429,7 +1427,7 @@ describe('App', () => {
 
         expect(cardBox('la canción')).toBeInTheDocument()
         expect(
-          screen.getAllByRole('checkbox', { name: /^(el|la) / }),
+          screen.getAllByRole('checkbox', { name: /^Pick "/ }),
         ).toHaveLength(1)
 
         await user.clear(screen.getByRole('searchbox', { name: 'Search' }))
@@ -1439,7 +1437,7 @@ describe('App', () => {
         )
 
         expect(
-          screen.getAllByRole('checkbox', { name: /^(el|la) / }),
+          screen.getAllByRole('checkbox', { name: /^Pick "/ }),
         ).toHaveLength(1)
         expect(cardBox('el perro')).toBeInTheDocument()
       })
@@ -1455,9 +1453,9 @@ describe('App', () => {
         await user.click(
           within(
             screen.getByRole('group', { name: 'Show cards tagged' }),
-          ).getByRole('button', { name: 'Pets' }),
+          ).getByRole('button', { name: 'Pets (2)' }),
         )
-        await user.click(screen.getByRole('checkbox', { name: 'Select all 2' }))
+        await user.click(screen.getByRole('checkbox', { name: 'Pick all 2' }))
         await user.click(screen.getByRole('button', { name: 'Add 2 cards' }))
 
         expect(await screen.findByRole('status')).toHaveTextContent(
@@ -1500,7 +1498,7 @@ describe('App', () => {
           screen.getByRole('tab', { name: 'In this deck (1)' }),
         ).toBeInTheDocument()
         expect(
-          screen.queryByRole('checkbox', { name: /^el gato/ }),
+          screen.queryByRole('checkbox', { name: 'Pick "el gato"' }),
         ).not.toBeInTheDocument()
       })
 
@@ -1536,7 +1534,7 @@ describe('App', () => {
         expect(screen.getByText('1–50 of 120')).toBeInTheDocument()
         expect(cardBox('palabra 50')).toBeInTheDocument()
         expect(
-          screen.queryByRole('checkbox', { name: /^palabra 51(?!\d)/ }),
+          screen.queryByRole('checkbox', { name: 'Pick "palabra 51"' }),
         ).not.toBeInTheDocument()
 
         await user.click(screen.getByRole('button', { name: 'Go to page 3' }))
@@ -1544,9 +1542,7 @@ describe('App', () => {
         expect(screen.getByText('101–120 of 120')).toBeInTheDocument()
         expect(cardBox('palabra 120')).toBeInTheDocument()
 
-        await user.click(
-          screen.getByRole('checkbox', { name: 'Select all 120' }),
-        )
+        await user.click(screen.getByRole('checkbox', { name: 'Pick all 120' }))
 
         expect(
           screen.getByRole('button', { name: 'Remove 120 cards' }),

@@ -69,9 +69,9 @@ test.describe('Decks', () => {
     ).toHaveAttribute('aria-selected', 'true')
     await page
       .getByRole('group', { name: 'Show cards tagged' })
-      .getByRole('button', { name: 'Animals' })
+      .getByRole('button', { name: 'Animals (2)' })
       .click()
-    await page.getByRole('checkbox', { name: 'Select all 2' }).check()
+    await page.getByRole('checkbox', { name: 'Pick all 2' }).check()
     await page.getByRole('button', { name: 'Add 2 cards' }).click()
     await expect(page.getByRole('status')).toHaveText(
       'Added 2 cards to the deck.',
@@ -79,7 +79,7 @@ test.describe('Decks', () => {
 
     // Then a card found by searching.
     await page.getByRole('searchbox', { name: 'Search' }).fill('house')
-    await page.getByRole('checkbox', { name: /^la casa/ }).check()
+    await page.getByRole('checkbox', { name: 'Pick "la casa"' }).check()
     await page.getByRole('button', { name: 'Add 1 card' }).click()
     await expect(page.getByRole('status')).toHaveText(
       'Added 1 card to the deck.',
@@ -116,12 +116,14 @@ test.describe('Decks', () => {
     await status.getByRole('link', { name: 'Things' }).click()
 
     await expect(page.getByRole('heading', { name: 'Things' })).toBeVisible()
-    await page.getByRole('checkbox', { name: /^el libro/ }).check()
+    await page.getByRole('checkbox', { name: 'Pick "el libro"' }).check()
     await page.getByRole('button', { name: 'Remove 1 card' }).click()
     await expect(
       page.getByRole('tab', { name: 'In this deck (1)' }),
     ).toBeVisible()
-    await expect(page.getByRole('checkbox', { name: /^la casa/ })).toBeVisible()
+    await expect(
+      page.getByRole('checkbox', { name: 'Pick "la casa"' }),
+    ).toBeVisible()
   })
 
   test('practices only the cards with the tag picked', async ({ page }) => {

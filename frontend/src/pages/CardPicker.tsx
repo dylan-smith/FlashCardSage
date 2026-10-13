@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
@@ -6,6 +6,7 @@ import Chip from '@mui/material/Chip'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
+import ListItemText from '@mui/material/ListItemText'
 import Pagination from '@mui/material/Pagination'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
@@ -36,7 +37,7 @@ function tagsOf(cards: FlashCard[]) {
 }
 
 // A list of cards to pick some of and do something with, such as add them to a deck. It can be searched and
-// narrowed to a tag, and shows a page of cards at a time. Select all picks every card that matches, on every page,
+// narrowed to a tag, and shows a page of cards at a time. Pick all picks every card that matches, on every page,
 // so all the cards with a tag can be picked at once.
 export function CardPicker({
   cards,
@@ -53,12 +54,18 @@ export function CardPicker({
   // Resolves to whether it worked, so the cards stay picked when it didn't.
   onApply: (ids: number[]) => Promise<boolean>
 }) {
+  const id = useId()
   const [search, setSearch] = useState('')
   const [tagId, setTagId] = useState<number | null>(null)
   const [page, setPage] = useState(1)
   const [selected, setSelected] = useState<Set<number>>(new Set())
 
   const tags = tagsOf(cards)
+  // How many of these cards have each tag, as the cards page's chips show.
+  const tagCounts = new Map<number, number>()
+  for (const tag of cards.flatMap((card) => card.tags)) {
+    tagCounts.set(tag.id, (tagCounts.get(tag.id) ?? 0) + 1)
+  }
   // The picked tag may have gone with the last of its cards.
   const activeTagId = tags.some((tag) => tag.id === tagId) ? tagId : null
   const query = normalize(search.trim())
@@ -128,7 +135,11 @@ export function CardPicker({
             return (
               <Chip
                 key={tag?.id ?? 'all'}
-                label={tag?.name ?? 'All'}
+                label={
+                  tag === null
+                    ? `All (${cards.length})`
+                    : `${tag.name} (${tagCounts.get(tag.id) ?? 0})`
+                }
                 size="small"
                 color={pressed ? 'primary' : 'default'}
                 variant={pressed ? 'filled' : 'outlined'}
@@ -149,7 +160,7 @@ export function CardPicker({
         }}
       >
         <FormControlLabel
-          label={`Select all ${matching.length}`}
+          label={`Pick all ${matching.length}`}
           disabled={matching.length === 0}
           control={
             <Checkbox
@@ -177,35 +188,55 @@ export function CardPicker({
       {matching.length === 0 ? (
         <Typography color="text.secondary">No cards match.</Typography>
       ) : (
-        <List dense disablePadding>
-          {shown.map((card) => (
-            <ListItem key={card.id} divider disablePadding>
-              <FormControlLabel
-                sx={{ flexGrow: 1, minWidth: 0, mr: 0 }}
-                control={
-                  <Checkbox
-                    checked={selected.has(card.id)}
-                    onChange={() => toggle(card.id)}
+        // Laid out like the cards page's list, with the same box to pick a card.
+        <List disablePadding>
+          {shown.map((card) => {
+            const checkboxId = `${id}-card-${card.id}`
+            return (
+              <ListItem
+                key={card.id}
+                divider
+                disablePadding
+                sx={{ py: 1, gap: 1 }}
+              >
+                <Checkbox
+                  id={checkboxId}
+                  checked={selected.has(card.id)}
+                  onChange={() => toggle(card.id)}
+                  slotProps={{
+                    input: { 'aria-label': `Pick "${card.spanish}"` },
+                  }}
+                  sx={{ flexShrink: 0, alignSelf: 'flex-start', ml: -1.5 }}
+                />
+                {/* Clicking the card's words picks it too, which helps when picking a lot of cards. */}
+                <Box
+                  component="label"
+                  htmlFor={checkboxId}
+                  sx={{ flexGrow: 1, minWidth: 0, cursor: 'pointer' }}
+                >
+                  <ListItemText
+                    primary={card.spanish}
+                    secondary={card.english}
+                    sx={{ overflowWrap: 'anywhere' }}
                   />
-                }
-                label={
-                  <Box component="span" sx={{ overflowWrap: 'anywhere' }}>
-                    <Typography component="span" sx={{ display: 'block' }}>
-                      {card.spanish}
-                    </Typography>
-                    <Typography
-                      component="span"
-                      variant="body2"
-                      color="text.secondary"
-                      sx={{ display: 'block' }}
+                  {card.tags.length > 0 && (
+                    <Box
+                      sx={{
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                        gap: 0.5,
+                        mb: 0.5,
+                      }}
                     >
-                      {card.english}
-                    </Typography>
-                  </Box>
-                }
-              />
-            </ListItem>
-          ))}
+                      {card.tags.map((tag) => (
+                        <Chip key={tag.id} label={tag.name} size="small" />
+                      ))}
+                    </Box>
+                  )}
+                </Box>
+              </ListItem>
+            )
+          })}
         </List>
       )}
       {pageCount > 1 && (
