@@ -69,9 +69,11 @@ public class FlashCardsControllerTests
     }
 
     [Theory]
-    [InlineData("el gato", "the cat")]
-    [InlineData("  El Gato ", "THE CAT")]
-    public async Task Create_ReturnsConflict_WhenTheCardAlreadyExists(string spanish, string english)
+    [InlineData("el gato", "the cat", FlashCardsController.DuplicateSpanishMessage)]
+    [InlineData("  El Gato ", "THE CAT", FlashCardsController.DuplicateSpanishMessage)]
+    [InlineData("el gato", "the tomcat", FlashCardsController.DuplicateSpanishMessage)]
+    [InlineData("el gatito", "The Cat", FlashCardsController.DuplicateEnglishMessage)]
+    public async Task Create_ReturnsConflict_WhenEitherSideIsAlreadyOnACard(string spanish, string english, string message)
     {
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext);
@@ -79,21 +81,8 @@ public class FlashCardsControllerTests
         await controller.Create(new FlashCardRequest { Spanish = "el gato", English = "the cat" });
         var result = await controller.Create(new FlashCardRequest { Spanish = spanish, English = english });
 
-        AssertDuplicateProblem(result.Result);
+        AssertDuplicateProblem(result.Result, message);
         Assert.Equal(1, await dbContext.FlashCards.CountAsync());
-    }
-
-    [Fact]
-    public async Task Create_AllowsAnotherTranslationOfTheSameWord()
-    {
-        await using var dbContext = TestDb.Create();
-        var controller = CreateController(dbContext);
-
-        await controller.Create(new FlashCardRequest { Spanish = "el banco", English = "the bank" });
-        var result = await controller.Create(new FlashCardRequest { Spanish = "el banco", English = "the bench" });
-
-        Assert.IsType<CreatedAtActionResult>(result.Result);
-        Assert.Equal(2, await dbContext.FlashCards.CountAsync());
     }
 
     [Fact]
@@ -210,8 +199,10 @@ public class FlashCardsControllerTests
         Assert.Equal(("el gato", "the cat"), (savedCard.Spanish, savedCard.English));
     }
 
-    [Fact]
-    public async Task Update_ReturnsConflict_WhenItWouldDuplicateAnotherCard()
+    [Theory]
+    [InlineData("El perro", "the cat", FlashCardsController.DuplicateSpanishMessage)]
+    [InlineData("el gato", "THE DOG", FlashCardsController.DuplicateEnglishMessage)]
+    public async Task Update_ReturnsConflict_WhenEitherSideIsOnAnotherCard(string spanish, string english, string message)
     {
         await using var dbContext = TestDb.Create();
         var card = new FlashCard { Spanish = "el gato", English = "the cat" };
@@ -220,9 +211,9 @@ public class FlashCardsControllerTests
 
         var controller = CreateController(dbContext);
 
-        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = "El perro", English = "the dog" });
+        var result = await controller.Update(card.Id, new FlashCardRequest { Spanish = spanish, English = english });
 
-        AssertDuplicateProblem(result.Result);
+        AssertDuplicateProblem(result.Result, message);
         var savedCard = await dbContext.FlashCards.AsNoTracking().SingleAsync(item => item.Id == card.Id);
         Assert.Equal(("el gato", "the cat"), (savedCard.Spanish, savedCard.English));
     }
@@ -304,11 +295,11 @@ public class FlashCardsControllerTests
         Assert.IsType<NotFoundResult>(await controller.Delete(otherId));
     }
 
-    private static void AssertDuplicateProblem(IActionResult? result)
+    private static void AssertDuplicateProblem(IActionResult? result, string message)
     {
         var objectResult = Assert.IsType<ObjectResult>(result);
         Assert.Equal(StatusCodes.Status409Conflict, objectResult.StatusCode);
-        Assert.Equal(FlashCardsController.DuplicateMessage, Assert.IsType<ProblemDetails>(objectResult.Value).Detail);
+        Assert.Equal(message, Assert.IsType<ProblemDetails>(objectResult.Value).Detail);
     }
 
     private static FlashCardsController CreateController(FlashCardDbContext dbContext)

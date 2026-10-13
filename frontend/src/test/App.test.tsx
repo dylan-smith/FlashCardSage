@@ -267,11 +267,14 @@ describe('App', () => {
       expect(trackException).not.toHaveBeenCalled()
     })
 
-    it('says so when the user already has the card', async () => {
+    it('says so when the user already has a card for the word', async () => {
       const user = userEvent.setup()
       mockFetch(async (_url, init) =>
         init?.method === 'POST'
-          ? jsonResponse({ detail: 'You already have this flash card.' }, 409)
+          ? jsonResponse(
+              { detail: 'You already have a flash card with this Spanish.' },
+              409,
+            )
           : jsonResponse([{ id: 1, spanish: 'el gato', english: 'the cat' }]),
       )
       renderAt('/')
@@ -283,12 +286,12 @@ describe('App', () => {
       )
       await user.type(
         screen.getByLabelText('English', { exact: false }),
-        'the cat',
+        'the tomcat',
       )
       await user.click(screen.getByRole('button', { name: 'Add flash card' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'You already have this flash card.',
+        'You already have a flash card with this Spanish.',
       )
       expect(screen.getAllByRole('listitem')).toHaveLength(1)
       expect(screen.getByLabelText('Spanish', { exact: false })).toHaveValue(
@@ -409,7 +412,10 @@ describe('App', () => {
       const user = userEvent.setup()
       mockFetch(async (_url, init) =>
         init?.method === 'PUT'
-          ? jsonResponse({ detail: 'You already have this flash card.' }, 409)
+          ? jsonResponse(
+              { detail: 'You already have a flash card with this English.' },
+              409,
+            )
           : jsonResponse([
               { id: 1, spanish: 'el gato', english: 'the cat' },
               { id: 2, spanish: 'el perro', english: 'the dog' },
@@ -420,16 +426,13 @@ describe('App', () => {
 
       await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
       const item = screen.getAllByRole('listitem')[0]
-      const spanish = within(item).getByLabelText('Spanish')
       const english = within(item).getByLabelText('English')
-      await user.clear(spanish)
-      await user.type(spanish, 'el perro')
       await user.clear(english)
       await user.type(english, 'the dog')
       await user.click(within(item).getByRole('button', { name: 'Save' }))
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
-        'You already have this flash card.',
+        'You already have a flash card with this English.',
       )
       expect(screen.getByRole('button', { name: 'Save' })).toBeInTheDocument()
       expect(trackException).not.toHaveBeenCalled()

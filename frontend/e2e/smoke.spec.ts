@@ -36,7 +36,7 @@ test('smoke: can add, edit and delete a flash card', async ({ page }) => {
   ).toBeVisible()
 
   await page.getByLabel('Spanish').fill(title)
-  await page.getByLabel('English').fill('a test card')
+  await page.getByLabel('English').fill(`${title} in English`)
   await page.getByRole('button', { name: 'Add flash card' }).click()
   await expect(page.getByText(title, { exact: true })).toBeVisible()
 

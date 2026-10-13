@@ -88,7 +88,7 @@ async function visit(browser: Browser, title: string) {
     })
 
     await page.getByLabel('Spanish').fill(title)
-    await page.getByLabel('English').fill('a test card')
+    await page.getByLabel('English').fill(`${title} in English`)
     const pendingFile = await recordCreated(await clickAdd(page))
     await expect(page.getByText(title, { exact: true })).toBeVisible()
 

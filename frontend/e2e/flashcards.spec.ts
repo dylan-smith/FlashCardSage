@@ -65,15 +65,24 @@ test.describe('Flash card management', () => {
       await expect(items.nth(2)).toContainText('tres')
     })
 
-    test('refuses a card the user already has', async ({ page }) => {
+    test('refuses a second card for the same Spanish or English', async ({
+      page,
+    }) => {
       await createFlashCard(page, 'el gato', 'the cat')
+      const add = page.getByRole('button', { name: 'Add flash card' })
 
       await page.getByLabel('Spanish').fill('El Gato')
-      await page.getByLabel('English').fill('the cat')
-      await page.getByRole('button', { name: 'Add flash card' }).click()
-
+      await page.getByLabel('English').fill('the tomcat')
+      await add.click()
       await expect(page.getByRole('alert')).toHaveText(
-        'You already have this flash card.',
+        'You already have a flash card with this Spanish.',
+      )
+
+      await page.getByLabel('Spanish').fill('el gatito')
+      await page.getByLabel('English').fill('The Cat')
+      await add.click()
+      await expect(page.getByRole('alert')).toHaveText(
+        'You already have a flash card with this English.',
       )
       await expect(page.getByRole('listitem')).toHaveCount(1)
     })

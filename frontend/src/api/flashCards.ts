@@ -20,7 +20,8 @@ type ProblemResponse = {
   detail?: string
 }
 
-const duplicateMessage = 'You already have this flash card.'
+const duplicateMessage =
+  'You already have a flash card with this Spanish or English.'
 
 // Thrown for a response the caller should show to the user as is, such as a 400 for a blank translation.
 export class ApiError extends Error {
