@@ -7,13 +7,15 @@ import Typography from '@mui/material/Typography'
 import { Link, Route, Routes, useLocation } from 'react-router'
 import logo from './assets/logo.svg'
 import { disableGoogleAutoSelect } from './auth/google'
-import { setSession, useSession } from './auth/session'
+import { sessionSubject, setSession, useSession } from './auth/session'
 import SignInPage from './auth/SignInPage'
+import { loadPreferences, setPreferences } from './hooks/usePreferences'
 import DeckPage from './pages/DeckPage'
 import DecksPage from './pages/DecksPage'
 import FlashCardsPage from './pages/FlashCardsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
+import PreferencesPage from './pages/PreferencesPage'
 import ScoresPage from './pages/ScoresPage'
 import TagsPage from './pages/TagsPage'
 import { trackPageView } from './telemetry'
@@ -59,6 +61,20 @@ function App() {
     trackPageView()
   }, [pathname])
 
+  // The signed-in user's preferences, forgotten when they sign out, so the next user's are loaded in their place.
+  const subject = session === null ? null : sessionSubject(session)
+  useEffect(() => {
+    if (subject === null) {
+      return
+    }
+    const controller = new AbortController()
+    loadPreferences(controller.signal)
+    return () => {
+      controller.abort()
+      setPreferences(null)
+    }
+  }, [subject])
+
   return (
     <Container maxWidth="md" component="main" sx={{ py: 4 }}>
       {session && (
@@ -81,6 +97,15 @@ function App() {
           <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
             {session.name}
           </Typography>
+          <Button
+            size="small"
+            component={Link}
+            to="/preferences"
+            aria-current={pathname === '/preferences' ? 'page' : undefined}
+            sx={{ flexShrink: 0 }}
+          >
+            Preferences
+          </Button>
           <Button size="small" onClick={signOut} sx={{ flexShrink: 0 }}>
             Sign out
           </Button>
@@ -183,6 +208,7 @@ function App() {
             <Route path="/tags" element={<TagsPage />} />
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
+            <Route path="/preferences" element={<PreferencesPage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </>

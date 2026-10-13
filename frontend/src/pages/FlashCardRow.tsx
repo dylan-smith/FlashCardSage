@@ -6,10 +6,12 @@ import Chip from '@mui/material/Chip'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import type { FlashCard } from '../api/flashCards'
+import { usePreferences } from '../hooks/usePreferences'
 import { thumbnailSize } from './FlashCardPicture'
 
 // One card in a list of cards to pick from, laid out the same wherever one is shown: a box to pick it, its picture
-// if it has one, its Spanish and English and its tags, and any buttons for it at the end.
+// if it has one and the user has pictures turned on, its Spanish and English and its tags, and any buttons for it at
+// the end.
 export function FlashCardRow({
   card,
   picked,
@@ -22,6 +24,7 @@ export function FlashCardRow({
   actions?: ReactNode
 }) {
   const checkboxId = useId()
+  const showPictures = usePreferences()?.showPictures === true
 
   return (
     <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
@@ -44,7 +47,7 @@ export function FlashCardRow({
           cursor: 'pointer',
         }}
       >
-        {card.imageUrl !== null && (
+        {showPictures && card.imageUrl !== null && (
           <Box
             component="img"
             src={card.imageUrl}
