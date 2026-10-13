@@ -118,7 +118,9 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<CardSuggesterO
         var text = new StringBuilder();
         if (relatedTo is not null)
         {
-            text.AppendLine($"The learner just added the card {relatedTo.Spanish} = {relatedTo.English}. Every new "
+            text.Append("The learner just added the card ").AppendJoin(" / ", relatedTo.Spanish).Append(" = ")
+                .AppendJoin(" / ", relatedTo.English)
+                .AppendLine(". Every new "
                 + "card must be closely related to it: on the same topic, or words and phrases used with it. For "
                 + "example, after el perro = the dog, good next cards are el gato = the cat, el caballo = the horse "
                 + "and la vaca = the cow. After lunes = Monday, they're martes = Tuesday, miércoles = Wednesday and "
@@ -126,10 +128,11 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<CardSuggesterO
         }
         text.AppendLine(cards.Count == 0
             ? $"The learner has no cards yet. Suggest {count} cards a beginner would want first."
-            : $"Suggest {count} new cards. These are the learner's cards, as Spanish = English [tags]:");
+            : $"Suggest {count} new cards. These are the learner's cards, as Spanish = English [tags], with a card's "
+                + "words for the same meaning separated by /:");
         foreach (var card in cards)
         {
-            text.Append("- ").Append(card.Spanish).Append(" = ").Append(card.English);
+            text.Append("- ").AppendJoin(" / ", card.Spanish).Append(" = ").AppendJoin(" / ", card.English);
             if (card.Tags.Count > 0)
             {
                 text.Append(" [").AppendJoin(", ", card.Tags.Select(tag => tag.Name)).Append(']');

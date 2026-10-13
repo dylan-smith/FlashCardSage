@@ -9,7 +9,7 @@ A flash card app for learning a language, with:
 ## Features
 
 - Sign in with a Google account; each user only sees their own flash cards
-- Add, edit and delete flash cards (each card is a Spanish word or phrase and its English translation)
+- Add, edit and delete flash cards (each card is a Spanish word or phrase and its English translation, and can have more than one of either for the same meaning, e.g. "solo" and "únicamente" for "only")
 - Type either side of a card and the other is filled in with a translation from Azure AI Translator; type over it to change it
 - Import a built-in deck (such as Days of the week or Months), which copies its cards and tags into your own; cards you already have are left out
 - A handful of suggested new cards, which gpt-5-mini on Azure AI Foundry picks to go with your cards; add one with a click

@@ -2,7 +2,9 @@ using System.Text.Json;
 
 namespace FlashCardSage.Api.SystemDecks;
 
-public record SystemCardDefinition(string Spanish, string English, IReadOnlyList<string> Tags);
+// Like a user's card, a built-in card can have more than one word in each language, in order.
+public record SystemCardDefinition(
+    IReadOnlyList<string> Spanish, IReadOnlyList<string> English, IReadOnlyList<string> Tags);
 
 public record SystemDeckDefinition(string Name, IReadOnlyList<SystemCardDefinition> Cards);
 

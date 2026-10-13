@@ -64,8 +64,8 @@ describe('signing in', () => {
             : [
                 {
                   id: 1,
-                  spanish: 'buenos días',
-                  english: 'good morning',
+                  spanish: ['buenos días'],
+                  english: ['good morning'],
                   tags: [],
                 },
               ],

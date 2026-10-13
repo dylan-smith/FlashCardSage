@@ -39,7 +39,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         var response = await GetAsync(dbContext);
 
-        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0, null, null)], response.Cards);
+        Assert.Equivalent(new[] { new FlashCardScore(card.Id, ["el gato"], ["the cat"], 0, null, null) }, response.Cards);
     }
 
     [Theory]
@@ -129,7 +129,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         var response = await GetAsync(dbContext);
 
-        Assert.Equal([new FlashCardScore(card.Id, "el gato", "the cat", 0, null, null)], response.Cards);
+        Assert.Equivalent(new[] { new FlashCardScore(card.Id, ["el gato"], ["the cat"], 0, null, null) }, response.Cards);
         Assert.Equal((0, 100), (response.Total, response.Maximum));
     }
 
@@ -137,18 +137,18 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     public async Task GetScores_IsServedAlongsideTheCardRoutes()
     {
         using var client = CreateClient();
-        var created = await client.PostAsJsonAsync("/api/flashcards", new { spanish = "el gato", english = "the cat" });
+        var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("el gato", "the cat"));
         created.EnsureSuccessStatusCode();
 
         var response = await client.GetFromJsonAsync<FlashCardScoresResponse>("/api/flashcards/scores");
 
         Assert.Equal((0, 100), (response!.Total, response.Maximum));
-        Assert.Equal("el gato", Assert.Single(response.Cards).Spanish);
+        Assert.Equal("el gato", Assert.Single(response.Cards).Spanish.Single());
     }
 
     private static async Task<FlashCard> AddCardAsync(FlashCardDbContext dbContext, string spanish, string english)
     {
-        var card = new FlashCard { Spanish = spanish, English = english };
+        var card = new FlashCard { Words = TestDb.Words(spanish, english) };
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
         return card;

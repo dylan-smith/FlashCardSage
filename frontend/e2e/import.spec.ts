@@ -1,4 +1,4 @@
-import { test, expect } from './fixtures'
+import { cardData, test, expect } from './fixtures'
 
 // The backend started by playwright.config.ts, which adds the built-in decks when it starts.
 const apiUrl = 'http://localhost:5269/api'
@@ -19,7 +19,7 @@ test.describe('Import cards', () => {
     expect(
       (
         await request.post(`${apiUrl}/flashcards`, {
-          data: { spanish: 'lunes', english: 'Monday', tags: [] },
+          data: cardData('lunes', 'Monday'),
         })
       ).ok(),
     ).toBe(true)

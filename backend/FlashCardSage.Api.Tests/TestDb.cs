@@ -1,5 +1,7 @@
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
@@ -26,5 +28,29 @@ internal static class TestDb
             .Options;
 
         return new FlashCardDbContext(options, currentUser);
+    }
+
+    // The body that creates a card with one Spanish word and one English word through the API.
+    public static object CardBody(string spanish, string english)
+    {
+        return new { spanish = new[] { spanish }, english = new[] { english } };
+    }
+
+    // A new card's words: one Spanish and one English, as most tests' cards have.
+    public static List<FlashCardWord> Words(string spanish, string english)
+    {
+        return Words([spanish], [english]);
+    }
+
+    // A new card's words, with any number in each language, in order.
+    public static List<FlashCardWord> Words(string[] spanish, string[] english)
+    {
+        return
+        [
+            .. spanish.Select((text, position) =>
+                new FlashCardWord { Language = Language.Spanish, Text = text, Position = position }),
+            .. english.Select((text, position) =>
+                new FlashCardWord { Language = Language.English, Text = text, Position = position })
+        ];
     }
 }

@@ -11,6 +11,7 @@ import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import { listCardSuggestions } from '../api/cardSuggestions'
 import type { CardSuggestion } from '../api/cardSuggestions'
+import { formatWords } from '../api/flashCards'
 import type { FlashCardWords } from '../api/flashCards'
 import { trackException } from '../telemetry'
 
@@ -130,8 +131,10 @@ export function CardSuggestions({
           (suggestion) =>
             !cards.some(
               (card) =>
-                sameText(card.spanish, suggestion.spanish) ||
-                sameText(card.english, suggestion.english),
+                card.spanish.some((word) =>
+                  sameText(word, suggestion.spanish),
+                ) ||
+                card.english.some((word) => sameText(word, suggestion.english)),
             ),
         )
       : []
@@ -169,7 +172,7 @@ export function CardSuggestions({
       <Collapse in={!collapsed} id="suggested-cards-content" unmountOnExit>
         <Typography color="text.secondary" sx={{ mb: 1 }}>
           {relatedTo
-            ? `New words and phrases that go with “${relatedTo.spanish}”.`
+            ? `New words and phrases that go with “${formatWords(relatedTo.spanish)}”.`
             : 'New words and phrases that go with your cards.'}
         </Typography>
         {state.status === 'loading' ? (

@@ -3,6 +3,7 @@ using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.SystemDecks;
+using FlashCardSage.Api.Translation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -16,12 +17,13 @@ public class SystemDecksControllerTests
     private static readonly SystemDeckDefinition Days = new(
         "Days",
         [
-            new("lunes", "Monday", ["Days"]),
-            new("martes", "Tuesday", ["Days", "Week"]),
-            new("miércoles", "Wednesday", ["Days"])
+            SystemDeckSeederTests.Card("lunes", "Monday", "Days"),
+            new(["martes"], ["Tuesday", "Tues"], ["Days", "Week"]),
+            SystemDeckSeederTests.Card("miércoles", "Wednesday", "Days")
         ]);
 
-    private static readonly SystemDeckDefinition Months = new("Months", [new("enero", "January", ["Months"])]);
+    private static readonly SystemDeckDefinition Months = new(
+        "Months", [SystemDeckSeederTests.Card("enero", "January", "Months")]);
 
     [Fact]
     public async Task GetAll_ReturnsOnlyTheSystemDecks_WithTheirCardsAndTags()
@@ -42,15 +44,17 @@ public class SystemDecksControllerTests
         var decks = Assert.IsAssignableFrom<IEnumerable<SystemDeckResponse>>(
             Assert.IsType<OkObjectResult>(result.Result).Value).ToList();
         Assert.Equal(["Days", "Months"], decks.Select(deck => deck.Name));
-        // Sent like the user's own cards, with their tags in name order.
+        // Sent like the user's own cards, with their words in order and their tags in name order.
         Assert.Equal(
             [
                 ("lunes", "Monday", "Days"),
-                ("martes", "Tuesday", "Days, Week"),
+                ("martes", "Tuesday, Tues", "Days, Week"),
                 ("miércoles", "Wednesday", "Days")
             ],
-            decks[0].Cards.Select(card =>
-                (card.Spanish, card.English, string.Join(", ", card.Tags.Select(tag => tag.Name)))));
+            decks[0].Cards.Select(card => (
+                string.Join(", ", card.Spanish),
+                string.Join(", ", card.English),
+                string.Join(", ", card.Tags.Select(tag => tag.Name)))));
     }
 
     [Fact]
@@ -74,13 +78,17 @@ public class SystemDecksControllerTests
         await using var checkContext = TestDb.Create(databaseName);
         var deck = await checkContext.Decks
             .Include(item => item.FlashCards)
+            .ThenInclude(card => card.Words)
+            .Include(item => item.FlashCards)
             .ThenInclude(card => card.Tags)
             .SingleAsync();
         Assert.NotEqual(daysId, deck.Id);
         Assert.Equal(TestDb.UserId, deck.UserId);
         Assert.Equal(imported.Deck.FlashCardIds, deck.FlashCards.Select(card => card.Id).Order());
         Assert.All(deck.FlashCards, card => Assert.Equal(TestDb.UserId, card.UserId));
-        var tuesday = deck.FlashCards.Single(card => card.Spanish == "martes");
+        Assert.All(await checkContext.FlashCardWords.ToListAsync(), word => Assert.Equal(TestDb.UserId, word.UserId));
+        var tuesday = deck.FlashCards.Single(card => card.Spanish.Single() == "martes");
+        Assert.Equal(["Tuesday", "Tues"], tuesday.English);
         Assert.Equal(["days", "Week"], tuesday.Tags.Select(tag => tag.Name));
         Assert.Equal(["days", "Week"], (await checkContext.Tags.Select(tag => tag.Name).ToListAsync()).Order());
     }
@@ -94,14 +102,14 @@ public class SystemDecksControllerTests
         var imported = Assert.IsType<SystemDeckImportResponse>(
             Assert.IsType<CreatedAtActionResult>((await CreateController(dbContext).Import(daysId, CancellationToken.None)).Result).Value);
 
-        var copy = await dbContext.FlashCards.SingleAsync(card => card.Spanish == "lunes");
-        copy.English = "Mondays";
+        var copy = (await UserCardsAsync(dbContext)).Single(card => card.Spanish.Single() == "lunes");
+        copy.Words.Single(word => word.Language == Language.English).Text = "Mondays";
         dbContext.Decks.Remove(await dbContext.Decks.Include(deck => deck.FlashCards).SingleAsync(deck => deck.Id == imported.Deck.Id));
         await dbContext.SaveChangesAsync();
 
         var decks = Assert.IsAssignableFrom<IEnumerable<SystemDeckResponse>>(
             Assert.IsType<OkObjectResult>((await CreateController(dbContext).GetAll()).Result).Value).ToList();
-        Assert.Equal("Monday", decks.Single(deck => deck.Name == "Days").Cards[0].English);
+        Assert.Equal(["Monday"], decks.Single(deck => deck.Name == "Days").Cards[0].English);
     }
 
     [Fact]
@@ -120,13 +128,11 @@ public class SystemDecksControllerTests
         Assert.Equal("image/png", copy.ContentType);
         Assert.Equal(CardImageTests.Png, copy.Data);
         await using var checkContext = TestDb.Create(databaseName);
-        var cards = await checkContext.FlashCards.ToListAsync();
-        Assert.Equal(copy.Url, cards.Single(card => card.Spanish == "lunes").ImageUrl);
-        Assert.All(cards.Where(card => card.Spanish != "lunes"), card => Assert.Null(card.ImageUrl));
+        var cards = await UserCardsAsync(checkContext);
+        Assert.Equal(copy.Url, cards.Single(card => card.Spanish.Single() == "lunes").ImageUrl);
+        Assert.All(cards.Where(card => card.Spanish.Single() != "lunes"), card => Assert.Null(card.ImageUrl));
         // The built-in card keeps its own.
-        var systemCard = await checkContext.FlashCards.IgnoreQueryFilters()
-            .SingleAsync(card => card.Spanish == "lunes" && card.UserId != TestDb.UserId);
-        Assert.Equal(systemUrl, systemCard.ImageUrl);
+        Assert.Equal(systemUrl, (await SystemCardAsync(checkContext, "lunes")).ImageUrl);
         Assert.Empty(store.Deleted);
     }
 
@@ -143,15 +149,14 @@ public class SystemDecksControllerTests
             .Import(await SystemDeckIdAsync(dbContext, "Days"), CancellationToken.None);
 
         Assert.IsType<CreatedAtActionResult>(result.Result);
-        Assert.Null((await dbContext.FlashCards.SingleAsync(card => card.Spanish == "lunes")).ImageUrl);
+        Assert.Null((await UserCardsAsync(dbContext)).Single(card => card.Spanish.Single() == "lunes").ImageUrl);
     }
 
     [Fact]
     public async Task Import_LeavesThePictureOff_WhenItCannotBeCopied()
     {
         var databaseName = await SeedAsync();
-        var seedStore = new FakeImageStore();
-        await GiveSystemCardAPictureAsync(databaseName, seedStore, "lunes");
+        await GiveSystemCardAPictureAsync(databaseName, new FakeImageStore(), "lunes");
         var store = new FakeImageStore { CopyFailure = new InvalidOperationException("Storage is down.") };
         await using var dbContext = TestDb.Create(databaseName);
 
@@ -160,7 +165,7 @@ public class SystemDecksControllerTests
 
         var imported = Assert.IsType<SystemDeckImportResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
         Assert.Equal(3, imported.ImportedCount);
-        Assert.Null((await dbContext.FlashCards.SingleAsync(card => card.Spanish == "lunes")).ImageUrl);
+        Assert.Null((await UserCardsAsync(dbContext)).Single(card => card.Spanish.Single() == "lunes").ImageUrl);
     }
 
     [Fact]
@@ -181,14 +186,16 @@ public class SystemDecksControllerTests
         Assert.Equal([copy.Url], store.Deleted);
     }
 
+    // Any one word the user has, in either language and whatever its case, leaves the card out: martes is a single
+    // Spanish word with two English ones.
     [Theory]
-    [InlineData("LUNES", "the moon")]
-    [InlineData("el lunes", "monday")]
-    public async Task Import_SkipsCardsWhoseSpanishOrEnglishTheUserHas(string spanish, string english)
+    [InlineData("MARTES", "the moon")]
+    [InlineData("el martes", "tues")]
+    public async Task Import_SkipsCardsWithAWordTheUserHas(string spanish, string english)
     {
         var databaseName = await SeedAsync();
         await using var dbContext = TestDb.Create(databaseName);
-        var own = new FlashCard { Spanish = spanish, English = english };
+        var own = new FlashCard { Words = TestDb.Words(spanish, english) };
         dbContext.FlashCards.Add(own);
         await dbContext.SaveChangesAsync();
 
@@ -197,10 +204,15 @@ public class SystemDecksControllerTests
         var imported = Assert.IsType<SystemDeckImportResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
         Assert.Equal((2, 1), (imported.ImportedCount, imported.SkippedCount));
         await using var checkContext = TestDb.Create(databaseName);
-        var deck = await checkContext.Decks.Include(item => item.FlashCards).SingleAsync();
-        Assert.Equal(["martes", "miércoles"], deck.FlashCards.Select(card => card.Spanish).Order());
+        var deck = await checkContext.Decks
+            .Include(item => item.FlashCards)
+            .ThenInclude(card => card.Words)
+            .SingleAsync();
+        Assert.Equal(["lunes", "miércoles"], deck.FlashCards.Select(card => card.Spanish.Single()).Order());
         // The user's own card is left as it is.
-        Assert.Equal(english, (await checkContext.FlashCards.SingleAsync(card => card.Id == own.Id)).English);
+        var saved = (await UserCardsAsync(checkContext)).Single(card => card.Id == own.Id);
+        Assert.Equal([spanish], saved.Spanish);
+        Assert.Equal([english], saved.English);
     }
 
     [Fact]
@@ -240,7 +252,7 @@ public class SystemDecksControllerTests
         int otherId;
         await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
         {
-            var other = new Deck { Name = "Theirs", FlashCards = [new FlashCard { Spanish = "el gato", English = "the cat" }] };
+            var other = new Deck { Name = "Theirs", FlashCards = [new FlashCard { Words = TestDb.Words("el gato", "the cat") }] };
             otherContext.Decks.Add(other);
             await otherContext.SaveChangesAsync();
             otherId = other.Id;
@@ -271,14 +283,29 @@ public class SystemDecksControllerTests
             .SingleAsync();
     }
 
+    // The test user's cards with their words, which are matched in memory since they're lists.
+    private static Task<List<FlashCard>> UserCardsAsync(FlashCardDbContext dbContext)
+    {
+        return dbContext.FlashCards.Include(card => card.Words).ToListAsync();
+    }
+
+    // The built-in card with this Spanish word.
+    private static async Task<FlashCard> SystemCardAsync(FlashCardDbContext dbContext, string spanish)
+    {
+        var cards = await dbContext.FlashCards
+            .IgnoreQueryFilters()
+            .Include(card => card.Words)
+            .Where(card => card.UserId != TestDb.UserId && card.UserId != TestDb.OtherUserId)
+            .ToListAsync();
+        return cards.Single(card => card.Spanish.Contains(spanish));
+    }
+
     // Gives the built-in card a picture, saved in the store as an admin would have.
     private static async Task<string> GiveSystemCardAPictureAsync(string databaseName, FakeImageStore store, string spanish)
     {
         var url = await store.SaveAsync(CardImageTests.Png, "image/png", CancellationToken.None);
         await using var dbContext = TestDb.Create(databaseName);
-        var card = await dbContext.FlashCards.IgnoreQueryFilters()
-            .SingleAsync(item => item.Spanish == spanish && item.UserId != TestDb.UserId);
-        card.ImageUrl = url;
+        (await SystemCardAsync(dbContext, spanish)).ImageUrl = url;
         await dbContext.SaveChangesAsync();
         return url;
     }
@@ -295,7 +322,7 @@ public class SystemDecksControllerTests
         public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
             DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
         {
-            throw new DbUpdateException("Cannot insert duplicate key row in object 'dbo.FlashCards'.");
+            throw new DbUpdateException("Cannot insert duplicate key row in object 'dbo.FlashCardWords'.");
         }
     }
 }

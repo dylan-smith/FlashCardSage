@@ -2,6 +2,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Translation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
@@ -53,13 +54,18 @@ public class SystemDecksController(
             return NotFound();
         }
 
-        // Compared in memory, ignoring case, since the in-memory database used in development can't in a query.
-        var cards = await dbContext.FlashCards
+        // The words on the user's cards, by language. Compared in memory, ignoring case, since the in-memory database
+        // used in development can't in a query.
+        var words = await dbContext.FlashCardWords
             .AsNoTracking()
-            .Select(card => new { card.Spanish, card.English })
+            .Select(word => new { word.Language, word.Text })
             .ToListAsync(cancellationToken);
-        var spanish = cards.Select(card => card.Spanish).ToHashSet(StringComparer.OrdinalIgnoreCase);
-        var english = cards.Select(card => card.English).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var taken = Enum.GetValues<Language>().ToDictionary(
+            language => language,
+            language => words
+                .Where(word => word.Language == language)
+                .Select(word => word.Text)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase));
         var tags = await dbContext.Tags.ToListAsync(cancellationToken);
 
         var deck = new Deck { Name = await UnusedDeckNameAsync(systemDeck.Name, cancellationToken) };
@@ -69,18 +75,25 @@ public class SystemDecksController(
 
         foreach (var systemCard in systemDeck.FlashCards.OrderBy(card => card.Id))
         {
-            if (spanish.Contains(systemCard.Spanish) || english.Contains(systemCard.English))
+            // A word is only ever on one of a user's cards, so a card with any word they have is left out.
+            if (systemCard.Words.Any(word => taken[word.Language].Contains(word.Text)))
             {
                 skipped++;
                 continue;
             }
 
-            spanish.Add(systemCard.Spanish);
-            english.Add(systemCard.English);
+            foreach (var word in systemCard.Words)
+            {
+                taken[word.Language].Add(word.Text);
+            }
+
             var copy = new FlashCard
             {
-                Spanish = systemCard.Spanish,
-                English = systemCard.English,
+                Words =
+                [
+                    .. systemCard.Words.Select(word =>
+                        new FlashCardWord { Language = word.Language, Text = word.Text, Position = word.Position })
+                ],
                 Tags = systemCard.Tags
                     .Select(tag => FindOrMakeTag(tags, tag.Name))
                     .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
@@ -165,7 +178,7 @@ public class SystemDecksController(
         }
     }
 
-    // The system user's decks, with their cards and the cards' tags.
+    // The system user's decks, with their cards and the cards' words and tags.
     private IQueryable<Deck> SystemDecks()
     {
         return dbContext.Decks
@@ -173,7 +186,10 @@ public class SystemDecksController(
             .AsNoTracking()
             .Where(deck => dbContext.Users.Any(user => user.Id == deck.UserId && user.Subject == Models.User.SystemSubject))
             .Include(deck => deck.FlashCards)
-            .ThenInclude(card => card.Tags.OrderBy(tag => tag.Name));
+            .ThenInclude(card => card.Words)
+            .Include(deck => deck.FlashCards)
+            .ThenInclude(card => card.Tags.OrderBy(tag => tag.Name))
+            .AsSplitQuery();
     }
 
     // The name, or else the name with the first of " (2)", " (3)" and so on that none of the user's decks has, ignoring

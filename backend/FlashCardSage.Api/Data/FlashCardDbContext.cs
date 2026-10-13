@@ -7,9 +7,10 @@ namespace FlashCardSage.Api.Data;
 /// <remarks>
 /// Flash cards belong to a user. A query filter only shows the current user's, and new ones are given the current
 /// user when they're saved, so the controllers never handle the owner themselves. Tags and decks work the same way.
-/// Practice results are filtered through their card, so they're only the current user's too, and a card's tags are
-/// only reached through the card. A deck only gets cards that were found through the filter. The built-in decks
-/// belong to the system user (see SystemDeckSeeder), and only SystemDecksController reads them past the filter.
+/// Practice results and a card's words are filtered through their card, so they're only the current user's too, and
+/// a card's tags are only reached through the card. A deck only gets cards that were found through the filter. The
+/// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDecksController reads them past
+/// the filter.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {
@@ -19,6 +20,8 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<User> Users => Set<User>();
 
     public DbSet<FlashCard> FlashCards => Set<FlashCard>();
+
+    public DbSet<FlashCardWord> FlashCardWords => Set<FlashCardWord>();
 
     public DbSet<PracticeResult> PracticeResults => Set<PracticeResult>();
 
@@ -44,6 +47,13 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         {
             entry.Entity.UserId = CurrentUserId
                 ?? throw new InvalidOperationException("Flash cards can only be saved for a signed-in user.");
+        }
+
+        // Words are only added to cards found through the filter, so the current user is the card's owner.
+        foreach (var entry in ChangeTracker.Entries<FlashCardWord>().Where(entry => entry.State == EntityState.Added))
+        {
+            entry.Entity.UserId = CurrentUserId
+                ?? throw new InvalidOperationException("Flash card words can only be saved for a signed-in user.");
         }
 
         foreach (var entry in ChangeTracker.Entries<Tag>().Where(entry => entry.State == EntityState.Added))
@@ -90,28 +100,38 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         modelBuilder.Entity<FlashCard>()
             .HasIndex(card => card.UserId);
 
-        // A user has one card for a word, so neither side can be on two of their cards (0006-*.sql).
-        modelBuilder.Entity<FlashCard>()
-            .HasIndex(card => new { card.UserId, card.Spanish })
-            .IsUnique();
-
-        modelBuilder.Entity<FlashCard>()
-            .HasIndex(card => new { card.UserId, card.English })
-            .IsUnique();
-
-        modelBuilder.Entity<FlashCard>()
-            .Property(card => card.Spanish)
-            .HasMaxLength(200)
-            .IsRequired();
-
-        modelBuilder.Entity<FlashCard>()
-            .Property(card => card.English)
-            .HasMaxLength(200)
-            .IsRequired();
-
         modelBuilder.Entity<FlashCard>()
             .Property(card => card.ImageUrl)
             .HasMaxLength(FlashCard.MaxImageUrlLength);
+
+        modelBuilder.Entity<FlashCardWord>()
+            .HasQueryFilter(word => word.UserId == CurrentUserId);
+
+        // The database's foreign key also includes the owner, so a word's owner is always its card's
+        // (0009-*.sql). EF only needs the card.
+        modelBuilder.Entity<FlashCard>()
+            .HasMany(card => card.Words)
+            .WithOne()
+            .HasForeignKey(word => word.FlashCardId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        modelBuilder.Entity<FlashCardWord>()
+            .HasIndex(word => word.FlashCardId);
+
+        // A user has one card for a word, so no word can be on two of their cards (0009-*.sql).
+        modelBuilder.Entity<FlashCardWord>()
+            .HasIndex(word => new { word.UserId, word.Language, word.Text })
+            .IsUnique();
+
+        modelBuilder.Entity<FlashCardWord>()
+            .Property(word => word.Language)
+            .HasConversion<string>()
+            .HasMaxLength(10);
+
+        modelBuilder.Entity<FlashCardWord>()
+            .Property(word => word.Text)
+            .HasMaxLength(FlashCard.MaxWordLength)
+            .IsRequired();
 
         modelBuilder.Entity<PracticeResult>()
             .HasQueryFilter(result => result.FlashCard.UserId == CurrentUserId);

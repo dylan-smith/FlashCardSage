@@ -128,11 +128,13 @@ public class FlashCardImagesController(
         return Ok(card);
     }
 
-    // The card with its tags, as the other endpoints return it.
+    // The card with its words and tags, as the other endpoints return it.
     private Task<FlashCard?> FindCardAsync(int id, CancellationToken cancellationToken)
     {
         return dbContext.FlashCards
+            .Include(card => card.Words)
             .Include(card => card.Tags.OrderBy(tag => tag.Name))
+            .AsSplitQuery()
             .FirstOrDefaultAsync(card => card.Id == id, cancellationToken);
     }
 }

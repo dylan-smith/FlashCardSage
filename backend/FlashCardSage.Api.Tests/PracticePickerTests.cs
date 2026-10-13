@@ -7,9 +7,9 @@ public class PracticePickerTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 12, 12, 0, 0, TimeSpan.Zero);
 
-    private static readonly FlashCardScore Cat = new(1, "el gato", "the cat", 0, null, null);
-    private static readonly FlashCardScore Dog = new(2, "el perro", "the dog", 0, null, null);
-    private static readonly FlashCardScore House = new(3, "la casa", "the house", 0, null, null);
+    private static readonly FlashCardScore Cat = new(1, ["el gato"], ["the cat"], 0, null, null);
+    private static readonly FlashCardScore Dog = new(2, ["el perro"], ["the dog"], 0, null, null);
+    private static readonly FlashCardScore House = new(3, ["la casa"], ["the house"], 0, null, null);
 
     [Theory]
     [InlineData(0, null, 100)]
@@ -108,7 +108,7 @@ public class PracticePickerTests
     {
         var next = PracticePicker.Pick([Cat], null, Now, 0, sideRoll);
 
-        Assert.Equal(new PracticeCard(Cat.Id, "el gato", "the cat", expected, null), next);
+        Assert.Equivalent(new PracticeCard(Cat.Id, ["el gato"], ["the cat"], expected, null), next);
     }
 
     [Fact]
