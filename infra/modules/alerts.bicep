@@ -56,6 +56,7 @@ var investigationEnabled = slackEnabled && !empty(alertInvestigationToken)
 // Rule names the Slack messages look up "What to do" steps by. Azure names the Failure Anomalies rule itself.
 var slowApiName = 'FlashCardSage slow API'
 var slowPageLoadsName = 'FlashCardSage slow page loads'
+var browserErrorsName = 'FlashCardSage browser errors'
 var failureAnomaliesName = 'Failure Anomalies - ${last(split(appInsightsId, '/'))}'
 var resourceHealthName = 'FlashCardSage resource health'
 var serviceHealthName = 'FlashCardSage service health'
@@ -98,6 +99,10 @@ var alertSteps = union(
     '${slowPageLoadsName}': [
       'On the *Frontend* tab of the ${workbookLink}, check *Page load time* for the slow pages, and *Browser-observed API duration*.'
       'If the API calls are slow, follow the steps for *FlashCardSage slow API*. Otherwise check whether a recent frontend deployment (${ciRunsLink}) made the bundle bigger or added work on load.'
+    ]
+    '${browserErrorsName}': [
+      'On the *Frontend* tab of the ${workbookLink}, check *Browser exceptions* for the operation (load, save, delete) that failed and its *Status*.'
+      'Open ${failuresLink} and switch to *Browser* for the stack traces. If it started with a frontend deployment (${ciRunsLink}), revert the change on `main`.'
     ]
     '${failureAnomaliesName}': apiServerErrorSteps
     '${resourceHealthName}': [
@@ -547,25 +552,6 @@ var metricAlerts = [
     ]
   }
   {
-    name: 'FlashCardSage browser errors'
-    description: 'The frontend reported more than 5 exceptions in an hour.'
-    steps: [
-      'On the *Frontend* tab of the ${workbookLink}, check *Browser exceptions* for the operation (load, save, delete) that failed and its *Status*.'
-      'This alert counts every exception, including expected ones, so check whether one of the ${loadTestRunsLink} was running. If it was and the *Status* column says they\'re expected, close the alert.'
-      'Open ${failuresLink} and switch to *Browser* for the stack traces. If it started with a frontend deployment (${ciRunsLink}), revert the change on `main`.'
-    ]
-    severity: 2
-    scope: appInsightsId
-    namespace: 'microsoft.insights/components'
-    metric: 'exceptions/browser'
-    timeAggregation: 'Count'
-    operator: 'GreaterThan'
-    threshold: 5
-    windowSize: 'PT1H'
-    frequency: 'PT15M'
-    dimensions: []
-  }
-  {
     name: 'FlashCardSage browser API call failures'
     description: 'More than 5 API calls from the frontend failed in an hour (network, CORS or server errors).'
     steps: [
@@ -752,6 +738,40 @@ resource slowPageLoads 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
       allOf: [
         {
           query: 'AppPageViews\n| where AppRoleName == "${frontendRoleName}"\n| summarize Samples = count(), P75 = percentile(DurationMs, 75)\n| where Samples >= 5 and P75 > 4000'
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
+
+// A log alert rather than the exceptions/browser metric, which has no dimension to leave out headless Chrome: the
+// CI smoke tests after each production deploy fired it on their own. ItemCount counts the exceptions sampling dropped.
+resource browserErrors 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: browserErrorsName
+  location: location
+  properties: {
+    displayName: browserErrorsName
+    description: 'The frontend reported more than 5 exceptions in an hour, not counting automated tests in headless Chrome.'
+    severity: 2
+    enabled: true
+    scopes: [workspaceId]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT1H'
+    autoMitigate: true
+    criteria: {
+      allOf: [
+        {
+          query: 'AppExceptions\n| where AppRoleName == "${frontendRoleName}" and ClientBrowser !startswith "HeadlessChrome"\n| summarize Exceptions = sum(ItemCount)\n| where Exceptions > 5'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 0
