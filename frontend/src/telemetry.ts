@@ -7,6 +7,8 @@ import { apiBaseUrl } from './config'
 type Properties = Record<string, string>
 
 let appInsights: ApplicationInsights | undefined
+// Set once the page starts going away, when the browser cancels its in-flight fetches.
+let leavingPage = false
 
 // Telemetry is only enabled when the build has a connection string (CI sets it for production), so local
 // dev, unit tests and E2E runs send nothing.
@@ -43,12 +45,24 @@ export function initTelemetry() {
     })
     sdk.loadAppInsights()
     appInsights = sdk
+    window.addEventListener('pagehide', () => {
+      leavingPage = true
+    })
+    // The back/forward cache can bring the page back.
+    window.addEventListener('pageshow', () => {
+      leavingPage = false
+    })
   } catch (error) {
     console.error('Telemetry is disabled because it failed to start.', error)
   }
 }
 
 export function trackException(error: unknown, properties?: Properties) {
+  // A fetch the browser cancelled because the user (or a test) navigated away or closed the page fails with a
+  // TypeError ("Failed to fetch"). Nothing went wrong, so it isn't reported.
+  if (leavingPage && error instanceof TypeError) {
+    return
+  }
   appInsights?.trackException({
     exception: error instanceof Error ? error : new Error(String(error)),
     properties,
@@ -66,4 +80,5 @@ export function trackPageView() {
 // Only for tests, so each one starts with telemetry uninitialized.
 export function resetTelemetry() {
   appInsights = undefined
+  leavingPage = false
 }
