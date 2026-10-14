@@ -1670,6 +1670,141 @@ describe('App', () => {
     })
   })
 
+  describe('deleting the cards picked', () => {
+    const threeCards = [
+      {
+        id: 1,
+        spanish: ['el gato'],
+        english: ['the cat'],
+        tags: [{ id: 4, name: 'Pets' }],
+        imageUrl: null,
+      },
+      {
+        id: 2,
+        spanish: ['el perro'],
+        english: ['the dog'],
+        tags: [{ id: 4, name: 'Pets' }],
+        imageUrl: null,
+      },
+      {
+        id: 3,
+        spanish: ['la casa'],
+        english: ['the house'],
+        tags: [],
+        imageUrl: null,
+      },
+    ]
+
+    function mockCards(deleteResponse: () => Response) {
+      return mockFetch(
+        async (url, init) =>
+          init?.method === 'POST' &&
+          url === 'http://localhost:5269/api/flashcards/delete'
+            ? deleteResponse()
+            : jsonResponse(threeCards),
+        [{ id: 4, name: 'Pets' }],
+      )
+    }
+
+    it('deletes every card picked once the user says so', async () => {
+      const user = userEvent.setup()
+      const calls = mockCards(() => new Response(null, { status: 204 }))
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      expect(screen.getByRole('button', { name: 'Delete…' })).toBeDisabled()
+      await user.click(screen.getByRole('checkbox', { name: 'Pick all 3' }))
+      await user.click(screen.getByRole('button', { name: 'Delete 3 cards…' }))
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete 3 cards?',
+      })
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Deleted 3 cards.',
+      )
+      expect(screen.getByText('No flash cards yet.')).toBeInTheDocument()
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.init?.body).toBe(JSON.stringify({ flashCardIds: [1, 2, 3] }))
+      expect(trackEvent).toHaveBeenCalledWith('FlashCardsDeleted')
+    })
+
+    it('deletes nothing when the user cancels', async () => {
+      const user = userEvent.setup()
+      const calls = mockCards(() => new Response(null, { status: 204 }))
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('checkbox', { name: 'Pick "el gato"' }))
+      await user.click(screen.getByRole('button', { name: 'Delete 1 card…' }))
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete 1 card?',
+      })
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      })
+      expect(calls.some((call) => call.init?.method === 'POST')).toBe(false)
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(
+        screen.getByRole('checkbox', { name: 'Pick "el gato"' }),
+      ).toBeChecked()
+    })
+
+    it("only deletes the picked tag's cards", async () => {
+      const user = userEvent.setup()
+      const calls = mockCards(() => new Response(null, { status: 204 }))
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('checkbox', { name: 'Pick "la casa"' }))
+      await user.click(
+        within(
+          screen.getByRole('group', { name: 'Show cards tagged' }),
+        ).getByRole('button', { name: 'Pets (2)' }),
+      )
+      await user.click(screen.getByRole('checkbox', { name: 'Pick all 2' }))
+      await user.click(screen.getByRole('button', { name: 'Delete 2 cards…' }))
+      await user.click(
+        within(
+          await screen.findByRole('dialog', { name: 'Delete 2 cards?' }),
+        ).getByRole('button', { name: 'Delete' }),
+      )
+
+      await screen.findByRole('status')
+      expect(
+        calls.find((call) => call.init?.method === 'POST')?.init?.body,
+      ).toBe(JSON.stringify({ flashCardIds: [1, 2] }))
+    })
+
+    it('keeps the cards and says why when deleting fails', async () => {
+      const user = userEvent.setup()
+      mockCards(() => new Response(null, { status: 500 }))
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('checkbox', { name: 'Pick "el gato"' }))
+      await user.click(screen.getByRole('button', { name: 'Delete 1 card…' }))
+      await user.click(
+        within(
+          await screen.findByRole('dialog', { name: 'Delete 1 card?' }),
+        ).getByRole('button', { name: 'Delete' }),
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Unable to delete the flash cards.',
+      )
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(
+        screen.getByRole('checkbox', { name: 'Pick "el gato"' }),
+      ).toBeChecked()
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'deleteMany',
+      })
+    })
+  })
+
   describe('tags', () => {
     const food = { id: 1, name: 'Food' }
     const travel = { id: 2, name: 'Travel' }
