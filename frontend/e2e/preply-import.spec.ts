@@ -86,6 +86,8 @@ test.describe('Import from Preply', () => {
     await context.route('https://preply.com/**', fakePreply)
 
     await page.goto('/import')
+    await page.getByRole('tab', { name: 'From Preply' }).click()
+    await expect(page).toHaveURL(/\/import\?from=preply$/)
     const bookmarklet = page.getByRole('link', {
       name: 'Send to FlashCardSage',
     })
@@ -99,6 +101,11 @@ test.describe('Import from Preply', () => {
     const opened = context.waitForEvent('page')
     await preply.evaluate(source)
     const importPage = await opened
+    // It opens on the Import cards page's Preply tab.
+    await expect(importPage).toHaveURL(/\/import\?from=preply$/)
+    await expect(
+      importPage.getByRole('tab', { name: 'From Preply' }),
+    ).toHaveAttribute('aria-selected', 'true')
 
     const words = importPage.getByRole('list', { name: 'Preply words' })
     await expect(words.getByRole('listitem')).toHaveCount(4)

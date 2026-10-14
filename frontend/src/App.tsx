@@ -16,7 +16,6 @@ import DeckPage from './pages/DeckPage'
 import DecksPage from './pages/DecksPage'
 import FlashCardsPage from './pages/FlashCardsPage'
 import ImportCardsPage from './pages/ImportCardsPage'
-import PreplyImportPage from './pages/PreplyImportPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
 import PreferencesPage from './pages/PreferencesPage'
@@ -240,7 +239,6 @@ function App() {
             <Route path="/decks/:id" element={<DeckPage />} />
             <Route path="/tags" element={<TagsPage />} />
             <Route path="/import" element={<ImportCardsPage />} />
-            <Route path="/import/preply" element={<PreplyImportPage />} />
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
             <Route path="/preferences" element={<PreferencesPage />} />

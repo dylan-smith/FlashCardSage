@@ -89,7 +89,7 @@ describe('the Send to FlashCardSage bookmarklet', () => {
       search: '?subject=french',
     })
 
-    expect(open).toHaveBeenCalledWith(`${appOrigin}/import/preply`)
+    expect(open).toHaveBeenCalledWith(`${appOrigin}/import?from=preply`)
     await vi.waitFor(() => {
       expect(fetch).toHaveBeenCalledTimes(2)
     })
@@ -164,9 +164,9 @@ describe('the Send to FlashCardSage bookmarklet', () => {
   it('is a bookmark that runs it for this FlashCardSage', () => {
     const href = bookmarkletHref(appOrigin)
 
-    expect(href.startsWith('javascript:')).toBe(true)
+    expect(href).toMatch(/^javascript:/)
     const source = decodeURIComponent(href.slice('javascript:'.length))
-    expect(source.endsWith(`)("${appOrigin}")`)).toBe(true)
+    expect(source).toMatch(/\)\("https:\/\/flashcardsage\.example"\)$/)
   })
 })
 
@@ -182,9 +182,9 @@ describe('receiving the words from Preply', () => {
   }
 
   // The window the bookmarklet opened, with this window as the one that opened it.
-  function openedWindow(pathname = '/import/preply') {
+  function openedWindow(pathname = '/import', search = '?from=preply') {
     return Object.assign(new EventTarget(), {
-      location: { pathname },
+      location: { pathname, search },
       opener: window,
     }) as unknown as Window
   }
@@ -275,7 +275,7 @@ describe('receiving the words from Preply', () => {
 
   it('does nothing unless the bookmarklet opened the import page', async () => {
     const handoff = await loadHandoff()
-    const elsewhere = openedWindow('/import')
+    const elsewhere = openedWindow('/import', '?from=document')
     const notOpened = Object.assign(openedWindow(), { opener: null })
 
     handoff.startPreplyHandoff(elsewhere)

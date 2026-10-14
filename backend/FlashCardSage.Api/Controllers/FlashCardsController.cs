@@ -26,6 +26,8 @@ public class FlashCardsController(
         return $"You already have a flash card with the {language} \"{word}\". Add this translation to that card instead.";
     }
 
+    public const string BatchClashMessage = "Your cards changed while these were being added. Try again.";
+
     // In the order they were made, so a list of words stays in the order it was typed in.
     [HttpGet]
     public async Task<ActionResult<IEnumerable<FlashCard>>> GetAll()
@@ -207,6 +209,71 @@ public class FlashCardsController(
         return NoContent();
     }
 
+    // Adds the cards, such as the ones scanned from a document, leaving out any card whose Spanish or English is
+    // already on one of the user's cards or an earlier card in the list, as importing a built-in deck does, rather than
+    // refusing them all.
+    [HttpPost("batch")]
+    public async Task<ActionResult<FlashCardBatchResponse>> CreateMany([FromBody] FlashCardBatchRequest request)
+    {
+        var trimmed = new List<(List<string> Spanish, List<string> English, List<string> TagNames)>();
+        for (var index = 0; index < request.Cards.Count; index++)
+        {
+            TryTrim(request.Cards[index], out var spanish, out var english, out var tagNames, $"Cards[{index}].");
+            trimmed.Add((spanish, english, tagNames));
+        }
+
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        // The words on the user's cards, by language, compared in memory, ignoring case, like FindClashAsync does.
+        var words = await dbContext.FlashCardWords.AsNoTracking().ToListAsync();
+        var taken = Enum.GetValues<Language>().ToDictionary(
+            language => language,
+            language => words
+                .Where(word => word.Language == language)
+                .Select(word => word.Text)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase));
+        var tags = await dbContext.Tags.ToListAsync();
+
+        var cards = new List<FlashCard>();
+        foreach (var (spanish, english, tagNames) in trimmed)
+        {
+            if (spanish.Any(taken[Language.Spanish].Contains) || english.Any(taken[Language.English].Contains))
+            {
+                continue;
+            }
+
+            taken[Language.Spanish].UnionWith(spanish);
+            taken[Language.English].UnionWith(english);
+
+            var card = new FlashCard { Tags = FindOrMakeTags(tags, tagNames) };
+            SetWords(card, Language.Spanish, spanish);
+            SetWords(card, Language.English, english);
+            cards.Add(card);
+        }
+
+        dbContext.FlashCards.AddRange(cards);
+
+        try
+        {
+            await dbContext.SaveChangesAsync();
+        }
+        catch (DbUpdateException)
+        {
+            // A card saved since the check above failed the unique index on its words.
+            dbContext.ChangeTracker.Clear();
+            logger.LogWarning("Refused to add flash cards over cards saved meanwhile");
+            return Problem(detail: BatchClashMessage, statusCode: StatusCodes.Status409Conflict);
+        }
+
+        logger.LogInformation(
+            "Created {Count} flash cards, skipping {SkippedCount}", cards.Count, trimmed.Count - cards.Count);
+
+        return Ok(new FlashCardBatchResponse(cards, trimmed.Count - cards.Count));
+    }
+
     // Deletes many cards at once, such as all the ones picked on the cards page. A card that's already gone is what
     // the caller wanted, and another user's is never found through the query filter, so both are skipped.
     [HttpPost("delete")]
@@ -239,20 +306,25 @@ public class FlashCardsController(
 
     // Trims each side's words, leaving out blanks and repeats (ignoring case), and adds a model error for a side
     // that's left with none, too many or one that's too long. The tag names are trimmed the same way, with a model
-    // error if one is too long.
+    // error if one is too long. The errors' keys start with prefix, which says which card in a list it is.
     private bool TryTrim(
-        FlashCardRequest request, out List<string> spanish, out List<string> english, out List<string> tagNames)
+        FlashCardRequest request,
+        out List<string> spanish,
+        out List<string> english,
+        out List<string> tagNames,
+        string prefix = "")
     {
         spanish = TrimWords(request.Spanish);
         english = TrimWords(request.English);
         tagNames = TrimWords(request.Tags);
 
-        CheckWords(nameof(request.Spanish), Language.Spanish, spanish);
-        CheckWords(nameof(request.English), Language.English, english);
+        CheckWords(prefix + nameof(request.Spanish), Language.Spanish, spanish);
+        CheckWords(prefix + nameof(request.English), Language.English, english);
 
         if (tagNames.Any(name => name.Length > Tag.MaxNameLength))
         {
-            ModelState.AddModelError(nameof(request.Tags), $"Tags can be at most {Tag.MaxNameLength} characters.");
+            ModelState.AddModelError(
+                prefix + nameof(request.Tags), $"Tags can be at most {Tag.MaxNameLength} characters.");
         }
 
         return ModelState.IsValid;
@@ -317,11 +389,24 @@ public class FlashCardsController(
         }
 
         // A person's tags are few, so they're matched here rather than in SQL.
-        var existing = await dbContext.Tags.ToListAsync();
+        return FindOrMakeTags(await dbContext.Tags.ToListAsync(), names);
+    }
 
+    // The same, from the user's tags, which a new tag is added to, so other cards being added with it use it too.
+    private static List<Tag> FindOrMakeTags(List<Tag> existing, List<string> names)
+    {
         return names
-            .Select(name => existing.FirstOrDefault(tag => string.Equals(tag.Name, name, StringComparison.OrdinalIgnoreCase))
-                ?? new Tag { Name = name })
+            .Select(name =>
+            {
+                var tag = existing.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
+                if (tag is null)
+                {
+                    tag = new Tag { Name = name };
+                    existing.Add(tag);
+                }
+
+                return tag;
+            })
             .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
             .ToList();
     }

@@ -1,7 +1,8 @@
 import type { PreplyWord } from './sendToFlashCardSage'
 
-// Where the "Send to FlashCardSage" bookmarklet opens FlashCardSage, and the only origin whose words are taken.
-export const preplyImportPath = '/import/preply'
+// The "Send to FlashCardSage" bookmarklet opens FlashCardSage on the Import cards page's Preply tab
+// (/import?from=preply), and only takes words from preply.com.
+export const preplyTabParam = 'preply'
 export const preplyOrigin = 'https://preply.com'
 
 // What the bookmarklet has sent this window: nothing (opened some other way), nothing yet, the user's words, or why
@@ -101,7 +102,10 @@ export function clearPreplyHandoff() {
 // Started before the app renders, since the user may need to sign in first, which replaces the page.
 export function startPreplyHandoff(target: Window = window) {
   const opener = target.opener as Window | null
-  if (target.location.pathname !== preplyImportPath || opener === null) {
+  const onPreplyTab =
+    target.location.pathname === '/import' &&
+    new URLSearchParams(target.location.search).get('from') === preplyTabParam
+  if (!onPreplyTab || opener === null) {
     return
   }
 

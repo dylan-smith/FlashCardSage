@@ -1,18 +1,15 @@
-import { useEffect, useRef, useState } from 'react'
-import type { ReactNode, Ref, SubmitEvent } from 'react'
+import { useEffect, useState } from 'react'
+import type { SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
-import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Link from '@mui/material/Link'
 import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
-import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useSearchParams } from 'react-router'
 import { changeDeckCards, createDeck, listDecks } from '../api/decks'
@@ -25,15 +22,12 @@ import {
   describeFetchError,
   formatWords,
   listFlashCards,
-  maxWordsPerSide,
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
 import type { CardSuggestion } from '../api/cardSuggestions'
 import { listTags } from '../api/tags'
-import type { CardSide, CardText } from '../api/translations'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
-import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
 import { usePreferences } from '../hooks/usePreferences'
@@ -46,10 +40,16 @@ import { CardSuggestions } from './CardSuggestions'
 import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameRequiredMessage } from './DecksPage'
+import {
+  firstWords,
+  pictureWords,
+  setFirstWords,
+  trimFields,
+  updateWords,
+} from './cardFields'
+import type { FieldsUpdate } from './cardFields'
+import { FlashCardEditForm, WordFields } from './FlashCardForm'
 import { TagFilter, TagsInput } from './FlashCardTags'
-
-export const spanishRequiredMessage = 'Spanish is required.'
-export const englishRequiredMessage = 'English is required.'
 
 // A new card starts with one empty field for each side.
 const emptyFields: FlashCardFields = { spanish: [''], english: [''], tags: [] }
@@ -57,360 +57,10 @@ const emptyFields: FlashCardFields = { spanish: [''], english: [''], tags: [] }
 // A card being edited, with its tags by name as they're typed in, and the picture it has.
 type EditedFlashCard = FlashCardFields & { id: number; imageUrl: string | null }
 
-// A change to a form's fields, made from the fields as they are when it's applied, so a translation that arrives
-// late doesn't undo what the user typed in the meantime.
-type FieldsUpdate = (fields: FlashCardFields) => FlashCardFields
-
-// A side's words, trimmed, leaving out blanks.
-function trimWords(words: string[]) {
-  return words.map((word) => word.trim()).filter((word) => word !== '')
-}
-
-// Trims the words on both sides of a card, leaving out blank ones, or returns the message for the first side left
-// with none. The API tidies up the tags.
-function trimFields(fields: FlashCardFields): FlashCardFields | string {
-  const spanish = trimWords(fields.spanish)
-  const english = trimWords(fields.english)
-  if (spanish.length === 0) {
-    return spanishRequiredMessage
-  }
-  if (english.length === 0) {
-    return englishRequiredMessage
-  }
-  return { spanish, english, tags: fields.tags }
-}
-
-// The first word on each side, which is the one auto-translation works on.
-function firstWords(fields: FlashCardFields): CardText {
-  return { spanish: fields.spanish[0] ?? '', english: fields.english[0] ?? '' }
-}
-
-// Puts a change to the first words into the fields.
-function setFirstWords(change: Partial<CardText>): FieldsUpdate {
-  return (fields) => ({
-    ...fields,
-    spanish:
-      change.spanish === undefined
-        ? fields.spanish
-        : [change.spanish, ...fields.spanish.slice(1)],
-    english:
-      change.english === undefined
-        ? fields.english
-        : [change.english, ...fields.english.slice(1)],
-  })
-}
-
-// A change to one side's words.
-type WordsUpdate = (words: string[]) => string[]
-
-function updateWords(side: CardSide, update: WordsUpdate): FieldsUpdate {
-  return (fields) =>
-    side === 'spanish'
-      ? { ...fields, spanish: update(fields.spanish) }
-      : { ...fields, english: update(fields.english) }
-}
-
-// Each side's words as one line, for a picture of the card.
-function pictureWords(fields: FlashCardFields): CardText {
-  return {
-    spanish: formatWords(trimWords(fields.spanish)),
-    english: formatWords(trimWords(fields.english)),
-  }
-}
-
 // Tags in name order whatever their case, as the API sends them.
 function sortTags(tags: Tag[]) {
   return [...tags].sort((a, b) =>
     a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-  )
-}
-
-// A side's input is limited like the API's, and its note is a div, since it can hold the meanings' chips.
-const fieldSlotProps = {
-  htmlInput: { maxLength: 200 },
-  formHelperText: { component: 'div' },
-} as const
-
-const sideNames: Record<CardSide, string> = {
-  spanish: 'Spanish',
-  english: 'English',
-}
-
-// The other side's name, for the button that translates it again.
-const otherSideNames: Record<CardSide, string> = {
-  spanish: 'English',
-  english: 'Spanish',
-}
-
-// The note under a side translation fills in: whether it's being translated or was, when a single word has more
-// than one meaning, the others to pick from instead, and once the user has put something else in or emptied it, a
-// button that hands it back to translation.
-function translationNote(
-  translation: AutoTranslate,
-  side: CardSide,
-  value: string,
-): ReactNode {
-  const note = translation.helperText(side)
-  const others = translation
-    .meanings(side)
-    .filter((meaning) => meaning !== value)
-  const canRetranslate = translation.canRetranslate(side)
-  if (others.length === 0 && !canRetranslate) {
-    return note
-  }
-  return (
-    <>
-      {note}
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 0.5,
-          mt: note ? 0.5 : 0,
-        }}
-      >
-        {others.length > 0 && 'Other meanings:'}
-        {others.map((meaning) => (
-          <Chip
-            key={meaning}
-            label={meaning}
-            size="small"
-            variant="outlined"
-            onClick={() => translation.choose(side, meaning)}
-          />
-        ))}
-        {canRetranslate && (
-          <Button
-            type="button"
-            variant="outlined"
-            size="small"
-            onClick={() => translation.retranslate(side)}
-            sx={{ py: 0.25 }}
-          >
-            Translate from {otherSideNames[side]}
-          </Button>
-        )}
-      </Box>
-    </>
-  )
-}
-
-// A side's words, one field each, for a card with more than one word for the same meaning (e.g. "solo" and
-// "únicamente" for "only"). The first is filled in by translation, and the others are the user's to type, add and
-// remove. A new field gets focus, since the user just asked for it.
-function WordFields({
-  side,
-  words,
-  translation,
-  onChange,
-  id,
-  inputRef,
-  required,
-  placeholder,
-  size,
-}: {
-  side: CardSide
-  words: string[]
-  translation: AutoTranslate
-  onChange: (update: WordsUpdate) => void
-  id?: string
-  inputRef?: Ref<HTMLInputElement>
-  required?: boolean
-  placeholder?: string
-  size?: 'small'
-}) {
-  const name = sideNames[side]
-  const lastRef = useRef<HTMLInputElement>(null)
-  const added = useRef(false)
-
-  useEffect(() => {
-    if (added.current) {
-      added.current = false
-      lastRef.current?.focus()
-    }
-  }, [words.length])
-
-  return (
-    <Box
-      sx={{
-        display: 'flex',
-        flexDirection: 'column',
-        gap: 1,
-        flexGrow: 1,
-        flexBasis: 0,
-        minWidth: 0,
-      }}
-    >
-      {words.map((word, index) =>
-        index === 0 ? (
-          <TextField
-            key={index}
-            id={id}
-            label={name}
-            value={word}
-            onChange={(event) => translation.change(side, event.target.value)}
-            helperText={translationNote(translation, side, word)}
-            inputRef={inputRef}
-            slotProps={fieldSlotProps}
-            required={required}
-            placeholder={placeholder}
-            size={size}
-            fullWidth
-          />
-        ) : (
-          <Box
-            key={index}
-            sx={{ display: 'flex', gap: 1, alignItems: 'flex-start' }}
-          >
-            <TextField
-              label={`${name} ${index + 1}`}
-              value={word}
-              onChange={(event) => {
-                const value = event.target.value
-                onChange((current) =>
-                  current.map((item, position) =>
-                    position === index ? value : item,
-                  ),
-                )
-              }}
-              inputRef={index === words.length - 1 ? lastRef : undefined}
-              slotProps={fieldSlotProps}
-              size={size}
-              fullWidth
-            />
-            <Button
-              type="button"
-              size="small"
-              aria-label={`Remove ${name} ${index + 1}`}
-              onClick={() =>
-                onChange((current) =>
-                  current.filter((_, position) => position !== index),
-                )
-              }
-              sx={{ flexShrink: 0, mt: size === 'small' ? 0.5 : 1 }}
-            >
-              Remove
-            </Button>
-          </Box>
-        ),
-      )}
-      {words.length < maxWordsPerSide && (
-        <Button
-          type="button"
-          size="small"
-          onClick={() => {
-            added.current = true
-            onChange((current) => [...current, ''])
-          }}
-          sx={{ alignSelf: 'flex-start' }}
-        >
-          Add {name} translation
-        </Button>
-      )}
-    </Box>
-  )
-}
-
-// The form that replaces a card in the list while it's being changed. The Spanish field gets focus when the
-// form appears, since the user just asked to edit it.
-function FlashCardEditForm({
-  edit,
-  tags,
-  picture,
-  busy,
-  onChange,
-  onCancel,
-  onSave,
-}: {
-  edit: EditedFlashCard
-  tags: Tag[]
-  picture: CardPicture
-  busy: boolean
-  onChange: (update: FieldsUpdate) => void
-  onCancel: () => void
-  onSave: (event: SubmitEvent<HTMLFormElement>) => void
-}) {
-  const inputRef = useRef<HTMLInputElement>(null)
-  const translation = useAutoTranslate(firstWords(edit), (change) =>
-    onChange(setFirstWords(change)),
-  )
-  const showPictures = usePreferences()?.showPictures === true
-  const suggestedTags = useTagSuggestions(edit, tags)
-
-  useEffect(() => {
-    inputRef.current?.focus()
-  }, [])
-
-  return (
-    <ListItem divider disablePadding sx={{ py: 1 }}>
-      <Box
-        component="form"
-        onSubmit={(event) => {
-          translation.cancel()
-          picture.cancel()
-          onSave(event)
-        }}
-        sx={{
-          display: 'flex',
-          flexDirection: { xs: 'column', sm: 'row' },
-          // The picture goes on a row of its own under the fields, and Save and Cancel under it.
-          flexWrap: 'wrap',
-          flexGrow: 1,
-          gap: 1,
-          // Top-aligned, so a field's translation note under it doesn't push it out of line with the other.
-          alignItems: { xs: 'stretch', sm: 'flex-start' },
-        }}
-      >
-        <WordFields
-          side="spanish"
-          words={edit.spanish}
-          translation={translation}
-          onChange={(update) => onChange(updateWords('spanish', update))}
-          inputRef={inputRef}
-          size="small"
-        />
-        <WordFields
-          side="english"
-          words={edit.english}
-          translation={translation}
-          onChange={(update) => onChange(updateWords('english', update))}
-          size="small"
-        />
-        <TagsInput
-          value={edit.tags}
-          tags={tags}
-          onChange={(names) =>
-            onChange((current) => ({ ...current, tags: names }))
-          }
-          suggestions={suggestedTags}
-          size="small"
-        />
-        {showPictures && (
-          <Box sx={{ flexBasis: '100%' }}>
-            <PictureField
-              picture={picture}
-              fields={pictureWords(edit)}
-              busy={busy}
-              size="small"
-            />
-          </Box>
-        )}
-        <Box sx={{ display: 'flex', gap: 1, flexShrink: 0 }}>
-          <Button
-            type="submit"
-            variant="contained"
-            size="small"
-            disabled={busy}
-          >
-            {busy ? 'Saving…' : 'Save'}
-          </Button>
-          <Button type="button" size="small" disabled={busy} onClick={onCancel}>
-            Cancel
-          </Button>
-        </Box>
-      </Box>
-    </ListItem>
   )
 }
 

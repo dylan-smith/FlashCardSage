@@ -3461,9 +3461,17 @@ describe('App', () => {
     it('lists the built-in decks with their card counts', async () => {
       await showImport()
 
+      // The built-in decks' tab is open, next to the document's and Preply's.
       expect(
-        screen.getByRole('heading', { level: 2, name: 'Built-in decks' }),
-      ).toBeInTheDocument()
+        screen.getByRole('tab', { name: 'Built-in decks' }),
+      ).toHaveAttribute('aria-selected', 'true')
+      expect(
+        screen.getByRole('tab', { name: 'From a document' }),
+      ).toHaveAttribute('aria-selected', 'false')
+      expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
+        'aria-selected',
+        'false',
+      )
       expect(
         within(
           screen.getByRole('navigation', { name: 'Manage cards' }),
@@ -3590,10 +3598,19 @@ describe('App', () => {
       )
     })
 
-    it('offers the bookmarklet that brings in Preply words', async () => {
+    it("offers the bookmarklet that brings in Preply words on Preply's tab", async () => {
       const user = userEvent.setup()
       await showImport()
+      expect(
+        screen.queryByRole('link', { name: 'Send to FlashCardSage' }),
+      ).not.toBeInTheDocument()
 
+      await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+
+      expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
       const bookmarklet = screen.getByRole('link', {
         name: 'Send to FlashCardSage',
       })
@@ -3620,7 +3637,7 @@ describe('App', () => {
     // This window, opened by the bookmarklet, which is the one that sends it messages. jsdom only takes a real window
     // as a message's source, so that's this one too.
     const opened = Object.assign(new EventTarget(), {
-      location: { pathname: '/import/preply' },
+      location: { pathname: '/import', search: '?from=preply' },
       opener: window,
     }) as unknown as Window
 
@@ -3641,9 +3658,31 @@ describe('App', () => {
       clearPreplyHandoff()
     })
 
+    // Shows the Import cards page's Preply tab, as the bookmarklet opens it, answering adding the words with post. The
+    // other tabs' lists are empty.
+    async function showPreply(
+      post: () => Promise<Response> = () => {
+        throw new Error('Unexpected request')
+      },
+    ) {
+      const calls = mockFetch(async (_url, init) =>
+        init?.method === undefined ? jsonResponse([]) : post(),
+      )
+      renderAt('/import?from=preply')
+      expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
+        'aria-selected',
+        'true',
+      )
+      // The built-in decks load on their hidden tab too.
+      expect(
+        await screen.findByText("There aren't any built-in decks yet."),
+      ).not.toBeVisible()
+      return calls
+    }
+
     it('waits for the words, then adds the ones the user keeps', async () => {
       const user = userEvent.setup()
-      const calls = mockFetch(async () =>
+      const calls = await showPreply(async () =>
         jsonResponse(
           {
             deck: { id: 23, name: 'Preply', flashCardIds: [8, 9] },
@@ -3653,7 +3692,6 @@ describe('App', () => {
           201,
         ),
       )
-      renderAt('/import/preply')
 
       expect(
         screen.getByText('Getting your words from Preply…'),
@@ -3708,13 +3746,12 @@ describe('App', () => {
 
     it("shows the API's message when the words can't be added", async () => {
       const user = userEvent.setup()
-      mockFetch(async () =>
+      await showPreply(async () =>
         jsonResponse(
           { status: 409, detail: 'You already have all of these words.' },
           409,
         ),
       )
-      renderAt('/import/preply')
       sendFromPreply({ type: 'flashcardsage:preply-words', words })
 
       await user.click(
@@ -3732,8 +3769,7 @@ describe('App', () => {
     })
 
     it("says when Preply's words can't be read", async () => {
-      mockFetch(async () => jsonResponse([]))
-      renderAt('/import/preply')
+      await showPreply()
 
       sendFromPreply({
         type: 'flashcardsage:preply-error',
@@ -3751,13 +3787,12 @@ describe('App', () => {
       ).toBeInTheDocument()
     })
 
-    it('says how to use the bookmarklet when opened some other way', () => {
+    it('says how to use the bookmarklet when opened some other way', async () => {
       clearPreplyHandoff()
-      mockFetch(async () => jsonResponse([]))
-      renderAt('/import/preply')
+      await showPreply()
 
       expect(
-        screen.getByRole('heading', { level: 2, name: 'From Preply' }),
+        screen.getByRole('link', { name: 'Send to FlashCardSage' }),
       ).toBeInTheDocument()
       expect(
         screen.queryByText('Getting your words from Preply…'),

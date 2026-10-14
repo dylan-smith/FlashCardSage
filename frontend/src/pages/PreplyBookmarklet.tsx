@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import { bookmarkletHref } from '../preply/sendToFlashCardSage'
 
@@ -23,10 +22,7 @@ export function PreplyBookmarklet() {
   }, [])
 
   return (
-    <Paper component="section" elevation={2} sx={{ p: 3 }}>
-      <Typography variant="h5" component="h2" sx={{ mb: 1 }}>
-        From Preply
-      </Typography>
+    <Box>
       <Typography color="text.secondary" component="div" sx={{ mb: 2 }}>
         Bring in the words in your Preply vocabulary as a new deck:
         <Box component="ol" sx={{ my: 1, pl: 3 }}>
@@ -39,8 +35,8 @@ export function PreplyBookmarklet() {
             , signed in to Preply.
           </li>
           <li>
-            Click the bookmark. FlashCardSage opens with your words to pick
-            from.
+            Click the bookmark. FlashCardSage opens here with your words to pick
+            from. Words you already have cards for are left out.
           </li>
         </Box>
       </Typography>
@@ -64,6 +60,6 @@ export function PreplyBookmarklet() {
           Preply vocabulary page.
         </Alert>
       )}
-    </Paper>
+    </Box>
   )
 }

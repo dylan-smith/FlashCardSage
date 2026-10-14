@@ -696,6 +696,73 @@ public class FlashCardsControllerTests
         Assert.Equal(3, await dbContext.FlashCardWords.CountAsync());
     }
 
+    [Fact]
+    public async Task CreateMany_AddsTheCards_LeavingOutOnesTheUserHas()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await SaveCardAsync(databaseName, "el gato", "the cat", "Animals");
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var result = await CreateController(dbContext).CreateMany(new FlashCardBatchRequest
+        {
+            Cards =
+            [
+                new FlashCardRequest { Spanish = [" el perro "], English = ["the dog"], Tags = ["animals"] },
+                new FlashCardRequest { Spanish = ["El Gato"], English = ["the kitty"] },
+                new FlashCardRequest { Spanish = ["el felino"], English = ["The Cat"] },
+                new FlashCardRequest { Spanish = ["el can"], English = ["The Dog"] },
+                new FlashCardRequest { Spanish = ["la vaca"], English = ["the cow"], Tags = ["Farm"] },
+                new FlashCardRequest { Spanish = ["el toro"], English = ["the bull"], Tags = ["farm"] }
+            ]
+        });
+
+        var response = Assert.IsType<FlashCardBatchResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(["el perro", "la vaca", "el toro"], response.Cards.Select(card => card.Spanish.Single()));
+        Assert.Equal(3, response.SkippedCount);
+
+        await using var checkContext = TestDb.Create(databaseName);
+        var saved = await checkContext.FlashCards.Include(card => card.Words).Include(card => card.Tags).ToListAsync();
+        Assert.Equal(4, saved.Count);
+        // The user's tag is used whatever its case, and a new tag is made once for every card that has it.
+        Assert.Equal("Animals", saved.Single(card => card.Spanish.Single() == "el perro").Tags.Single().Name);
+        Assert.Equal(["Animals", "Farm"], await checkContext.Tags.OrderBy(tag => tag.Name).Select(tag => tag.Name).ToListAsync());
+    }
+
+    [Fact]
+    public async Task CreateMany_ReturnsValidationProblem_NamingTheCard()
+    {
+        await using var dbContext = TestDb.Create();
+
+        var result = await CreateController(dbContext).CreateMany(new FlashCardBatchRequest
+        {
+            Cards =
+            [
+                new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] },
+                new FlashCardRequest { Spanish = ["la vaca"], English = [" "] }
+            ]
+        });
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
+        Assert.Equal(["English is required."], problem.Errors["Cards[1].English"]);
+        Assert.Single(problem.Errors);
+        Assert.False(await dbContext.FlashCards.AnyAsync());
+    }
+
+    [Fact]
+    public async Task CreateMany_ReturnsConflict_WhenACardIsSavedMeanwhile()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await using var dbContext = TestDb.Create(
+            databaseName, TestDb.UserId, new UniqueIndexInterceptor(() => SaveCardAsync(databaseName, "el perro", "the dog")));
+
+        var result = await CreateController(dbContext).CreateMany(new FlashCardBatchRequest
+        {
+            Cards = [new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] }]
+        });
+
+        AssertDuplicateProblem(result.Result, FlashCardsController.BatchClashMessage);
+    }
+
     // Saves a card for the test user through a context of its own, as another request would.
     private static async Task<int> SaveCardAsync(string databaseName, string spanish, string english, params string[] tags)
     {

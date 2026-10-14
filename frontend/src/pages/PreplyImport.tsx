@@ -7,7 +7,6 @@ import CircularProgress from '@mui/material/CircularProgress'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import type { DeckImport } from '../api/decks'
@@ -67,9 +66,10 @@ function PreplyWordRow({
   )
 }
 
-// Where the "Send to FlashCardSage" bookmarklet brings the user's Preply vocabulary. They pick the words to keep, and
-// adding them makes a new Preply deck, leaving out words they already have.
-function PreplyImportPage() {
+// The Import cards page's Preply tab, where the "Send to FlashCardSage" bookmarklet brings the user's Preply
+// vocabulary. They pick the words to keep, and adding them makes a new Preply deck, leaving out words they already
+// have. Until the bookmarklet sends words, it says how to use it.
+export function PreplyImport() {
   const handoff = useSyncExternalStore(subscribePreplyHandoff, getPreplyHandoff)
   // The words the user unticked, by their place in the list.
   const [left, setLeft] = useState<number[]>([])
@@ -135,7 +135,7 @@ function PreplyImportPage() {
       )}
 
       {handoff.status === 'waiting' && (
-        <Paper component="section" elevation={2} sx={{ p: 3 }}>
+        <Box>
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             <CircularProgress aria-label="Loading" size={24} />
             <Typography>Getting your words from Preply…</Typography>
@@ -144,17 +144,15 @@ function PreplyImportPage() {
             If nothing comes, click the bookmark on your Preply vocabulary page
             again.
           </Typography>
-        </Paper>
+        </Box>
       )}
 
       {handoff.status === 'received' && (
-        <Paper component="section" elevation={2} sx={{ p: 3 }}>
-          <Typography variant="h5" component="h2" sx={{ mb: 1 }}>
-            Your Preply words
-          </Typography>
+        <Box>
           <Typography color="text.secondary" sx={{ mb: 2 }}>
-            Untick any you don&apos;t want. They&apos;re added to a new Preply
-            deck, leaving out words you already have.
+            These are the words in your Preply vocabulary. Untick any you
+            don&apos;t want. They&apos;re added to a new Preply deck, leaving
+            out words you already have.
           </Typography>
           {words.length === 0 ? (
             <Typography color="text.secondary">
@@ -185,13 +183,12 @@ function PreplyImportPage() {
               </Button>
             </>
           )}
-        </Paper>
+        </Box>
       )}
 
-      {(handoff.status === 'none' || handoff.status === 'failed') &&
-        imported === null && <PreplyBookmarklet />}
+      {(handoff.status === 'none' || handoff.status === 'failed') && (
+        <PreplyBookmarklet />
+      )}
     </Stack>
   )
 }
-
-export default PreplyImportPage
