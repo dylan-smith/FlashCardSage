@@ -63,8 +63,12 @@ function reportFailure(error: unknown, operation: string) {
   }
 }
 
-function describeAdded({ count, skippedCount, limitReached }: Added) {
-  let text = `Added ${cardCount(count)}.`
+// What adding the cards did, naming the document they're from.
+function describeAdded(
+  { count, skippedCount, limitReached }: Added,
+  fileName: string,
+) {
+  let text = `Added ${cardCount(count)} from “${fileName}”.`
   if (skippedCount > 0) {
     text += ` ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
   }
@@ -401,7 +405,7 @@ export function DocumentScan() {
               </Button>
             }
           >
-            {describeAdded(added)}
+            {describeAdded(added, file?.name ?? '')}
           </Alert>
         )}
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
@@ -435,6 +439,14 @@ export function DocumentScan() {
         )}
         {state.status === 'ready' && (
           <>
+            {/* Which document the cards are from, with how many are left to look over. */}
+            <Typography
+              variant="h6"
+              component="h2"
+              sx={{ overflowWrap: 'anywhere' }}
+            >
+              {`${cardCount(state.candidates.length)} from “${file?.name ?? ''}”`}
+            </Typography>
             {state.limitReached && (
               <Alert severity="info">
                 {`This document has more words and phrases than one scan finds, so here are the first ${maxDocumentCandidates}. Once you've added them, scan it again for more.`}

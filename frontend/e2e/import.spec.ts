@@ -123,6 +123,10 @@ test.describe('Import cards', () => {
 
     const cards = page.getByRole('list', { name: 'Cards from the document' })
     await expect(cards.getByRole('listitem')).toHaveCount(100)
+    // The document's name is over its cards.
+    await expect(
+      page.getByRole('heading', { name: '100 cards from “cuento.txt”' }),
+    ).toBeVisible()
 
     // A look at the built-in decks keeps the cards.
     await page.getByRole('tab', { name: 'Built-in decks' }).click()
@@ -147,6 +151,9 @@ test.describe('Import cards', () => {
     await tagsInput.press('Enter')
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(cards.getByRole('listitem')).toHaveCount(99)
+    await expect(
+      page.getByRole('heading', { name: '99 cards from “cuento.txt”' }),
+    ).toBeVisible()
     await expect(cards.getByText('the word / the term')).toBeVisible()
 
     // One card added on its own leaves the list, and the rest are added all at once.
@@ -157,7 +164,7 @@ test.describe('Import cards', () => {
 
     await expect(
       page.getByText(
-        'Added 98 cards. 1 card was left out because you already have it. The document may have more words and phrases, so scan it again to find them.',
+        'Added 98 cards from “cuento.txt”. 1 card was left out because you already have it. The document may have more words and phrases, so scan it again to find them.',
       ),
     ).toBeVisible()
     await expect(
@@ -215,7 +222,9 @@ test.describe('Import cards', () => {
     ).toHaveAttribute('src', /^data:image\/png;base64,/)
 
     await page.getByRole('button', { name: 'Add all 2 cards' }).click()
-    await expect(page.getByText('Added 2 cards.')).toBeVisible()
+    await expect(
+      page.getByText('Added 2 cards from “cuento.txt”.'),
+    ).toBeVisible()
     await page.getByRole('link', { name: 'View cards' }).click()
     await expect(
       page.getByRole('img', { name: 'Picture for "nadar"' }),
