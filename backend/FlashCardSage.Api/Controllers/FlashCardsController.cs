@@ -207,6 +207,36 @@ public class FlashCardsController(
         return NoContent();
     }
 
+    // Deletes many cards at once, such as all the ones picked on the cards page. A card that's already gone is what
+    // the caller wanted, and another user's is never found through the query filter, so both are skipped.
+    [HttpPost("delete")]
+    public async Task<IActionResult> DeleteMany([FromBody] FlashCardIdsRequest request)
+    {
+        var ids = request.FlashCardIds.Distinct().ToList();
+
+        // Loaded with their words and tags for the same reason as in Delete.
+        var cards = ids.Count == 0
+            ? []
+            : await dbContext.FlashCards
+                .Include(item => item.Words)
+                .Include(item => item.Tags)
+                .Where(item => ids.Contains(item.Id))
+                .AsSplitQuery()
+                .ToListAsync();
+
+        dbContext.FlashCards.RemoveRange(cards);
+        await dbContext.SaveChangesAsync();
+
+        foreach (var imageUrl in cards.Select(card => card.ImageUrl).OfType<string>())
+        {
+            await imageStore.TryDeleteAsync(imageUrl, logger, CancellationToken.None);
+        }
+
+        logger.LogInformation("Deleted {Count} flash cards", cards.Count);
+
+        return NoContent();
+    }
+
     // Trims each side's words, leaving out blanks and repeats (ignoring case), and adds a model error for a side
     // that's left with none, too many or one that's too long. The tag names are trimmed the same way, with a model
     // error if one is too long.
