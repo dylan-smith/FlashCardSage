@@ -123,7 +123,7 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     [Fact]
     public async Task Scan_SaysAPdfWithoutTextMayBeScannedPictures()
     {
-        var builder = new PdfDocumentBuilder();
+        using var builder = new PdfDocumentBuilder();
         builder.AddPage(PageSize.A4);
         using var stream = new MemoryStream(builder.Build());
         var scanner = new FakeScanner();

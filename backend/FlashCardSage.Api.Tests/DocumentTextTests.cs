@@ -129,7 +129,7 @@ public class DocumentTextTests
     // A PDF with a page for each list of lines, written in one of the fonts every PDF reader has.
     private static MemoryStream Pdf(params string[][] pages)
     {
-        var builder = new PdfDocumentBuilder();
+        using var builder = new PdfDocumentBuilder();
         var font = builder.AddStandard14Font(Standard14Font.Helvetica);
         foreach (var lines in pages)
         {
