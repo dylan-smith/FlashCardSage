@@ -1,8 +1,12 @@
+using System.Data.Common;
+using System.Text.Json;
+using Azure;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Storage;
 
 namespace FlashCardSage.Api.SystemDecks;
 
@@ -113,9 +117,12 @@ public sealed class SystemDeckImageSyncService(
         {
             // The API is stopping. The next start carries on.
         }
-#pragma warning disable CA1031 // The pictures are a nicety, so no failure should stop the API; the next start tries again.
-        catch (Exception ex)
-#pragma warning restore CA1031
+        // The database, the pictures' files or the image store (blob storage, or the local folder before the server
+        // has an address) failing. The pictures are a nicety, so none of these stops the API; the next start tries
+        // again.
+        catch (Exception ex) when (ex is DbException or DbUpdateException or RetryLimitExceededException
+            or IOException or UnauthorizedAccessException or JsonException or RequestFailedException
+            or InvalidOperationException)
         {
             logger.LogWarning(ex, "Could not give the built-in cards their pictures");
         }
