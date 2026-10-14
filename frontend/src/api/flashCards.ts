@@ -151,6 +151,7 @@ export async function deleteFlashCards(ids: number[]) {
   if (!response.ok) {
     throw new Error('Unable to delete the flash cards.')
   }
+  refreshCounts()
 }
 
 // How the user did at a card in practice mode, by the name the API stores.
