@@ -127,7 +127,7 @@ test.describe('Accessibility', () => {
         .getByRole('checkbox', { name: /^Pick "A11y deck card/ })
         .check()
       await expect(
-        page.getByRole('button', { name: 'Remove 1 card' }),
+        page.getByRole('button', { name: 'Remove 1 card from deck' }),
       ).toBeEnabled()
       expect(await violations()).toEqual([])
 
