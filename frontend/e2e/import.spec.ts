@@ -34,7 +34,17 @@ test.describe('Import cards', () => {
       .getByRole('link', { name: 'Import cards' })
       .click()
 
-    await expect(page.getByText('7 cards', { exact: true })).toBeVisible()
+    await expect(
+      page
+        .getByRole('listitem')
+        .filter({
+          has: page.getByRole('button', {
+            name: 'Days of the week',
+            exact: true,
+          }),
+        })
+        .getByText('7 cards', { exact: true }),
+    ).toBeVisible()
     await page
       .getByRole('button', { name: 'Days of the week', exact: true })
       .click()
