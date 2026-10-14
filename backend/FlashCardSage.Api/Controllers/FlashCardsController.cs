@@ -193,44 +193,48 @@ public class FlashCardsController(
             return NotFound();
         }
 
-        await RemoveAsync([card]);
+        dbContext.FlashCards.Remove(card);
+        await dbContext.SaveChangesAsync();
+
+        // Once the card is gone, so nothing points at the picture, it's removed too.
+        if (card.ImageUrl is { } imageUrl)
+        {
+            await imageStore.TryDeleteAsync(imageUrl, logger, CancellationToken.None);
+        }
 
         logger.LogInformation("Deleted flash card {FlashCardId}", id);
 
         return NoContent();
     }
 
-    // Deletes many cards in one go, such as all the ones picked on a deck's page. Ids of cards that are already gone,
-    // or that aren't the user's, are skipped, since either way the user has no such card afterwards.
+    // Deletes many cards at once, such as all the ones picked on the cards page. A card that's already gone is what
+    // the caller wanted, and another user's is never found through the query filter, so both are skipped.
     [HttpPost("delete")]
-    public async Task<IActionResult> DeleteMany([FromBody] DeleteFlashCardsRequest request)
+    public async Task<IActionResult> DeleteMany([FromBody] FlashCardIdsRequest request)
     {
-        var ids = request.Ids.Distinct().ToList();
+        var ids = request.FlashCardIds.Distinct().ToList();
+
         // Loaded with their words and tags for the same reason as in Delete.
-        var cards = await dbContext.FlashCards
-            .Include(item => item.Words)
-            .Include(item => item.Tags)
-            .Where(item => ids.Contains(item.Id))
-            .AsSplitQuery()
-            .ToListAsync();
+        var cards = ids.Count == 0
+            ? []
+            : await dbContext.FlashCards
+                .Include(item => item.Words)
+                .Include(item => item.Tags)
+                .Where(item => ids.Contains(item.Id))
+                .AsSplitQuery()
+                .ToListAsync();
 
-        await RemoveAsync(cards);
-
-        logger.LogInformation("Deleted {Count} of {RequestedCount} flash cards", cards.Count, ids.Count);
-
-        return NoContent();
-    }
-
-    private async Task RemoveAsync(List<FlashCard> cards)
-    {
         dbContext.FlashCards.RemoveRange(cards);
         await dbContext.SaveChangesAsync();
 
-        // Once the cards are gone, so nothing points at their pictures, they're removed too.
         foreach (var imageUrl in cards.Select(card => card.ImageUrl).OfType<string>())
         {
             await imageStore.TryDeleteAsync(imageUrl, logger, CancellationToken.None);
         }
+
+        logger.LogInformation("Deleted {Count} flash cards", cards.Count);
+
+        return NoContent();
     }
 
     // Trims each side's words, leaving out blanks and repeats (ignoring case), and adds a model error for a side

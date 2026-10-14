@@ -304,6 +304,26 @@ test.describe('Flash card management', () => {
 
       await expect(page.getByText('No flash cards yet.')).toBeVisible()
     })
+
+    test('deletes the cards picked at once', async ({ page }) => {
+      await createFlashCard(page, 'el gato', 'the cat')
+      await createFlashCard(page, 'el perro', 'the dog')
+      await createFlashCard(page, 'la casa', 'the house')
+
+      await page.getByRole('checkbox', { name: 'Pick "el gato"' }).check()
+      await page.getByRole('checkbox', { name: 'Pick "el perro"' }).check()
+      await page.getByRole('button', { name: 'Delete 2 cards…' }).click()
+      await page
+        .getByRole('dialog', { name: 'Delete 2 cards?' })
+        .getByRole('button', { name: 'Delete' })
+        .click()
+
+      await expect(page.getByRole('status')).toHaveText('Deleted 2 cards.')
+      await page.reload()
+      await expect(page.getByText('la casa', { exact: true })).toBeVisible()
+      await expect(page.getByText('el gato', { exact: true })).toBeHidden()
+      await expect(page.getByText('el perro', { exact: true })).toBeHidden()
+    })
   })
 
   test.describe('Pictures', () => {
