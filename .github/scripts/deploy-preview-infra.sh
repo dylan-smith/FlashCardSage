@@ -15,6 +15,31 @@ set -euo pipefail
 
 outputs="${RUNNER_TEMP}/preview-outputs.json"
 
+# When the free offer's databases are all used, creating the PR's database fails with only an InternalServerError,
+# so a failed deployment that didn't create it is explained, listing the previews holding free databases. Usage:
+# explain_database_failure <deployment name>; returns 1 when the failure isn't that.
+explain_database_failure() {
+  local failed existing holders
+  failed="$(az deployment operation group list \
+    --resource-group "${PREVIEW_RESOURCE_GROUP}" \
+    --name "$1" \
+    --query "[?properties.provisioningState == 'Failed' && properties.targetResource.resourceType == 'Microsoft.Sql/servers/databases'] | [0].properties.targetResource.resourceName" \
+    --output tsv)"
+  [ -n "${failed}" ] || return 1
+  existing="$(az resource list \
+    --resource-group "${PREVIEW_RESOURCE_GROUP}" \
+    --resource-type Microsoft.Sql/servers/databases \
+    --query "[?tags.\"pr-number\" == '${PR_NUMBER}'] | length(@)" \
+    --output tsv)"
+  [ "${existing}" = "0" ] || return 1
+  holders="$(az resource list \
+    --resource-group "${PREVIEW_RESOURCE_GROUP}" \
+    --resource-type Microsoft.Sql/servers/databases \
+    --query "sort([?tags.\"pr-number\"].tags.\"pr-number\")" \
+    --output tsv | sed 's/^/#/' | paste -sd ' ')"
+  echo "::error::Couldn't create the preview database (${failed}). Azure SQL fails this way when the subscription's free offer databases (10, production's included) are all in use, and these previews hold one: ${holders:-none}. Close or merge the PRs whose previews you don't need (preview-cleanup.yml deletes their databases), then re-run this job."
+}
+
 # Usage: deploy <deployment name> <template> <parameters file>; the outputs go to $outputs.
 deploy() {
   bash .github/scripts/wait-for-deployment.sh "${PREVIEW_RESOURCE_GROUP}" "$1"
@@ -28,6 +53,10 @@ deploy() {
       --query properties.outputs \
       --output json >"${outputs}"; then
       return 0
+    fi
+    # Retrying won't free a database, so this stops at once.
+    if explain_database_failure "$1"; then
+      exit 1
     fi
     if [ "${attempt}" -eq 3 ]; then
       echo "::error::Deploying $2 failed"
