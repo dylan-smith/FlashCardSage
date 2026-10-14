@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
@@ -44,6 +45,7 @@ export function CardPicker({
   actionLabel,
   busy,
   onApply,
+  rowActions,
 }: {
   cards: FlashCard[]
   emptyMessage: string
@@ -52,6 +54,8 @@ export function CardPicker({
   busy: boolean
   // Resolves to whether it worked, so the cards stay picked when it didn't.
   onApply: (ids: number[]) => Promise<boolean>
+  // Buttons for a single card, shown at the end of its row, such as Delete.
+  rowActions?: (card: FlashCard) => ReactNode
 }) {
   const [search, setSearch] = useState('')
   const [tagId, setTagId] = useState<number | null>(null)
@@ -193,6 +197,7 @@ export function CardPicker({
               card={card}
               picked={selected.has(card.id)}
               onPick={() => toggle(card.id)}
+              actions={rowActions?.(card)}
             />
           ))}
         </List>

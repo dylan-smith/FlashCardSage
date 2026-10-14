@@ -2656,6 +2656,57 @@ describe('App', () => {
         ).not.toBeInTheDocument()
       })
 
+      it('deletes a card, not just from the deck', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(
+          animals,
+          async () => new Response(null, { status: 204 }),
+        )
+        await showPage('/decks/7')
+
+        await user.click(
+          screen.getByRole('button', { name: 'Delete "el gato"' }),
+        )
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Deleted "el gato".',
+        )
+        expect(calls.find((call) => call.init?.method === 'DELETE')?.url).toBe(
+          'http://localhost:5269/api/flashcards/1',
+        )
+        expect(calls.some((call) => call.init?.method === 'PATCH')).toBe(false)
+        expect(screen.getByText('1 card')).toBeInTheDocument()
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (1)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByRole('checkbox', { name: 'Pick "el gato"' }),
+        ).not.toBeInTheDocument()
+        // It's gone, so it isn't one to add back either.
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (2)' }),
+        ).toBeInTheDocument()
+        expect(trackEvent).toHaveBeenCalledWith('FlashCardDeleted')
+      })
+
+      it('keeps the card and says why when deleting it fails', async () => {
+        const user = userEvent.setup()
+        mockDeckApi(animals, async () => new Response(null, { status: 500 }))
+        await showPage('/decks/7')
+
+        await user.click(
+          screen.getByRole('button', { name: 'Delete "el gato"' }),
+        )
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          'Unable to delete flash card.',
+        )
+        expect(cardBox('el gato')).toBeInTheDocument()
+        expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+          operation: 'deleteCard',
+        })
+      })
+
       it('keeps the cards picked and says why when the change fails', async () => {
         const user = userEvent.setup()
         mockDeckApi(animals, async () => new Response(null, { status: 500 }))

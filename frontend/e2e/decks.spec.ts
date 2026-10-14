@@ -130,6 +130,31 @@ test.describe('Decks', () => {
     ).toBeVisible()
   })
 
+  test("deletes a card from a deck's page, so it's gone from the cards page too", async ({
+    page,
+  }) => {
+    await page.goto('/decks')
+    await page.getByLabel('Deck name').fill('House')
+    await page.getByRole('button', { name: 'Create deck' }).click()
+    await page.getByRole('checkbox', { name: 'Pick "la casa"' }).check()
+    await page.getByRole('button', { name: 'Add 1 card' }).click()
+    await page.getByRole('tab', { name: 'In this deck (1)' }).click()
+
+    await page.getByRole('button', { name: 'Delete "la casa"' }).click()
+    await expect(page.getByRole('status')).toHaveText('Deleted "la casa".')
+    await expect(
+      page.getByRole('tab', { name: 'In this deck (0)' }),
+    ).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Add cards (3)' })).toBeVisible()
+
+    await page
+      .getByRole('navigation', { name: 'Manage cards' })
+      .getByRole('link', { name: 'Cards', exact: true })
+      .click()
+    await expect(page.getByText('el libro', { exact: true })).toBeVisible()
+    await expect(page.getByText('la casa', { exact: true })).toBeHidden()
+  })
+
   test('practices only the cards with the tag picked', async ({ page }) => {
     await page.goto('/practice')
     await page.getByRole('combobox', { name: 'Practice' }).click()
