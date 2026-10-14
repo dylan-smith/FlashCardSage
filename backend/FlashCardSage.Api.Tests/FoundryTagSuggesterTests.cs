@@ -101,7 +101,7 @@ public class FoundryTagSuggesterTests
     }
 
     // A chat completion whose answer is this text.
-    private static string Completion(string content)
+    private static string Completion(string content, string? refusal = null)
     {
         return JsonSerializer.Serialize(new
         {
@@ -109,7 +109,7 @@ public class FoundryTagSuggesterTests
             @object = "chat.completion",
             choices = new[]
             {
-                new { index = 0, finish_reason = "stop", message = new { role = "assistant", content, refusal = (string?)null } }
+                new { index = 0, finish_reason = "stop", message = new { role = "assistant", content, refusal } }
             }
         });
     }
