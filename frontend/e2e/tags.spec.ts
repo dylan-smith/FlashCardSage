@@ -119,12 +119,24 @@ test.describe('Tags', () => {
     await expect(page.getByRole('heading', { name: 'Tags' })).toBeVisible()
   }
 
+  test('creates a tag with no cards', async ({ page }) => {
+    await goToTags(page)
+
+    await page.getByLabel('New tag name').fill('Animals')
+    await page.getByRole('button', { name: 'Create tag' }).click()
+
+    const item = page.getByRole('listitem').filter({ hasText: 'Animals' })
+    await expect(item).toContainText('0 cards')
+    await page.reload()
+    await expect(item).toContainText('0 cards')
+  })
+
   test('renames a tag', async ({ page }) => {
     await createFlashCard(page, 'el tren', 'the train', ['Travl'])
     await goToTags(page)
 
     await page.getByRole('button', { name: 'Rename tag "Travl"' }).click()
-    await page.getByLabel('Tag name').fill('Travel')
+    await page.getByLabel('Tag name', { exact: true }).fill('Travel')
     await page.getByRole('button', { name: 'Save' }).click()
 
     await expect(page.getByRole('link', { name: 'Travel' })).toBeVisible()
