@@ -1,6 +1,10 @@
 using System.IO.Compression;
 using System.Text;
 using FlashCardSage.Api.Documents;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Core;
+using UglyToad.PdfPig.Fonts.Standard14Fonts;
+using UglyToad.PdfPig.Writer;
 
 namespace FlashCardSage.Api.Tests;
 
@@ -82,8 +86,37 @@ public class DocumentTextTests
             DocumentText.ReadAsync(stream, "cuento.docx", 1000, CancellationToken.None));
     }
 
+    [Fact]
+    public async Task ReadAsync_ReadsAPdfsPages()
+    {
+        using var stream = Pdf(["El gato duerme.", "El perro corre."], ["Fin."]);
+
+        var text = await DocumentText.ReadAsync(stream, "Cuento.PDF", 1000, CancellationToken.None);
+
+        Assert.Equal("El gato duerme.\nEl perro corre.\nFin.\n", text!.ReplaceLineEndings("\n"));
+    }
+
+    [Fact]
+    public async Task ReadAsync_ReadsAPdfUpToTheMaximumLength()
+    {
+        using var stream = Pdf(["abcdefghij"], ["klm"]);
+
+        var text = await DocumentText.ReadAsync(stream, "letras.pdf", 4, CancellationToken.None);
+
+        Assert.Equal("abcd", text);
+    }
+
+    [Fact]
+    public async Task ReadAsync_Throws_ForAPdfThatIsNotOne()
+    {
+        using var stream = new MemoryStream(Encoding.UTF8.GetBytes("not a pdf"));
+
+        await Assert.ThrowsAsync<InvalidDataException>(() =>
+            DocumentText.ReadAsync(stream, "cuento.pdf", 1000, CancellationToken.None));
+    }
+
     [Theory]
-    [InlineData("cuento.pdf")]
+    [InlineData("cuento.rtf")]
     [InlineData("foto.png")]
     [InlineData("sin-extension")]
     public async Task ReadAsync_ReturnsNull_ForAnotherKindOfDocument(string fileName)
@@ -91,6 +124,23 @@ public class DocumentTextTests
         using var stream = new MemoryStream(Encoding.UTF8.GetBytes("hola"));
 
         Assert.Null(await DocumentText.ReadAsync(stream, fileName, 1000, CancellationToken.None));
+    }
+
+    // A PDF with a page for each list of lines, written in one of the fonts every PDF reader has.
+    private static MemoryStream Pdf(params string[][] pages)
+    {
+        var builder = new PdfDocumentBuilder();
+        var font = builder.AddStandard14Font(Standard14Font.Helvetica);
+        foreach (var lines in pages)
+        {
+            var page = builder.AddPage(PageSize.A4);
+            for (var index = 0; index < lines.Length; index++)
+            {
+                page.AddText(lines[index], 12, new PdfPoint(50, 750 - (index * 20)), font);
+            }
+        }
+
+        return new MemoryStream(builder.Build());
     }
 
     // A .docx file with this XML as its body.

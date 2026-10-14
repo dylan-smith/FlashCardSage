@@ -185,8 +185,8 @@ export function DocumentScan() {
       </Typography>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
         Choose a document in Spanish, such as an article, a story or a
-        film&apos;s subtitles (.txt, .md, .srt, .vtt or .docx), to find words
-        and phrases in it to make cards for. You can change or remove them
+        film&apos;s subtitles (.txt, .md, .srt, .vtt, .docx or .pdf), to find
+        words and phrases in it to make cards for. You can change or remove them
         before you add them. Words you already have cards for are left out.
       </Typography>
       <Stack spacing={2}>

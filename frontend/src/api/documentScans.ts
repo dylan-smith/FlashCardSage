@@ -11,7 +11,7 @@ export const maxDocumentCandidates = 100
 export const maxDocumentBytes = 10 * 1024 * 1024
 
 // The kinds of documents the API can read, for the file picker.
-export const documentTypes = '.txt,.md,.srt,.vtt,.docx'
+export const documentTypes = '.txt,.md,.srt,.vtt,.docx,.pdf'
 
 // The cards made for the words and phrases in a document, for the user to look over before adding them. truncated is
 // true when the document was too long to scan all of it, so only its start was scanned.

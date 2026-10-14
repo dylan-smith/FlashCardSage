@@ -1,28 +1,31 @@
 using System.IO.Compression;
 using System.Text;
 using System.Xml;
+using UglyToad.PdfPig;
+using UglyToad.PdfPig.DocumentLayoutAnalysis.TextExtractor;
 
 namespace FlashCardSage.Api.Documents;
 
 // Reads the text of a document the user uploads to scan for cards: a text file, such as notes or a film's subtitles,
-// or a Word document. Only as much as is needed is read, so a huge document (or a zip bomb posing as a Word document)
-// is never read in full.
+// a Word document or a PDF. Only as much as is needed is read, so a huge document (or a zip bomb posing as a Word
+// document) is never read in full.
 public static class DocumentText
 {
     // The kinds of documents that can be read, by their file name's extension, since the type a browser sends for a
     // file depends on what's installed on the user's computer.
-    public static readonly IReadOnlyList<string> Extensions = [".txt", ".md", ".srt", ".vtt", ".docx"];
+    public static readonly IReadOnlyList<string> Extensions = [".txt", ".md", ".srt", ".vtt", ".docx", ".pdf"];
 
     private const string WordNamespace = "http://schemas.openxmlformats.org/wordprocessingml/2006/main";
 
     // The document's text, at most maxLength characters of it, or null for a kind of document that can't be read.
-    // Throws InvalidDataException for a Word document that isn't one.
+    // Throws InvalidDataException for a Word document or PDF that isn't one, or can't be read (e.g. a PDF with a password).
     public static async Task<string?> ReadAsync(
         Stream stream, string fileName, int maxLength, CancellationToken cancellationToken)
     {
         var extension = Path.GetExtension(fileName).ToLowerInvariant();
         return !Extensions.Contains(extension) ? null
             : extension == ".docx" ? await ReadWordAsync(stream, maxLength, cancellationToken)
+            : extension == ".pdf" ? await ReadPdfAsync(stream, maxLength, cancellationToken)
             : await ReadTextAsync(stream, maxLength, cancellationToken);
     }
 
@@ -39,11 +42,7 @@ public static class DocumentText
     // word/document.xml, where the text is in w:t elements.
     private static async Task<string> ReadWordAsync(Stream stream, int maxLength, CancellationToken cancellationToken)
     {
-        // Copied to memory first, since an uploaded file's stream fails a zip's seeks with exceptions of its own when
-        // the file is too short to be one. The upload's size is limited, so this is too.
-        using var copy = new MemoryStream();
-        await stream.CopyToAsync(copy, cancellationToken);
-        copy.Position = 0;
+        using var copy = await CopyAsync(stream, cancellationToken);
 
         try
         {
@@ -108,5 +107,40 @@ public static class DocumentText
         {
             throw new InvalidDataException("The document's body couldn't be read.", ex);
         }
+    }
+
+    // The text of each page, in the order it's drawn, which for most documents is reading order, with a line break
+    // where the page has one. A scanned PDF's pages are pictures, so they have no text.
+    private static async Task<string> ReadPdfAsync(Stream stream, int maxLength, CancellationToken cancellationToken)
+    {
+        using var copy = await CopyAsync(stream, cancellationToken);
+
+        try
+        {
+            using var document = PdfDocument.Open(copy);
+            var text = new StringBuilder();
+            for (var number = 1; number <= document.NumberOfPages && text.Length < maxLength; number++)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                text.AppendLine(ContentOrderTextExtractor.GetText(document.GetPage(number)));
+            }
+
+            return text.Length > maxLength ? text.ToString(0, maxLength) : text.ToString();
+        }
+        // PdfPig throws a variety of exceptions for a file that isn't a PDF, is damaged or needs a password.
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            throw new InvalidDataException("The PDF couldn't be read.", ex);
+        }
+    }
+
+    // The upload copied to memory, since an uploaded file's stream fails a zip's seeks with exceptions of its own when
+    // the file is too short to be one, and PdfPig needs to seek too. The upload's size is limited, so this is too.
+    private static async Task<MemoryStream> CopyAsync(Stream stream, CancellationToken cancellationToken)
+    {
+        var copy = new MemoryStream();
+        await stream.CopyToAsync(copy, cancellationToken);
+        copy.Position = 0;
+        return copy;
     }
 }

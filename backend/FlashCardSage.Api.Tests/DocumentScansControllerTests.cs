@@ -10,6 +10,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
+using UglyToad.PdfPig.Content;
+using UglyToad.PdfPig.Writer;
 
 namespace FlashCardSage.Api.Tests;
 
@@ -102,7 +104,8 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     }
 
     [Theory]
-    [InlineData("cuento.pdf", "hola", "Choose a .txt, .md, .srt, .vtt or .docx document.")]
+    [InlineData("cuento.rtf", "hola", "Choose a .txt, .md, .srt, .vtt, .docx or .pdf document.")]
+    [InlineData("roto.pdf", "not a pdf", "The document couldn't be read.")]
     [InlineData("vacio.txt", " \n ", "The document has no text to scan.")]
     [InlineData("roto.docx", "not a zip", "The document couldn't be read.")]
     public async Task Scan_ReturnsValidationProblem_ForADocumentItCantScan(string fileName, string content, string message)
@@ -114,6 +117,22 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
 
         var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
         Assert.Equal([message], problem.Errors["file"]);
+        Assert.Null(scanner.Text);
+    }
+
+    [Fact]
+    public async Task Scan_SaysAPdfWithoutTextMayBeScannedPictures()
+    {
+        var builder = new PdfDocumentBuilder();
+        builder.AddPage(PageSize.A4);
+        using var stream = new MemoryStream(builder.Build());
+        var scanner = new FakeScanner();
+
+        var result = await CreateController(Guid.NewGuid().ToString(), scanner).Scan(
+            new FormFile(stream, 0, stream.Length, "file", "escaneado.pdf"), CancellationToken.None);
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
+        Assert.Equal([DocumentScansController.NoTextInPdfMessage], problem.Errors["file"]);
         Assert.Null(scanner.Text);
     }
 

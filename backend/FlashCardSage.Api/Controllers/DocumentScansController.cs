@@ -36,6 +36,10 @@ public class DocumentScansController(
     // A few more than are kept are asked for, since some can turn out to be cards the user already has.
     private const int ExtraRequested = 10;
 
+    // A scanned PDF's pages are pictures of text, which can't be read as text.
+    public const string NoTextInPdfMessage =
+        "This PDF has no text to scan. Its pages may be scanned pictures of text, which can't be read.";
+
     private static readonly string[] Articles = ["el ", "la ", "los ", "las ", "the "];
 
     [HttpPost]
@@ -82,7 +86,11 @@ public class DocumentScansController(
 
         if (string.IsNullOrWhiteSpace(text))
         {
-            ModelState.AddModelError(nameof(file), "The document has no text to scan.");
+            ModelState.AddModelError(
+                nameof(file),
+                Path.GetExtension(file.FileName).Equals(".pdf", StringComparison.OrdinalIgnoreCase)
+                    ? NoTextInPdfMessage
+                    : "The document has no text to scan.");
             return ValidationProblem(ModelState);
         }
 
