@@ -50,8 +50,9 @@ export function CardPicker({
 }: {
   cards: FlashCard[]
   emptyMessage: string
-  // What the button does with the picked cards, such as Add, followed by how many there are.
-  actionLabel: string
+  // What the button does with the picked cards, given how many there are (such as "2 cards", or just "cards" when
+  // none are picked), as in "Remove 2 cards from deck".
+  actionLabel: (cards: string) => string
   busy: boolean
   // Resolves to whether it worked, so the cards stay picked when it didn't.
   onApply: (ids: number[]) => Promise<boolean>
@@ -187,9 +188,9 @@ export function CardPicker({
             disabled={busy || picked.length === 0}
             onClick={() => void apply()}
           >
-            {picked.length === 0
-              ? `${actionLabel} cards`
-              : `${actionLabel} ${cardCount(picked.length)}`}
+            {actionLabel(
+              picked.length === 0 ? 'cards' : cardCount(picked.length),
+            )}
           </Button>
           {pickedActions?.(picked)}
         </Box>

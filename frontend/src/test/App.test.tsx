@@ -3040,10 +3040,12 @@ describe('App', () => {
         await showPage('/decks/7')
 
         expect(
-          screen.getByRole('button', { name: 'Remove cards' }),
+          screen.getByRole('button', { name: 'Remove cards from deck' }),
         ).toBeDisabled()
         await user.click(cardBox('el gato'))
-        await user.click(screen.getByRole('button', { name: 'Remove 1 card' }))
+        await user.click(
+          screen.getByRole('button', { name: 'Remove 1 card from deck' }),
+        )
 
         expect(await screen.findByRole('status')).toHaveTextContent(
           'Removed 1 card from the deck.',
@@ -3100,7 +3102,7 @@ describe('App', () => {
 
         await user.click(
           screen.getByRole('button', {
-            name: 'Remove "el gato" from the deck',
+            name: 'Remove "el gato" from deck',
           }),
         )
 
@@ -3172,7 +3174,9 @@ describe('App', () => {
         await showPage('/decks/7')
 
         await user.click(cardBox('el gato'))
-        await user.click(screen.getByRole('button', { name: 'Remove 1 card' }))
+        await user.click(
+          screen.getByRole('button', { name: 'Remove 1 card from deck' }),
+        )
 
         expect(await screen.findByRole('alert')).toHaveTextContent(
           'Unable to change the deck.',
@@ -3210,7 +3214,7 @@ describe('App', () => {
         await user.click(screen.getByRole('checkbox', { name: 'Pick all 120' }))
 
         expect(
-          screen.getByRole('button', { name: 'Remove 120 cards' }),
+          screen.getByRole('button', { name: 'Remove 120 cards from deck' }),
         ).toBeEnabled()
       })
 
