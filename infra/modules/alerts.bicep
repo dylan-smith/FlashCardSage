@@ -45,9 +45,6 @@ param budgetStartDate string
 // Cloud role name the frontend's telemetry initializer sets (frontend/src/telemetry.ts).
 var frontendRoleName = 'FlashCardSage.Web'
 
-// The Azure SQL free offer includes 100,000 vCore-seconds a month; alert when 20% is left.
-var sqlFreeVCoreSecondsThreshold = 20000
-
 var slackEnabled = !empty(slackWebhookUrl)
 
 // Claude's findings go to the same Slack channel, so investigations need Slack too.
@@ -93,7 +90,8 @@ var alertSteps = union(
   {
     '${slowApiName}': [
       'On the *API* tab of the ${workbookLink}, check *Operations* and *SQL call duration* for what\'s slow. ${performanceLink} breaks it down further.'
-      'Cold starts and database resumes make a few requests slow; if that\'s all it is, close the alert.'
+      'Cold starts make a few requests slow; if that\'s all it is, close the alert.'
+      'If SQL calls are slow across the board, check *DTU %* on the *Infrastructure* tab: near 100% the Basic database is throttling queries.'
       'If SQL is slow, check ${queryPerformanceLink}. If everything is slow, check whether the CPU quota is nearly used up.'
     ]
     '${slowPageLoadsName}': [
@@ -440,7 +438,7 @@ var actions = [
   }
 ]
 
-// Pings a lightweight endpoint that doesn't touch SQL, so the serverless database can still auto-pause.
+// Pings a lightweight endpoint that doesn't touch SQL, so it checks the API alone.
 // One location every 15 minutes (the longest interval allowed) keeps the cost to a couple of dollars a month.
 var availabilityTestName = 'FlashCardSage API health'
 
@@ -527,11 +525,11 @@ var metricAlerts = [
   }
   {
     name: 'FlashCardSage API dependency failures'
-    description: 'The API had more than 10 failed dependency calls (mostly SQL) in 15 minutes, more than auto-pause resume retries explain.'
+    description: 'The API had more than 10 failed dependency calls (mostly SQL) in 15 minutes, more than transient-error retries explain.'
     steps: [
       'On the *API* tab of the ${workbookLink}, check *SQL calls* and *All outgoing dependencies* for what\'s failing, and *Database errors* and the database *Connections* chart on the *Infrastructure* tab.'
-      'A few failures while the database resumes from auto-pause are normal, and the API retries them. If they keep failing, check the ${resourceHealthLinks}.'
-      'If the month\'s free SQL vCore-seconds ran out, the database stays paused until next month (see *Free amount remaining* on the *Infrastructure* tab).'
+      'A few transient failures are normal, and the API retries them. If they keep failing, check the ${resourceHealthLinks}.'
+      'Timeouts with *DTU %* or *Workers %* near 100 on the *Infrastructure* tab mean the Basic database is overloaded.'
       'Login or permission errors mean the App Service identity lost its database user; see Identities & Permissions in the README.'
     ]
     severity: 2
@@ -596,25 +594,6 @@ var metricAlerts = [
     dimensions: []
   }
   {
-    name: 'FlashCardSage SQL free offer running out'
-    description: 'Less than 20% of this month\'s free SQL vCore-seconds remain. When they run out the database pauses until next month.'
-    steps: [
-      'On the *Infrastructure* tab of the ${workbookLink}, check *Free amount remaining* and *App CPU billed* for when the database was busy.'
-      'Look for what keeps it awake: anything calling the API regularly (bots, ${loadTestRunsLink}) stops it auto-pausing. ${performanceLink} shows which operations are called most.'
-      'When the free vCore-seconds run out the database pauses until the 1st of next month, and every API call that needs the database fails until then.'
-    ]
-    severity: 2
-    scope: sqlDatabaseId
-    namespace: 'Microsoft.Sql/servers/databases'
-    metric: 'free_amount_remaining'
-    timeAggregation: 'Minimum'
-    operator: 'LessThan'
-    threshold: sqlFreeVCoreSecondsThreshold
-    windowSize: 'PT1H'
-    frequency: 'PT1H'
-    dimensions: []
-  }
-  {
     name: 'FlashCardSage frontend storage availability'
     description: 'Blob storage, which serves the frontend, was less than 99% available over an hour.'
     steps: [
@@ -639,7 +618,7 @@ var metricAlerts = [
     steps: [
       'On the *Infrastructure* tab of the ${workbookLink}, check *Data space used %* for how fast it\'s growing.'
       'Find the biggest tables, and whether something is creating far more data than expected (for example flash cards left behind by tests).'
-      'Clean up the data. `maxSizeBytes` in `infra/modules/sql.bicep` is already at the free offer\'s 32 GB limit.'
+      'Clean up the data. `maxSizeBytes` in `infra/modules/sql.bicep` is already at the Basic tier\'s 2 GB limit, so more room means moving to Standard (S0 allows 250 GB).'
     ]
     severity: 3
     scope: sqlDatabaseId
