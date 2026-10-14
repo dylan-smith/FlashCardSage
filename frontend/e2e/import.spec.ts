@@ -87,4 +87,77 @@ test.describe('Import cards', () => {
       'You already have all of these cards.',
     )
   })
+
+  test('adds the cards scanned from a document, after changing and removing some', async ({
+    page,
+  }) => {
+    // The E2E backend has no Foundry endpoint or key, so stand in for the scan with as many cards as one makes, one of
+    // them a card the user already has.
+    await page.route('**/api/document-scans', async (route) => {
+      await route.fulfill({
+        json: {
+          candidates: [
+            { spanish: 'lunes', english: 'Monday' },
+            ...Array.from({ length: 99 }, (_, index) => ({
+              spanish: `palabra ${index + 1}`,
+              english: `word ${index + 1}`,
+            })),
+          ],
+          truncated: false,
+        },
+      })
+    })
+    await page.goto('/import')
+
+    await page.getByLabel('Choose a document').setInputFiles({
+      name: 'cuento.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('Había una vez una palabra.'),
+    })
+
+    const cards = page.getByRole('list', { name: 'Cards from the document' })
+    await expect(cards.getByRole('listitem')).toHaveCount(100)
+    await expect(
+      page.getByText(
+        "This document has more words and phrases than one scan finds, so here are the first 100. Once you've added them, scan it again for more.",
+      ),
+    ).toBeVisible()
+
+    await page.getByRole('button', { name: 'Remove "palabra 2"' }).click()
+    await page.getByRole('button', { name: 'Edit "palabra 1"' }).click()
+    await page.getByLabel('Spanish').fill('la palabra')
+    await page.getByLabel('English').fill('the word')
+    await page.getByRole('button', { name: 'Save' }).click()
+    await expect(cards.getByRole('listitem')).toHaveCount(99)
+
+    await page.getByRole('button', { name: 'Add 99 cards' }).click()
+
+    await expect(
+      page.getByText(
+        'Added 98 cards. 1 card was left out because you already have it. The document may have more words and phrases, so scan it again to find them.',
+      ),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('button', { name: 'Scan it again' }),
+    ).toBeVisible()
+    await page.getByRole('link', { name: 'View cards' }).click()
+    await expect(page.getByText('la palabra', { exact: true })).toBeVisible()
+    await expect(page.getByText('the word', { exact: true })).toBeVisible()
+    await expect(page.getByText('palabra 2', { exact: true })).toHaveCount(0)
+  })
+
+  test('says why a document can’t be scanned', async ({ page }) => {
+    await page.goto('/import')
+
+    // The E2E backend has no Foundry endpoint or key, so scanning isn't available there.
+    await page.getByLabel('Choose a document').setInputFiles({
+      name: 'cuento.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('Había una vez.'),
+    })
+
+    await expect(page.getByRole('alert')).toHaveText(
+      "Scanning documents isn't available right now.",
+    )
+  })
 })

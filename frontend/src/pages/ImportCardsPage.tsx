@@ -17,6 +17,7 @@ import { importSystemDeck, listSystemDecks } from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
+import { DocumentScan } from './DocumentScan'
 import { FlashCardRow } from './FlashCardRow'
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
@@ -28,8 +29,8 @@ function describeImport({ deck, skippedCount }: SystemDeckImport) {
   return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
 }
 
-// The built-in decks the user can add to their own. Adding one copies its cards and tags, so the user can change them
-// like any of their cards.
+// The built-in decks the user can add to their own, and cards made from a document they pick. Adding a deck copies its
+// cards and tags, so the user can change them like any of their cards.
 function ImportCardsPage() {
   const [decks, setDecks] = useState<SystemDeck[]>([])
   const [loading, setLoading] = useState(true)
@@ -209,6 +210,8 @@ function ImportCardsPage() {
           </List>
         )}
       </Paper>
+
+      <DocumentScan />
     </Stack>
   )
 }

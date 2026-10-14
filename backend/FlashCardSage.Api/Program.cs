@@ -63,6 +63,9 @@ builder.Services.Configure<CardSuggesterOptions>(builder.Configuration.GetSectio
 builder.Services.AddHttpClient<ICardSuggester, FoundryCardSuggester>(client => client.Timeout = TimeSpan.FromSeconds(45));
 // Tag suggestions come while the user is filling in a card, so like translation, a slow answer is no better than none.
 builder.Services.AddHttpClient<ITagSuggester, FoundryTagSuggester>(client => client.Timeout = TimeSpan.FromSeconds(20));
+// Scanning a document makes up to a hundred cards, which takes the model a while, and the user asked for it and waits.
+builder.Services.AddHttpClient<IDocumentScanner, FoundryDocumentScanner>(client =>
+    client.Timeout = TimeSpan.FromSeconds(150));
 builder.Services.Configure<ImageGenerationOptions>(builder.Configuration.GetSection(ImageGenerationOptions.SectionName));
 // A picture takes the model tens of seconds, and the user asked for it, so they're given that long.
 builder.Services.AddHttpClient<IImageGenerator, FoundryImageGenerator>(client =>

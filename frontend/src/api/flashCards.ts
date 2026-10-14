@@ -125,6 +125,29 @@ export function updateFlashCard(id: number, fields: FlashCardFields) {
   return saveFlashCard(`${flashCardsUrl}/${id}`, 'PUT', fields)
 }
 
+// The cards that were added all at once, and how many were left out because the user already has a card with the same
+// Spanish or English, or an earlier card in the list does.
+export type FlashCardBatch = {
+  cards: FlashCard[]
+  skippedCount: number
+}
+
+// Adds the cards, such as the ones scanned from a document, in one request.
+export async function createFlashCards(
+  cards: FlashCardFields[],
+): Promise<FlashCardBatch> {
+  const response = await apiFetch(`${flashCardsUrl}/batch`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ cards }),
+  })
+
+  await throwIfNotSaved(response, 'Unable to add the cards.')
+  return (await response.json()) as FlashCardBatch
+}
+
 // A 404 means the card is already gone, which is what the caller wanted.
 export async function deleteFlashCard(id: number) {
   const response = await apiFetch(`${flashCardsUrl}/${id}`, {

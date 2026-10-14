@@ -47,7 +47,7 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<CardSuggesterOp
         CancellationToken cancellationToken)
     {
         var answer = await FoundryChat.AskAsync<Answer>(
-            httpClient, options, Instructions, Describe(spanish, english, tags), AnswerFormat, cancellationToken);
+            httpClient, options, Instructions, Describe(spanish, english, tags), AnswerFormat, FoundryChat.ShortAnswerTokens, cancellationToken);
         return answer?.Tags ?? [];
     }
 
