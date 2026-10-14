@@ -69,6 +69,32 @@ test.describe('Tags', () => {
     await expect(items).toHaveCount(3)
   })
 
+  test('suggests a tag for a new card', async ({ page, request }) => {
+    await createFlashCard(page, 'lunes', 'Monday', ['Weekdays'])
+    // The E2E backend has no Foundry endpoint or key, so stand in for the model, picking the user's tag.
+    const tags = (await (await request.get(`${apiUrl}/tags`)).json()) as {
+      id: number
+      name: string
+    }[]
+    await page.route('**/api/tag-suggestions', async (route) => {
+      await route.fulfill({ json: tags })
+    })
+
+    await page.getByLabel('Spanish').fill('martes')
+    await page.getByLabel('English').fill('Tuesday')
+    await page.getByRole('button', { name: 'Add tag Weekdays' }).click()
+    await expect(
+      page.getByRole('button', { name: 'Add tag Weekdays' }),
+    ).toBeHidden()
+    await page.getByRole('button', { name: 'Add flash card' }).click()
+
+    await expect(
+      page
+        .getByRole('group', { name: 'Show cards tagged' })
+        .getByRole('button', { name: 'Weekdays (2)' }),
+    ).toBeVisible()
+  })
+
   test("changes a card's tags", async ({ page }) => {
     await createFlashCard(page, 'la manzana', 'the apple', ['Food'])
 

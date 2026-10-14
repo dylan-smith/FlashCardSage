@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App, { tagline } from '../App'
 import type { Deck } from '../api/decks'
 import { unreachableMessage } from '../api/flashCards'
-import type { FlashCard, Tag } from '../api/flashCards'
+import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
 import { defaultPreferences } from '../api/preferences'
 import type { Preferences } from '../api/preferences'
 import type { SystemDeck } from '../api/systemDecks'
 import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
+import { tagSuggestDelayMs } from '../hooks/useTagSuggestions'
 import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
 import { trackEvent, trackException } from '../telemetry'
 
@@ -26,9 +27,15 @@ const tagsUrl = 'http://localhost:5269/api/tags'
 const decksUrl = 'http://localhost:5269/api/decks'
 const suggestionsUrl = 'http://localhost:5269/api/card-suggestions'
 const preferencesUrl = 'http://localhost:5269/api/preferences'
+const tagSuggestionsUrl = 'http://localhost:5269/api/tag-suggestions'
 
 // The preferences loading them gets, which a test can change before the app renders. Null makes loading them fail.
 let preferences: Preferences | null = defaultPreferences
+
+// What asking for tag suggestions gets, which a test can change (by default, that they aren't available), and the
+// cards they were asked for.
+let suggestTags: () => Promise<Response>
+let tagSuggestionRequests: FlashCardFields[] = []
 
 // Answers every fetch with the handler, except that loading the tags or decks gets these, loading suggestions gets
 // what suggest answers (by default, that they aren't available), and loading the preferences gets preferences. It
@@ -46,6 +53,12 @@ function mockFetch(
       const url = input instanceof Request ? input.url : input.toString()
       if (url.startsWith(suggestionsUrl)) {
         return suggest(url)
+      }
+      if (url === tagSuggestionsUrl) {
+        tagSuggestionRequests.push(
+          JSON.parse(init?.body as string) as FlashCardFields,
+        )
+        return suggestTags()
       }
       if (init?.method === undefined && url === preferencesUrl) {
         return Promise.resolve(
@@ -106,6 +119,8 @@ async function showCards(cards: FlashCard[], tags: Tag[] = []) {
 beforeEach(() => {
   setSession({ token: 'test:Tester', name: 'Tester', provider: 'test' })
   preferences = defaultPreferences
+  suggestTags = async () => new Response(null, { status: 503 })
+  tagSuggestionRequests = []
 })
 
 afterEach(() => {
@@ -1670,6 +1685,141 @@ describe('App', () => {
     })
   })
 
+  describe('deleting the cards picked', () => {
+    const threeCards = [
+      {
+        id: 1,
+        spanish: ['el gato'],
+        english: ['the cat'],
+        tags: [{ id: 4, name: 'Pets' }],
+        imageUrl: null,
+      },
+      {
+        id: 2,
+        spanish: ['el perro'],
+        english: ['the dog'],
+        tags: [{ id: 4, name: 'Pets' }],
+        imageUrl: null,
+      },
+      {
+        id: 3,
+        spanish: ['la casa'],
+        english: ['the house'],
+        tags: [],
+        imageUrl: null,
+      },
+    ]
+
+    function mockCards(deleteResponse: () => Response) {
+      return mockFetch(
+        async (url, init) =>
+          init?.method === 'POST' &&
+          url === 'http://localhost:5269/api/flashcards/delete'
+            ? deleteResponse()
+            : jsonResponse(threeCards),
+        [{ id: 4, name: 'Pets' }],
+      )
+    }
+
+    it('deletes every card picked once the user says so', async () => {
+      const user = userEvent.setup()
+      const calls = mockCards(() => new Response(null, { status: 204 }))
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      expect(screen.getByRole('button', { name: 'Delete…' })).toBeDisabled()
+      await user.click(screen.getByRole('checkbox', { name: 'Pick all 3' }))
+      await user.click(screen.getByRole('button', { name: 'Delete 3 cards…' }))
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete 3 cards?',
+      })
+      await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+      expect(await screen.findByRole('status')).toHaveTextContent(
+        'Deleted 3 cards.',
+      )
+      expect(screen.getByText('No flash cards yet.')).toBeInTheDocument()
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.init?.body).toBe(JSON.stringify({ flashCardIds: [1, 2, 3] }))
+      expect(trackEvent).toHaveBeenCalledWith('FlashCardsDeleted')
+    })
+
+    it('deletes nothing when the user cancels', async () => {
+      const user = userEvent.setup()
+      const calls = mockCards(() => new Response(null, { status: 204 }))
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('checkbox', { name: 'Pick "el gato"' }))
+      await user.click(screen.getByRole('button', { name: 'Delete 1 card…' }))
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete 1 card?',
+      })
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      })
+      expect(calls.some((call) => call.init?.method === 'POST')).toBe(false)
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(
+        screen.getByRole('checkbox', { name: 'Pick "el gato"' }),
+      ).toBeChecked()
+    })
+
+    it("only deletes the picked tag's cards", async () => {
+      const user = userEvent.setup()
+      const calls = mockCards(() => new Response(null, { status: 204 }))
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('checkbox', { name: 'Pick "la casa"' }))
+      await user.click(
+        within(
+          screen.getByRole('group', { name: 'Show cards tagged' }),
+        ).getByRole('button', { name: 'Pets (2)' }),
+      )
+      await user.click(screen.getByRole('checkbox', { name: 'Pick all 2' }))
+      await user.click(screen.getByRole('button', { name: 'Delete 2 cards…' }))
+      await user.click(
+        within(
+          await screen.findByRole('dialog', { name: 'Delete 2 cards?' }),
+        ).getByRole('button', { name: 'Delete' }),
+      )
+
+      await screen.findByRole('status')
+      expect(
+        calls.find((call) => call.init?.method === 'POST')?.init?.body,
+      ).toBe(JSON.stringify({ flashCardIds: [1, 2] }))
+    })
+
+    it('keeps the cards and says why when deleting fails', async () => {
+      const user = userEvent.setup()
+      mockCards(() => new Response(null, { status: 500 }))
+      renderAt('/')
+      await screen.findByText('el gato')
+
+      await user.click(screen.getByRole('checkbox', { name: 'Pick "el gato"' }))
+      await user.click(screen.getByRole('button', { name: 'Delete 1 card…' }))
+      await user.click(
+        within(
+          await screen.findByRole('dialog', { name: 'Delete 1 card?' }),
+        ).getByRole('button', { name: 'Delete' }),
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Unable to delete the flash cards.',
+      )
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(
+        screen.getByRole('checkbox', { name: 'Pick "el gato"' }),
+      ).toBeChecked()
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'deleteMany',
+      })
+    })
+  })
+
   describe('tags', () => {
     const food = { id: 1, name: 'Food' }
     const travel = { id: 2, name: 'Travel' }
@@ -1812,6 +1962,192 @@ describe('App', () => {
           tags: ['Food', 'Travel'],
         }),
       )
+    })
+
+    describe('suggested tags', () => {
+      // waitFor gives up after a second by default, which is about how long the suggestions wait for typing to stop.
+      const untilSuggested = { timeout: tagSuggestDelayMs + 1000 }
+
+      // Long enough for suggestions to have been asked for, for checking that they weren't.
+      function waitPastSuggestDelay() {
+        return new Promise((resolve) =>
+          setTimeout(resolve, tagSuggestDelayMs + 200),
+        )
+      }
+
+      // These tests type one side of a card, so it isn't translated.
+      beforeEach(() => {
+        preferences = { ...defaultPreferences, autoTranslate: false }
+      })
+
+      it('suggests tags for a new card, and adds the one the user clicks', async () => {
+        const user = userEvent.setup()
+        suggestTags = async () => jsonResponse([food])
+        const calls = mockFetch(
+          async (_url, init) =>
+            init?.method === 'POST'
+              ? jsonResponse(
+                  { ...train, id: 3, spanish: ['el pan'], tags: [food] },
+                  201,
+                )
+              : jsonResponse([apple, train]),
+          [food, travel],
+        )
+        renderAt('/')
+        await screen.findByText('la manzana')
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el pan',
+        )
+
+        const chip = await screen.findByRole(
+          'button',
+          { name: 'Add tag Food' },
+          untilSuggested,
+        )
+        expect(screen.getByText('Suggested tags:')).toBeInTheDocument()
+        expect(tagSuggestionRequests).toEqual([
+          { spanish: ['el pan'], english: [], tags: [] },
+        ])
+
+        await user.click(chip)
+
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+        await user.type(
+          screen.getByLabelText('English', { exact: false }),
+          'the bread',
+        )
+        await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+        const post = await waitFor(() => {
+          const sent = calls.find((call) => call.init?.method === 'POST')
+          expect(sent).toBeDefined()
+          return sent
+        })
+        expect(post?.init?.body).toBe(
+          JSON.stringify({
+            spanish: ['el pan'],
+            english: ['the bread'],
+            tags: ['Food'],
+          }),
+        )
+      })
+
+      it('suggests tags for a card being edited, leaving out the ones it has', async () => {
+        const user = userEvent.setup()
+        suggestTags = async () => jsonResponse([food, travel])
+        const calls = mockFetch(
+          async (_url, init) =>
+            init?.method === 'PUT'
+              ? jsonResponse({ ...apple, tags: [food, travel] })
+              : jsonResponse([apple]),
+          [food, travel],
+        )
+        renderAt('/')
+        await screen.findByText('la manzana')
+
+        await user.click(
+          screen.getByRole('button', { name: 'Edit "la manzana"' }),
+        )
+        const item = screen.getAllByRole('listitem')[0]
+        await user.click(
+          await within(item).findByRole(
+            'button',
+            { name: 'Add tag Travel' },
+            untilSuggested,
+          ),
+        )
+        expect(
+          within(item).queryByRole('button', { name: 'Add tag Food' }),
+        ).not.toBeInTheDocument()
+        await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+        expect(
+          await screen.findByRole('button', { name: 'Travel (1)' }),
+        ).toBeInTheDocument()
+        expect(tagSuggestionRequests).toEqual([
+          { spanish: ['la manzana'], english: ['the apple'], tags: ['Food'] },
+        ])
+        const put = calls.find((call) => call.init?.method === 'PUT')
+        expect(put?.init?.body).toBe(
+          JSON.stringify({
+            spanish: ['la manzana'],
+            english: ['the apple'],
+            tags: ['Food', 'Travel'],
+          }),
+        )
+      })
+
+      it('takes the suggestions away when the words change', async () => {
+        const user = userEvent.setup()
+        suggestTags = async () => jsonResponse([food])
+        await showCards([apple], [food])
+        const spanish = screen.getByLabelText('Spanish', { exact: false })
+        await user.type(spanish, 'el pan')
+        await screen.findByText('Suggested tags:', {}, untilSuggested)
+
+        suggestTags = async () => jsonResponse([])
+        await user.type(spanish, 'adero')
+
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+        await waitFor(
+          () => expect(tagSuggestionRequests).toHaveLength(2),
+          untilSuggested,
+        )
+        expect(tagSuggestionRequests[1].spanish).toEqual(['el panadero'])
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+      })
+
+      it("doesn't ask once they aren't available", async () => {
+        const user = userEvent.setup()
+        await showCards([apple], [food])
+        const spanish = screen.getByLabelText('Spanish', { exact: false })
+        await user.type(spanish, 'el pan')
+        await waitFor(
+          () => expect(tagSuggestionRequests).toHaveLength(1),
+          untilSuggested,
+        )
+
+        await user.type(spanish, 'adero')
+        await waitPastSuggestDelay()
+
+        expect(tagSuggestionRequests).toHaveLength(1)
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+      })
+
+      it("doesn't ask when the user has no tags", async () => {
+        const user = userEvent.setup()
+        suggestTags = async () => jsonResponse([food])
+        await showCards([])
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el pan',
+        )
+        await waitPastSuggestDelay()
+
+        expect(tagSuggestionRequests).toEqual([])
+      })
+
+      it("doesn't ask when the user turned suggestions off", async () => {
+        const user = userEvent.setup()
+        preferences = {
+          ...defaultPreferences,
+          autoTranslate: false,
+          showSuggestions: false,
+        }
+        suggestTags = async () => jsonResponse([food])
+        await showCards([apple], [food])
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el pan',
+        )
+        await waitPastSuggestDelay()
+
+        expect(tagSuggestionRequests).toEqual([])
+      })
     })
 
     describe('the Tags page', () => {
@@ -2654,6 +2990,114 @@ describe('App', () => {
         expect(
           screen.queryByRole('checkbox', { name: 'Pick "el gato"' }),
         ).not.toBeInTheDocument()
+      })
+
+      it('deletes a card, not just from the deck', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(
+          animals,
+          async () => new Response(null, { status: 204 }),
+        )
+        await showPage('/decks/7')
+
+        await user.click(
+          screen.getByRole('button', { name: 'Delete "el gato"' }),
+        )
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Deleted 1 card.',
+        )
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.url).toBe('http://localhost:5269/api/flashcards/delete')
+        expect(post?.init?.body).toBe(JSON.stringify({ flashCardIds: [1] }))
+        expect(calls.some((call) => call.init?.method === 'PATCH')).toBe(false)
+        expect(screen.getByText('1 card')).toBeInTheDocument()
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (1)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByRole('checkbox', { name: 'Pick "el gato"' }),
+        ).not.toBeInTheDocument()
+        // It's gone, so it isn't one to add back either.
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (2)' }),
+        ).toBeInTheDocument()
+        expect(trackEvent).toHaveBeenCalledWith('FlashCardsDeleted')
+      })
+
+      it('removes a card from the deck with its own button, keeping the card', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(animals, async () =>
+          jsonResponse({ ...animals, flashCardIds: [2] }),
+        )
+        await showPage('/decks/7')
+
+        await user.click(
+          screen.getByRole('button', {
+            name: 'Remove "el gato" from the deck',
+          }),
+        )
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Removed 1 card from the deck.',
+        )
+        const patch = calls.find((call) => call.init?.method === 'PATCH')
+        expect(patch?.init?.body).toBe(JSON.stringify({ add: [], remove: [1] }))
+        expect(calls.some((call) => call.init?.method === 'POST')).toBe(false)
+        // It's still a card, so it can be added back.
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (3)' }),
+        ).toBeInTheDocument()
+      })
+
+      it('deletes the cards picked once the user says so', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(
+          animals,
+          async () => new Response(null, { status: 204 }),
+        )
+        await showPage('/decks/7')
+
+        expect(screen.getByRole('button', { name: 'Delete…' })).toBeDisabled()
+        await user.click(screen.getByRole('checkbox', { name: 'Pick all 2' }))
+        await user.click(
+          screen.getByRole('button', { name: 'Delete 2 cards…' }),
+        )
+        await user.click(
+          within(
+            await screen.findByRole('dialog', { name: 'Delete 2 cards?' }),
+          ).getByRole('button', { name: 'Delete' }),
+        )
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Deleted 2 cards.',
+        )
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.init?.body).toBe(JSON.stringify({ flashCardIds: [1, 2] }))
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (0)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (2)' }),
+        ).toBeInTheDocument()
+      })
+
+      it('keeps the card and says why when deleting it fails', async () => {
+        const user = userEvent.setup()
+        mockDeckApi(animals, async () => new Response(null, { status: 500 }))
+        await showPage('/decks/7')
+
+        await user.click(
+          screen.getByRole('button', { name: 'Delete "el gato"' }),
+        )
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          'Unable to delete the flash cards.',
+        )
+        expect(cardBox('el gato')).toBeInTheDocument()
+        expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+          operation: 'deleteCards',
+        })
       })
 
       it('keeps the cards picked and says why when the change fails', async () => {
