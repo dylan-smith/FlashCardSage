@@ -97,40 +97,10 @@ public class CardSuggestionsController(
             return Problem("Card suggestions failed.", statusCode: StatusCodes.Status502BadGateway);
         }
 
-        var suggestions = Usable(suggested, cards).Take(SuggestionCount).ToList();
+        var suggestions = NewCards.From(suggested, cards).Take(SuggestionCount).ToList();
         logger.LogInformation(
             "Suggested {Count} of {Requested} cards from {CardCount} cards", suggestions.Count, suggested.Count, cards.Count);
 
         return Ok(suggestions);
-    }
-
-    // The suggestions trimmed, leaving out any with a blank or too-long side, and any that would be a duplicate of one
-    // of the user's cards or an earlier suggestion (either side matching any of a card's words, ignoring case, as when
-    // a card is saved).
-    private static IEnumerable<CardSuggestion> Usable(IEnumerable<CardSuggestion> suggested, List<FlashCard> cards)
-    {
-        var spanish = new HashSet<string>(cards.SelectMany(card => card.Spanish), StringComparer.OrdinalIgnoreCase);
-        var english = new HashSet<string>(cards.SelectMany(card => card.English), StringComparer.OrdinalIgnoreCase);
-
-        foreach (var suggestion in suggested)
-        {
-            // The answer is read from JSON, so a side can be missing despite the type.
-            var card = new CardSuggestion(
-                (suggestion.Spanish ?? string.Empty).Trim(), (suggestion.English ?? string.Empty).Trim());
-            if (!Fits(card.Spanish) || !Fits(card.English)
-                || spanish.Contains(card.Spanish) || english.Contains(card.English))
-            {
-                continue;
-            }
-
-            spanish.Add(card.Spanish);
-            english.Add(card.English);
-            yield return card;
-        }
-    }
-
-    private static bool Fits(string side)
-    {
-        return side.Length is > 0 and <= 200;
     }
 }

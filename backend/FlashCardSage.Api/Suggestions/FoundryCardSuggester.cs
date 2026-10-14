@@ -57,7 +57,7 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<CardSuggesterO
         IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, int count, CancellationToken cancellationToken)
     {
         var answer = await FoundryChat.AskAsync<Answer>(
-            httpClient, options, Instructions, Describe(cards, relatedTo, tag, count), AnswerFormat, cancellationToken);
+            httpClient, options, Instructions, Describe(cards, relatedTo, tag, count), AnswerFormat, FoundryChat.ShortAnswerTokens, cancellationToken);
         return answer?.Cards ?? [];
     }
 

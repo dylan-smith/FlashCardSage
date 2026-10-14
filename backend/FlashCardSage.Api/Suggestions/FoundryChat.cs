@@ -8,14 +8,19 @@ namespace FlashCardSage.Api.Suggestions;
 // suggesters. It calls the resource's Azure OpenAI v1 chat completions API, which needs no API version.
 internal static class FoundryChat
 {
-    // The answer to the request, read as T, which answerFormat describes as a strict JSON schema. Throws
-    // HttpRequestException if the service fails or the answer can't be read.
+    // Enough for a handful of suggestions and the reasoning behind them.
+    public const int ShortAnswerTokens = 4096;
+
+    // The answer to the request, read as T, which answerFormat describes as a strict JSON schema. maxCompletionTokens
+    // covers the model's reasoning as well as its answer. Throws HttpRequestException if the service fails or the
+    // answer can't be read.
     public static async Task<T?> AskAsync<T>(
         HttpClient httpClient,
         CardSuggesterOptions options,
         string instructions,
         string request,
         object answerFormat,
+        int maxCompletionTokens,
         CancellationToken cancellationToken)
     {
         // Short answers don't need much thought, and the page waits for them, so the model reasons briefly. The body
@@ -30,7 +35,7 @@ internal static class FoundryChat
             },
             response_format = answerFormat,
             reasoning_effort = "low",
-            max_completion_tokens = 4096
+            max_completion_tokens = maxCompletionTokens
         });
         using var message = new HttpRequestMessage(
             HttpMethod.Post, $"{options.Endpoint.TrimEnd('/')}/openai/v1/chat/completions")
