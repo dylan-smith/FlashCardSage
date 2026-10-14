@@ -143,7 +143,7 @@ test.describe('Accessibility', () => {
       // The Tags page, with a tag being renamed.
       await page.goto('/tags')
       await page.getByRole('button', { name: 'Rename tag "A11y"' }).click()
-      await expect(page.getByLabel('Tag name')).toBeFocused()
+      await expect(page.getByLabel('Tag name', { exact: true })).toBeFocused()
       expect(await violations()).toEqual([])
     } finally {
       await request.delete(`${decksApiUrl}/${deckId}`)
