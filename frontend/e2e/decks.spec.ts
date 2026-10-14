@@ -170,7 +170,7 @@ test.describe('Decks', () => {
 
     await page
       .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: 'Cards', exact: true })
+      .getByRole('link', { name: /^Cards/ })
       .click()
     await expect(page.getByText('el libro', { exact: true })).toBeVisible()
     for (const spanish of ['la casa', 'el gato', 'el perro']) {
