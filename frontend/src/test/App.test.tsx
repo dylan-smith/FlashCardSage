@@ -2879,6 +2879,7 @@ describe('App', () => {
         expect(
           screen.getByLabelText('Deck name', { exact: false }),
         ).toHaveValue('animals')
+        expect(trackException).not.toHaveBeenCalled()
       })
 
       it('deletes a deck', async () => {
@@ -3395,6 +3396,7 @@ describe('App', () => {
         expect(posts.at(-1)?.init?.body).toBe(
           JSON.stringify({ name: 'Home', flashCardIds: [3, 4] }),
         )
+        expect(trackException).not.toHaveBeenCalled()
       })
     })
   })
@@ -3575,6 +3577,7 @@ describe('App', () => {
       expect(
         screen.queryByRole('link', { name: 'Open deck' }),
       ).not.toBeInTheDocument()
+      expect(trackException).not.toHaveBeenCalled()
     })
 
     it("says when the built-in decks can't be loaded", async () => {

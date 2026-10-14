@@ -636,7 +636,9 @@ function FlashCardsPage() {
       setDeckNotice({ deck: updated, count: pickedIds.length })
       setPicked(new Set())
     } catch (error) {
-      trackException(error, { operation: 'addToDeck' })
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'addToDeck' })
+      }
       setErrorMessage(
         describeFetchError(error, 'Unable to add the cards to the deck.'),
       )
@@ -671,7 +673,9 @@ function FlashCardsPage() {
       setPicked(new Set())
       return null
     } catch (error) {
-      trackException(error, { operation: 'createDeck' })
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'createDeck' })
+      }
       return describeFetchError(error, 'Unable to save deck.')
     } finally {
       setDeckBusy(false)
