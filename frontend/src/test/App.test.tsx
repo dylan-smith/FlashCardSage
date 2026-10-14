@@ -3460,9 +3460,13 @@ describe('App', () => {
     it('lists the built-in decks with their card counts', async () => {
       await showImport()
 
+      // The built-in decks' tab is open, next to the document's.
       expect(
-        screen.getByRole('heading', { level: 2, name: 'Built-in decks' }),
-      ).toBeInTheDocument()
+        screen.getByRole('tab', { name: 'Built-in decks' }),
+      ).toHaveAttribute('aria-selected', 'true')
+      expect(
+        screen.getByRole('tab', { name: 'From a document' }),
+      ).toHaveAttribute('aria-selected', 'false')
       expect(
         within(
           screen.getByRole('navigation', { name: 'Manage cards' }),

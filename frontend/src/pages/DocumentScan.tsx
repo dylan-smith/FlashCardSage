@@ -5,7 +5,6 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import List from '@mui/material/List'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router'
@@ -379,10 +378,7 @@ export function DocumentScan() {
   const busy = state.status === 'scanning' || adding !== null
 
   return (
-    <Paper component="section" elevation={2} sx={{ p: 3 }}>
-      <Typography variant="h5" component="h2" sx={{ mb: 1 }}>
-        From a document
-      </Typography>
+    <Box>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
         Choose a document in Spanish, such as an article, a story or a
         film&apos;s subtitles (.txt, .md, .srt, .vtt, .docx or .pdf), to find
@@ -554,6 +550,6 @@ export function DocumentScan() {
           </>
         )}
       </Stack>
-    </Paper>
+    </Box>
   )
 }

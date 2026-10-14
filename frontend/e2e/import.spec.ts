@@ -109,6 +109,12 @@ test.describe('Import cards', () => {
     })
     await page.goto('/import')
 
+    // Its own tab, which the URL keeps.
+    await page.getByRole('tab', { name: 'From a document' }).click()
+    await expect(page).toHaveURL(/\/import\?from=document$/)
+    await expect(
+      page.getByRole('tabpanel', { name: 'Built-in decks' }),
+    ).toBeHidden()
     await page.getByLabel('Choose a document').setInputFiles({
       name: 'cuento.txt',
       mimeType: 'text/plain',
@@ -116,6 +122,12 @@ test.describe('Import cards', () => {
     })
 
     const cards = page.getByRole('list', { name: 'Cards from the document' })
+    await expect(cards.getByRole('listitem')).toHaveCount(100)
+
+    // A look at the built-in decks keeps the cards.
+    await page.getByRole('tab', { name: 'Built-in decks' }).click()
+    await expect(cards).toBeHidden()
+    await page.getByRole('tab', { name: 'From a document' }).click()
     await expect(cards.getByRole('listitem')).toHaveCount(100)
     await expect(
       page.getByText(
@@ -184,7 +196,7 @@ test.describe('Import cards', () => {
     await page.route('**/api/flashcards/images/generate', async (route) => {
       await route.fulfill({ json: onePixelPng })
     })
-    await page.goto('/import')
+    await page.goto('/import?from=document')
     await page.getByLabel('Choose a document').setInputFiles({
       name: 'cuento.txt',
       mimeType: 'text/plain',
@@ -217,7 +229,7 @@ test.describe('Import cards', () => {
   })
 
   test('says why a document can’t be scanned', async ({ page }) => {
-    await page.goto('/import')
+    await page.goto('/import?from=document')
 
     // The E2E backend has no Foundry endpoint or key, so scanning isn't available there.
     await page.getByLabel('Choose a document').setInputFiles({
