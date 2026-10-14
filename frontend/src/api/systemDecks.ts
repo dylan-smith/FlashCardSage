@@ -1,7 +1,7 @@
 import { apiBaseUrl } from '../config'
 import { refreshCounts } from '../hooks/useCounts'
 import { apiFetch } from './client'
-import type { Deck } from './decks'
+import type { DeckImport } from './decks'
 import { throwIfNotSaved } from './flashCards'
 import type { FlashCard } from './flashCards'
 
@@ -11,14 +11,6 @@ export type SystemDeck = {
   id: number
   name: string
   cards: FlashCard[]
-}
-
-// The user's new deck, made from a built-in one, and how many of its cards were left out because the user already
-// has a card with the same Spanish or English.
-export type SystemDeckImport = {
-  deck: Deck
-  importedCount: number
-  skippedCount: number
 }
 
 export const systemDecksUrl = `${apiBaseUrl}/api/system-decks`
@@ -33,11 +25,11 @@ export async function listSystemDecks(): Promise<SystemDeck[]> {
 }
 
 // Copies the built-in deck, its cards and their tags into the user's own, so it's then like a deck they made.
-export async function importSystemDeck(id: number): Promise<SystemDeckImport> {
+export async function importSystemDeck(id: number): Promise<DeckImport> {
   const response = await apiFetch(`${systemDecksUrl}/${id}/import`, {
     method: 'POST',
   })
   await throwIfNotSaved(response, 'Unable to add the deck.')
   refreshCounts()
-  return (await response.json()) as SystemDeckImport
+  return (await response.json()) as DeckImport
 }

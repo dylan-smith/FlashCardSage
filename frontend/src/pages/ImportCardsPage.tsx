@@ -11,22 +11,15 @@ import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
-import { Link as RouterLink } from 'react-router'
 import { ApiError, describeFetchError } from '../api/flashCards'
+import type { DeckImport } from '../api/decks'
 import { importSystemDeck, listSystemDecks } from '../api/systemDecks'
-import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
+import type { SystemDeck } from '../api/systemDecks'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
+import { ImportedAlert } from './ImportedAlert'
 import { FlashCardRow } from './FlashCardRow'
-
-// What importing did, such as "Added Months with 12 cards." and how many were left out.
-function describeImport({ deck, skippedCount }: SystemDeckImport) {
-  const added = `Added ${deck.name} with ${cardCount(deck.flashCardIds.length)}.`
-  if (skippedCount === 0) {
-    return added
-  }
-  return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
-}
+import { PreplyBookmarklet } from './PreplyBookmarklet'
 
 // The built-in decks the user can add to their own. Adding one copies its cards and tags, so the user can change them
 // like any of their cards.
@@ -38,7 +31,7 @@ function ImportCardsPage() {
   const [shownIds, setShownIds] = useState<number[]>([])
   // The deck being added, so its button can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
-  const [imported, setImported] = useState<SystemDeckImport | null>(null)
+  const [imported, setImported] = useState<DeckImport | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
@@ -98,23 +91,7 @@ function ImportCardsPage() {
 
   return (
     <Stack spacing={2}>
-      {imported && (
-        <Alert
-          severity="success"
-          action={
-            <Button
-              component={RouterLink}
-              to={`/decks/${imported.deck.id}`}
-              color="inherit"
-              size="small"
-            >
-              Open deck
-            </Button>
-          }
-        >
-          {describeImport(imported)}
-        </Alert>
-      )}
+      {imported && <ImportedAlert imported={imported} />}
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
@@ -212,6 +189,8 @@ function ImportCardsPage() {
           </List>
         )}
       </Paper>
+
+      <PreplyBookmarklet />
     </Stack>
   )
 }

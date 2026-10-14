@@ -10,6 +10,14 @@ export type Deck = {
   flashCardIds: number[]
 }
 
+// The user's new deck, made from a built-in one or from imported words, and how many cards were left out because
+// the user already has a card with the same Spanish or English.
+export type DeckImport = {
+  deck: Deck
+  importedCount: number
+  skippedCount: number
+}
+
 // What's sent to make a deck. It can start out with cards, such as the ones picked on the cards page.
 export type DeckFields = {
   name: string

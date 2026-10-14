@@ -14,6 +14,7 @@ import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
 import { tagSuggestDelayMs } from '../hooks/useTagSuggestions'
 import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
+import { clearPreplyHandoff, startPreplyHandoff } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
 
 vi.mock('../telemetry', () => ({
@@ -3587,6 +3588,180 @@ describe('App', () => {
       expect(await screen.findByRole('alert')).toHaveTextContent(
         unreachableMessage,
       )
+    })
+
+    it('offers the bookmarklet that brings in Preply words', async () => {
+      const user = userEvent.setup()
+      await showImport()
+
+      const bookmarklet = screen.getByRole('link', {
+        name: 'Send to FlashCardSage',
+      })
+      expect(bookmarklet.getAttribute('href')).toMatch(/^javascript:/)
+
+      // It only works as a bookmark, so clicking it here says how to use it.
+      await user.click(bookmarklet)
+
+      expect(
+        screen.getByText(/Drag the button to your bookmarks bar/),
+      ).toBeInTheDocument()
+    })
+  })
+
+  describe('importing from Preply', () => {
+    const preplyImportUrl = 'http://localhost:5269/api/preply-import'
+    const words = [
+      { spanish: 'tostado', english: 'toasted', partOfSpeech: 'adjective' },
+      { spanish: 'avena', english: 'oatmeal', partOfSpeech: 'noun' },
+      { spanish: 'gustaron', english: null, partOfSpeech: null },
+      { spanish: 'picante', english: 'spicy', partOfSpeech: null },
+    ]
+
+    // This window, opened by the bookmarklet, which is the one that sends it messages. jsdom only takes a real window
+    // as a message's source, so that's this one too.
+    const opened = Object.assign(new EventTarget(), {
+      location: { pathname: '/import/preply' },
+      opener: window,
+    }) as unknown as Window
+
+    function sendFromPreply(data: unknown, origin = 'https://preply.com') {
+      act(() => {
+        opened.dispatchEvent(
+          new MessageEvent('message', { origin, source: window, data }),
+        )
+      })
+    }
+
+    beforeEach(() => {
+      vi.spyOn(window, 'postMessage').mockImplementation(() => {})
+      startPreplyHandoff(opened)
+    })
+
+    afterEach(() => {
+      clearPreplyHandoff()
+    })
+
+    it('waits for the words, then adds the ones the user keeps', async () => {
+      const user = userEvent.setup()
+      const calls = mockFetch(async () =>
+        jsonResponse(
+          {
+            deck: { id: 23, name: 'Preply', flashCardIds: [8, 9] },
+            importedCount: 2,
+            skippedCount: 0,
+          },
+          201,
+        ),
+      )
+      renderAt('/import/preply')
+
+      expect(
+        screen.getByText('Getting your words from Preply…'),
+      ).toBeInTheDocument()
+      // Anything not from Preply is ignored.
+      sendFromPreply(
+        { type: 'flashcardsage:preply-words', words },
+        'https://evil.example',
+      )
+      expect(
+        screen.getByText('Getting your words from Preply…'),
+      ).toBeInTheDocument()
+
+      sendFromPreply({ type: 'flashcardsage:preply-words', words })
+
+      const list = screen.getByRole('list', { name: 'Preply words' })
+      expect(within(list).getByText('toasted · adjective')).toBeInTheDocument()
+      // A word without English can't be a card.
+      expect(
+        within(list).getByRole('checkbox', { name: 'Pick "gustaron"' }),
+      ).toBeDisabled()
+      expect(within(list).getByText('No English on Preply')).toBeInTheDocument()
+
+      await user.click(
+        within(list).getByRole('checkbox', { name: 'Pick "avena"' }),
+      )
+      await user.click(
+        screen.getByRole('button', { name: 'Add 2 cards to a Preply deck' }),
+      )
+
+      expect(
+        await screen.findByText('Added Preply with 2 cards.'),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Open deck' })).toHaveAttribute(
+        'href',
+        '/decks/23',
+      )
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.url).toBe(preplyImportUrl)
+      expect(JSON.parse(post?.init?.body as string)).toEqual({
+        words: [
+          { spanish: 'tostado', english: 'toasted' },
+          { spanish: 'picante', english: 'spicy' },
+        ],
+      })
+      expect(trackEvent).toHaveBeenCalledWith('PreplyImported', { count: '2' })
+      // The words are forgotten once added.
+      expect(
+        screen.queryByRole('list', { name: 'Preply words' }),
+      ).not.toBeInTheDocument()
+    })
+
+    it("shows the API's message when the words can't be added", async () => {
+      const user = userEvent.setup()
+      mockFetch(async () =>
+        jsonResponse(
+          { status: 409, detail: 'You already have all of these words.' },
+          409,
+        ),
+      )
+      renderAt('/import/preply')
+      sendFromPreply({ type: 'flashcardsage:preply-words', words })
+
+      await user.click(
+        screen.getByRole('button', { name: 'Add 3 cards to a Preply deck' }),
+      )
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'You already have all of these words.',
+      )
+      expect(trackException).not.toHaveBeenCalled()
+      // The words stay to try again.
+      expect(
+        screen.getByRole('list', { name: 'Preply words' }),
+      ).toBeInTheDocument()
+    })
+
+    it("says when Preply's words can't be read", async () => {
+      mockFetch(async () => jsonResponse([]))
+      renderAt('/import/preply')
+
+      sendFromPreply({
+        type: 'flashcardsage:preply-error',
+        message: 'Not signed in',
+      })
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Your words couldn't be read from Preply. Not signed in",
+      )
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'readPreply',
+      })
+      expect(
+        screen.getByRole('link', { name: 'Send to FlashCardSage' }),
+      ).toBeInTheDocument()
+    })
+
+    it('says how to use the bookmarklet when opened some other way', () => {
+      clearPreplyHandoff()
+      mockFetch(async () => jsonResponse([]))
+      renderAt('/import/preply')
+
+      expect(
+        screen.getByRole('heading', { level: 2, name: 'From Preply' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText('Getting your words from Preply…'),
+      ).not.toBeInTheDocument()
     })
   })
 
