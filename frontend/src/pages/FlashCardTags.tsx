@@ -12,18 +12,45 @@ import type { Tag } from '../api/flashCards'
 export const tagMaxLength = 50
 
 // Picks a card's tags by name from the user's tags, or makes a new one by typing a name. The typed name is added on
-// Enter, and when the field loses focus, so clicking Save straight after typing keeps it.
+// Enter, and when the field loses focus, so clicking Save straight after typing keeps it. Suggested tags show under
+// the field, like a translated word's other meanings, and are added with a click.
 export function TagsInput({
   value,
   tags,
   onChange,
+  suggestions = [],
   size,
 }: {
   value: string[]
   tags: Tag[]
   onChange: (names: string[]) => void
+  suggestions?: string[]
   size?: 'small'
 }) {
+  const note =
+    suggestions.length === 0 ? undefined : (
+      <Box
+        sx={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          alignItems: 'center',
+          gap: 0.5,
+        }}
+      >
+        Suggested tags:
+        {suggestions.map((name) => (
+          <Chip
+            key={name}
+            label={name}
+            size="small"
+            variant="outlined"
+            aria-label={`Add tag ${name}`}
+            onClick={() => onChange([...value, name])}
+          />
+        ))}
+      </Box>
+    )
+
   return (
     <Autocomplete
       multiple
@@ -40,12 +67,15 @@ export function TagsInput({
           {...params}
           label="Tags"
           placeholder={value.length === 0 ? 'e.g. Food' : undefined}
+          helperText={note}
           slotProps={{
             ...params.slotProps,
             htmlInput: {
               ...params.slotProps.htmlInput,
               maxLength: tagMaxLength,
             },
+            // A div, since it holds the suggestions' chips.
+            formHelperText: { component: 'div' },
           }}
         />
       )}
