@@ -7,8 +7,10 @@ import Typography from '@mui/material/Typography'
 import { Link, Route, Routes, useLocation } from 'react-router'
 import logo from './assets/logo.svg'
 import { disableGoogleAutoSelect } from './auth/google'
+import type { Counts } from './api/counts'
 import { sessionSubject, setSession, useSession } from './auth/session'
 import SignInPage from './auth/SignInPage'
+import { clearCounts, refreshCounts, useCounts } from './hooks/useCounts'
 import { loadPreferences, setPreferences } from './hooks/usePreferences'
 import DeckPage from './pages/DeckPage'
 import DecksPage from './pages/DecksPage'
@@ -30,16 +32,19 @@ function signOut() {
 
 type NavItem = { to: string; label: string }
 
-// The parts of Manage cards, each with its own page. A deck's page is part of Decks.
-const sections: NavItem[] = [
-  { to: '/', label: 'Cards' },
-  { to: '/decks', label: 'Decks' },
-  { to: '/tags', label: 'Tags' },
+// The parts of Manage cards, each with its own page. A deck's page is part of Decks. A section with a count shows
+// how many of its things the user has.
+type Section = NavItem & { count?: keyof Counts }
+
+const sections: Section[] = [
+  { to: '/', label: 'Cards', count: 'cards' },
+  { to: '/decks', label: 'Decks', count: 'decks' },
+  { to: '/tags', label: 'Tags', count: 'tags' },
   { to: '/import', label: 'Import cards' },
 ]
 
 // The app's modes. Manage cards is made up of the sections above.
-const modes: (NavItem & { sections?: NavItem[] })[] = [
+const modes: (NavItem & { sections?: Section[] })[] = [
   { to: '/', label: 'Manage cards', sections },
   { to: '/practice', label: 'Practice' },
   { to: '/scores', label: 'Scores' },
@@ -71,11 +76,14 @@ function App() {
     }
     const controller = new AbortController()
     loadPreferences(controller.signal)
+    refreshCounts()
     return () => {
       controller.abort()
       setPreferences(null)
+      clearCounts()
     }
   }, [subject])
+  const counts = useCounts()
 
   return (
     <Container maxWidth="md" component="main" sx={{ py: 4 }}>
@@ -184,6 +192,8 @@ function App() {
             >
               {currentMode.sections.map((section) => {
                 const active = isAt(pathname, section)
+                const count =
+                  section.count && counts ? counts[section.count] : undefined
                 return (
                   <Button
                     key={section.to}
@@ -198,6 +208,26 @@ function App() {
                     }}
                   >
                     {section.label}
+                    {/* The button lays out its content with flex, which drops the space, but it keeps the label
+                        and count apart for a screen reader. */}
+                    {count !== undefined && ' '}
+                    {count !== undefined && (
+                      <Box
+                        component="span"
+                        sx={{
+                          ml: 0.75,
+                          px: 0.75,
+                          minWidth: 20,
+                          borderRadius: 10,
+                          bgcolor: 'action.selected',
+                          color: 'text.secondary',
+                          fontSize: 12,
+                          lineHeight: '20px',
+                        }}
+                      >
+                        {count}
+                      </Box>
+                    )}
                   </Button>
                 )
               })}

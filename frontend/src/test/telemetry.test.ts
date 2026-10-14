@@ -178,5 +178,38 @@ describe('telemetry', () => {
         properties: { operation: 'load' },
       })
     })
+
+    it('ignores fetches the browser cancelled because the page is going away', () => {
+      initTelemetry()
+      window.dispatchEvent(new Event('pagehide'))
+      trackException(new TypeError('Failed to fetch'), { operation: 'suggest' })
+
+      expect(sdk.trackException).not.toHaveBeenCalled()
+    })
+
+    it('still reports other errors while the page is going away', () => {
+      initTelemetry()
+      window.dispatchEvent(new Event('pagehide'))
+      const error = new Error('boom')
+      trackException(error)
+
+      expect(sdk.trackException).toHaveBeenCalledWith({
+        exception: error,
+        properties: undefined,
+      })
+    })
+
+    it('reports failed fetches again once the page comes back', () => {
+      initTelemetry()
+      window.dispatchEvent(new Event('pagehide'))
+      window.dispatchEvent(new Event('pageshow'))
+      const error = new TypeError('Failed to fetch')
+      trackException(error)
+
+      expect(sdk.trackException).toHaveBeenCalledWith({
+        exception: error,
+        properties: undefined,
+      })
+    })
   })
 })

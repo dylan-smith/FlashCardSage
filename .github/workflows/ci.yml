@@ -547,6 +547,16 @@ jobs:
           app-name: ${{ env.PREVIEW_APP_NAME }}
           package: ./backend/publish
 
+      # The first login's OIDC assertion lasts 5 minutes, and the CLI needs it for each new token scope (Storage is
+      # first asked for below), so after a slow or retried deployment the steps below would fail to sign in.
+      - name: Login to Azure again
+        if: steps.current.outputs.current == 'true'
+        uses: azure/login@v3
+        with:
+          client-id: ${{ vars.AZURE_PREVIEW_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+
       - name: Enable static website hosting
         if: steps.current.outputs.current == 'true'
         run: bash .github/scripts/enable-static-website.sh
