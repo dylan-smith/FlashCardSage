@@ -12,10 +12,16 @@ import Typography from '@mui/material/Typography'
 import { Link, useNavigate, useParams } from 'react-router'
 import { changeDeckCards, deleteDeck, getDeck, renameDeck } from '../api/decks'
 import type { Deck } from '../api/decks'
-import { describeFetchError, listFlashCards } from '../api/flashCards'
+import {
+  deleteFlashCards,
+  describeFetchError,
+  formatWords,
+  listFlashCards,
+} from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 import { CardPicker } from './CardPicker'
+import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameMaxLength, deckNameRequiredMessage } from './DecksPage'
 import { TagRenameForm } from './FlashCardTags'
@@ -23,8 +29,8 @@ import { TagRenameForm } from './FlashCardTags'
 // The deck's own cards, or the user's other cards to add to it.
 type DeckTab = 'deck' | 'add'
 
-// One deck: its cards, which can be taken out, and the user's other cards, which can be put in. Each change is
-// saved as it's made.
+// One deck: its cards, which can be taken out or deleted, and the user's other cards, which can be put in. Each
+// change is saved as it's made.
 function DeckPage() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -142,6 +148,33 @@ function DeckPage() {
       trackException(error, { operation: 'changeCards' })
       setErrorMessage(describeFetchError(error, 'Unable to change the deck.'))
       return false
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  // Deletes the cards themselves, not just from this deck, so they're gone from every deck and the cards page too.
+  async function handleDeleteCards(ids: number[]) {
+    setBusy(true)
+    setErrorMessage('')
+    setNotice('')
+    try {
+      await deleteFlashCards(ids)
+      trackEvent('FlashCardsDeleted')
+      const deleted = new Set(ids)
+      setCards((loaded) => loaded.filter((card) => !deleted.has(card.id)))
+      setDeck({
+        ...current,
+        flashCardIds: current.flashCardIds.filter(
+          (cardId) => !deleted.has(cardId),
+        ),
+      })
+      setNotice(`Deleted ${cardCount(ids.length)}.`)
+    } catch (error) {
+      trackException(error, { operation: 'deleteCards' })
+      setErrorMessage(
+        describeFetchError(error, 'Unable to delete the flash cards.'),
+      )
     } finally {
       setBusy(false)
     }
@@ -268,6 +301,41 @@ function DeckPage() {
             actionLabel="Remove"
             busy={busy}
             onApply={(ids) => handleChange([], ids)}
+            pickedActions={(ids) => (
+              <DeleteCards
+                count={ids.length}
+                busy={busy}
+                onDelete={() => handleDeleteCards(ids)}
+              />
+            )}
+            rowActions={(card) => {
+              const spanish = formatWords(card.spanish)
+              return (
+                <>
+                  <Button
+                    type="button"
+                    size="small"
+                    disabled={busy}
+                    aria-label={`Remove "${spanish}" from the deck`}
+                    onClick={() => void handleChange([], [card.id])}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Remove
+                  </Button>
+                  <Button
+                    type="button"
+                    size="small"
+                    color="error"
+                    disabled={busy}
+                    aria-label={`Delete "${spanish}"`}
+                    onClick={() => void handleDeleteCards([card.id])}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )
+            }}
           />
         </Box>
         <Box
