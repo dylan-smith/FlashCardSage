@@ -12,7 +12,7 @@ import Stack from '@mui/material/Stack'
 import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router'
-import { describeFetchError } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/flashCards'
 import { importSystemDeck, listSystemDecks } from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { trackEvent, trackException } from '../telemetry'
@@ -87,7 +87,10 @@ function ImportCardsPage() {
       trackEvent('SystemDeckImported')
       setImported(result)
     } catch (error) {
-      trackException(error, { operation: 'import' })
+      // Such as a 409 for a deck the user already has all the cards of, which is theirs to see, not a failure.
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'import' })
+      }
       setErrorMessage(describeFetchError(error, 'Unable to add the deck.'))
     } finally {
       setBusyId(null)
