@@ -16,6 +16,10 @@
 
   <ItemGroup>
     <EmbeddedResource Include="SystemDecks\system-decks.json" LogicalName="FlashCardSage.Api.SystemDecks.system-decks.json" />
+    <!-- The built-in cards' pictures, as files next to the API rather than in it (see SystemDeckImages). -->
+    <!-- The Web SDK makes the JSON content and the pictures none, so both are copied. -->
+    <None Update="SystemDecks\images\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <Content Update="SystemDecks\images\**" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
   </ItemGroup>
 
 </Project>
