@@ -10,7 +10,7 @@ each with one or more Spanish words or phrases and their English translations (e
 for "only"), that the signed-in user can add, edit and delete. A card can have a picture of its meaning, made by
 FLUX.2-pro on Azure AI Foundry on request and kept in Azure Blob Storage (or as local files when no storage connection string is set, as in local development and E2E tests).
 The cards page also suggests a handful of new cards, which gpt-5-mini on the same Foundry resource picks from the
-user's cards.
+user's cards, and which of the user's tags fit a card being added or edited.
 
 - `backend/FlashCardSage.Api`: ASP.NET Core Web API (.NET 10) with EF Core, SQL Server and controllers.
   OpenAPI is served at `/openapi/v1.json` and Scalar at `/scalar` in every environment.
