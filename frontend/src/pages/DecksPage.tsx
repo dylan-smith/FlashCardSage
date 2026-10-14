@@ -15,7 +15,7 @@ import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useNavigate } from 'react-router'
 import { createDeck, deleteDeck, listDecks } from '../api/decks'
 import type { Deck } from '../api/decks'
-import { describeFetchError } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
 
@@ -78,7 +78,9 @@ function DecksPage() {
       trackEvent('DeckCreated')
       await navigate(`/decks/${created.id}`)
     } catch (error) {
-      trackException(error, { operation: 'create' })
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'create' })
+      }
       setErrorMessage(describeFetchError(error, 'Unable to save deck.'))
       setSubmitting(false)
     }

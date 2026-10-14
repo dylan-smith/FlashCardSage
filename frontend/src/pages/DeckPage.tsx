@@ -13,6 +13,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { changeDeckCards, deleteDeck, getDeck, renameDeck } from '../api/decks'
 import type { Deck } from '../api/decks'
 import {
+  ApiError,
   deleteFlashCards,
   describeFetchError,
   formatWords,
@@ -124,7 +125,9 @@ function DeckPage() {
       trackEvent('DeckRenamed')
       setName(null)
     } catch (error) {
-      trackException(error, { operation: 'rename' })
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'rename' })
+      }
       setErrorMessage(describeFetchError(error, 'Unable to rename deck.'))
     } finally {
       setBusy(false)
@@ -145,7 +148,9 @@ function DeckPage() {
       )
       return true
     } catch (error) {
-      trackException(error, { operation: 'changeCards' })
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'changeCards' })
+      }
       setErrorMessage(describeFetchError(error, 'Unable to change the deck.'))
       return false
     } finally {
