@@ -77,6 +77,7 @@ public class FoundryImageGeneratorTests
     [InlineData("""{"error":{"code":"contentFilter","message":"Your task failed as a result of our safety system."}}""")]
     [InlineData("""{"error":{"code":"content_policy_violation","message":"blocked"}}""")]
     [InlineData("""{"error":{"code":"content_moderation","message":"Request Moderated"}}""")]
+    [InlineData("""{"error":{"code":"content_safety_violation","message":"blocked"}}""")]
     [InlineData("""{"error":{"code":"invalid_request_error","inner_error":{"code":"ResponsibleAIPolicyViolation"}}}""")]
     public async Task GenerateAsync_Throws_WhenASafetySystemRefuses(string body)
     {

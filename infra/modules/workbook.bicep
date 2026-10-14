@@ -64,5 +64,18 @@ resource workbook 'Microsoft.Insights/workbooks@2023-06-01' = {
   }
 }
 
+// How many people use the app and what they do with it. It only reads Application Insights, so that's the one ID it needs.
+resource usageWorkbook 'Microsoft.Insights/workbooks@2023-06-01' = {
+  name: guid(resourceGroup().id, 'flashcardsage-usage-workbook')
+  location: location
+  kind: 'shared'
+  properties: {
+    displayName: 'FlashCardSage Usage'
+    category: 'workbook'
+    sourceId: toLower(appInsightsId)
+    serializedData: replace(string(loadJsonContent('../workbooks/usage.workbook.json')), '__APP_INSIGHTS_ID__', appInsightsId)
+  }
+}
+
 @description('Resource ID of the health workbook.')
 output workbookId string = workbook.id

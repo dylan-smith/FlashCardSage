@@ -6,6 +6,7 @@ using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.SystemDecks;
 using FlashCardSage.Api.Translation;
+using FlashCardSage.Api.Usage;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Storage;
 using Microsoft.Extensions.FileProviders;
@@ -55,6 +56,10 @@ builder.Services.AddControllers();
 // from auto-pausing.
 builder.Services.AddHealthChecks();
 builder.Services.AddOpenApi();
+// Signed-in requests ask for a usage snapshot now and then (see CurrentUserMiddleware).
+builder.Services.AddSingleton(TimeProvider.System);
+builder.Services.AddSingleton<UsageSnapshotService>();
+builder.Services.AddHostedService(services => services.GetRequiredService<UsageSnapshotService>());
 builder.Services.Configure<TranslatorOptions>(builder.Configuration.GetSection(TranslatorOptions.SectionName));
 // Translation fills in a field while the user types, so a slow answer is no better than none.
 builder.Services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
@@ -86,6 +91,9 @@ else
     Console.WriteLine("[Startup] Image store: Azure Blob Storage.");
     builder.Services.AddSingleton<IImageStore, BlobImageStore>();
 }
+
+// Puts the built-in cards' pictures on them once the API has started.
+builder.Services.AddHostedService<SystemDeckImageSyncService>();
 
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")

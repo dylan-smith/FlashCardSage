@@ -1,5 +1,8 @@
 using FlashCardSage.Api.Images;
+using Microsoft.AspNetCore.Hosting.Server;
+using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Options;
@@ -129,15 +132,82 @@ public sealed class LocalFileImageStoreTests : IDisposable
             "http://localhost:5269/card-images/0123456789abcdef0123456789abcdef.png", CancellationToken.None);
     }
 
-    private LocalFileImageStore CreateStore(string localPath)
+    [Fact]
+    public async Task SaveAsync_WithAName_WritesTheFileOnce_AndNamesItOnTheServersAddressOutsideARequest()
     {
-        var context = new DefaultHttpContext();
-        context.Request.Scheme = "http";
-        context.Request.Host = new HostString("localhost", 5269);
+        var store = CreateStore("pictures", inRequest: false, "http://[::]:5269");
+        Directory.CreateDirectory(store.Directory);
+        const string name = "0123456789abcdef0123456789abcdef.jpg";
+
+        var url = await store.SaveAsync(name, CardImageTests.Jpeg, CancellationToken.None);
+        var again = await store.SaveAsync(name, CardImageTests.Png, CancellationToken.None);
+
+        Assert.Equal($"http://localhost:5269/card-images/{name}", url);
+        Assert.Equal(url, again);
+        // A picture that's there already is left as it is.
+        Assert.Equal(CardImageTests.Jpeg, await File.ReadAllBytesAsync(Path.Join(store.Directory, name)));
+    }
+
+    [Fact]
+    public async Task SaveAsync_Throws_OutsideARequestBeforeTheServerListens()
+    {
+        var store = CreateStore("pictures", inRequest: false);
+        Directory.CreateDirectory(store.Directory);
+
+        await Assert.ThrowsAsync<InvalidOperationException>(() =>
+            store.SaveAsync("0123456789abcdef0123456789abcdef.jpg", CardImageTests.Jpeg, CancellationToken.None));
+        Assert.Empty(Directory.GetFiles(store.Directory));
+    }
+
+    private LocalFileImageStore CreateStore(string localPath, bool inRequest = true, params string[] serverAddresses)
+    {
+        var accessor = new HttpContextAccessor();
+        if (inRequest)
+        {
+            var context = new DefaultHttpContext();
+            context.Request.Scheme = "http";
+            context.Request.Host = new HostString("localhost", 5269);
+            accessor.HttpContext = context;
+        }
+
+        var addresses = new ServerAddressesFeature();
+        foreach (var address in serverAddresses)
+        {
+            addresses.Addresses.Add(address);
+        }
+
+        var features = new FeatureCollection();
+        if (serverAddresses.Length > 0)
+        {
+            features.Set<IServerAddressesFeature>(addresses);
+        }
+
         return new LocalFileImageStore(
             Options.Create(new ImageStoreOptions { LocalPath = localPath }),
             new FakeEnvironment(root),
-            new HttpContextAccessor { HttpContext = context });
+            accessor,
+            new FakeServer(features));
+    }
+
+    // A server that only has features, like Kestrel's addresses once it listens.
+    private sealed class FakeServer(IFeatureCollection features) : IServer
+    {
+        public IFeatureCollection Features { get; } = features;
+
+        public Task StartAsync<TContext>(IHttpApplication<TContext> application, CancellationToken cancellationToken)
+            where TContext : notnull
+        {
+            return Task.CompletedTask;
+        }
+
+        public Task StopAsync(CancellationToken cancellationToken)
+        {
+            return Task.CompletedTask;
+        }
+
+        public void Dispose()
+        {
+        }
     }
 
     private sealed class FakeEnvironment(string contentRootPath) : IHostEnvironment

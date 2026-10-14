@@ -19,7 +19,7 @@ document the user uploads for up to 100 new cards, made by the same model.
 - `backend/FlashCardSage.Api.Tests`: xUnit backend tests.
 - `frontend`: React 19 + TypeScript + Material UI (Vite). Unit tests use Vitest in `src/test`,
   and Playwright E2E tests are in `e2e`.
-- `infra`: Bicep templates for Azure (App Service, Azure SQL serverless, Storage static website,
+- `infra`: Bicep templates for Azure (App Service, Azure SQL, Storage static website,
   monitoring). `preview.bicep` is a pull request's preview environment, and `preview-shared.bicep`
   the plan and SQL server every preview shares (deployed from the PR's base branch).
 - `.github/workflows/ci.yml`: build, test, CodeQL, E2E, PR what-if preview, deploy each PR to a
@@ -90,6 +90,8 @@ npm run test:e2e
   API adds any that are missing from `backend/FlashCardSage.Api/SystemDecks/system-decks.json` when it starts, and
   only `SystemDecksController` reads them past the query filter. Importing copies them, so edit the JSON to change
   them: a deck that's already in the database is left as it is, so a changed deck needs a new name or a script.
+  Their pictures are committed in `SystemDecks/images` (made by `scripts/Generate-SystemDeckImages.ps1`), and the API
+  puts them on the cards when it starts (`SystemDeckImageSync`). A new built-in card needs the script run for it too.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
 
 ### Database
@@ -100,8 +102,8 @@ npm run test:e2e
 - When the schema changes, review the preview seed data (`.github/scripts/preview-seed-data.json`,
   loaded through the API by `.github/scripts/seed-preview.sh`) and update it if needed, so new
   previews show the new data (e.g. a new field on cards).
-- Production is Azure SQL serverless, which auto-pauses. Keep the transient-error retry handling
-  in `Program.cs` and `DbUpRunner.cs` intact.
+- Production is an Azure SQL Basic database, but PR previews are serverless and auto-pause. Keep the
+  transient-error retry handling in `Program.cs` and `DbUpRunner.cs` intact.
 
 ### Infrastructure
 

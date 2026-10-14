@@ -27,6 +27,23 @@ internal sealed class FakeImageStore : IImageStore
         return Task.FromResult(url);
     }
 
+    // Saves under the name, unless it's saved already, like the real stores.
+    public Task<string> SaveAsync(string name, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+    {
+        if (SaveFailure is not null)
+        {
+            return Task.FromException<string>(SaveFailure);
+        }
+
+        var url = BaseUrl + name;
+        if (!Saved.Exists(item => item.Url == url))
+        {
+            Saved.Add((url, CardImage.ContentTypeOf(name), data.ToArray()));
+        }
+
+        return Task.FromResult(url);
+    }
+
     public Exception? CopyFailure { get; init; }
 
     // Copies a picture this store saved and hasn't deleted, like the real stores, saving the copy as a new one.

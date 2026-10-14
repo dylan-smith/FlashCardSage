@@ -1,0 +1,2602 @@
+{
+  "Bien, gracias.": {
+    "scene": "A person smiles warmly and places a hand over their heart while nodding, showing they feel good and appreciative.",
+    "file": "bien-gracias.jpg"
+  },
+  "Es la una.": {
+    "scene": "A bright room with a wall clock whose short hand points to 1 and long hand to 12; a single person stands beneath the clock checking their watch and smiling.",
+    "file": "es-la-una.jpg"
+  },
+  "Está delicioso.": {
+    "scene": "A diner closes their eyes in delight with a big smile while holding a fork near their mouth; an almost-empty plate with a few crumbs sits before them.",
+    "file": "esta-delicioso.jpg"
+  },
+  "Está nublado.": {
+    "scene": "An open field under an even layer of gray clouds so the light is soft and diffuse, with no visible sun and a few people walking under umbrellas tucked away.",
+    "file": "esta-nublado.jpg"
+  },
+  "Hace buen tiempo.": {
+    "scene": "A couple riding bicycles on a smooth path with comfortable clothing, gentle sunlight, few small clouds, and relaxed expressions showing pleasant conditions.",
+    "file": "hace-buen-tiempo.jpg"
+  },
+  "Hace calor.": {
+    "scene": "A person sitting on a park bench fanning themselves with a hand, wearing a light T-shirt and sunglasses, with heat shimmer wobbling above the pavement and a brightly glowing sun overhead.",
+    "file": "hace-calor.jpg"
+  },
+  "Hace frío.": {
+    "scene": "A person wrapped in a thick coat, scarf, and hat rubbing their hands together as their breath forms small puffs in the cold air, while bare trees and a frosty ground are visible.",
+    "file": "hace-frio.jpg"
+  },
+  "Hace mal tiempo.": {
+    "scene": "A street with puddles, people hurrying with hoods up and leaning into the wind, dark heavy clouds filling the sky and leaves swirling in the air.",
+    "file": "hace-mal-tiempo.jpg"
+  },
+  "Hace sol.": {
+    "scene": "A picnic scene in a sunny park where a family sits on a blanket, faces turned toward a large warm sun in a clear blue sky, casting crisp shadows.",
+    "file": "hace-sol.jpg"
+  },
+  "Hace viento.": {
+    "scene": "A kite flying high, pulled taut by gusts, while people's hair and tree branches bend strongly in the same direction under a sky with streaky clouds.",
+    "file": "hace-viento.jpg"
+  },
+  "La cuenta, por favor.": {
+    "scene": "A guest sits at a finished table and opens a small wallet while catching the attention of a server approaching with a small tray ready to receive money.",
+    "file": "la-cuenta-por-favor.jpg"
+  },
+  "Llame a la policía.": {
+    "scene": "A bystander holds a phone to their ear with a tense expression while another points toward two uniformed officers running toward a disturbance in the distance.",
+    "file": "llame-a-la-policia.jpg"
+  },
+  "Llame a una ambulancia.": {
+    "scene": "A worried person is crouched next to an unconscious person while holding a phone to their ear and looking urgently toward the street, where headlights approach.",
+    "file": "llame-a-una-ambulancia.jpg"
+  },
+  "Llueve.": {
+    "scene": "A city scene where raindrops create ripples in puddles, people hold umbrellas of many colors, and water splashes from a passing bus tire.",
+    "file": "llueve.jpg"
+  },
+  "Me duele la cabeza.": {
+    "scene": "A person sits with eyes closed, hands pressing both temples, and small wavy lines and tiny stars around their head to show pain.",
+    "file": "me-duele-la-cabeza.jpg"
+  },
+  "Me llamo…": {
+    "scene": "A smiling person points to themselves confidently with an open palm toward their chest while standing in a friendly posture.",
+    "file": "me-llamo.jpg"
+  },
+  "Me lo llevo.": {
+    "scene": "A customer handing a product to the cashier while the cashier places it into a bag and both nod with satisfied expressions.",
+    "file": "me-lo-llevo.jpg"
+  },
+  "Más despacio, por favor.": {
+    "scene": "A listener holds up a slow-down gesture with an open hand moving slowly back and forth while the speaker talks more slowly, making gentle, measured hand motions.",
+    "file": "mas-despacio-por-favor.jpg"
+  },
+  "Necesito un médico.": {
+    "scene": "A pale person sits on a chair and gestures toward their chest while a calm person wearing a white coat and stethoscope leans in to listen.",
+    "file": "necesito-un-medico.jpg"
+  },
+  "Nieva.": {
+    "scene": "A child in a warm coat and mittens looks up with joy as many white flakes float down and settle on the child's hat and shoulders; the ground is beginning to gather a thin white layer.",
+    "file": "nieva.jpg"
+  },
+  "No entiendo.": {
+    "scene": "A person stares with a puzzled expression, shoulders shrugged and palms up, while the other person gestures trying to explain.",
+    "file": "no-entiendo.jpg"
+  },
+  "No hablo mucho español.": {
+    "scene": "A traveler with a small suitcase shrugs and makes a tiny gesture with fingers to show 'not much' toward a person wearing a Spanish-flag pin on their shirt, smiling apologetically.",
+    "file": "no-hablo-mucho-espanol.jpg"
+  },
+  "Quisiera…": {
+    "scene": "A diner at a table leans forward with a polite, expectant expression and one hand on their chest while the other hand points gently toward a dish on a nearby serving cart.",
+    "file": "quisiera.jpg"
+  },
+  "Solo estoy mirando.": {
+    "scene": "A relaxed shopper slowly walking down an aisle, hands behind their back, glancing at items without picking anything up.",
+    "file": "solo-estoy-mirando.jpg"
+  },
+  "Son las dos.": {
+    "scene": "A small kitchen scene where a wall clock shows the short hand on 2 and long hand on 12, and two plates sit on the table ready for lunch.",
+    "file": "son-las-dos.jpg"
+  },
+  "Soy de…": {
+    "scene": "A person proudly points to a small handheld flag or a sticker of a flag on their backpack and smiles to show their origin.",
+    "file": "soy-de.jpg"
+  },
+  "Tengo hambre.": {
+    "scene": "A person sits at a table staring at an empty plate, gently rubbing their stomach with a hopeful, yearning expression.",
+    "file": "tengo-hambre.jpg"
+  },
+  "Tengo sed.": {
+    "scene": "A person reaches for a tall, cold glass with condensation, cheeks slightly flushed and eyes bright with relief at the sight of the drink.",
+    "file": "tengo-sed.jpg"
+  },
+  "Una mesa para dos, por favor.": {
+    "scene": "A hostess gestures with a warm smile toward a small table set for two near a window; two chairs are pulled out and place settings are neatly arranged, no people seated yet.",
+    "file": "una-mesa-para-dos-por-favor.jpg"
+  },
+  "a la derecha": {
+    "scene": "A person at a crosswalk is taking a step to their right while a car turns right at the corner; the movement clearly shows choosing the right-hand direction.",
+    "file": "a-la-derecha.jpg"
+  },
+  "a la izquierda": {
+    "scene": "A cyclist signals with their left arm while turning onto a side street to the left, with the motion and street layout emphasizing the left turn.",
+    "file": "a-la-izquierda.jpg"
+  },
+  "a menudo": {
+    "scene": "A commuter on a train who is surrounded by the same friendly faces each trip, nodding hello to several repeat acquaintances.",
+    "file": "a-menudo.jpg"
+  },
+  "a pie": {
+    "scene": "A person walking along a sidewalk carrying a small backpack, with footsteps or motion marks emphasizing walking and nearby shops.",
+    "file": "a-pie.jpg"
+  },
+  "a veces": {
+    "scene": "A pair of shoes by the door: one clean and polished, the other muddy, suggesting the person sometimes wears each depending on the day.",
+    "file": "a-veces.jpg"
+  },
+  "abierto": {
+    "scene": "A café door stands wide with chairs arranged outside and a warm lamp glowing inside.",
+    "file": "abierto.jpg"
+  },
+  "abril": {
+    "scene": "A person splashes through puddles with a bright umbrella while gentle rain falls and fresh green shoots appear along the sidewalk.",
+    "file": "abril.jpg"
+  },
+  "abrir": {
+    "scene": "Hands turn a kitchen jar lid, raising it to reveal colorful contents inside.",
+    "file": "abrir.jpg"
+  },
+  "aburrido": {
+    "scene": "A person slouches at a desk resting their head on one hand, staring blankly at a clock on the wall while doodles scatter on the paper.",
+    "file": "aburrido.jpg"
+  },
+  "adiós": {
+    "scene": "A person waves with a slightly sad but warm expression while walking away down a path, luggage in hand and someone watching them go.",
+    "file": "adios.jpg"
+  },
+  "agosto": {
+    "scene": "A hot, bright day with a person eating a melting ice cream cone under a large sun umbrella beside a wide, empty pool.",
+    "file": "agosto.jpg"
+  },
+  "ahora": {
+    "scene": "A close-up of a person holding a steaming mug with both hands and looking straight ahead, caught in the present moment.",
+    "file": "ahora.jpg"
+  },
+  "ahora mismo": {
+    "scene": "A person with wide eyes and both hands raised, frozen in motion as a nearby balloon pops, showing immediate reaction.",
+    "file": "ahora-mismo.jpg"
+  },
+  "al lado de": {
+    "scene": "A small café table sits immediately next to a bicycle parked so close that their edges almost touch, showing them side by side.",
+    "file": "al-lado-de.jpg"
+  },
+  "allí": {
+    "scene": "A person points toward a distant lighthouse on the horizon while standing on a shoreline, the pointed finger aimed clearly at that far object.",
+    "file": "alli.jpg"
+  },
+  "alto": {
+    "scene": "A tall basketball player reaches up to touch a rim while a shorter person watches from below.",
+    "file": "alto.jpg"
+  },
+  "amarillo": {
+    "scene": "A bright sunny field where the large sun fills the sky and a bunch of bananas sits on a picnic blanket, casting warm golden light.",
+    "file": "amarillo.jpg"
+  },
+  "anaranjado": {
+    "scene": "A cozy kitchen table with a round citrus fruit and a carved pumpkin beside a steaming mug, sunlight highlighting their orange tones.",
+    "file": "anaranjado.jpg"
+  },
+  "anteayer": {
+    "scene": "Three footprints in wet sand leading to the shore, with the nearest footprint partly faded by small waves, emphasizing a step two places back.",
+    "file": "anteayer.jpg"
+  },
+  "antes": {
+    "scene": "Two people sitting at a table; one cleans their hands with a napkin while the other is reaching for a plate, showing the cleaning happened first.",
+    "file": "antes.jpg"
+  },
+  "aprender": {
+    "scene": "A child watches an adult patiently demonstrating how to tie shoelaces, concentrating.",
+    "file": "aprender.jpg"
+  },
+  "aquí": {
+    "scene": "A hand points down and its fingertip touches the ground next to a pair of shoes, with the focus on the immediate spot under the finger.",
+    "file": "aqui.jpg"
+  },
+  "asustado": {
+    "scene": "A person jumps back with wide eyes and a hand to their chest as a shadowy shape looms behind a partially opened door.",
+    "file": "asustado.jpg"
+  },
+  "avergonzado": {
+    "scene": "A person blushes deeply, looks down and covers part of their face with one hand while a few nearby people smile supportively.",
+    "file": "avergonzado.jpg"
+  },
+  "ayer": {
+    "scene": "An empty picnic blanket in a park with a half-eaten sandwich wrapper and footprints leading away, as a golden late-afternoon sun sinks low.",
+    "file": "ayer.jpg"
+  },
+  "ayudar": {
+    "scene": "One person steadies another who is tying their shoe, offering a supportive hand on the shoulder.",
+    "file": "ayudar.jpg"
+  },
+  "azul": {
+    "scene": "A calm seaside with a small sailboat floating on deep blue water under a clear sky, a child on the shore tossing a blue ball toward the waves.",
+    "file": "azul.jpg"
+  },
+  "bajo": {
+    "scene": "A child stands on tiptoe trying to reach a low tree branch while an adult easily holds it.",
+    "file": "bajo.jpg"
+  },
+  "barato": {
+    "scene": "A person happily buys a simple item from a street stall, exchanging a few coins and smiling.",
+    "file": "barato.jpg"
+  },
+  "beber": {
+    "scene": "Someone lifts a cold glass to their lips and takes a long drink, condensation on the glass.",
+    "file": "beber.jpg"
+  },
+  "blanco": {
+    "scene": "A snowy hill with a smiling snow figure wearing a scarf and a white cloud drifting in a pale winter sky.",
+    "file": "blanco.jpg"
+  },
+  "bonito": {
+    "scene": "A person admires a colorful bouquet of flowers arranged neatly in a vase, smiling happily.",
+    "file": "bonito.jpg"
+  },
+  "buenas noches": {
+    "scene": "A quiet street under a dark sky with streetlamps on; two people exchange a gentle wave while one looks ready to go home.",
+    "file": "buenas-noches.jpg"
+  },
+  "buenas tardes": {
+    "scene": "A small café terrace in warm afternoon light where two people greet each other with relaxed smiles and one raises a coffee cup slightly.",
+    "file": "buenas-tardes.jpg"
+  },
+  "bueno": {
+    "scene": "A person helps another up after a fall, both smiling in a warm kitchen scene.",
+    "file": "bueno.jpg"
+  },
+  "buenos días": {
+    "scene": "Two people meet outside a house in soft morning light with a low sun and birds in the sky; they smile and one shades their eyes from the sun.",
+    "file": "buenos-dias.jpg"
+  },
+  "buscar": {
+    "scene": "Someone kneels and parts tall grass with both hands while peering down, searching.",
+    "file": "buscar.jpg"
+  },
+  "caliente": {
+    "scene": "Steam rises from a bowl of soup on a table and a person blows gently to cool it before tasting.",
+    "file": "caliente.jpg"
+  },
+  "caminar": {
+    "scene": "A couple strolls hand in hand down a tree-lined sidewalk, taking an easy pace.",
+    "file": "caminar.jpg"
+  },
+  "cansado": {
+    "scene": "A person collapses into a chair with drooping eyes, slippers on their feet and a blanket half-wrapped around them.",
+    "file": "cansado.jpg"
+  },
+  "caro": {
+    "scene": "A person looks surprised while holding a small, shiny item and seeing a price tag held by another hand (no numbers visible).",
+    "file": "caro.jpg"
+  },
+  "catorce": {
+    "scene": "Fourteen tiny stars painted on a dark night sky above a sleeping child looking out a window.",
+    "file": "catorce.jpg"
+  },
+  "celeste": {
+    "scene": "A child flying a kite on a breezy day against a soft, pale blue sky with a few wispy clouds.",
+    "file": "celeste.jpg"
+  },
+  "celoso": {
+    "scene": "A person watches another person laughing and leaning close to a third person, folding their arms and glancing away with tight lips.",
+    "file": "celoso.jpg"
+  },
+  "cerca": {
+    "scene": "A child and a dog stand very close to each other on a park bench, with the child reaching out to pat the dog and both filling most of the bench space.",
+    "file": "cerca.jpg"
+  },
+  "cero": {
+    "scene": "An empty picnic blanket in a park with no food or objects on it; a single ant walks across the blank space under a sunny sky.",
+    "file": "cero.jpg"
+  },
+  "cerrado": {
+    "scene": "A storefront door is shut and the lights are off, with a single closed chair visible through the dark window.",
+    "file": "cerrado.jpg"
+  },
+  "cerrar": {
+    "scene": "A shop owner lowers a metal gate across a storefront at dusk, reaching up to secure it.",
+    "file": "cerrar.jpg"
+  },
+  "cien": {
+    "scene": "A perfect square of ten rows with ten tiny gold stars each, forming a compact, even block on a plain background.",
+    "file": "cien.jpg"
+  },
+  "cinco": {
+    "scene": "A hand showing five fingers spread wide while a plate of five cookies sits nearby.",
+    "file": "cinco.jpg"
+  },
+  "cincuenta": {
+    "scene": "Five straight rows of ten shiny apples on a long wooden table, a hand picking one from the middle row.",
+    "file": "cincuenta.jpg"
+  },
+  "cocinar": {
+    "scene": "A person stands at a stove stirring a colorful pot while fresh vegetables sit on the counter.",
+    "file": "cocinar.jpg"
+  },
+  "comer": {
+    "scene": "A person sits at a table biting into a sandwich with a plate and a glass nearby.",
+    "file": "comer.jpg"
+  },
+  "comprar": {
+    "scene": "A shopper exchanges coins with a vendor as a bag with a loaf of bread and fruit is handed over.",
+    "file": "comprar.jpg"
+  },
+  "con permiso": {
+    "scene": "In a crowded bus, a person smiles and squeezes past someone while saying sorry and raising a palm in a polite, requesting way to move by.",
+    "file": "con-permiso.jpg"
+  },
+  "conocer": {
+    "scene": "Two people shake hands warmly in front of a landmark building as if meeting for the first time.",
+    "file": "conocer.jpg"
+  },
+  "contento": {
+    "scene": "A person sits on a bench smiling gently while holding a warm cup and watching a calm pond at golden hour.",
+    "file": "contento.jpg"
+  },
+  "correr": {
+    "scene": "A jogger strides quickly along a riverside path, hair and jacket fluttering in the breeze.",
+    "file": "correr.jpg"
+  },
+  "corto": {
+    "scene": "A short scarf sits neatly folded on a bench next to a long scarf draped across it for contrast.",
+    "file": "corto.jpg"
+  },
+  "creer": {
+    "scene": "A person gazes at a shooting star with hands clasped and a hopeful, trusting expression.",
+    "file": "creer.jpg"
+  },
+  "cuarenta": {
+    "scene": "Four neat rows of ten bright beach balls arranged on sand in a rectangle, a child reaching to grab one.",
+    "file": "cuarenta.jpg"
+  },
+  "cuarto": {
+    "scene": "A bookshelf with four picture frames in a row, the fourth frame from the left slightly pulled forward and its owner standing beside it pointing at that frame.",
+    "file": "cuarto.jpg"
+  },
+  "cuatro": {
+    "scene": "Four wooden blocks stacked in a neat square beside a toy train on a play rug.",
+    "file": "cuatro.jpg"
+  },
+  "cuatrocientos": {
+    "scene": "Four matching star squares arranged in a neat rectangle, a child placing the last square next to the others.",
+    "file": "cuatrocientos.jpg"
+  },
+  "dar": {
+    "scene": "One person extends a wrapped present toward another who reaches out with both hands to receive it.",
+    "file": "dar.jpg"
+  },
+  "de nada": {
+    "scene": "One person waves their hand in a relaxed, dismissive gesture while smiling reassuringly at another who looks relieved.",
+    "file": "de-nada.jpg"
+  },
+  "decir": {
+    "scene": "Two people face each other, one leaning forward with an open mouth and animated hand gestures while the other listens.",
+    "file": "decir.jpg"
+  },
+  "delante de": {
+    "scene": "A person standing directly in front of a closed house door, hands on hips, with the rest of the porch visible behind them.",
+    "file": "delante-de.jpg"
+  },
+  "después": {
+    "scene": "A chef handing a plated dessert to a smiling diner after clearing away the main-course plates from the table.",
+    "file": "despues.jpg"
+  },
+  "detrás de": {
+    "scene": "A child peeking around the back side of a large tree so only part of the child is visible, with the tree trunk mostly in front.",
+    "file": "detras-de.jpg"
+  },
+  "diciembre": {
+    "scene": "A cozy indoor scene of a decorated evergreen tree with lights and several wrapped presents underneath while soft snow falls outside the window.",
+    "file": "diciembre.jpg"
+  },
+  "diecinueve": {
+    "scene": "Nineteen small toy cars parked in orderly lines on a play mat designed like a town.",
+    "file": "diecinueve.jpg"
+  },
+  "dieciocho": {
+    "scene": "Eighteen colorful party hats scattered across a floor after a celebration, with a deflated balloon nearby.",
+    "file": "dieciocho.jpg"
+  },
+  "diecisiete": {
+    "scene": "Seventeen paper boats floating in a shallow pond with ripples and a child gently blowing on them.",
+    "file": "diecisiete.jpg"
+  },
+  "dieciséis": {
+    "scene": "Sixteen apples arranged in a neat rectangle on a market stall table with a striped awning overhead.",
+    "file": "dieciseis.jpg"
+  },
+  "diez": {
+    "scene": "Ten smiling children forming a loose circle and holding hands in a sunny park.",
+    "file": "diez.jpg"
+  },
+  "difícil": {
+    "scene": "A person frowns while trying to fit a complicated knot into a tangled rope, scratching their head.",
+    "file": "dificil.jpg"
+  },
+  "disculpe": {
+    "scene": "A person stands politely beside a seated stranger and gently taps the armrest with a respectful, attentive expression as if trying to get their attention.",
+    "file": "disculpe.jpg"
+  },
+  "doce": {
+    "scene": "Twelve bees buzzing around a patch of twelve identical bright flowers in a garden under a clear sky.",
+    "file": "doce.jpg"
+  },
+  "domingo": {
+    "scene": "A person in cozy clothes sits by a sunny window sipping a mug while a cat naps on their lap and a simple plate with fresh fruit sits on a small table nearby.",
+    "file": "domingo.jpg"
+  },
+  "dorado": {
+    "scene": "A small treasure chest slightly open on the sand showing gleaming coins and a shiny medal catching warm sunlight.",
+    "file": "dorado.jpg"
+  },
+  "dormir": {
+    "scene": "A child tucked into bed with a stuffed animal, eyes closed, moonlight through the window.",
+    "file": "dormir.jpg"
+  },
+  "dos": {
+    "scene": "Two yellow rubber ducks floating side by side in a bathtub with small splashes of water around them.",
+    "file": "dos.jpg"
+  },
+  "doscientos": {
+    "scene": "Two identical star squares like the previous one placed side by side on a table, a person pointing at both.",
+    "file": "doscientos.jpg"
+  },
+  "débil": {
+    "scene": "A person struggles to lift a single lightweight box, hands trembling and shoulders slumped.",
+    "file": "debil.jpg"
+  },
+  "décimo": {
+    "scene": "Ten wooden blocks stacked in a tower and a child gently placing the tenth block on top, smiling as the tower grows.",
+    "file": "decimo.jpg"
+  },
+  "el abogado": {
+    "scene": "A person in a suit talks with another person across a table while holding a stack of papers and pointing thoughtfully to documents and a scale symbol on a decorative object in the room.",
+    "file": "el-abogado.jpg"
+  },
+  "el abrigo": {
+    "scene": "A person standing on a windy, cold street putting on a long warm outer layer with large buttons and a high collar, breath visible in the cold air.",
+    "file": "el-abrigo.jpg"
+  },
+  "el abuelo": {
+    "scene": "An elderly man with gray hair and glasses sitting in an armchair, knitting or holding a small model boat on his lap.",
+    "file": "el-abuelo.jpg"
+  },
+  "el accidente": {
+    "scene": "Two bicycles lie tangled on a sidewalk with one rider sitting on the ground holding their arm and another rider standing nearby looking shaken while a helmet lies nearby.",
+    "file": "el-accidente.jpg"
+  },
+  "el aceite": {
+    "scene": "A glass bottle of golden liquid being poured in a slow stream into a pan, light catching the oil's sheen.",
+    "file": "el-aceite.jpg"
+  },
+  "el aeropuerto": {
+    "scene": "A wide building with large glass windows showing planes on the tarmac outside and travelers with luggage entering through automatic doors.",
+    "file": "el-aeropuerto.jpg"
+  },
+  "el agricultor": {
+    "scene": "A person wearing a wide-brimmed hat stands in a field holding a basket of vegetables, with rows of crops behind them and a red barn in the distance under a sunny sky.",
+    "file": "el-agricultor.jpg"
+  },
+  "el agua": {
+    "scene": "A clear pitcher pouring still water into a plain glass on a table, sunlight glinting on the surface and a small splash visible.",
+    "file": "el-agua.jpg"
+  },
+  "el agua con gas": {
+    "scene": "A clear bottle being opened with many visible tiny bubbles rising in the glass beside it, bright and effervescent.",
+    "file": "el-agua-con-gas.jpg"
+  },
+  "el aguacate": {
+    "scene": "A ripe avocado halved, one half showing the large pit and the other scooped to reveal smooth green flesh with a spoon inside. A slice of toast with a smear of green avocado sits on a plate nearby.",
+    "file": "el-aguacate.jpg"
+  },
+  "el ajo": {
+    "scene": "A cluster of garlic bulbs with papery skins on a wooden board, one bulb broken open to reveal several cloves. A small pan on the stove with oil ready to be used sits in the background.",
+    "file": "el-ajo.jpg"
+  },
+  "el almuerzo": {
+    "scene": "Two coworkers sitting at an outdoor cafe at midday, each with a plate of a main dish and a small salad, chatting and eating.",
+    "file": "el-almuerzo.jpg"
+  },
+  "el animal": {
+    "scene": "A small assortment of different creatures—a bird flying, a fish swimming in a bowl, and a cat sitting—arranged together on a plain background to show a mixed group of living animals.",
+    "file": "el-animal.jpg"
+  },
+  "el apartamento": {
+    "scene": "A multi-story building with several stacked balconies, different colored curtains visible in each window, and a person standing on one balcony waving.",
+    "file": "el-apartamento.jpg"
+  },
+  "el armario": {
+    "scene": "A tall wardrobe with its doors open showing hanging clothes on a rail and a few folded items on a shelf.",
+    "file": "el-armario.jpg"
+  },
+  "el arroz": {
+    "scene": "A steaming bowl with small white grains piled high, a pair of chopsticks resting across the bowl, and steam rising in a cozy kitchen.",
+    "file": "el-arroz.jpg"
+  },
+  "el artista": {
+    "scene": "A person stands at an easel painting a colorful canvas with bold brushstrokes, surrounded by paint tubes, brushes in a jar, and finished paintings leaning against the wall.",
+    "file": "el-artista.jpg"
+  },
+  "el autobús": {
+    "scene": "A long bus stopped at a curb with several people boarding through the open door and a driver visible through the front windshield.",
+    "file": "el-autobus.jpg"
+  },
+  "el avión": {
+    "scene": "A large airplane flying above clouds with clear blue sky and a tiny airport runway far below to indicate travel.",
+    "file": "el-avion.jpg"
+  },
+  "el ayuntamiento": {
+    "scene": "An official-looking building with a flagpole in front and a few people gathered on the steps, someone holding a folder and talking to others.",
+    "file": "el-ayuntamiento.jpg"
+  },
+  "el azúcar": {
+    "scene": "A sugar bowl beside a cup, with a spoon scooping granular white crystals, and a sprinkling falling into the cup.",
+    "file": "el-azucar.jpg"
+  },
+  "el año": {
+    "scene": "Four panels in a single image showing the same tree in four different seasons: blossoming, full green leaves, colorful leaves falling, and bare with snow.",
+    "file": "el-ano.jpg"
+  },
+  "el banco": {
+    "scene": "A formal stone building with columns at the entrance; people queue outside and someone is carrying a bag of coins.",
+    "file": "el-banco.jpg"
+  },
+  "el barco": {
+    "scene": "A medium-sized ship on calm water with a few passengers on deck enjoying the view and seagulls flying overhead.",
+    "file": "el-barco.jpg"
+  },
+  "el baño": {
+    "scene": "A room with a sink, a toilet, and a bathtub with a rubber duck on the tub edge and a folded towel nearby.",
+    "file": "el-bano.jpg"
+  },
+  "el bebé": {
+    "scene": "A tiny infant sleeping in a cozy bassinet with a soft mobile hanging overhead and a stuffed animal nearby.",
+    "file": "el-bebe.jpg"
+  },
+  "el boleto": {
+    "scene": "A close-up of a hand holding a small rectangular slip between thumb and finger, with other hands reaching and a queue in the background.",
+    "file": "el-boleto.jpg"
+  },
+  "el bombero": {
+    "scene": "A person in a helmet and heavy protective gear sprays water from a hose at a small illustrated fire while helping another person move away from smoke, with a fire truck in the background.",
+    "file": "el-bombero.jpg"
+  },
+  "el brazo": {
+    "scene": "An arm extended to hold a small watering can, showing the full length from shoulder to hand with a garden background blurred.",
+    "file": "el-brazo.jpg"
+  },
+  "el brócoli": {
+    "scene": "A vibrant green broccoli crown on a kitchen counter, one stalk trimmed and several small florets separated ready for steaming. A steaming basket with a little steam rising sits next to it.",
+    "file": "el-brocoli.jpg"
+  },
+  "el caballo": {
+    "scene": "A horse standing in a grassy field with a simple wooden fence nearby and its mane blowing gently in the wind.",
+    "file": "el-caballo.jpg"
+  },
+  "el café": {
+    "scene": "A steaming dark mug on a saucer with a few coffee beans scattered beside it, morning light and a croissant on a napkin.",
+    "file": "el-cafe.jpg"
+  },
+  "el cambio": {
+    "scene": "A shop counter where a smiling cashier hands a few coins back to a customer who has just paid.",
+    "file": "el-cambio.jpg"
+  },
+  "el cantante": {
+    "scene": "A person stands on a small stage holding a microphone with closed eyes and a joyful expression, musical notes floating in the air and a small spotlight shining down.",
+    "file": "el-cantante.jpg"
+  },
+  "el carpintero": {
+    "scene": "A carpenter in overalls measuring a wooden plank with a yellow tape measure on a workbench, with a half-built bookshelf nearby.",
+    "file": "el-carpintero.jpg"
+  },
+  "el centro": {
+    "scene": "A crowded area with many people, shops and a central plaza visible, a tram or bus stop where people are getting on and off.",
+    "file": "el-centro.jpg"
+  },
+  "el centro comercial": {
+    "scene": "A wide exterior view of a large building with multiple entrances, people walking between stores and benches in an open plaza.",
+    "file": "el-centro-comercial.jpg"
+  },
+  "el cerdo": {
+    "scene": "A plump pig happily wallowing in a shallow muddy puddle on a farmyard with a wooden trough nearby.",
+    "file": "el-cerdo.jpg"
+  },
+  "el chocolate": {
+    "scene": "A few broken pieces of dark brown chocolate on a small plate, with one piece being lifted and a faint melt on the edges.",
+    "file": "el-chocolate.jpg"
+  },
+  "el chocolate caliente": {
+    "scene": "A cozy mug overflowing with dark hot drink, topped with whipped cream and two marshmallows, wisps of steam rising.",
+    "file": "el-chocolate-caliente.jpg"
+  },
+  "el cine": {
+    "scene": "A dark interior showing rows of seats facing a large blank screen, people settling in with popcorn and drinks.",
+    "file": "el-cine.jpg"
+  },
+  "el cinturón": {
+    "scene": "A close-up of hands threading a belt through the loops of trousers and fastening the buckle in front of a mirror.",
+    "file": "el-cinturon.jpg"
+  },
+  "el coche": {
+    "scene": "A small friendly car parked on a quiet suburban street with a smiling driver waving from the window and a tree and house in the background.",
+    "file": "el-coche.jpg"
+  },
+  "el cocinero": {
+    "scene": "A person wearing an apron flips food in a frying pan at a busy kitchen stove while tasting a spoonful and smiling, with pots and fresh ingredients around them.",
+    "file": "el-cocinero.jpg"
+  },
+  "el codo": {
+    "scene": "A bent arm seen from the side with the elbow forming a clear angle, the hand resting on the hip to emphasize the joint.",
+    "file": "el-codo.jpg"
+  },
+  "el comedor": {
+    "scene": "A room with a rectangular table set for a meal with plates and glasses, and four chairs around it under a hanging light.",
+    "file": "el-comedor.jpg"
+  },
+  "el conductor": {
+    "scene": "A person in a uniform sits in the driver's seat of a bus, hands on the wheel, with passengers visible through the bus aisle and a city street through the windshield.",
+    "file": "el-conductor.jpg"
+  },
+  "el conejo": {
+    "scene": "A soft-eared rabbit nibbling on a carrot while sitting in a patch of grass, ears perked up and eyes bright.",
+    "file": "el-conejo.jpg"
+  },
+  "el corazón": {
+    "scene": "A friendly medical-style cutaway on the chest area showing a simple anatomical heart shape inside the torso, with soft glow to suggest importance.",
+    "file": "el-corazon.jpg"
+  },
+  "el cuchillo": {
+    "scene": "A slice of toast on a plate with a butter knife spreading strawberry jam across it.",
+    "file": "el-cuchillo.jpg"
+  },
+  "el cuello": {
+    "scene": "A view from the shoulders up showing the neck clearly, with a light scarf being adjusted to draw attention to the neck area.",
+    "file": "el-cuello.jpg"
+  },
+  "el cuerpo": {
+    "scene": "A full-length front view of a smiling person standing with arms slightly away from the sides so the whole outline is visible, on a plain soft-colored background.",
+    "file": "el-cuerpo.jpg"
+  },
+  "el dedo": {
+    "scene": "A single index finger pointing upward, shown from the front with the nail visible and the rest of the hand slightly out of focus.",
+    "file": "el-dedo.jpg"
+  },
+  "el dentista": {
+    "scene": "A friendly person in a dental mask leans over a reclining patient in a bright exam chair, holding a mirror and a small dental tool while a tray with shiny instruments sits nearby.",
+    "file": "el-dentista.jpg"
+  },
+  "el desayuno": {
+    "scene": "A small kitchen table in morning light with a steaming mug, a plate with toast and fruit, and a person pouring juice while sunlight comes through a window.",
+    "file": "el-desayuno.jpg"
+  },
+  "el descuento": {
+    "scene": "Two shoppers comparing the same item; one shows the other holding a smaller stack of coins while both look pleased.",
+    "file": "el-descuento.jpg"
+  },
+  "el diente": {
+    "scene": "A bright close-up of a single clean tooth held between two fingers of a gloved hand, with a small sparkle indicating cleanliness.",
+    "file": "el-diente.jpg"
+  },
+  "el dinero": {
+    "scene": "A hand holding a fanned stack of paper bills over a wooden table with other hands reaching toward them.",
+    "file": "el-dinero.jpg"
+  },
+  "el dolor": {
+    "scene": "A person stands hunched, face tightened and eyes closed, holding one hand against their lower stomach with small radiating lines to show discomfort.",
+    "file": "el-dolor.jpg"
+  },
+  "el dormitorio": {
+    "scene": "A cozy room with a bed, a bedside table with a lamp, and a small rug, with a person tucking themselves into the covers.",
+    "file": "el-dormitorio.jpg"
+  },
+  "el durazno": {
+    "scene": "A fuzzy peach with a warm orange-pink color resting on a napkin, one peach gently split to reveal the pit inside. A small bee hovers nearby attracted to the fruit.",
+    "file": "el-durazno.jpg"
+  },
+  "el día": {
+    "scene": "An outdoor scene in bright daylight with a clear sky, children playing, and strong shadows indicating midday activity.",
+    "file": "el-dia.jpg"
+  },
+  "el edificio": {
+    "scene": "A medium-height multi-story structure with many windows and a main entrance, a delivery person carrying a box toward the door.",
+    "file": "el-edificio.jpg"
+  },
+  "el efectivo": {
+    "scene": "A person counting paper bills at a market stall while a pile of bills sits next to a small bowl of coins.",
+    "file": "el-efectivo.jpg"
+  },
+  "el elefante": {
+    "scene": "A big elephant standing with its trunk raised, large ears spread, and a small bird perched on its back in a plain landscape.",
+    "file": "el-elefante.jpg"
+  },
+  "el enfermero": {
+    "scene": "A person in scrubs kneels beside a bed, adjusting an IV drip for a patient with a reassuring smile while a heart monitor shows a steady pulse.",
+    "file": "el-enfermero.jpg"
+  },
+  "el espejo": {
+    "scene": "A wall-mounted mirror reflecting the front of a person adjusting their hair, with a small plant on a nearby table visible in the reflection.",
+    "file": "el-espejo.jpg"
+  },
+  "el esposo": {
+    "scene": "A man in a suit placing a jacket over an adult woman's shoulders at the entrance of a party, both smiling.",
+    "file": "el-esposo.jpg"
+  },
+  "el este": {
+    "scene": "A calm morning beach with the sun low over the water, pale yellow rays spreading across the sky while a person on the shore faces the brightening horizon and a rooster stands on a nearby fence.",
+    "file": "el-este.jpg"
+  },
+  "el estudiante": {
+    "scene": "A young person sits at a small desk writing in a notebook with a backpack on the floor and textbooks stacked nearby, concentrating.",
+    "file": "el-estudiante.jpg"
+  },
+  "el estómago": {
+    "scene": "A person sitting and gently holding their stomach with both hands, expression relaxed, stomach area clearly visible through clothing.",
+    "file": "el-estomago.jpg"
+  },
+  "el fin de semana": {
+    "scene": "A horizontal row of seven icons where the last two are larger and show relaxed activities — a hammock and a picnic — set apart from five smaller work icons.",
+    "file": "el-fin-de-semana.jpg"
+  },
+  "el gallo": {
+    "scene": "A proud rooster standing tall on a fencepost with its chest puffed out and a flourish of colorful tail feathers behind it.",
+    "file": "el-gallo.jpg"
+  },
+  "el garaje": {
+    "scene": "A garage with its wide door open showing a parked car inside, a bicycle leaning against the wall and a toolbox on a shelf.",
+    "file": "el-garaje.jpg"
+  },
+  "el gato": {
+    "scene": "A friendly domestic cat curled up and purring on a sunny windowsill, tail wrapped around its body and whiskers visible.",
+    "file": "el-gato.jpg"
+  },
+  "el gimnasio": {
+    "scene": "An indoor gym with exercise machines, a person lifting weights and another on a treadmill, and a water bottle on a nearby bench.",
+    "file": "el-gimnasio.jpg"
+  },
+  "el helado": {
+    "scene": "A child holding a cone with two scoops of frozen treat, one scoop starting to melt and drip down the cone in warm weather.",
+    "file": "el-helado.jpg"
+  },
+  "el hermano": {
+    "scene": "A boy older than another child, laughing as he hands a toy car to the younger child on the floor.",
+    "file": "el-hermano.jpg"
+  },
+  "el hielo": {
+    "scene": "Several clear ice cubes on a small plate and a few cubes dropping into a glass, cold condensation on the glass.",
+    "file": "el-hielo.jpg"
+  },
+  "el hijo": {
+    "scene": "A school-age boy wearing a backpack, waving goodbye at the front door as an adult hugs him.",
+    "file": "el-hijo.jpg"
+  },
+  "el hombro": {
+    "scene": "A three-quarter view of a person shrugging slightly so one shoulder is raised and the other relaxed, showing the shoulder contour.",
+    "file": "el-hombro.jpg"
+  },
+  "el hospital": {
+    "scene": "A large building with an ambulance parked at the entrance and medical staff in scrubs helping someone on a stretcher into the doors.",
+    "file": "el-hospital.jpg"
+  },
+  "el hotel": {
+    "scene": "A traveller with a suitcase walking up to a tall building with many balconies, a revolving glass door and a doorman in uniform.",
+    "file": "el-hotel.jpg"
+  },
+  "el huevo": {
+    "scene": "A frying pan on a stove with a single sunny-side-up egg cooking, a spatula ready beside it and a cracked eggshell on the counter.",
+    "file": "el-huevo.jpg"
+  },
+  "el ingeniero": {
+    "scene": "A person wearing a hard hat and safety vest studies blueprints spread on a table while a bridge model and a toolbox sit beside them at a sunny construction site.",
+    "file": "el-ingeniero.jpg"
+  },
+  "el invierno": {
+    "scene": "A quiet neighborhood blanketed with fresh white snow as a person in a warm coat, hat, and mittens rolls a large snowball while another nearby carves a carrot nose for a nearby snowman. Pale cool light, visible breath, and smoke rising from a distant chimney show the cold season.",
+    "file": "el-invierno.jpg"
+  },
+  "el jamón": {
+    "scene": "Thin pink slices of cured meat arranged on a plate, a person picking up one slice with their fingers.",
+    "file": "el-jamon.jpg"
+  },
+  "el jardín": {
+    "scene": "An outdoor yard with a green lawn, colorful flower beds, a birdbath, and a child watering plants with a watering can.",
+    "file": "el-jardin.jpg"
+  },
+  "el jefe": {
+    "scene": "A person in a suit stands at the head of a conference table speaking to three seated colleagues, pointing to a large chart with colored shapes but no words.",
+    "file": "el-jefe.jpg"
+  },
+  "el jugo": {
+    "scene": "A tall glass filled with bright orange juice and condensation on the outside, surrounded by a halved orange and a straw.",
+    "file": "el-jugo.jpg"
+  },
+  "el león": {
+    "scene": "A large lion resting on a warm rock in open savanna, with a majestic mane and a relaxed, watchful expression.",
+    "file": "el-leon.jpg"
+  },
+  "el limón": {
+    "scene": "A yellow lemon cut into wedges on a small dish, with a wedge being squeezed and tiny droplets of juice flying into a glass. A cheerful sun shines in the background.",
+    "file": "el-limon.jpg"
+  },
+  "el lobo": {
+    "scene": "A wolf standing on a snowy ridge under a pale sky, howling with head tilted up and breath visible in the cold air.",
+    "file": "el-lobo.jpg"
+  },
+  "el maestro": {
+    "scene": "A person stands at the front of a classroom pointing to a chalkboard full of simple shapes while several children raise their hands, all smiling.",
+    "file": "el-maestro.jpg"
+  },
+  "el mango": {
+    "scene": "A ripe mango with orange-yellow skin on a plate, one half sliced into a grid pattern and turned outward to show the juicy cubes. A hand holds the mango half ready to eat.",
+    "file": "el-mango.jpg"
+  },
+  "el mapa": {
+    "scene": "A person holding an open fold-out map with simple drawings of a river, a few buildings, and a dotted route, looking down at it.",
+    "file": "el-mapa.jpg"
+  },
+  "el maíz": {
+    "scene": "Three ears of corn with bright yellow kernels, one ear partially shucked to reveal the rows of kernels and green husk folded back. A backyard barbecue grill with light smoke rises in the background.",
+    "file": "el-maiz.jpg"
+  },
+  "el mecánico": {
+    "scene": "A person in coveralls works under a car that is raised on a hydraulic lift, holding a wrench with a toolbox open nearby and a small puddle of oil on the floor.",
+    "file": "el-mecanico.jpg"
+  },
+  "el mediodía": {
+    "scene": "A sunny outdoor plaza with the sun high overhead and a clock on a pole showing both hands at 12; people sit at tables eating.",
+    "file": "el-mediodia.jpg"
+  },
+  "el menú": {
+    "scene": "A person sitting at a table looking at a folded small booklet that another person is holding open toward them; the booklet's pages are blank and the diner points at a choice.",
+    "file": "el-menu.jpg"
+  },
+  "el mercado": {
+    "scene": "An outdoor scene of closely packed stalls under colorful umbrellas selling fruits, vegetables and flowers, with customers inspecting produce and vendors arranging displays.",
+    "file": "el-mercado.jpg"
+  },
+  "el mes": {
+    "scene": "A wall with a rectangular grid of many small blank squares (no writing), and a few tiny stickers on several squares to suggest days within a month.",
+    "file": "el-mes.jpg"
+  },
+  "el mesero": {
+    "scene": "A smiling server wearing an apron carrying a tray with two drinks and a covered dish, walking between tables while guests look up to greet them.",
+    "file": "el-mesero.jpg"
+  },
+  "el metro": {
+    "scene": "A subway train arriving at an underground platform with commuters waiting and tiled walls and lights above.",
+    "file": "el-metro.jpg"
+  },
+  "el minuto": {
+    "scene": "A stopwatch held in a hand with the small minute dial visible and a second hand slightly blurred to show short passage, on a plain background.",
+    "file": "el-minuto.jpg"
+  },
+  "el mono": {
+    "scene": "A monkey swinging from a vine between tree branches, tail curled and a playful expression on its face.",
+    "file": "el-mono.jpg"
+  },
+  "el museo": {
+    "scene": "A stately building with columns and a large sculpture on the front lawn; visitors walk up the steps toward the entrance carrying audio guides.",
+    "file": "el-museo.jpg"
+  },
+  "el médico": {
+    "scene": "A person wearing a stethoscope around their neck gently listens to an older person's chest with a calm expression in a bright clinic room with a nearby medical cart and a window.",
+    "file": "el-medico.jpg"
+  },
+  "el nieto": {
+    "scene": "A small boy sitting on an older man's knee, both laughing as they look at a photo album together.",
+    "file": "el-nieto.jpg"
+  },
+  "el norte": {
+    "scene": "A round compass with a single bold arrow pointing toward the top of the image, placed over a simple landscape of hills and a sun near the top edge.",
+    "file": "el-norte.jpg"
+  },
+  "el novio": {
+    "scene": "A young man nervously holding a small bouquet behind his back while approaching another young person outdoors.",
+    "file": "el-novio.jpg"
+  },
+  "el oeste": {
+    "scene": "A warm orange-red sky as the sun sinks near the horizon over a small town, long shadows stretching toward the viewer while a couple sits on a bench watching the sun dip and birds fly home.",
+    "file": "el-oeste.jpg"
+  },
+  "el ojo": {
+    "scene": "A close-up of a single open eye with long lashes and a small reflection of light, a relaxed eyebrow above and skin around it visible.",
+    "file": "el-ojo.jpg"
+  },
+  "el oso": {
+    "scene": "A bear sitting on its haunches near a riverbank, paw resting on a smooth rock with a few fish splashing in the water.",
+    "file": "el-oso.jpg"
+  },
+  "el otoño": {
+    "scene": "A tree-lined sidewalk with leaves in shades of orange, red, and yellow falling to the ground while a person happily jumps into a pile of leaves beside a park bench. Soft golden light and a few bare branches hint that many leaves have already fallen.",
+    "file": "el-otono.jpg"
+  },
+  "el padre": {
+    "scene": "A man kneeling beside a bicycle, using a wrench to fix the chain while a child watches nearby.",
+    "file": "el-padre.jpg"
+  },
+  "el pan": {
+    "scene": "A baker placing a round loaf on a wooden counter, with several different loaves and a dusting of flour around.",
+    "file": "el-pan.jpg"
+  },
+  "el parque": {
+    "scene": "A green area with walking paths, tall trees, a pond with ducks, families having a picnic and a couple jogging.",
+    "file": "el-parque.jpg"
+  },
+  "el pasaporte": {
+    "scene": "A hand holding a small dark booklet with a visible passport-sized photo area suggested by a face silhouette and a stamp pad beside it.",
+    "file": "el-pasaporte.jpg"
+  },
+  "el pastel": {
+    "scene": "A round layered cake on a stand with one slice missing, candles unlit and a person reaching for the slice with a plate.",
+    "file": "el-pastel.jpg"
+  },
+  "el pato": {
+    "scene": "A duck floating on a calm pond, leaving a small trail of ripples, with a few lily pads nearby.",
+    "file": "el-pato.jpg"
+  },
+  "el pecho": {
+    "scene": "A chest area of a person wearing a simple shirt, with two hands placed flat over the center of the chest as if feeling the chest.",
+    "file": "el-pecho.jpg"
+  },
+  "el pelo": {
+    "scene": "A friendly person seen from the side with long hair being brushed by another hand, showing strands and movement in the hair.",
+    "file": "el-pelo.jpg"
+  },
+  "el peluquero": {
+    "scene": "A friendly person stands behind a seated client covered with a salon cape, snipping hair with scissors while a large round mirror and bottles of shampoo and combs sit on a nearby counter.",
+    "file": "el-peluquero.jpg"
+  },
+  "el pepino": {
+    "scene": "A long green cucumber on a table, one half cut into round slices neatly fanned out on a plate. A pitcher of cold water with cucumber slices floating inside sits beside it.",
+    "file": "el-pepino.jpg"
+  },
+  "el periodista": {
+    "scene": "A person with a notebook and pen asks a question to someone in a busy street scene while a camera on a tripod points toward them and a voice recorder rests on a nearby table.",
+    "file": "el-periodista.jpg"
+  },
+  "el perro": {
+    "scene": "A friendly medium-sized dog sits on green grass with its tongue out and tail wagging, facing the viewer. A bright red ball lies a short distance in front of the dog, and a sunny sky with a few fluffy clouds fills the background.",
+    "file": "el-perro.jpg"
+  },
+  "el pescado": {
+    "scene": "A plate with a whole cooked fish garnished with lemon slices, a fork holding a flaky piece lifted above the plate.",
+    "file": "el-pescado.jpg"
+  },
+  "el pez": {
+    "scene": "A colorful fish swimming inside a clear round fishbowl with a little plant and bubbles rising to the surface.",
+    "file": "el-pez.jpg"
+  },
+  "el pie": {
+    "scene": "A barefoot stepping onto warm sand, toes spread and small grains of sand between toes, gentle waves in the background.",
+    "file": "el-pie.jpg"
+  },
+  "el pijama": {
+    "scene": "A person sits on the edge of a bed wearing soft, matching pajama top and bottoms, stretching and yawning as a nightstand lamp glows and a moon is visible through the window.",
+    "file": "el-pijama.jpg"
+  },
+  "el pimiento": {
+    "scene": "Three bell peppers in red, green, and yellow arranged on a cutting board, one pepper sliced open to show the hollow interior and seeds. A chef's hand holds a slice ready to add to a pan.",
+    "file": "el-pimiento.jpg"
+  },
+  "el plato": {
+    "scene": "An empty round white dinner plate with a simple blue rim, seen from slightly above on a wooden table.",
+    "file": "el-plato.jpg"
+  },
+  "el plátano": {
+    "scene": "A bunch of three yellow bananas resting on a table, one banana peeled halfway to reveal the soft interior. A curious bird nearby looks at the peeled banana.",
+    "file": "el-platano.jpg"
+  },
+  "el policía": {
+    "scene": "A uniformed person directs traffic at an intersection with a whistle and hand signals, helping pedestrians cross safely under streetlights.",
+    "file": "el-policia.jpg"
+  },
+  "el pollo": {
+    "scene": "A golden roast chicken on a round platter with lemon slices and sprigs of herbs, on a kitchen table.",
+    "file": "el-pollo.jpg"
+  },
+  "el postre": {
+    "scene": "A small dessert sampler plate with a tiny tart, a slice of cake, and a spoon, presented at the end of a meal setting.",
+    "file": "el-postre.jpg"
+  },
+  "el precio": {
+    "scene": "A close-up of a shelf label area with a hand hovering above and small objects arranged neatly beneath, light highlighting the label space.",
+    "file": "el-precio.jpg"
+  },
+  "el primo": {
+    "scene": "A teenage boy and a younger boy building a sandcastle together at the beach, sharing a small bucket.",
+    "file": "el-primo.jpg"
+  },
+  "el programador": {
+    "scene": "A person wearing headphones sits at a tidy desk with three computer monitors showing abstract colorful blocks and flow diagrams (no text), a coffee mug and a small stack of circuit boards nearby, and a cat curled on the desk.",
+    "file": "el-programador.jpg"
+  },
+  "el pueblo": {
+    "scene": "A small cluster of low houses with tiled roofs around a sleepy main street, a few trees, and one or two people greeting each other outside their homes on a sunny morning.",
+    "file": "el-pueblo.jpg"
+  },
+  "el puente": {
+    "scene": "A graceful arching bridge over a river with a few people walking across and a small boat passing underneath.",
+    "file": "el-puente.jpg"
+  },
+  "el pájaro": {
+    "scene": "A small bird perched on a thin branch with its wings slightly open as if about to take off, bright sky behind it.",
+    "file": "el-pajaro.jpg"
+  },
+  "el queso": {
+    "scene": "A board with several wedges and slices of different textured cheeses, someone picking up a slice with their fingers.",
+    "file": "el-queso.jpg"
+  },
+  "el ratón": {
+    "scene": "A tiny mouse peeking out from a small hole at the base of a wall, with a crumb of cheese just outside the opening.",
+    "file": "el-raton.jpg"
+  },
+  "el recibo": {
+    "scene": "A hand reaching out to take a narrow paper slip offered by a cashier over the counter, with a small pile of purchased items nearby.",
+    "file": "el-recibo.jpg"
+  },
+  "el refresco": {
+    "scene": "A cold can with fizzing bubbles rising into a glass with ice and a striped straw, small bursts of foam at the rim.",
+    "file": "el-refresco.jpg"
+  },
+  "el refrigerador": {
+    "scene": "A tall appliance with its door slightly open revealing shelves of food, a jug of water and some fruit inside.",
+    "file": "el-refrigerador.jpg"
+  },
+  "el reloj": {
+    "scene": "A close-up of a wristwatch on someone's wrist, showing an easy-to-read analog face and slender hands; no other objects or text are visible.",
+    "file": "el-reloj.jpg"
+  },
+  "el resfriado": {
+    "scene": "A person bundled in a scarf sits with a tissue held to their nose, a small pile of used tissues beside them, and a steaming mug on a napkin.",
+    "file": "el-resfriado.jpg"
+  },
+  "el restaurante": {
+    "scene": "A cozy building with an awning and several small round tables outside where people are eating and chatting under warm lights.",
+    "file": "el-restaurante.jpg"
+  },
+  "el secretario": {
+    "scene": "A person at a tidy desk types on a keyboard and answers a ringing phone, with a desk lamp, a stack of papers, and a calendar with blank squares visible (no writing).",
+    "file": "el-secretario.jpg"
+  },
+  "el segundo": {
+    "scene": "A close view of a ticking clock's second hand with motion lines and tiny motion blur marks to show very quick movement.",
+    "file": "el-segundo.jpg"
+  },
+  "el semáforo": {
+    "scene": "An intersection with a tall traffic light pole showing three colored circles stacked vertically and two cars waiting at the stop line.",
+    "file": "el-semaforo.jpg"
+  },
+  "el sobrino": {
+    "scene": "A young boy offering a handmade drawing to an adult who kneels down to admire it.",
+    "file": "el-sobrino.jpg"
+  },
+  "el sofá": {
+    "scene": "A cushioned lounge with two throw pillows, one person reclining and reading and another placing a mug on the armrest.",
+    "file": "el-sofa.jpg"
+  },
+  "el sol": {
+    "scene": "A bright round sun with long rays shines high over a warm scene where a person relaxes on a light blanket and sunglasses cast small shadows.",
+    "file": "el-sol.jpg"
+  },
+  "el sombrero": {
+    "scene": "A person on a sunny beach shading their face with a wide-brimmed hat while holding a sun hat in one hand and sunglasses in the other.",
+    "file": "el-sombrero.jpg"
+  },
+  "el suelo": {
+    "scene": "An interior floor area showing wooden planks, a person barefoot stepping across and a small rug partly covering the floor.",
+    "file": "el-suelo.jpg"
+  },
+  "el supermercado": {
+    "scene": "A large one-story building with wide glass doors and shopping carts lined up outside; a person pushing a cart full of groceries into the entrance.",
+    "file": "el-supermercado.jpg"
+  },
+  "el sur": {
+    "scene": "The same round compass design but with its bold arrow pointing toward the bottom of the image, placed over a warm beach scene with the sun near the bottom edge.",
+    "file": "el-sur.jpg"
+  },
+  "el suéter": {
+    "scene": "A person indoors pulling a thick knit garment over their head with a small cozy fireplace and a mug on a table in the background.",
+    "file": "el-sueter.jpg"
+  },
+  "el taxi": {
+    "scene": "A bright-colored car pulling up beside a curb while a passenger prepares to step in and a driver holds the door open.",
+    "file": "el-taxi.jpg"
+  },
+  "el teatro": {
+    "scene": "A stage with curtains partly open, spotlights on and actors taking a bow as the audience applauds in an ornate auditorium.",
+    "file": "el-teatro.jpg"
+  },
+  "el techo": {
+    "scene": "An angled rooftop seen from outside with shingles, a chimney and sunlight hitting the top edge against a blue sky.",
+    "file": "el-techo.jpg"
+  },
+  "el tenedor": {
+    "scene": "A hand holding a fork above a plate, about to pick up a piece of food; the fork's prongs are clearly visible and the person's other hand rests on the table.",
+    "file": "el-tenedor.jpg"
+  },
+  "el tiempo": {
+    "scene": "A wide panorama showing a small town with several weather elements visible across the sky: a bright sun at one edge, a few clouds in the middle, and a light shower falling over a distant hill, all seen from a single viewpoint.",
+    "file": "el-tiempo.jpg"
+  },
+  "el tigre": {
+    "scene": "A tiger walking slowly through tall grass, its striped coat clearly visible and muscles rippling as it moves.",
+    "file": "el-tigre.jpg"
+  },
+  "el tomate": {
+    "scene": "Three ripe red tomatoes with green stems, one cut in half showing its seeds, on a green background.",
+    "file": "el-tomate.jpg"
+  },
+  "el trabajo": {
+    "scene": "A person sits at a desk surrounded by papers and a laptop, stretching and holding a mug while a small clock and a briefcase sit nearby in a simple office room.",
+    "file": "el-trabajo.jpg"
+  },
+  "el traje": {
+    "scene": "A person stands in front of a full-length mirror wearing a matching formal jacket and trousers, straightening the jacket and wearing polished dress shoes, with a simple rug and a lamp in the room.",
+    "file": "el-traje.jpg"
+  },
+  "el traje de baño": {
+    "scene": "A person in a one-piece swimsuit stands on warm sand at the water's edge, holding a beach towel over one shoulder with waves, a bright sun, and a seashell nearby.",
+    "file": "el-traje-de-bano.jpg"
+  },
+  "el tren": {
+    "scene": "A passenger train moving along tracks through the countryside with steam or motion lines and people visible through several windows.",
+    "file": "el-tren.jpg"
+  },
+  "el té": {
+    "scene": "A teapot pouring amber liquid into a small cup with a used tea bag and a slice of lemon on the side.",
+    "file": "el-te.jpg"
+  },
+  "el tío": {
+    "scene": "A man wearing a baseball cap playfully lifting a child onto his shoulders at an outdoor family gathering.",
+    "file": "el-tio.jpg"
+  },
+  "el vaso": {
+    "scene": "A plain transparent drinking glass half full with liquid and light reflecting through it, placed on a coaster.",
+    "file": "el-vaso.jpg"
+  },
+  "el vendedor": {
+    "scene": "A person behind a market stall arranges fruit and waves at a smiling customer, with colorful baskets of produce and a scale on the counter.",
+    "file": "el-vendedor.jpg"
+  },
+  "el verano": {
+    "scene": "A warm beach scene with someone in a swimsuit building a sandcastle near the water while a cold drink with melting ice sits on a towel under bright sunlight.",
+    "file": "el-verano.jpg"
+  },
+  "el vestido": {
+    "scene": "A person at an outdoor summer picnic wearing a one-piece outfit that covers the torso and extends down to mid-calf, holding a basket and smiling.",
+    "file": "el-vestido.jpg"
+  },
+  "el viento": {
+    "scene": "Leaves, a scarf, and a loose hat are blown sideways as a person leans into a strong gust and a kite flies diagonally across the sky.",
+    "file": "el-viento.jpg"
+  },
+  "el vino": {
+    "scene": "A hand holding a stemmed wine glass up against a soft sunset, deep red liquid inside and a vineyard silhouette in the distance.",
+    "file": "el-vino.jpg"
+  },
+  "el vuelo": {
+    "scene": "View from an airplane window showing clouds below and a distant horizon, with a passenger looking out and holding a small travel item.",
+    "file": "el-vuelo.jpg"
+  },
+  "ella": {
+    "scene": "One woman sits on a bench reading, smiling softly to herself under a tree.",
+    "file": "ella.jpg"
+  },
+  "ellos": {
+    "scene": "Three men walk side by side down a street, chatting and carrying bags, clearly part of the same group.",
+    "file": "ellos.jpg"
+  },
+  "emocionado": {
+    "scene": "A person leaps forward with wide eyes and an open smile, reaching toward a wrapped gift being handed to them by someone else.",
+    "file": "emocionado.jpg"
+  },
+  "empezar": {
+    "scene": "A starter pistol fires at a racetrack and runners launch off the starting line together.",
+    "file": "empezar.jpg"
+  },
+  "en punto": {
+    "scene": "A clean analog clock shows both hands exactly aligned on a number and a nearby bell emits straight sound lines, suggesting a precise moment.",
+    "file": "en-punto.jpg"
+  },
+  "enamorado": {
+    "scene": "Two people sit close on a park bench, looking at each other with soft smiles and slightly tilted heads, a small heart-shaped kite flying above them.",
+    "file": "enamorado.jpg"
+  },
+  "encantado": {
+    "scene": "A person (male or female appearance) beams with delight and bows a little while offering a polite handshake, clearly very pleased to meet someone.",
+    "file": "encantado.jpg"
+  },
+  "encontrar": {
+    "scene": "A child lights up and holds up a lost toy they just discovered under a bench.",
+    "file": "encontrar.jpg"
+  },
+  "enero": {
+    "scene": "A person bundled in a thick coat, scarf and knit hat walks through a snowy street with snowflakes falling and visible breath in the cold air.",
+    "file": "enero.jpg"
+  },
+  "enfermo": {
+    "scene": "A person lies in bed under a blanket with a cool cloth on their forehead, pale cheeks, and a box of tissues on the bedside table.",
+    "file": "enfermo.jpg"
+  },
+  "enfrente de": {
+    "scene": "A street scene showing two colorful buildings facing each other with a narrow road between them and a pedestrian crossing the road from one side to the other.",
+    "file": "enfrente-de.jpg"
+  },
+  "enojado": {
+    "scene": "A person stands with clenched fists and furrowed brow, steam-like lines rising, while another person steps back surprised.",
+    "file": "enojado.jpg"
+  },
+  "enseñar": {
+    "scene": "A teacher stands at the front of a small class pointing to a diagram on a board while students watch.",
+    "file": "ensenar.jpg"
+  },
+  "entender": {
+    "scene": "A student's face brightens and they nod while looking at a solved equation on a worksheet.",
+    "file": "entender.jpg"
+  },
+  "entrar": {
+    "scene": "A person pushes open a glass door and steps into a bright cafe from the street.",
+    "file": "entrar.jpg"
+  },
+  "entre": {
+    "scene": "A simple park bench positioned exactly between two identical trees, with equal space on each side and a small path running behind.",
+    "file": "entre.jpg"
+  },
+  "escribir": {
+    "scene": "A hand holds a pen and writes on a blank sheet of paper with a few lines already written.",
+    "file": "escribir.jpg"
+  },
+  "escuchar": {
+    "scene": "A person sits with eyes closed and headphones on, relaxed and focused on sound.",
+    "file": "escuchar.jpg"
+  },
+  "esperar": {
+    "scene": "A traveler sits on a bench at a station watching the tracks and checking an empty watch.",
+    "file": "esperar.jpg"
+  },
+  "estar": {
+    "scene": "A person sitting on a couch wrapped in a blanket, holding a steaming mug with a box of tissues and a cold compress on their forehead, looking a bit tired but resting.",
+    "file": "estar.jpg"
+  },
+  "estudiar": {
+    "scene": "A student at a desk with open notebooks, a pencil in hand, and a lamp illuminating the pages.",
+    "file": "estudiar.jpg"
+  },
+  "febrero": {
+    "scene": "Two people share a warm drink at an outdoor table under a small blanket, with soft heart-shaped paper confetti lightly floating around them.",
+    "file": "febrero.jpg"
+  },
+  "feliz": {
+    "scene": "A person with a wide smile jumps with arms raised in a sunny park while colorful confetti floats around them.",
+    "file": "feliz.jpg"
+  },
+  "feo": {
+    "scene": "A misshapen, wilted flower droops in a pot while a person looks surprised and slightly amused.",
+    "file": "feo.jpg"
+  },
+  "frío": {
+    "scene": "A person wrapped in a scarf blows into their hands while visible breath puffs in the cold air.",
+    "file": "frio.jpg"
+  },
+  "fuerte": {
+    "scene": "A person lifts a heavy stack of boxes above their head with confident expression and steady stance.",
+    "file": "fuerte.jpg"
+  },
+  "fácil": {
+    "scene": "A child easily fits a single puzzle piece into place and claps with a proud smile.",
+    "file": "facil.jpg"
+  },
+  "gracias": {
+    "scene": "Someone receives a small gift and places a hand on their heart with a warm, grateful smile toward the giver.",
+    "file": "gracias.jpg"
+  },
+  "grande": {
+    "scene": "A person stands beside a huge elephant that towers over them on a sunny plain, both looking calm.",
+    "file": "grande.jpg"
+  },
+  "gris": {
+    "scene": ">An urban scene with a large gentle elephant walking past a stone bench and a paved path beneath an overcast sky.",
+    "file": "gris.jpg"
+  },
+  "gustar": {
+    "scene": "A person tastes a spoonful of soup, closes their eyes, and smiles with delight.",
+    "file": "gustar.jpg"
+  },
+  "hablar": {
+    "scene": "Three coworkers stand in a small group smiling and exchanging animated gestures as they converse.",
+    "file": "hablar.jpg"
+  },
+  "hacer": {
+    "scene": "A person in an apron mixes batter in a bowl with flour on the counter and a finished cake on a cooling rack.",
+    "file": "hacer.jpg"
+  },
+  "hasta luego": {
+    "scene": "Two friends wave to each other from a park bench as they head off in different directions but look relaxed and sure they'll meet again.",
+    "file": "hasta-luego.jpg"
+  },
+  "hasta mañana": {
+    "scene": "One person points to a nearby sky where the sun is low and a few stars are appearing, and both wave as they part for the night.",
+    "file": "hasta-manana.jpg"
+  },
+  "hasta pronto": {
+    "scene": "Two people exchange quick, energetic waves on a city sidewalk with one glancing at their watch as if they'll return soon.",
+    "file": "hasta-pronto.jpg"
+  },
+  "hola": {
+    "scene": "A single person cheerfully waves both hands in front of their chest with a big smile, standing on a sidewalk in daylight.",
+    "file": "hola.jpg"
+  },
+  "hoy": {
+    "scene": "A window view showing a person watering a potted plant under bright midday sun; the person smiles and there are no other people or objects suggesting other days.",
+    "file": "hoy.jpg"
+  },
+  "ir": {
+    "scene": "A traveler with a backpack walks along a path toward distant mountains under a sunny sky.",
+    "file": "ir.jpg"
+  },
+  "joven": {
+    "scene": "A lively child jumps in a puddle with colorful rubber boots while sunlight sparkles.",
+    "file": "joven.jpg"
+  },
+  "jueves": {
+    "scene": "Two friends hang string lights and set out paper plates and cups in a backyard while smiling and checking a small playlist on a nearby portable speaker (no visible text).",
+    "file": "jueves.jpg"
+  },
+  "jugar": {
+    "scene": "Two children laugh as they kick a soccer ball toward a small goal on a grassy field.",
+    "file": "jugar.jpg"
+  },
+  "julio": {
+    "scene": "An evening scene where people watch colorful fireworks exploding above a calm park and some children hold sparklers.",
+    "file": "julio.jpg"
+  },
+  "junio": {
+    "scene": "A sunny beach scene with a family building a sandcastle, beach towel and a sun high in the sky, and a small surfboard propped in the sand.",
+    "file": "junio.jpg"
+  },
+  "la abeja": {
+    "scene": "A bee hovering beside a cluster of blossoms, wings blurred in motion and tiny pollen grains visible on its legs.",
+    "file": "la-abeja.jpg"
+  },
+  "la abuela": {
+    "scene": "An elderly woman with a warm expression kneading dough on a kitchen counter, flour on her hands.",
+    "file": "la-abuela.jpg"
+  },
+  "la alergia": {
+    "scene": "In a flowery park, a person rubs their itchy, watery eyes while small pollen-like dots float in the air and nearby trees and flowers shed tiny yellow specks.",
+    "file": "la-alergia.jpg"
+  },
+  "la ambulancia": {
+    "scene": "An emergency vehicle with flashing lights and a visible stretcher beside it has two uniformed responders wheeling a stretcher toward the back of the vehicle.",
+    "file": "la-ambulancia.jpg"
+  },
+  "la biblioteca": {
+    "scene": "A quiet interior with tall bookshelves, a long table where people are reading and one person checking out a stack of books at a counter.",
+    "file": "la-biblioteca.jpg"
+  },
+  "la bicicleta": {
+    "scene": "A person happily riding a bicycle along a park path with trees, a bench, and a dog running alongside.",
+    "file": "la-bicicleta.jpg"
+  },
+  "la boca": {
+    "scene": "A close-up of a smiling mouth showing teeth and lips, with a slight smile curve and no other facial details.",
+    "file": "la-boca.jpg"
+  },
+  "la bolsa": {
+    "scene": "A shopper carrying several simple shopping bags over their arm, walking out of a store entrance with a smile.",
+    "file": "la-bolsa.jpg"
+  },
+  "la botella": {
+    "scene": "A single sealed bottle standing upright on a counter next to a cork and a glass, neutral background.",
+    "file": "la-botella.jpg"
+  },
+  "la bufanda": {
+    "scene": "A person standing on a windy city street wrapping a long scarf around their neck as the ends trail in the wind.",
+    "file": "la-bufanda.jpg"
+  },
+  "la cabeza": {
+    "scene": "A close-up of the same person's head and hair from the shoulders up, with a gentle light behind to emphasize the round shape of the head.",
+    "file": "la-cabeza.jpg"
+  },
+  "la cabra": {
+    "scene": "A nimble goat standing with one front hoof on a small rock, looking curious and alert on a rocky slope.",
+    "file": "la-cabra.jpg"
+  },
+  "la caja": {
+    "scene": "A smiling cashier standing behind a counter with a visible register drawer and a conveyor belt of items approaching.",
+    "file": "la-caja.jpg"
+  },
+  "la calle": {
+    "scene": "A single long paved road lined with trees and parked cars, with a person walking a dog and a bicycle rider passing by.",
+    "file": "la-calle.jpg"
+  },
+  "la cama": {
+    "scene": "A neatly made bed with a headboard, pillows fluffed at the top and a folded blanket at the foot of the bed.",
+    "file": "la-cama.jpg"
+  },
+  "la camisa": {
+    "scene": "A person standing in front of a mirror wearing a collared top with buttons down the front and long sleeves, adjusting the collar with both hands.",
+    "file": "la-camisa.jpg"
+  },
+  "la camiseta": {
+    "scene": "A person at a sunny playground wearing a short-sleeved round-neck cotton top and smiling while swinging, the top looking lightweight and casual.",
+    "file": "la-camiseta.jpg"
+  },
+  "la cara": {
+    "scene": "A straightforward view of a smiling face showing eyes, nose, mouth and cheeks, with a neutral background and soft shadows to highlight facial features.",
+    "file": "la-cara.jpg"
+  },
+  "la carne": {
+    "scene": "A plate with a cooked steak, a few roasted potatoes and green beans, on a dinner table.",
+    "file": "la-carne.jpg"
+  },
+  "la carne de cerdo": {
+    "scene": "A plate with several slices of roasted pork with a crispy edge, a fork holding one slice ready to eat.",
+    "file": "la-carne-de-cerdo.jpg"
+  },
+  "la carne de res": {
+    "scene": "A smiling cow standing in a green pasture next to a plate holding a cooked hamburger patty.",
+    "file": "la-carne-de-res.jpg"
+  },
+  "la casa": {
+    "scene": "A small detached building with a peaked roof, front steps, a mailbox, a tree in front and a warm light glowing in one window on a clear day.",
+    "file": "la-casa.jpg"
+  },
+  "la cebolla": {
+    "scene": "A whole onion with papery outer layers next to a sliced onion showing concentric rings, and a few translucent slices nearby. A teary-eyed person peeks over the counter, wiping their cheeks.",
+    "file": "la-cebolla.jpg"
+  },
+  "la cena": {
+    "scene": "A family gathered around a dining table in warm evening light, plates with cooked dishes, a soft lamp overhead, and people using forks.",
+    "file": "la-cena.jpg"
+  },
+  "la cereza": {
+    "scene": "Two shiny red cherries still joined by their stems resting on a palm upturned toward the viewer. A picnic scene in soft focus shows more cherries in a bowl behind the hand.",
+    "file": "la-cereza.jpg"
+  },
+  "la cerveza": {
+    "scene": "A frosty mug filled with amber liquid and a thick foamy head on a wooden table, with a lemon slice and a small plate of pretzels.",
+    "file": "la-cerveza.jpg"
+  },
+  "la chaqueta": {
+    "scene": "A person zipping up a shorter outer layer that ends at the hips, with side pockets and a visible zipper, standing under a city lamppost at dusk.",
+    "file": "la-chaqueta.jpg"
+  },
+  "la cita": {
+    "scene": "A person sits in a clinic waiting area checking their wristwatch while a receptionist points toward an examination room door with a friendly gesture.",
+    "file": "la-cita.jpg"
+  },
+  "la ciudad": {
+    "scene": "A wide view showing many tall buildings, buses, cars, and lots of people walking on sidewalks under city lights; busy streets and a distant skyline at dusk.",
+    "file": "la-ciudad.jpg"
+  },
+  "la cocina": {
+    "scene": "A countertop with a sink, a kettle on a stovetop, a bowl of fruit and cupboards above, with steam rising from a pot.",
+    "file": "la-cocina.jpg"
+  },
+  "la comida": {
+    "scene": "A picnic blanket spread on grass with many different dishes arranged together: bowls, plates, fruits and drinks, and people reaching for food happily under a sunny sky.",
+    "file": "la-comida.jpg"
+  },
+  "la corbata": {
+    "scene": "A person in front of a mirror adjusting a long narrow cloth around their neck, tying a neat knot.",
+    "file": "la-corbata.jpg"
+  },
+  "la cuadra": {
+    "scene": "A straight city street showing a continuous block of four houses in a row, a sidewalk, and a single streetlamp, viewed so the whole block is visible.",
+    "file": "la-cuadra.jpg"
+  },
+  "la cuchara": {
+    "scene": "A steaming bowl of soup with a hand holding a spoon, scooping up some broth; gentle steam rises from the bowl.",
+    "file": "la-cuchara.jpg"
+  },
+  "la cuenta": {
+    "scene": "A hand from the server extends a small unfolded slip of paper across the table while the diner reaches out to accept it; the tabletop shows a cup and plate.",
+    "file": "la-cuenta.jpg"
+  },
+  "la ducha": {
+    "scene": "A shower stall with water streaming from a showerhead, visible tiles and a shampoo bottle on a small shelf inside.",
+    "file": "la-ducha.jpg"
+  },
+  "la ensalada": {
+    "scene": "A bright bowl overflowing with colorful lettuce, tomatoes, cucumbers and dressing being poured over it.",
+    "file": "la-ensalada.jpg"
+  },
+  "la escalera": {
+    "scene": "A straight flight of stairs inside a home with a handrail, one person mid-step climbing up and a small landing at the top.",
+    "file": "la-escalera.jpg"
+  },
+  "la escuela": {
+    "scene": "A low building with a playground in front where children play on swings and a teacher watches from nearby.",
+    "file": "la-escuela.jpg"
+  },
+  "la espalda": {
+    "scene": "A view of the person's back as they walk away, shoulders and spine line visible through a light sweater, outdoor path ahead.",
+    "file": "la-espalda.jpg"
+  },
+  "la esposa": {
+    "scene": "A woman adjusting a tie on a man and they exchange a fond look before leaving together.",
+    "file": "la-esposa.jpg"
+  },
+  "la esquina": {
+    "scene": "An intersection seen from an angle where a building has a distinct visible rounded corner and a sidewalk wrapping around it.",
+    "file": "la-esquina.jpg"
+  },
+  "la estación": {
+    "scene": "One tree is shown in four adjacent panels: one with blossoms, one with full green leaves and sunshine, one with orange leaves falling, and one bare with snow on the branches.",
+    "file": "la-estacion.jpg"
+  },
+  "la estación de tren": {
+    "scene": "An outdoor train platform with a waiting area, a visible set of tracks, and people standing and sitting with luggage.",
+    "file": "la-estacion-de-tren.jpg"
+  },
+  "la estufa": {
+    "scene": "A cooking range with four burners, one pan on a lit burner with steam rising and control knobs on the front.",
+    "file": "la-estufa.jpg"
+  },
+  "la falda": {
+    "scene": "A person twirling in a flared garment that hangs from the waist to above the knees, movement lines showing the skirt spreading outward.",
+    "file": "la-falda.jpg"
+  },
+  "la familia": {
+    "scene": "A warm living room with four people of different ages sitting together on a sofa, smiling and facing each other while a small dog naps at their feet.",
+    "file": "la-familia.jpg"
+  },
+  "la farmacia": {
+    "scene": "A clean interior with shelves of medicine boxes and bottles, a counter where a person in a white coat is handing a small box to a patient.",
+    "file": "la-farmacia.jpg"
+  },
+  "la fiebre": {
+    "scene": "A person rests under a blanket on a couch with flushed cheeks and a damp cloth on their forehead; a thermometer lies on the side table.",
+    "file": "la-fiebre.jpg"
+  },
+  "la fresa": {
+    "scene": "A handful of bright red strawberries with green leafy tops piled on a small plate, one strawberry sliced to show the seeds and interior. A child holds a fork poised to take one.",
+    "file": "la-fresa.jpg"
+  },
+  "la fruta": {
+    "scene": "A wooden basket overflowing with a colorful mix of different fruits—apples, bananas, oranges, grapes, and a pineapple—sitting on a sunny kitchen table. A smiling child reaches to pick one fruit from the basket.",
+    "file": "la-fruta.jpg"
+  },
+  "la galleta": {
+    "scene": "A plate with several round baked cookies, one cookie with a bite taken out, and a glass of milk beside it.",
+    "file": "la-galleta.jpg"
+  },
+  "la gallina": {
+    "scene": "A hen pecking at the ground near scattered seeds in a farmyard, with a few small eggs partly visible in straw nearby.",
+    "file": "la-gallina.jpg"
+  },
+  "la gasolinera": {
+    "scene": "A row of fuel pumps under a canopy with a car parked next to one pump while a driver refills the tank; a small convenience kiosk nearby.",
+    "file": "la-gasolinera.jpg"
+  },
+  "la gorra": {
+    "scene": "A child running to catch a baseball, wearing a fitted cap with the visor shading their eyes on a bright day.",
+    "file": "la-gorra.jpg"
+  },
+  "la herida": {
+    "scene": "A person sits on the ground with a scraped, slightly bloody knee while a friend gently presses a clean cloth over the scrape; nearby are a small first-aid kit and a dropped shoe.",
+    "file": "la-herida.jpg"
+  },
+  "la hermana": {
+    "scene": "An older girl braiding a little girl's hair while both sit on a bed and smile.",
+    "file": "la-hermana.jpg"
+  },
+  "la hija": {
+    "scene": "A young girl in a dress holding a bunch of flowers and leaning into an adult's embrace on a front porch.",
+    "file": "la-hija.jpg"
+  },
+  "la hora": {
+    "scene": "A large clock face fills the scene with the thicker hour hand emphasized in the foreground while a faint minute hand sits behind it.",
+    "file": "la-hora.jpg"
+  },
+  "la iglesia": {
+    "scene": "A building with a steeple and arched windows, people entering in their Sunday best and light streaming through stained-glass windows.",
+    "file": "la-iglesia.jpg"
+  },
+  "la jirafa": {
+    "scene": "A tall giraffe reaching up to eat leaves from the top of a leafy tree, long neck stretched and patterned coat visible.",
+    "file": "la-jirafa.jpg"
+  },
+  "la leche": {
+    "scene": "A simple carton tipped to pour white liquid into a bowl of cereal, with a child reaching for the spoon.",
+    "file": "la-leche.jpg"
+  },
+  "la lechuga": {
+    "scene": "A full head of leafy green lettuce sitting on a counter, with a few loose crisp leaves separated beside it. A bowl with salad tongs waits nearby, ready to toss the leaves.",
+    "file": "la-lechuga.jpg"
+  },
+  "la lengua": {
+    "scene": "A friendly face with the mouth open and the tongue slightly sticking out, tongue centered and relaxed, no other objects.",
+    "file": "la-lengua.jpg"
+  },
+  "la limonada": {
+    "scene": "A pitcher full of pale yellow drink with floating lemon slices and ice cubes, a sunny outdoor picnic blanket underneath.",
+    "file": "la-limonada.jpg"
+  },
+  "la llave": {
+    "scene": "A close-up of a hand holding a single metal key between thumb and forefinger in front of a doorknob.",
+    "file": "la-llave.jpg"
+  },
+  "la lluvia": {
+    "scene": "Two people walk under colorful umbrellas as diagonal raindrops fall and small circles appear where drops hit puddles on the sidewalk.",
+    "file": "la-lluvia.jpg"
+  },
+  "la lámpara": {
+    "scene": "A standing lamp with a glowing shade casting a warm pool of light onto the floor beside a chair.",
+    "file": "la-lampara.jpg"
+  },
+  "la madre": {
+    "scene": "A woman in an apron stirring a pot on the stove with a gentle smile as sunlight comes through the kitchen window.",
+    "file": "la-madre.jpg"
+  },
+  "la maleta": {
+    "scene": "A rolling suitcase standing upright on an airport floor next to a traveler, with wheels and a telescoping handle extended.",
+    "file": "la-maleta.jpg"
+  },
+  "la mano": {
+    "scene": "A close-up of an open hand facing the viewer with fingers spread slightly, palm lines and gentle shading visible.",
+    "file": "la-mano.jpg"
+  },
+  "la mantequilla": {
+    "scene": "A pale yellow block of butter on a small dish, with a slice of toast beside it with butter melting on top.",
+    "file": "la-mantequilla.jpg"
+  },
+  "la manzana": {
+    "scene": "A single bright red apple with a smooth shine sits on a small plate, with a bite taken out to show the white flesh inside. A window behind it shows a tree with red fruit visible on the branches.",
+    "file": "la-manzana.jpg"
+  },
+  "la mariposa": {
+    "scene": "A butterfly resting with wings open on a bright flower in a garden, colorful wing patterns clearly visible.",
+    "file": "la-mariposa.jpg"
+  },
+  "la mañana": {
+    "scene": "A kitchen at sunrise with warm light through the window, a steaming mug on the table, and a person stretching while sunlight hits the floor.",
+    "file": "la-manana.jpg"
+  },
+  "la medianoche": {
+    "scene": "A quiet street under a dark sky with a clock tower whose hands both point to 12 and a moon and stars visible above.",
+    "file": "la-medianoche.jpg"
+  },
+  "la medicina": {
+    "scene": "A small medicine bottle and an open glass of water sit on a bedside table beside a sleeping person's arm, the bottle cap beside the bottle and a few drops on the saucer.",
+    "file": "la-medicina.jpg"
+  },
+  "la mesa": {
+    "scene": "A simple rectangular table seen from above with a bowl of fruit in the center and four hands reaching from different sides.",
+    "file": "la-mesa.jpg"
+  },
+  "la moneda": {
+    "scene": "Several shiny coins of different sizes scattered on a palm, sunlight reflecting off their edges.",
+    "file": "la-moneda.jpg"
+  },
+  "la moto": {
+    "scene": "A rider wearing a helmet cruising on a motorcycle down a coastal road with wind lines and a sunset in the background.",
+    "file": "la-moto.jpg"
+  },
+  "la naranja": {
+    "scene": "A round orange fruit cut in half on a cutting board, one half showing the segmented juicy interior. A small stream of juice drips from the cut surface into a glass beside it.",
+    "file": "la-naranja.jpg"
+  },
+  "la nariz": {
+    "scene": "A profile view of a face highlighting the nose shape, with a tiny sparkle on the tip and a calm expression.",
+    "file": "la-nariz.jpg"
+  },
+  "la nieta": {
+    "scene": "A little girl handing a paper flower to an older woman who accepts it with a delighted smile.",
+    "file": "la-nieta.jpg"
+  },
+  "la nieve": {
+    "scene": "A cheerful snowman with a carrot nose stands on a white hill beside a pile of fresh snow, and footprints lead away across the snowy ground.",
+    "file": "la-nieve.jpg"
+  },
+  "la noche": {
+    "scene": "A cozy street at night under a starry sky with warm lamplight, a person in a jacket walking home and lights glowing from windows.",
+    "file": "la-noche.jpg"
+  },
+  "la novia": {
+    "scene": "A young woman checking her reflection in a compact mirror and smoothing her hair, smiling with anticipation.",
+    "file": "la-novia.jpg"
+  },
+  "la nube": {
+    "scene": "A single soft, fluffy cloud drifts across a pale sky, casting a gentle shadow onto the green field below.",
+    "file": "la-nube.jpg"
+  },
+  "la oferta": {
+    "scene": "A display table overflowing with the same colorful shirts stacked high, a cluster of shoppers examining them eagerly.",
+    "file": "la-oferta.jpg"
+  },
+  "la oficina": {
+    "scene": "An office interior with desks, computers, and people working at their stations, one person talking in a small meeting at a round table.",
+    "file": "la-oficina.jpg"
+  },
+  "la oficina de correos": {
+    "scene": "A counter with parcels of different sizes stacked nearby and a postal worker weighing a package while a customer waits in line.",
+    "file": "la-oficina-de-correos.jpg"
+  },
+  "la oreja": {
+    "scene": "A side view of a head focusing on the ear, with a small earring and a hand gently touching the outer edge of the ear.",
+    "file": "la-oreja.jpg"
+  },
+  "la oveja": {
+    "scene": "A fluffy sheep grazing on a hillside of short grass with a few tufts of woolly fleece visible.",
+    "file": "la-oveja.jpg"
+  },
+  "la panadería": {
+    "scene": "A cozy shopfront with loaves of bread and pastries on trays visible through the window, a baker handing a paper bag with fresh bread to a smiling customer.",
+    "file": "la-panaderia.jpg"
+  },
+  "la papa": {
+    "scene": "Several brown potatoes with dirt flecks on their skins in a rustic sack, one potato being scrubbed under running water in a sink. Steam rises from a pot on the stove in the background.",
+    "file": "la-papa.jpg"
+  },
+  "la parada de autobús": {
+    "scene": "A simple shelter by the roadside with a few people waiting and a bus approaching in the distance.",
+    "file": "la-parada-de-autobus.jpg"
+  },
+  "la pared": {
+    "scene": "A plain interior wall with a shadow cast across it and a coat hook with a hanging jacket to show its vertical surface.",
+    "file": "la-pared.jpg"
+  },
+  "la pasta": {
+    "scene": "A plate of long noodles twirled around a fork, sauce coating the strands, on a simple table with a napkin.",
+    "file": "la-pasta.jpg"
+  },
+  "la pastilla": {
+    "scene": "A hand holds a single round tablet between thumb and forefinger over a kitchen counter, with a small open pill bottle and a glass of water beside it.",
+    "file": "la-pastilla.jpg"
+  },
+  "la pera": {
+    "scene": "A green pear with a smooth curve standing next to a second pear sliced to show the pale interior and seeds. Soft morning light falls across the fruit on a windowsill.",
+    "file": "la-pera.jpg"
+  },
+  "la piel": {
+    "scene": "A close-up of forearm skin with visible pores and a light freckle, a hand applying a dab of lotion to show texture and care.",
+    "file": "la-piel.jpg"
+  },
+  "la pierna": {
+    "scene": "A side view of a person stepping forward, showing the full leg from hip to foot in mid-stride with a sidewalk beneath.",
+    "file": "la-pierna.jpg"
+  },
+  "la pimienta": {
+    "scene": "A pepper grinder over a plate, dark specks falling from it as someone twists the top, and a few pepper flecks on the food.",
+    "file": "la-pimienta.jpg"
+  },
+  "la piña": {
+    "scene": "A whole pineapple with its spiky crown sitting on a wooden table beside a plate of diced golden chunks. A tropical palm frond peeks into the scene.",
+    "file": "la-pina.jpg"
+  },
+  "la plaza": {
+    "scene": "An open paved square with a decorative fountain in the center, benches around it and people sitting, pigeons on the ground, and a couple taking a photo.",
+    "file": "la-plaza.jpg"
+  },
+  "la prima": {
+    "scene": "Two girls of similar age skipping rope together in a driveway, both smiling and taking turns.",
+    "file": "la-prima.jpg"
+  },
+  "la primavera": {
+    "scene": "A garden scene with fresh green grass, colorful flowers blooming, and a person kneeling to plant a small seedling under a soft, bright sky.",
+    "file": "la-primavera.jpg"
+  },
+  "la propina": {
+    "scene": "A diner standing up to leave places a few coins and a folded bill near a cup on the table while another hand (the server's) reaches to pick them up.",
+    "file": "la-propina.jpg"
+  },
+  "la próxima semana": {
+    "scene": "A person placing a bright-colored ticket into an empty envelope and holding it toward a calendar with the current week visible but no writing, indicating plans for the following week.",
+    "file": "la-proxima-semana.jpg"
+  },
+  "la puerta": {
+    "scene": "A closed front entrance with a doormat, a visible handle and a hand reaching to turn the handle from the outside.",
+    "file": "la-puerta.jpg"
+  },
+  "la rana": {
+    "scene": "A green frog sitting on a lily pad in a pond, ready to leap, with water droplets on its skin.",
+    "file": "la-rana.jpg"
+  },
+  "la receta": {
+    "scene": "A doctor behind a desk reaches across to hand a folded piece of paper to a seated patient; both look calm and the paper shows no visible writing.",
+    "file": "la-receta.jpg"
+  },
+  "la rodilla": {
+    "scene": "A close-up of a bent knee as the person kneels on one knee on soft grass, hand resting lightly on the raised knee.",
+    "file": "la-rodilla.jpg"
+  },
+  "la ropa": {
+    "scene": "An open wardrobe filled with a variety of hanging and folded garments in different colors and textures, with a small stack of folded items on a shelf and a hanger slightly pulled out.",
+    "file": "la-ropa.jpg"
+  },
+  "la sal": {
+    "scene": "A small open shaker tipping slightly to show coarse white crystals pouring onto a dish, with a hand steadying it.",
+    "file": "la-sal.jpg"
+  },
+  "la sala": {
+    "scene": "A comfortable room with a sofa, a coffee table, a small bookshelf and a framed picture on the wall, with two people sitting and chatting.",
+    "file": "la-sala.jpg"
+  },
+  "la sandía": {
+    "scene": "A large watermelon on a picnic blanket, one thick slice with bright red flesh and many black seeds placed in front. Children in summer clothes laugh and reach for the slice.",
+    "file": "la-sandia.jpg"
+  },
+  "la sangre": {
+    "scene": "A small close-up of a finger with a single drop of red fluid forming at the fingertip, on a plain light background.",
+    "file": "la-sangre.jpg"
+  },
+  "la semana": {
+    "scene": "A row of seven small simple icons in a line — each a tiny square with a different little picture (work, rest, food, play) to suggest seven consecutive units.",
+    "file": "la-semana.jpg"
+  },
+  "la semana pasada": {
+    "scene": "A small bulletin board with seven blank pinned cards in a row; one card far left has a dried leaf taped to it, suggesting that week has passed.",
+    "file": "la-semana-pasada.jpg"
+  },
+  "la serpiente": {
+    "scene": "A snake coiled quietly on a warm rock, tongue flicking out and smooth patterned scales catching the light.",
+    "file": "la-serpiente.jpg"
+  },
+  "la servilleta": {
+    "scene": "A diner tucks a cloth napkin into their collar and another scene shows a napkin folded neatly on a lap while the person lightly dabs their mouth.",
+    "file": "la-servilleta.jpg"
+  },
+  "la silla": {
+    "scene": "A single wooden chair placed near a table, shown in three-quarter view with a cushion on the seat.",
+    "file": "la-silla.jpg"
+  },
+  "la sobrina": {
+    "scene": "A little girl sitting beside an adult, showing off a bracelet she made while the adult claps.",
+    "file": "la-sobrina.jpg"
+  },
+  "la sopa": {
+    "scene": "A bowl of steaming liquid with visible vegetables and a spoon resting inside, set on a cozy table with a cloth napkin.",
+    "file": "la-sopa.jpg"
+  },
+  "la talla": {
+    "scene": "A person holding up two shirts of different widths side by side against their torso to compare which fits better.",
+    "file": "la-talla.jpg"
+  },
+  "la tarde": {
+    "scene": "A park scene with the sun lower in the sky casting long warm shadows, people walking dogs and sitting on benches in relaxed poses.",
+    "file": "la-tarde.jpg"
+  },
+  "la tarjeta de crédito": {
+    "scene": "A hand holding a rectangular card with a chip facing forward above a counter, a small card reader beside it.",
+    "file": "la-tarjeta-de-credito.jpg"
+  },
+  "la taza": {
+    "scene": "A ceramic mug with a handle on a saucer, steam curling up and a spoon resting beside it.",
+    "file": "la-taza.jpg"
+  },
+  "la tienda": {
+    "scene": "A small storefront with an awning and display windows showing clothes and items on mannequins, a shopper standing outside looking in.",
+    "file": "la-tienda.jpg"
+  },
+  "la tormenta": {
+    "scene": "Dark heavy clouds fill the sky above a landscape where a bright jagged flash of lightning strikes and rain falls in thick slanted sheets.",
+    "file": "la-tormenta.jpg"
+  },
+  "la tortuga": {
+    "scene": "A turtle slowly walking toward a small pond, its domed shell and short legs shown in a close side view.",
+    "file": "la-tortuga.jpg"
+  },
+  "la tos": {
+    "scene": "A person leans slightly forward covering their mouth with one hand while small curved motion lines show a short forceful exhale; another person nearby looks concerned.",
+    "file": "la-tos.jpg"
+  },
+  "la tía": {
+    "scene": "A woman with sunglasses applying face paint to a child's cheek while other children play nearby.",
+    "file": "la-tia.jpg"
+  },
+  "la universidad": {
+    "scene": "An open campus view with a grand stone building, students carrying backpacks between lecture halls and sitting on the grass studying.",
+    "file": "la-universidad.jpg"
+  },
+  "la uva": {
+    "scene": "Several clusters of purple grapes hanging from a vine with green leaves, some loose grapes rolling on a picnic blanket. A small bowl nearby contains more of the same grapes.",
+    "file": "la-uva.jpg"
+  },
+  "la vaca": {
+    "scene": "A large cow standing in a pasture chewing cud, with a background of rolling green hills and a single tree.",
+    "file": "la-vaca.jpg"
+  },
+  "la ventana": {
+    "scene": "A window set into a wall with curtains pulled aside, showing sunshine and a view of trees outside.",
+    "file": "la-ventana.jpg"
+  },
+  "la verdura": {
+    "scene": "A colorful assortment of vegetables—carrot, lettuce, tomato, broccoli, and cucumber—arranged together in a basket on a kitchen counter. A happy cook reaches for a vegetable to prepare a salad.",
+    "file": "la-verdura.jpg"
+  },
+  "la zanahoria": {
+    "scene": "Three bright orange carrots with green tops lying on a garden soil patch, one carrot half-pulled from the ground with roots still attached. A small watering can leans against the garden bed.",
+    "file": "la-zanahoria.jpg"
+  },
+  "largo": {
+    "scene": "A long winding road stretches far into the distance with a tiny car driving along it.",
+    "file": "largo.jpg"
+  },
+  "las botas": {
+    "scene": "A pair of tall, muddy boots standing beside a puddle and a pair of rain pants with raindrops falling.",
+    "file": "las-botas.jpg"
+  },
+  "las gafas": {
+    "scene": "A close view of a smiling person putting a pair of clear eyeglasses onto their face, with a small table and an extra pair of glasses resting beside a cup.",
+    "file": "las-gafas.jpg"
+  },
+  "leer": {
+    "scene": "A person sits in an armchair holding an open book and smiling as they turn a page.",
+    "file": "leer.jpg"
+  },
+  "lejos": {
+    "scene": "A tiny figure of a hiker is visible on a distant hill across a wide plain, much smaller than nearby trees and houses in the foreground.",
+    "file": "lejos.jpg"
+  },
+  "lento": {
+    "scene": "A turtle ambles across a garden path while a person watches patiently from a bench.",
+    "file": "lento.jpg"
+  },
+  "limpio": {
+    "scene": "A sparkling sink and neatly folded towels sit in a bright bathroom while a person wipes the counter with a smile.",
+    "file": "limpio.jpg"
+  },
+  "llamar": {
+    "scene": "A person holds a telephone handset to their ear and leans forward as if reaching someone far away.",
+    "file": "llamar.jpg"
+  },
+  "llegar": {
+    "scene": "A bus pulls up to a stop and a passenger steps down onto the pavement with luggage.",
+    "file": "llegar.jpg"
+  },
+  "lleno": {
+    "scene": "A glass is filled to the brim with juice, small droplets forming at the rim as a hand holds it carefully.",
+    "file": "lleno.jpg"
+  },
+  "lo siento": {
+    "scene": "One person sits beside another who is sad and places a comforting hand on their shoulder, looking remorseful and concerned.",
+    "file": "lo-siento.jpg"
+  },
+  "los calcetines": {
+    "scene": "Two colorful socks hanging on a clothesline outside, flapping gently in a light breeze against a blue sky.",
+    "file": "los-calcetines.jpg"
+  },
+  "los frijoles": {
+    "scene": "A wooden bowl filled with small dark beans, a spoon scooping some into a plate, with a pot simmering on the stove nearby.",
+    "file": "los-frijoles.jpg"
+  },
+  "los guantes": {
+    "scene": "A pair of hands putting on a snug pair of gloves while holding bicycle handlebars, with a city sidewalk behind them.",
+    "file": "los-guantes.jpg"
+  },
+  "los jeans": {
+    "scene": "A pair of blue denim jeans hanging on a wooden clothes hanger against a plain wall.",
+    "file": "los-jeans.jpg"
+  },
+  "los mariscos": {
+    "scene": "A seaside table with a platter of shellfish—shrimp, mussels and clams—ice and lemon wedges, waves visible in the background.",
+    "file": "los-mariscos.jpg"
+  },
+  "los padres": {
+    "scene": "Two adults holding hands and carrying a picnic basket together as they walk through a park path.",
+    "file": "los-padres.jpg"
+  },
+  "los pantalones": {
+    "scene": "A person walking on a sidewalk wearing long lower-body garments that reach the ankles, legs clearly covered from waist to feet.",
+    "file": "los-pantalones.jpg"
+  },
+  "los pantalones cortos": {
+    "scene": "A child running on a beach wearing knee-length lower-body garments that end above the knees, kicking a ball with sand flying.",
+    "file": "los-pantalones-cortos.jpg"
+  },
+  "los zapatos": {
+    "scene": "A neat pair of everyday shoes side by side on a doormat next to a front door, with sunlight coming through the doorway.",
+    "file": "los-zapatos.jpg"
+  },
+  "luego": {
+    "scene": "A person placing a wrapped gift on a table and pointing toward a closed door, then walking away, indicating it will be opened later.",
+    "file": "luego.jpg"
+  },
+  "lunes": {
+    "scene": "Flat, friendly scene of a person stepping off a crowded bus in early morning light, holding a steaming cup and a briefcase, hair a bit messy and eyes half closed, with other commuters hurrying past under a gray sky.",
+    "file": "lunes.jpg"
+  },
+  "malo": {
+    "scene": "A cracked cup leaks tea onto a table while the person looks frustrated and disappointed.",
+    "file": "malo.jpg"
+  },
+  "marrón": {
+    "scene": "A forest clearing showing a sturdy tree trunk, scattered acorns on the ground, and a wooden basket leaning against the tree.",
+    "file": "marron.jpg"
+  },
+  "martes": {
+    "scene": "Bright, cheerful scene of a different person jogging through a sunny park with a backpack slung over one shoulder, passing a playground where a few people chat and a bicycle leans against a bench.",
+    "file": "martes.jpg"
+  },
+  "marzo": {
+    "scene": "A windy day where a child runs flying a colorful kite while trees show the first small green buds and a few leaves blow by.",
+    "file": "marzo.jpg"
+  },
+  "mayo": {
+    "scene": "A gardener kneels in a sunny garden planting and watering many blooming flowers and a butterfly rests on a nearby bloom.",
+    "file": "mayo.jpg"
+  },
+  "mañana": {
+    "scene": "A person setting an alarm clock on a bedside table while dawn light filters through the curtains; a packed backpack sits ready by the bed.",
+    "file": "manana.jpg"
+  },
+  "menos cuarto": {
+    "scene": "A clock shows the minute hand pointing to the 9 and the short hand almost at the next number; a commuter checks the time before hurrying out the door.",
+    "file": "menos-cuarto.jpg"
+  },
+  "mi": {
+    "scene": "A person hugs a small personal object to their chest with a content expression, showing personal attachment.",
+    "file": "mi.jpg"
+  },
+  "mil": {
+    "scene": "Ten of the star squares laid end to end to form a long strip, each square identical and the strip stretching across the room.",
+    "file": "mil.jpg"
+  },
+  "mirar": {
+    "scene": "Someone leans forward to inspect a small object on a table, eyes focused closely.",
+    "file": "mirar.jpg"
+  },
+  "miércoles": {
+    "scene": "A person at an office desk looks determined while carrying a stack of folders almost as tall as themselves, with a small coffee cup and a clock showing mid-afternoon on the wall.",
+    "file": "miercoles.jpg"
+  },
+  "morado": {
+    "scene": "A small market stall displaying a cluster of dark grapes and a vase of mauve flowers, a cat curling at the seller's feet.",
+    "file": "morado.jpg"
+  },
+  "muchas gracias": {
+    "scene": "A person jumps slightly with delight and throws both arms wide to hug another who just handed them a large bouquet, face full of joyful thanks.",
+    "file": "muchas-gracias.jpg"
+  },
+  "mucho": {
+    "scene": "A picnic blanket covered with many plates of food and lots of people happily reaching for dishes.",
+    "file": "mucho.jpg"
+  },
+  "mucho gusto": {
+    "scene": "Two people meet and warmly shake hands with pleased, slightly excited faces as if introduced for the first time.",
+    "file": "mucho-gusto.jpg"
+  },
+  "necesitar": {
+    "scene": "A traveler frowns while holding an empty water bottle and looking at a distant oasis sign.",
+    "file": "necesitar.jpg"
+  },
+  "negro": {
+    "scene": "A quiet nighttime alley where a sleek cat with shiny fur sits on a stone step under a streetlamp, stars above in the dark sky.",
+    "file": "negro.jpg"
+  },
+  "nervioso": {
+    "scene": "A person fidgets, biting their lip and tapping fingers on a table, with small motion lines around their hands and foot.",
+    "file": "nervioso.jpg"
+  },
+  "no": {
+    "scene": "A person shakes their head side to side firmly with a calm but clear expression and folded arms.",
+    "file": "no.jpg"
+  },
+  "no hay problema": {
+    "scene": "After a small spill, a person gives a relaxed thumbs-up and a reassuring, easygoing smile while the other person looks relieved.",
+    "file": "no-hay-problema.jpg"
+  },
+  "nos vemos": {
+    "scene": "People in a busy plaza catch each other's eye and make a casual hand wave from a distance, smiling as they continue their separate activities.",
+    "file": "nos-vemos.jpg"
+  },
+  "nosotros": {
+    "scene": "Three friends stand close together with linked arms, smiling and holding a shared picnic blanket between them.",
+    "file": "nosotros.jpg"
+  },
+  "novecientos": {
+    "scene": "Nine matching star squares covering most of a large rug, a child sitting at the edge playing with one piece.",
+    "file": "novecientos.jpg"
+  },
+  "noveno": {
+    "scene": "Nine stars arranged in a row across the sky, the ninth star at the far right shining a bit brighter while a child points to that one from a window.",
+    "file": "noveno.jpg"
+  },
+  "noventa": {
+    "scene": "Nine rows of ten bright crayons laid out on a classroom desk, a child reaching for a green one.",
+    "file": "noventa.jpg"
+  },
+  "noviembre": {
+    "scene": "A family gathers around a dining table laden with a large roasted bird and side dishes, everyone smiling and passing plates.",
+    "file": "noviembre.jpg"
+  },
+  "nuestro": {
+    "scene": "Two people carry a large box together between them, both holding it with equal effort and smiling as they share the task.",
+    "file": "nuestro.jpg"
+  },
+  "nueve": {
+    "scene": "Nine pyramids of small stacking cups arranged in three rows on a play mat with soft afternoon light.",
+    "file": "nueve.jpg"
+  },
+  "nuevo": {
+    "scene": "A person unwraps shiny paper from a brand-new toy with delighted eyes in a bright room.",
+    "file": "nuevo.jpg"
+  },
+  "nunca": {
+    "scene": "A locked cookie jar on a high shelf with a child looking up longingly, hands clasped behind their back, and the child walking away without trying to climb.",
+    "file": "nunca.jpg"
+  },
+  "ochenta": {
+    "scene": "Eight rows of ten colorful kites stuck on a grassy hill, the kites gently bobbing in a breezy sky.",
+    "file": "ochenta.jpg"
+  },
+  "ocho": {
+    "scene": "Eight colorful crayons arranged in a neat row on a drawing table next to a blank sheet of paper.",
+    "file": "ocho.jpg"
+  },
+  "ochocientos": {
+    "scene": "Eight matching star squares filling a wide tabletop, a person's hands arranging them into straight edges.",
+    "file": "ochocientos.jpg"
+  },
+  "octavo": {
+    "scene": "A line of eight ducks walking across a pond on stepping stones, the eighth duck at the end following the others with a little splash behind it.",
+    "file": "octavo.jpg"
+  },
+  "octubre": {
+    "scene": "A person in a cozy sweater stands in a pumpkin patch selecting a round pumpkin, with a few orange leaves on the ground.",
+    "file": "octubre.jpg"
+  },
+  "once": {
+    "scene": "A group of eleven small candles clustered together on an unlit cake, shown from above with gentle party decorations around.",
+    "file": "once.jpg"
+  },
+  "orgulloso": {
+    "scene": "A person stands tall with hands on hips and a satisfied smile while others clap in the background and a small trophy sits on a table nearby.",
+    "file": "orgulloso.jpg"
+  },
+  "oír": {
+    "scene": "A passerby turns their head toward a distant bell tolling, eyebrows raised at the sound.",
+    "file": "oir.jpg"
+  },
+  "pagar": {
+    "scene": "A person hands cash across a counter to a cashier who accepts it with a smile.",
+    "file": "pagar.jpg"
+  },
+  "pasado mañana": {
+    "scene": "Three identical sidewalks in a row receding into the distance; a person walks toward the third one with a small suitcase, suggesting two steps ahead.",
+    "file": "pasado-manana.jpg"
+  },
+  "pensar": {
+    "scene": "A person sits on a bench with one hand on their chin and a thoughtful expression, eyes looking up.",
+    "file": "pensar.jpg"
+  },
+  "pequeño": {
+    "scene": "A tiny kitten sits in the palm of a smiling person's hand with a big empty floor around them.",
+    "file": "pequeno.jpg"
+  },
+  "perdón": {
+    "scene": "In a busy sidewalk scene, someone accidentally bumps another and immediately leans forward with an apologetic expression and hands slightly raised.",
+    "file": "perdon.jpg"
+  },
+  "plateado": {
+    "scene": ">A close-up of a polished spoon and a metallic bowl on a table, their surfaces reflecting soft daylight like pale metal.",
+    "file": "plateado.jpg"
+  },
+  "pobre": {
+    "scene": "A small, simple shack with a patchy roof sits beside a dirt path, with a person sitting quietly outside.",
+    "file": "pobre.jpg"
+  },
+  "poco": {
+    "scene": "A small plate with only one cookie sits on a table while a person looks at it with a thoughtful expression.",
+    "file": "poco.jpg"
+  },
+  "poder": {
+    "scene": "A climber reaches up and grasps the next rock ledge with a determined expression.",
+    "file": "poder.jpg"
+  },
+  "poner": {
+    "scene": "A person places a cup carefully onto a saucer on a table between two chairs.",
+    "file": "poner.jpg"
+  },
+  "por favor": {
+    "scene": "A person offers a small item with both hands and a gentle, expectant smile while leaning slightly forward in a polite, asking posture.",
+    "file": "por-favor.jpg"
+  },
+  "preocupado": {
+    "scene": "A person paces with furrowed brows, hands on their temples, and a few small objects tossed out of a bag onto the floor.",
+    "file": "preocupado.jpg"
+  },
+  "primero": {
+    "scene": "A bright medal on the top tier of a three-level podium with one smiling child standing proudly on the highest step while two other children stand a little lower.",
+    "file": "primero.jpg"
+  },
+  "pronto": {
+    "scene": "A runner at the starting line bending into position while a friend stands beside them holding a stopwatch, both looking expectant.",
+    "file": "pronto.jpg"
+  },
+  "querer": {
+    "scene": "A child reaches toward a toy displayed on a high shelf with longing eyes.",
+    "file": "querer.jpg"
+  },
+  "quince": {
+    "scene": "Fifteen wooden pegs standing upright in five rows on a board, with soft morning light casting shadows.",
+    "file": "quince.jpg"
+  },
+  "quinientos": {
+    "scene": "Five matching star squares lined up on a shelf, a smiling person stepping back to admire the row.",
+    "file": "quinientos.jpg"
+  },
+  "quinto": {
+    "scene": "Five parked toy cars in a neat line, the fifth car at the end is a different color and a child is reaching to pick it up.",
+    "file": "quinto.jpg"
+  },
+  "rico": {
+    "scene": "A grand house with polished windows and a lush garden is viewed from the street on a sunny day.",
+    "file": "rico.jpg"
+  },
+  "rojo": {
+    "scene": "A single ripe fruit on a small wooden table beneath soft sunlight, with a ladybug crawling on its smooth skin and a red ribbon nearby caught in the breeze.",
+    "file": "rojo.jpg"
+  },
+  "rosa": {
+    "scene": "A friendly bird with fluffy feathers perched on a branch beside a plate of frosted cupcakes, a soft pink flower nearby.",
+    "file": "rosa.jpg"
+  },
+  "rápido": {
+    "scene": "A cyclist zooms past trees with motion lines behind the wheels and hair swept back by the wind.",
+    "file": "rapido.jpg"
+  },
+  "saber": {
+    "scene": "A person points to a globe and taps their temple with a confident smile, as if recalling a fact.",
+    "file": "saber.jpg"
+  },
+  "salir": {
+    "scene": "A person steps out through a front door into sunlight, with a jacket over their arm.",
+    "file": "salir.jpg"
+  },
+  "segundo": {
+    "scene": "A race finish line with two runners crossing together: one on a slightly higher podium step and the other on the adjacent lower step holding a silver-colored medal and smiling.",
+    "file": "segundo.jpg"
+  },
+  "seis": {
+    "scene": "Six small fish swimming together in a clear round fishbowl on a windowsill with sunlight shining in.",
+    "file": "seis.jpg"
+  },
+  "seiscientos": {
+    "scene": "Six matching star squares stacked in two rows of three on the floor, sunlight streaming from a window.",
+    "file": "seiscientos.jpg"
+  },
+  "septiembre": {
+    "scene": "A child with a backpack walks along a sidewalk where a few leaves begin to turn color and fall from the trees, and a bicycle rests against a lamppost.",
+    "file": "septiembre.jpg"
+  },
+  "ser": {
+    "scene": "A simple interior with three framed portraits on a wall showing the same person at three ages (child, adult, elderly) with the same noticeable birthmark on the cheek, the person standing beneath them smiling proudly.",
+    "file": "ser.jpg"
+  },
+  "sesenta": {
+    "scene": "Six tidy rows of ten small gift boxes on a shop counter, each box wrapped in a different cheerful color.",
+    "file": "sesenta.jpg"
+  },
+  "setecientos": {
+    "scene": "Seven matching star squares arranged across a long table, a cat curled up beside the last one.",
+    "file": "setecientos.jpg"
+  },
+  "setenta": {
+    "scene": "Seven rows of ten little paper boats lined up on a calm pond, a duck gliding past them.",
+    "file": "setenta.jpg"
+  },
+  "sexto": {
+    "scene": "Six colorful balloons tied to a bench, the sixth balloon at the far right floating slightly higher while a dog looks up at it wagging its tail.",
+    "file": "sexto.jpg"
+  },
+  "siempre": {
+    "scene": "A cozy scene of an elderly person and a younger family member planting a small tree together, repeating a long-standing tradition with warm smiles.",
+    "file": "siempre.jpg"
+  },
+  "siete": {
+    "scene": "Seven birds lined up on a fence post at dawn, each bird a different bright color.",
+    "file": "siete.jpg"
+  },
+  "sorprendido": {
+    "scene": "A person freezes with raised eyebrows and a round mouth as a friend pops out from behind a curtain holding a small bouquet.",
+    "file": "sorprendido.jpg"
+  },
+  "sucio": {
+    "scene": "A muddy boot leaves a big brown smear on a doorstep as a person looks at it with dismay.",
+    "file": "sucio.jpg"
+  },
+  "sábado": {
+    "scene": "A family pedals bicycles together on a tree-lined path through a sunny park, with a picnic blanket and a frisbee waiting under a big oak.",
+    "file": "sabado.jpg"
+  },
+  "séptimo": {
+    "scene": "A small set of stairs with seven steps and a person standing on the seventh step from the bottom, smiling and waving at someone below.",
+    "file": "septimo.jpg"
+  },
+  "sí": {
+    "scene": "A cheerful person nods their head emphatically with a broad smile and an open posture.",
+    "file": "si.jpg"
+  },
+  "tarde": {
+    "scene": "A person hurrying down a city sidewalk under a sky streaked with deep orange and purple, glancing at their watch as streetlights come on.",
+    "file": "tarde.jpg"
+  },
+  "temprano": {
+    "scene": "A quiet street with only a newspaper vendor and one bicyclist under soft pale morning light, shops still closed.",
+    "file": "temprano.jpg"
+  },
+  "tener": {
+    "scene": "A smiling child holds three colorful balloons in one hand while standing in a park.",
+    "file": "tener.jpg"
+  },
+  "tercero": {
+    "scene": "Three cupcakes on a counter, the middle one placed a little to the front and decorated differently to show it is the third in line, with a small happy character reaching for it.",
+    "file": "tercero.jpg"
+  },
+  "terminar": {
+    "scene": "A runner crosses a finish line ribbon with arms raised and relief on their face.",
+    "file": "terminar.jpg"
+  },
+  "todavía": {
+    "scene": "A pot on a stove gently simmering with steam rising while a person stands patiently stirring, indicating the process continues.",
+    "file": "todavia.jpg"
+  },
+  "todo recto": {
+    "scene": "A long straight avenue stretches into the distance with a pedestrian walking directly toward the vanishing point and no side streets interrupting the path.",
+    "file": "todo-recto.jpg"
+  },
+  "todos los días": {
+    "scene": "A row of five identical potted herbs on a windowsill with one person trimming a leaf from the middle plant, implying a daily routine.",
+    "file": "todos-los-dias.jpg"
+  },
+  "tomar": {
+    "scene": "A hand reaches into a bowl and lifts out an apple as if selecting it.",
+    "file": "tomar.jpg"
+  },
+  "trabajar": {
+    "scene": "A person at a desk types on a laptop surrounded by papers, a mug, and a focused expression.",
+    "file": "trabajar.jpg"
+  },
+  "tranquilo": {
+    "scene": "A person sits cross-legged by a calm lakeshore at dusk, eyes closed and palms resting on their knees, breathing slowly.",
+    "file": "tranquilo.jpg"
+  },
+  "trece": {
+    "scene": "Thirteen colorful shells scattered across a beach towel by the shoreline with small waves nearby.",
+    "file": "trece.jpg"
+  },
+  "treinta": {
+    "scene": "Three neat rows of ten colorful balloons floating above a picnic blanket, each balloon the same size and shape.",
+    "file": "treinta.jpg"
+  },
+  "tres": {
+    "scene": "Three colorful balloons tied together drifting over a playground slide as a toddler reaches up for them.",
+    "file": "tres.jpg"
+  },
+  "trescientos": {
+    "scene": "Three identical star squares arranged in a row, a small shadow cast by each square under bright light.",
+    "file": "trescientos.jpg"
+  },
+  "triste": {
+    "scene": "A person sits alone on a curb with hunched shoulders, looking down as a small puddle reflects a gray, rainy sky.",
+    "file": "triste.jpg"
+  },
+  "tu": {
+    "scene": "One person reaches out and hands a hat to another person who is about to take it, the action suggesting possession handed to the other.",
+    "file": "tu-2.jpg"
+  },
+  "tú": {
+    "scene": "A single casual person stands facing another person and points at them with a friendly smile, as if addressing them directly in an informal, relaxed setting.",
+    "file": "tu.jpg"
+  },
+  "un millón": {
+    "scene": "An aerial view showing a vast city made of many identical long strips like the previous one, each strip repeated in a wide grid so the tiny houses blur into a textured sea under a bright sky.",
+    "file": "un-millon.jpg"
+  },
+  "uno": {
+    "scene": "A child holding one bright red apple in both hands and smiling, standing in front of a simple green tree.",
+    "file": "uno.jpg"
+  },
+  "usted": {
+    "scene": "Two people dressed neatly stand at a small respectful distance and shake hands with polite, formal expressions in a quiet office-like space.",
+    "file": "usted.jpg"
+  },
+  "ustedes": {
+    "scene": "A group of adults in professional attire stand in a polite semicircle, listening attentively to someone outside the frame.",
+    "file": "ustedes.jpg"
+  },
+  "vacío": {
+    "scene": "An empty glass sits on a table with a faint ring where a drink used to be, sunlight casting a shadow.",
+    "file": "vacio.jpg"
+  },
+  "veinte": {
+    "scene": "Twenty beach pebbles arranged in a large heart shape on the sand beneath a bright sun.",
+    "file": "veinte.jpg"
+  },
+  "vender": {
+    "scene": "A market seller stands behind a stall offering vegetables while a customer points at a crate.",
+    "file": "vender.jpg"
+  },
+  "venir": {
+    "scene": "A friend approaches the front door carrying a gift, footsteps visible on the porch.",
+    "file": "venir.jpg"
+  },
+  "ver": {
+    "scene": "A person stands on a hill with hands shading their eyes, looking out across a wide valley.",
+    "file": "ver.jpg"
+  },
+  "verde": {
+    "scene": "A park scene with a tall leafy tree, green grass, and a child watering a patch of plants with a watering can.",
+    "file": "verde.jpg"
+  },
+  "viajar": {
+    "scene": "A suitcase with travel stickers sits on a platform next to a passport and a window showing a departing train.",
+    "file": "viajar.jpg"
+  },
+  "viejo": {
+    "scene": "An elderly person sits on a wooden bench next to a well-worn cane and a faded sweater draped over the back.",
+    "file": "viejo.jpg"
+  },
+  "viernes": {
+    "scene": "Colleagues burst out the office doors into a warm sunset, one person holding a jacket over their shoulder and another giving a high-five, all walking toward a city street with glowing shop windows.",
+    "file": "viernes.jpg"
+  },
+  "vivir": {
+    "scene": "A cozy house with smoke from the chimney, a bicycle by the door, and a family visible through the window.",
+    "file": "vivir.jpg"
+  },
+  "vosotros": {
+    "scene": "A lively group of young people in casual clothes laugh and high-five each other in an outdoor plaza, relaxed and informal.",
+    "file": "vosotros.jpg"
+  },
+  "y cuarto": {
+    "scene": "A clock face has the minute hand pointing to the quarter mark (3) and the short hand just past a number, while a person pours a cup of tea.",
+    "file": "y-cuarto.jpg"
+  },
+  "y media": {
+    "scene": "An office break room with a clock whose minute hand points straight down (6) and the short hand between numbers, and a coworker standing with a half-eaten sandwich.",
+    "file": "y-media.jpg"
+  },
+  "ya": {
+    "scene": "A child holding up a completed puzzle piece over the last empty spot while a parent claps nearby, showing the task is finished.",
+    "file": "ya.jpg"
+  },
+  "yo": {
+    "scene": "A single person stands centered and smiles, pointing with one finger to their own chest. The background is simple and uncluttered so the gesture clearly focuses on the person themself.",
+    "file": "yo.jpg"
+  },
+  "¡Ayuda!": {
+    "scene": "On a busy street a person stands on a curb with arms raised and a worried face while nearby people turn toward them, some pointing and one starting to run toward the scene.",
+    "file": "ayuda.jpg"
+  },
+  "¡Bienvenido!": {
+    "scene": "A person stands in an open doorway with arms wide and a welcoming smile as another person steps inside carrying a suitcase.",
+    "file": "bienvenido.jpg"
+  },
+  "¡Buen provecho!": {
+    "scene": "One person at a shared table lifts their fork with a cheerful smile toward the others as plates of food steam between them and everyone prepares to eat.",
+    "file": "buen-provecho.jpg"
+  },
+  "¡Cuidado!": {
+    "scene": "A person freezes with wide eyes and hands up as another person nearby almost steps off a low construction barrier into a deep pothole, with scattered cones and broken pavement visible.",
+    "file": "cuidado.jpg"
+  },
+  "¡Fuego!": {
+    "scene": "A trash can and nearby bushes are engulfed in bright flames and smoke while two people back away, one covering their mouth, and a third person waves their arms to attract attention.",
+    "file": "fuego.jpg"
+  },
+  "¿Aceptan tarjetas?": {
+    "scene": "A shopper holds out an empty hand toward a cashier, who points to a compact card reader on the counter with a questioning expression.",
+    "file": "aceptan-tarjetas.jpg"
+  },
+  "¿Cuánto cuesta?": {
+    "scene": "A shopper points at a price tag on a sweater while a friendly cashier gestures with open hands, both smiling in a small store aisle.",
+    "file": "cuanto-cuesta.jpg"
+  },
+  "¿Cómo está usted?": {
+    "scene": "A younger person stands politely with a slight bow toward an older person who smiles back, both keeping respectful distance.",
+    "file": "como-esta-usted.jpg"
+  },
+  "¿Cómo estás?": {
+    "scene": "Two young friends face each other closely, one with a curious, open expression and the other gesturing at their own chest with a questioning tilt of the head.",
+    "file": "como-estas.jpg"
+  },
+  "¿Cómo llego a…?": {
+    "scene": "A traveler holds an unfolded simple map and talks to a friendly local who points along a path that winds through the scene toward a visible distant landmark.",
+    "file": "como-llego-a.jpg"
+  },
+  "¿Cómo te llamas?": {
+    "scene": "One person points to themselves with a questioning look and slightly tilts their head toward the other person, who appears ready to answer.",
+    "file": "como-te-llamas.jpg"
+  },
+  "¿De dónde eres?": {
+    "scene": "Two people stand by a large world map or globe; one points at the map with a curious expression while looking at the other person.",
+    "file": "de-donde-eres.jpg"
+  },
+  "¿Dónde está…?": {
+    "scene": "A person stands in the middle of a small plaza, looking around with a puzzled expression and hands slightly raised, with several buildings and paths spreading out around them.",
+    "file": "donde-esta.jpg"
+  },
+  "¿Habla inglés?": {
+    "scene": "One person points to themselves then to the other person, looking hopeful, while the other wears a small shirt with a simple English-style flag and nods slightly.",
+    "file": "habla-ingles.jpg"
+  },
+  "¿Puede repetir, por favor?": {
+    "scene": "One person cups their ear and leans forward listening intently while the other repeats the same gesture and mouths the words again, speaking toward them.",
+    "file": "puede-repetir-por-favor.jpg"
+  },
+  "¿Puedo probármelo?": {
+    "scene": "A customer standing at a fitting room door holding a garment in front of themselves while a store attendant opens the door slightly, invitingly.",
+    "file": "puedo-probarmelo.jpg"
+  },
+  "¿Qué hora es?": {
+    "scene": "A person holds up a wrist toward another person and tilts their head, looking expectant, while a nearby wall clock with clear hands is visible in the background.",
+    "file": "que-hora-es.jpg"
+  },
+  "¿Qué me recomienda?": {
+    "scene": "A customer looks curious with a tilted head while a server leans in and points enthusiastically to a steaming plate held in their other hand.",
+    "file": "que-me-recomienda.jpg"
+  },
+  "¿Qué tal?": {
+    "scene": "A casual scene of two coworkers meeting by a locker, one giving a relaxed thumbs-up while the other looks interested and surprised.",
+    "file": "que-tal.jpg"
+  },
+  "¿Qué tiempo hace?": {
+    "scene": "A person standing at a window looking out and pointing at the sky with a curious expression, while outside different weather is visible: a patch of blue sky, a cloud, and a slight breeze moving the leaves.",
+    "file": "que-tiempo-hace.jpg"
+  },
+  "¿Y tú?": {
+    "scene": "After one person answers, they point gently toward the other person with a friendly, expectant expression, inviting them to respond.",
+    "file": "y-tu.jpg"
+  },
+  "¿adónde?": {
+    "scene": "A traveler with a suitcase stands at a fork in a path that splits toward a beach, a city skyline, and mountains, deciding which direction to walk.",
+    "file": "adonde.jpg"
+  },
+  "¿cuál?": {
+    "scene": "Several different colored shirts are laid out on a bed and a hand reaches down to pick one, while the person looks at them thoughtfully.",
+    "file": "cual.jpg"
+  },
+  "¿cuándo?": {
+    "scene": "A person looks up at a large wall clock while a window beside it shows the sun low on the horizon, suggesting a specific time of day.",
+    "file": "cuando.jpg"
+  },
+  "¿cuánto?": {
+    "scene": "A shopper at a counter counts coins in their hand while a small item sits on the counter, the cashier waiting with a neutral expression.",
+    "file": "cuanto.jpg"
+  },
+  "¿cuántos?": {
+    "scene": "A child counts apples by pointing one by one as they line them up on a table, looking pleased as they total them with fingers.",
+    "file": "cuantos.jpg"
+  },
+  "¿cómo?": {
+    "scene": "Close-up of hands assembling two simple pieces together with small picture-only instructions beside them and a calm, focused posture.",
+    "file": "como.jpg"
+  },
+  "¿de dónde?": {
+    "scene": "Someone steps off a train holding a backpack, looking back at the train and at a distant landscape of palm trees and snow-capped peaks visible in the background.",
+    "file": "de-donde.jpg"
+  },
+  "¿dónde?": {
+    "scene": "A person stands in the middle of a plaza holding a small map upside down and looks puzzled, eyebrows raised. Around them are several visible landmarks (a tall building, a café terrace, and a park with a fountain) in the background to suggest different possible places.",
+    "file": "donde.jpg"
+  },
+  "¿por qué?": {
+    "scene": "A child stands puzzled beside a broken toy on the floor, pointing at a loose screw while another child shrugs, both wearing questioning expressions.",
+    "file": "por-que.jpg"
+  },
+  "¿quién?": {
+    "scene": "A small group of different people stands together while a person with a magnifying glass studies footprints leading to one individual who turns slightly toward the viewer.",
+    "file": "quien.jpg"
+  },
+  "¿qué?": {
+    "scene": "A person stands before a covered object on a table, lifting the edge of the cloth with a puzzled, curious expression while various possible items (a hat, a book, a toy) sit nearby as hints.",
+    "file": "que.jpg"
+  },
+  "él": {
+    "scene": "One man walks across a sunny park carrying a coffee, looking confident and alone.",
+    "file": "el.jpg"
+  }
+}

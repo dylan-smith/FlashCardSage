@@ -121,7 +121,7 @@ test.describe('Decks', () => {
 
     await expect(page.getByRole('heading', { name: 'Things' })).toBeVisible()
     await page.getByRole('checkbox', { name: 'Pick "el libro"' }).check()
-    await page.getByRole('button', { name: 'Remove 1 card' }).click()
+    await page.getByRole('button', { name: 'Remove 1 card from deck' }).click()
     await expect(
       page.getByRole('tab', { name: 'In this deck (1)' }),
     ).toBeVisible()
@@ -142,7 +142,7 @@ test.describe('Decks', () => {
 
     // Removing takes a card out of the deck but keeps it.
     await page
-      .getByRole('button', { name: 'Remove "el libro" from the deck' })
+      .getByRole('button', { name: 'Remove "el libro" from deck' })
       .click()
     await expect(page.getByRole('status')).toHaveText(
       'Removed 1 card from the deck.',

@@ -142,8 +142,9 @@ public class SystemDecksController(
         }
 
         logger.LogInformation(
-            "Imported system deck {SystemDeckId} as deck {DeckId} with {Count} flash cards, skipping {SkippedCount}",
+            "Imported system deck {SystemDeckId} ({SystemDeckName}) as deck {DeckId} with {Count} flash cards, skipping {SkippedCount}",
             id,
+            systemDeck.Name,
             deck.Id,
             deck.FlashCards.Count,
             skipped);
