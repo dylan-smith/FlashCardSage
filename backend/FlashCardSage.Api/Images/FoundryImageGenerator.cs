@@ -17,7 +17,10 @@ public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerati
 
     // The error codes the service answers with when a safety system refuses the words or the picture.
     private static readonly string[] ContentFilterCodes =
-        ["contentFilter", "content_policy_violation", "content_moderation", "ResponsibleAIPolicyViolation"];
+    [
+        "contentFilter", "content_policy_violation", "content_moderation", "content_safety_violation",
+        "ResponsibleAIPolicyViolation"
+    ];
 
     private readonly ImageGenerationOptions options = options.Value;
 
