@@ -298,7 +298,7 @@ function DeckPage() {
           <CardPicker
             cards={deckCards}
             emptyMessage="This deck has no cards yet. Add some from the Add cards tab."
-            actionLabel="Remove"
+            actionLabel={(cards) => `Remove ${cards} from deck`}
             busy={busy}
             onApply={(ids) => handleChange([], ids)}
             pickedActions={(ids) => (
@@ -310,17 +310,24 @@ function DeckPage() {
             )}
             rowActions={(card) => {
               const spanish = formatWords(card.spanish)
+              // One above the other on a phone, so the card's words keep room next to them.
               return (
-                <>
+                <Box
+                  sx={{
+                    display: 'flex',
+                    flexDirection: { xs: 'column', sm: 'row' },
+                    alignItems: 'flex-end',
+                    flexShrink: 0,
+                  }}
+                >
                   <Button
                     type="button"
                     size="small"
                     disabled={busy}
-                    aria-label={`Remove "${spanish}" from the deck`}
+                    aria-label={`Remove "${spanish}" from deck`}
                     onClick={() => void handleChange([], [card.id])}
-                    sx={{ flexShrink: 0 }}
                   >
-                    Remove
+                    Remove from deck
                   </Button>
                   <Button
                     type="button"
@@ -329,11 +336,10 @@ function DeckPage() {
                     disabled={busy}
                     aria-label={`Delete "${spanish}"`}
                     onClick={() => void handleDeleteCards([card.id])}
-                    sx={{ flexShrink: 0 }}
                   >
                     Delete
                   </Button>
-                </>
+                </Box>
               )
             }}
           />
@@ -351,7 +357,7 @@ function DeckPage() {
                 ? 'You have no flash cards yet.'
                 : 'Every card is in this deck.'
             }
-            actionLabel="Add"
+            actionLabel={(cards) => `Add ${cards}`}
             busy={busy}
             onApply={(ids) => handleChange(ids, [])}
           />
