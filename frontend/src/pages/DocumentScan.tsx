@@ -19,6 +19,7 @@ import {
   scanDocument,
 } from '../api/documentScans'
 import {
+  ApiError,
   createFlashCard,
   createFlashCards,
   describeFetchError,
@@ -48,6 +49,14 @@ type Added = { count: number; skippedCount: number; limitReached: boolean }
 
 // The candidate being changed, with its words as typed so far.
 type Editing = { key: number; spanish: string; english: string }
+
+// Reports a failure, unless it's an error the API sent for the user to see, such as a document it can't scan or a 409
+// for a card the user already has, which is theirs to fix, not a failure.
+function reportFailure(error: unknown, operation: string) {
+  if (!(error instanceof ApiError)) {
+    trackException(error, { operation })
+  }
+}
 
 function describeAdded({ count, skippedCount, limitReached }: Added) {
   let text = `Added ${cardCount(count)}.`
@@ -113,7 +122,7 @@ export function DocumentScan() {
         addedCount: 0,
       })
     } catch (error) {
-      trackException(error, { operation: 'scan' })
+      reportFailure(error, 'scan')
       setState({ status: 'idle' })
       setErrorMessage(describeFetchError(error, 'Unable to scan the document.'))
     }
@@ -189,7 +198,7 @@ export function DocumentScan() {
         })
       }
     } catch (error) {
-      trackException(error, { operation: 'add' })
+      reportFailure(error, 'add')
       setErrorMessage(describeFetchError(error, 'Unable to add the card.'))
     } finally {
       setAdding(null)
@@ -222,7 +231,7 @@ export function DocumentScan() {
       })
       setState({ status: 'idle' })
     } catch (error) {
-      trackException(error, { operation: 'add' })
+      reportFailure(error, 'add')
       setErrorMessage(describeFetchError(error, 'Unable to add the cards.'))
     } finally {
       setAdding(null)
