@@ -7,7 +7,7 @@ import DialogContentText from '@mui/material/DialogContentText'
 import DialogTitle from '@mui/material/DialogTitle'
 import { cardCount } from './cardCount'
 
-// Deletes the cards picked on the cards page, once the user says so in a dialog, since it can't be undone.
+// Deletes the cards picked on the cards page or a deck's page, once the user says so in a dialog, since it can't be undone.
 export function DeleteCards({
   count,
   busy,

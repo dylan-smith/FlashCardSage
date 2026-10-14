@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import type { ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
@@ -44,6 +45,8 @@ export function CardPicker({
   actionLabel,
   busy,
   onApply,
+  pickedActions,
+  rowActions,
 }: {
   cards: FlashCard[]
   emptyMessage: string
@@ -52,6 +55,11 @@ export function CardPicker({
   busy: boolean
   // Resolves to whether it worked, so the cards stay picked when it didn't.
   onApply: (ids: number[]) => Promise<boolean>
+  // More buttons for the picked cards, shown after the main one, such as Delete. A picked card that leaves the list
+  // stops counting as picked, so they needn't clear the picks.
+  pickedActions?: (ids: number[]) => ReactNode
+  // Buttons for a single card, shown at the end of its row, such as Delete.
+  rowActions?: (card: FlashCard) => ReactNode
 }) {
   const [search, setSearch] = useState('')
   const [tagId, setTagId] = useState<number | null>(null)
@@ -172,16 +180,19 @@ export function CardPicker({
             />
           }
         />
-        <Button
-          type="button"
-          variant="contained"
-          disabled={busy || picked.length === 0}
-          onClick={() => void apply()}
-        >
-          {picked.length === 0
-            ? `${actionLabel} cards`
-            : `${actionLabel} ${cardCount(picked.length)}`}
-        </Button>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+          <Button
+            type="button"
+            variant="contained"
+            disabled={busy || picked.length === 0}
+            onClick={() => void apply()}
+          >
+            {picked.length === 0
+              ? `${actionLabel} cards`
+              : `${actionLabel} ${cardCount(picked.length)}`}
+          </Button>
+          {pickedActions?.(picked)}
+        </Box>
       </Box>
       {matching.length === 0 ? (
         <Typography color="text.secondary">No cards match.</Typography>
@@ -193,6 +204,7 @@ export function CardPicker({
               card={card}
               picked={selected.has(card.id)}
               onPick={() => toggle(card.id)}
+              actions={rowActions?.(card)}
             />
           ))}
         </List>

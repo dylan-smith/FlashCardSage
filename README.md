@@ -381,7 +381,7 @@ The what-if identity is a user-assigned managed identity with a federated creden
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth token (from `claude setup-token`) used by the CI failure and alert investigation workflows |
 | `ALERT_INVESTIGATION_TOKEN` | Optional. Fine-grained personal access token for this repository only, with **Actions: Read and write**. The infrastructure deployment gives it to the Slack Logic App, which uses it to start the alert investigation workflow. Without it (or `SLACK_WEBHOOK_URL`), alerts aren't investigated |
 | `AUTOMERGE_TOKEN` | Personal access token with write access to contents and pull requests. The Dependabot workflows use it to comment, and the CI failure investigation workflow uses it to push fix branches and open PRs (so CI runs on them). Save it as both an Actions secret and a Dependabot secret |
-| `TS_COMPAT_PR_TOKEN` | Fine-grained personal access token for this repository with Contents, Pull requests and Workflows read/write, used by the nightly TypeScript/ESLint compatibility workflow to open a PR that edits a workflow file |
+| `TS_COMPAT_PR_TOKEN` | Fine-grained personal access token for this repository with Contents, Pull requests and Workflows read/write, used by the nightly TypeScript/ESLint compatibility and Pkcs pin check workflows to open PRs that delete a workflow file |
 
 ### CI Failure Investigation
 
