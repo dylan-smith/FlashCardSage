@@ -107,19 +107,29 @@ test.describe('Import from Preply', () => {
       importPage.getByRole('tab', { name: 'From Preply' }),
     ).toHaveAttribute('aria-selected', 'true')
 
-    const words = importPage.getByRole('list', { name: 'Preply words' })
-    await expect(words.getByRole('listitem')).toHaveCount(4)
-    await expect(words.getByText('oatmeal · noun')).toBeVisible()
-
-    await words.getByRole('checkbox', { name: 'Pick "picante"' }).uncheck()
-    await importPage
-      .getByRole('button', { name: 'Add 3 cards to a Preply deck' })
-      .click()
-
+    // Listed like the cards from a document, leaving out the word the user has a card for.
+    const cards = importPage.getByRole('list', { name: 'Cards from Preply' })
+    await expect(cards.getByRole('listitem')).toHaveCount(3)
     await expect(
       importPage.getByText(
-        'Added Preply with 2 cards. 1 card was left out because you already have it.',
+        '1 word is left out because you already have a card for it.',
       ),
+    ).toBeVisible()
+
+    // Removed, changed with the cards page's form, and added one at a time and all at once.
+    await importPage.getByRole('button', { name: 'Remove "picante"' }).click()
+    await importPage.getByRole('button', { name: 'Edit "avena"' }).click()
+    await importPage.getByLabel('English', { exact: true }).fill('oats')
+    await importPage.getByRole('button', { name: 'Save' }).click()
+    await expect(cards.getByText('oats', { exact: true })).toBeVisible()
+    await importPage.getByRole('button', { name: 'Add "tostado"' }).click()
+    await expect(
+      importPage.getByText('Added “tostado” to your Preply deck.'),
+    ).toBeVisible()
+    await importPage.getByRole('button', { name: 'Add 1 card' }).click()
+
+    await expect(
+      importPage.getByText('Added 2 cards to your Preply deck.'),
     ).toBeVisible()
     await importPage.getByRole('link', { name: 'Open deck' }).click()
 
@@ -127,6 +137,9 @@ test.describe('Import from Preply', () => {
       importPage.getByRole('tab', { name: 'In this deck (2)' }),
     ).toBeVisible()
     await expect(importPage.getByText('tostado', { exact: true })).toBeVisible()
-    await expect(importPage.getByText('avena', { exact: true })).toBeVisible()
+    await expect(importPage.getByText('oats', { exact: true })).toBeVisible()
+    await expect(importPage.getByText('picante', { exact: true })).toHaveCount(
+      0,
+    )
   })
 })

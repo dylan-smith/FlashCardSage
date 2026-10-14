@@ -44,7 +44,7 @@ public class SystemDecksController(
     // Copies the deck into the user's decks, leaving out any card whose Spanish or English is already on one of their
     // cards, since a user can't have two cards for a word.
     [HttpPost("{id:int}/import")]
-    public async Task<ActionResult<DeckImportResponse>> Import(int id, CancellationToken cancellationToken)
+    public async Task<ActionResult<SystemDeckImportResponse>> Import(int id, CancellationToken cancellationToken)
     {
         var systemDeck = await SystemDecks().FirstOrDefaultAsync(deck => deck.Id == id, cancellationToken);
 
@@ -54,10 +54,21 @@ public class SystemDecksController(
             return NotFound();
         }
 
-        var taken = await DeckImport.TakenWordsAsync(dbContext, cancellationToken);
+        // The words on the user's cards, by language. Compared in memory, ignoring case, since the in-memory database
+        // used in development can't in a query.
+        var words = await dbContext.FlashCardWords
+            .AsNoTracking()
+            .Select(word => new { word.Language, word.Text })
+            .ToListAsync(cancellationToken);
+        var taken = Enum.GetValues<Language>().ToDictionary(
+            language => language,
+            language => words
+                .Where(word => word.Language == language)
+                .Select(word => word.Text)
+                .ToHashSet(StringComparer.OrdinalIgnoreCase));
         var tags = await dbContext.Tags.ToListAsync(cancellationToken);
 
-        var deck = new Deck { Name = await DeckImport.UnusedDeckNameAsync(dbContext, systemDeck.Name, cancellationToken) };
+        var deck = new Deck { Name = await UnusedDeckNameAsync(systemDeck.Name, cancellationToken) };
         // Each copy's built-in card's picture, if it has one, copied once there's something to import.
         var pictures = new List<(FlashCard Copy, string Url)>();
         var skipped = 0;
@@ -142,7 +153,7 @@ public class SystemDecksController(
             nameof(DecksController.GetById),
             "Decks",
             new { id = deck.Id },
-            new DeckImportResponse(DeckResponse.From(deck), deck.FlashCards.Count, skipped));
+            new SystemDeckImportResponse(DeckResponse.From(deck), deck.FlashCards.Count, skipped));
     }
 
     // A copy of the picture, or null when it's gone or can't be copied. The picture is only a nicety, so the card is
@@ -180,6 +191,23 @@ public class SystemDecksController(
             .Include(deck => deck.FlashCards)
             .ThenInclude(card => card.Tags.OrderBy(tag => tag.Name))
             .AsSplitQuery();
+    }
+
+    // The name, or else the name with the first of " (2)", " (3)" and so on that none of the user's decks has, ignoring
+    // case as the database's index does.
+    private async Task<string> UnusedDeckNameAsync(string name, CancellationToken cancellationToken)
+    {
+        var names = (await dbContext.Decks.Select(deck => deck.Name).ToListAsync(cancellationToken))
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var candidate = name;
+        for (var number = 2; names.Contains(candidate); number++)
+        {
+            var suffix = $" ({number})";
+            candidate = name[..Math.Min(name.Length, Deck.MaxNameLength - suffix.Length)] + suffix;
+        }
+
+        return candidate;
     }
 
     // The user's tag with this name, ignoring case, or a new one, which is kept with their tags so the deck's other

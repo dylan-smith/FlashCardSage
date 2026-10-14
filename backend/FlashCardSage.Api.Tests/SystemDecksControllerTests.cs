@@ -71,7 +71,7 @@ public class SystemDecksControllerTests
 
         var created = Assert.IsType<CreatedAtActionResult>(result.Result);
         Assert.Equal((nameof(DecksController.GetById), "Decks"), (created.ActionName, created.ControllerName));
-        var imported = Assert.IsType<DeckImportResponse>(created.Value);
+        var imported = Assert.IsType<SystemDeckImportResponse>(created.Value);
         Assert.Equal((3, 0, "Days"), (imported.ImportedCount, imported.SkippedCount, imported.Deck.Name));
         Assert.Equal(imported.Deck.Id, created.RouteValues?["id"]);
 
@@ -99,7 +99,7 @@ public class SystemDecksControllerTests
         var databaseName = await SeedAsync();
         await using var dbContext = TestDb.Create(databaseName);
         var daysId = await SystemDeckIdAsync(dbContext, "Days");
-        var imported = Assert.IsType<DeckImportResponse>(
+        var imported = Assert.IsType<SystemDeckImportResponse>(
             Assert.IsType<CreatedAtActionResult>((await CreateController(dbContext).Import(daysId, CancellationToken.None)).Result).Value);
 
         var copy = (await UserCardsAsync(dbContext)).Single(card => card.Spanish.Single() == "lunes");
@@ -163,7 +163,7 @@ public class SystemDecksControllerTests
         var result = await CreateController(dbContext, store)
             .Import(await SystemDeckIdAsync(dbContext, "Days"), CancellationToken.None);
 
-        var imported = Assert.IsType<DeckImportResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+        var imported = Assert.IsType<SystemDeckImportResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
         Assert.Equal(3, imported.ImportedCount);
         Assert.Null((await UserCardsAsync(dbContext)).Single(card => card.Spanish.Single() == "lunes").ImageUrl);
     }
@@ -201,7 +201,7 @@ public class SystemDecksControllerTests
 
         var result = await CreateController(dbContext).Import(await SystemDeckIdAsync(dbContext, "Days"), CancellationToken.None);
 
-        var imported = Assert.IsType<DeckImportResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+        var imported = Assert.IsType<SystemDeckImportResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
         Assert.Equal((2, 1), (imported.ImportedCount, imported.SkippedCount));
         await using var checkContext = TestDb.Create(databaseName);
         var deck = await checkContext.Decks
@@ -241,7 +241,7 @@ public class SystemDecksControllerTests
 
         var result = await CreateController(dbContext).Import(await SystemDeckIdAsync(dbContext, "Days"), CancellationToken.None);
 
-        var imported = Assert.IsType<DeckImportResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+        var imported = Assert.IsType<SystemDeckImportResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
         Assert.Equal("Days (3)", imported.Deck.Name);
     }
 

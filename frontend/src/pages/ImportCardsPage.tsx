@@ -13,18 +13,25 @@ import SvgIcon from '@mui/material/SvgIcon'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
-import { useSearchParams } from 'react-router'
-import type { DeckImport } from '../api/decks'
+import { Link as RouterLink, useSearchParams } from 'react-router'
 import { ApiError, describeFetchError } from '../api/flashCards'
 import { importSystemDeck, listSystemDecks } from '../api/systemDecks'
-import type { SystemDeck } from '../api/systemDecks'
+import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
 import { DocumentScan } from './DocumentScan'
 import { FlashCardRow } from './FlashCardRow'
-import { ImportedAlert } from './ImportedAlert'
 import { PreplyImport } from './PreplyImport'
+
+// What importing did, such as "Added Months with 12 cards." and how many were left out.
+function describeImport({ deck, skippedCount }: SystemDeckImport) {
+  const added = `Added ${deck.name} with ${cardCount(deck.flashCardIds.length)}.`
+  if (skippedCount === 0) {
+    return added
+  }
+  return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
+}
 
 // Where the cards come from: a built-in deck, a document the user picks, or their Preply vocabulary.
 type ImportTab = 'decks' | 'document' | 'preply'
@@ -53,7 +60,7 @@ function ImportCardsPage() {
   const [shownIds, setShownIds] = useState<number[]>([])
   // The deck being added, so its button can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
-  const [imported, setImported] = useState<DeckImport | null>(null)
+  const [imported, setImported] = useState<SystemDeckImport | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
@@ -158,7 +165,23 @@ function ImportCardsPage() {
         hidden={tab !== 'decks'}
       >
         <Stack spacing={2}>
-          {imported && <ImportedAlert imported={imported} />}
+          {imported && (
+            <Alert
+              severity="success"
+              action={
+                <Button
+                  component={RouterLink}
+                  to={`/decks/${imported.deck.id}`}
+                  color="inherit"
+                  size="small"
+                >
+                  Open deck
+                </Button>
+              }
+            >
+              {describeImport(imported)}
+            </Alert>
+          )}
           {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
           <Box>

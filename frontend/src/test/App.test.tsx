@@ -3626,13 +3626,25 @@ describe('App', () => {
   })
 
   describe('importing from Preply', () => {
-    const preplyImportUrl = 'http://localhost:5269/api/preply-import'
+    const flashCardsUrl = 'http://localhost:5269/api/flashcards'
     const words = [
       { spanish: 'tostado', english: 'toasted', partOfSpeech: 'adjective' },
       { spanish: 'avena', english: 'oatmeal', partOfSpeech: 'noun' },
       { spanish: 'gustaron', english: null, partOfSpeech: null },
       { spanish: 'picante', english: 'spicy', partOfSpeech: null },
+      { spanish: 'el pan', english: 'bread', partOfSpeech: 'noun' },
     ]
+    // The user already has a card for "el pan", whatever its case.
+    const ownCards: FlashCard[] = [
+      {
+        id: 1,
+        spanish: ['El Pan'],
+        english: ['the bread'],
+        tags: [],
+        imageUrl: null,
+      },
+    ]
+    const preplyDeck: Deck = { id: 40, name: 'Preply', flashCardIds: [] }
 
     // This window, opened by the bookmarklet, which is the one that sends it messages. jsdom only takes a real window
     // as a message's source, so that's this one too.
@@ -3649,6 +3661,16 @@ describe('App', () => {
       })
     }
 
+    function savedCard(id: number, spanish: string, english: string) {
+      return {
+        id,
+        spanish: [spanish],
+        english: [english],
+        tags: [],
+        imageUrl: null,
+      }
+    }
+
     beforeEach(() => {
       vi.spyOn(window, 'postMessage').mockImplementation(() => {})
       startPreplyHandoff(opened)
@@ -3658,15 +3680,21 @@ describe('App', () => {
       clearPreplyHandoff()
     })
 
-    // Shows the Import cards page's Preply tab, as the bookmarklet opens it, answering adding the words with post. The
-    // other tabs' lists are empty.
+    // Shows the Import cards page's Preply tab, as the bookmarklet opens it, with the user's cards and decks loaded.
+    // Saving anything is answered with save. The other tabs' lists are empty.
     async function showPreply(
-      post: () => Promise<Response> = () => {
+      save: (url: string, init?: RequestInit) => Promise<Response> = () => {
         throw new Error('Unexpected request')
       },
+      decks: Deck[] = [],
     ) {
-      const calls = mockFetch(async (_url, init) =>
-        init?.method === undefined ? jsonResponse([]) : post(),
+      const calls = mockFetch(
+        async (url, init) =>
+          init?.method !== undefined
+            ? save(url, init)
+            : jsonResponse(url === flashCardsUrl ? ownCards : []),
+        [],
+        decks,
       )
       renderAt('/import?from=preply')
       expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
@@ -3680,18 +3708,19 @@ describe('App', () => {
       return calls
     }
 
-    it('waits for the words, then adds the ones the user keeps', async () => {
-      const user = userEvent.setup()
-      const calls = await showPreply(async () =>
-        jsonResponse(
-          {
-            deck: { id: 23, name: 'Preply', flashCardIds: [8, 9] },
-            importedCount: 2,
-            skippedCount: 0,
-          },
-          201,
+    // Sends the words and waits for the user's cards to leave out the ones they have.
+    async function receiveWords() {
+      sendFromPreply({ type: 'flashcardsage:preply-words', words })
+      expect(
+        await screen.findByText(
+          '1 word is left out because you already have a card for it.',
         ),
-      )
+      ).toBeInTheDocument()
+      return screen.getByRole('list', { name: 'Cards from Preply' })
+    }
+
+    it('waits for the words, then lists them like cards to add', async () => {
+      await showPreply()
 
       expect(
         screen.getByText('Getting your words from Preply…'),
@@ -3705,66 +3734,146 @@ describe('App', () => {
         screen.getByText('Getting your words from Preply…'),
       ).toBeInTheDocument()
 
-      sendFromPreply({ type: 'flashcardsage:preply-words', words })
-
-      const list = screen.getByRole('list', { name: 'Preply words' })
-      expect(within(list).getByText('toasted · adjective')).toBeInTheDocument()
-      // A word without English can't be a card.
-      expect(
-        within(list).getByRole('checkbox', { name: 'Pick "gustaron"' }),
-      ).toBeDisabled()
-      expect(within(list).getByText('No English on Preply')).toBeInTheDocument()
-
-      await user.click(
-        within(list).getByRole('checkbox', { name: 'Pick "avena"' }),
-      )
-      await user.click(
-        screen.getByRole('button', { name: 'Add 2 cards to a Preply deck' }),
-      )
+      const list = await receiveWords()
 
       expect(
-        await screen.findByText('Added Preply with 2 cards.'),
+        screen.getByRole('heading', { level: 2, name: '3 cards from Preply' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          '1 word is left out because Preply has no English for it.',
+        ),
+      ).toBeInTheDocument()
+      const rows = within(list).getAllByRole('listitem')
+      expect(rows).toHaveLength(3)
+      expect(within(rows[0]).getByText('tostado')).toBeInTheDocument()
+      expect(within(rows[0]).getByText('toasted')).toBeInTheDocument()
+      // Each can be added, changed or removed, as on the document's tab.
+      for (const name of ['Add', 'Edit', 'Remove']) {
+        expect(
+          within(rows[0]).getByRole('button', { name: `${name} "tostado"` }),
+        ).toBeInTheDocument()
+      }
+      expect(
+        screen.getByRole('button', { name: 'Add all 3 cards' }),
+      ).toBeInTheDocument()
+    })
+
+    it('adds one card to a new Preply deck', async () => {
+      const user = userEvent.setup()
+      const calls = await showPreply(async (url) =>
+        url === flashCardsUrl
+          ? jsonResponse(savedCard(8, 'avena', 'oatmeal'), 201)
+          : jsonResponse({ ...preplyDeck, flashCardIds: [8] }, 201),
+      )
+      const list = await receiveWords()
+
+      await user.click(
+        within(list).getByRole('button', { name: 'Add "avena"' }),
+      )
+
+      expect(
+        await screen.findByText('Added “avena” to your Preply deck.'),
+      ).toBeInTheDocument()
+      expect(
+        within(list).queryByRole('button', { name: 'Add "avena"' }),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('button', { name: 'Add all 2 cards' }),
+      ).toBeInTheDocument()
+      const posts = calls.filter((call) => call.init?.method === 'POST')
+      expect(posts.map((call) => call.url)).toEqual([flashCardsUrl, decksUrl])
+      expect(JSON.parse(posts[0].init?.body as string)).toEqual({
+        spanish: ['avena'],
+        english: ['oatmeal'],
+        tags: [],
+      })
+      expect(JSON.parse(posts[1].init?.body as string)).toEqual({
+        name: 'Preply',
+        flashCardIds: [8],
+      })
+      expect(trackEvent).toHaveBeenCalledWith('PreplyCardAdded')
+    })
+
+    it('adds all the cards left to the Preply deck the user has', async () => {
+      const user = userEvent.setup()
+      const calls = await showPreply(
+        async (url) =>
+          url === `${flashCardsUrl}/batch`
+            ? jsonResponse({
+                cards: [savedCard(9, 'tostado', 'toasted')],
+                skippedCount: 1,
+              })
+            : jsonResponse({ ...preplyDeck, flashCardIds: [5, 9] }),
+        [{ ...preplyDeck, name: 'preply', flashCardIds: [5] }],
+      )
+      const list = await receiveWords()
+
+      await user.click(
+        within(list).getByRole('button', { name: 'Remove "avena"' }),
+      )
+      await user.click(screen.getByRole('button', { name: 'Add all 2 cards' }))
+
+      expect(
+        await screen.findByText(
+          'Added 1 card to your Preply deck. 1 card was left out because you already have it.',
+        ),
       ).toBeInTheDocument()
       expect(screen.getByRole('link', { name: 'Open deck' })).toHaveAttribute(
         'href',
-        '/decks/23',
+        '/decks/40',
       )
-      const post = calls.find((call) => call.init?.method === 'POST')
-      expect(post?.url).toBe(preplyImportUrl)
-      expect(JSON.parse(post?.init?.body as string)).toEqual({
-        words: [
-          { spanish: 'tostado', english: 'toasted' },
-          { spanish: 'picante', english: 'spicy' },
+      const batch = calls.find((call) => call.url === `${flashCardsUrl}/batch`)
+      expect(JSON.parse(batch?.init?.body as string)).toEqual({
+        cards: [
+          { spanish: ['tostado'], english: ['toasted'], tags: [] },
+          { spanish: ['picante'], english: ['spicy'], tags: [] },
         ],
       })
-      expect(trackEvent).toHaveBeenCalledWith('PreplyImported', { count: '2' })
-      // The words are forgotten once added.
+      // The cards go in the deck the user already has, whatever its case.
+      const patch = calls.find((call) => call.init?.method === 'PATCH')
+      expect(patch?.url).toBe(`${decksUrl}/40/cards`)
+      expect(JSON.parse(patch?.init?.body as string)).toEqual({
+        add: [9],
+        remove: [],
+      })
+      expect(trackEvent).toHaveBeenCalledWith('PreplyCardsAdded', {
+        count: '1',
+      })
+      // The words are forgotten once added, and the bookmarklet is offered again.
       expect(
-        screen.queryByRole('list', { name: 'Preply words' }),
+        screen.queryByRole('list', { name: 'Cards from Preply' }),
       ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Send to FlashCardSage' }),
+      ).toBeInTheDocument()
     })
 
-    it("shows the API's message when the words can't be added", async () => {
+    it("says when a card can't be added, and keeps it to try again", async () => {
       const user = userEvent.setup()
       await showPreply(async () =>
         jsonResponse(
-          { status: 409, detail: 'You already have all of these words.' },
+          {
+            status: 409,
+            detail: 'You already have a flash card with that word.',
+          },
           409,
         ),
       )
-      sendFromPreply({ type: 'flashcardsage:preply-words', words })
+      const list = await receiveWords()
 
       await user.click(
-        screen.getByRole('button', { name: 'Add 3 cards to a Preply deck' }),
+        within(list).getByRole('button', { name: 'Add "tostado"' }),
       )
 
-      expect(await screen.findByRole('alert')).toHaveTextContent(
-        'You already have all of these words.',
-      )
-      expect(trackException).not.toHaveBeenCalled()
-      // The words stay to try again.
       expect(
-        screen.getByRole('list', { name: 'Preply words' }),
+        await screen.findByText(
+          'You already have a flash card with that word.',
+        ),
+      ).toBeInTheDocument()
+      expect(trackException).not.toHaveBeenCalled()
+      expect(
+        within(list).getByRole('button', { name: 'Add "tostado"' }),
       ).toBeInTheDocument()
     })
 
