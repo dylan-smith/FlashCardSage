@@ -1,4 +1,4 @@
-import { cardData, test, expect } from './fixtures'
+import { cardData, onePixelPng, test, expect } from './fixtures'
 
 // The backend started by playwright.config.ts, which adds the built-in decks when it starts.
 const apiUrl = 'http://localhost:5269/api'
@@ -124,11 +124,18 @@ test.describe('Import cards', () => {
     ).toBeVisible()
 
     await page.getByRole('button', { name: 'Remove "palabra 2"' }).click()
+    // Changed with the same form as the cards page: another English word and a tag.
     await page.getByRole('button', { name: 'Edit "palabra 1"' }).click()
-    await page.getByLabel('Spanish').fill('la palabra')
-    await page.getByLabel('English').fill('the word')
+    await page.getByLabel('Spanish', { exact: true }).fill('la palabra')
+    await page.getByLabel('English', { exact: true }).fill('the word')
+    await page.getByRole('button', { name: 'Add English translation' }).click()
+    await page.getByLabel('English 2', { exact: true }).fill('the term')
+    const tagsInput = page.getByRole('combobox', { name: 'Tags' })
+    await tagsInput.fill('Cuento')
+    await tagsInput.press('Enter')
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(cards.getByRole('listitem')).toHaveCount(99)
+    await expect(cards.getByText('the word / the term')).toBeVisible()
 
     // One card added on its own leaves the list, and the rest are added all at once.
     await page.getByRole('button', { name: 'Add "palabra 3"' }).click()
@@ -146,9 +153,67 @@ test.describe('Import cards', () => {
     ).toBeVisible()
     await page.getByRole('link', { name: 'View cards' }).click()
     await expect(page.getByText('la palabra', { exact: true })).toBeVisible()
-    await expect(page.getByText('the word', { exact: true })).toBeVisible()
+    await expect(
+      page.getByText('the word / the term', { exact: true }),
+    ).toBeVisible()
+    await expect(
+      page
+        .getByRole('listitem')
+        .filter({ hasText: 'la palabra' })
+        .getByText('Cuento', { exact: true }),
+    ).toBeVisible()
     await expect(page.getByText('palabra 2', { exact: true })).toHaveCount(0)
     await expect(page.getByText('palabra 3', { exact: true })).toBeVisible()
+  })
+
+  test('puts the picture made for a scanned card on it once it’s added', async ({
+    page,
+  }) => {
+    // The E2E backend has no Foundry endpoint, key or image generator, so stand in for the scan and the picture.
+    await page.route('**/api/document-scans', async (route) => {
+      await route.fulfill({
+        json: {
+          candidates: [
+            { spanish: 'nadar', english: 'to swim' },
+            { spanish: 'correr', english: 'to run' },
+          ],
+          truncated: false,
+        },
+      })
+    })
+    await page.route('**/api/flashcards/images/generate', async (route) => {
+      await route.fulfill({ json: onePixelPng })
+    })
+    await page.goto('/import')
+    await page.getByLabel('Choose a document').setInputFiles({
+      name: 'cuento.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('Nadar y correr.'),
+    })
+
+    await page.getByRole('button', { name: 'Edit "nadar"' }).click()
+    await page.getByRole('button', { name: 'Generate picture' }).click()
+    await expect(
+      page.getByRole('img', { name: 'Generated picture' }),
+    ).toBeVisible()
+    await page.getByRole('button', { name: 'Save' }).click()
+    // Kept with the card in the browser until it's added.
+    await expect(
+      page.getByRole('img', { name: 'Picture for "nadar"' }),
+    ).toHaveAttribute('src', /^data:image\/png;base64,/)
+
+    await page.getByRole('button', { name: 'Add all 2 cards' }).click()
+    await expect(page.getByText('Added 2 cards.')).toBeVisible()
+    await page.getByRole('link', { name: 'View cards' }).click()
+    await expect(
+      page.getByRole('img', { name: 'Picture for "nadar"' }),
+    ).toHaveAttribute(
+      'src',
+      /^http:\/\/localhost:5269\/card-images\/[0-9a-f]{32}\.png$/,
+    )
+    await expect(
+      page.getByRole('img', { name: 'Picture for "correr"' }),
+    ).toHaveCount(0)
   })
 
   test('says why a document can’t be scanned', async ({ page }) => {
