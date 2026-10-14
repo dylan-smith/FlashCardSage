@@ -754,6 +754,85 @@ describe('App', () => {
           `${suggestionsUrl}?tag=5`,
         )
       })
+
+      it('suggests cards under the tag of a card just added, not the picked one', async () => {
+        const user = userEvent.setup()
+        const seasons = { id: 6, name: 'Seasons' }
+        const suggest = vi
+          .fn<(url: string) => Promise<Response>>()
+          .mockResolvedValueOnce(
+            jsonResponse([{ spanish: 'el queso', english: 'the cheese' }]),
+          )
+          .mockResolvedValueOnce(
+            jsonResponse([{ spanish: 'el verano', english: 'the summer' }]),
+          )
+        // The winter, added with the form, then the summer, added from the suggestions.
+        const saved: FlashCard[] = [
+          {
+            id: 4,
+            spanish: ['el invierno'],
+            english: ['the winter'],
+            tags: [seasons],
+            imageUrl: null,
+          },
+          {
+            id: 7,
+            spanish: ['el verano'],
+            english: ['the summer'],
+            tags: [seasons],
+            imageUrl: null,
+          },
+        ]
+        const calls = mockFetch(
+          async (_url, init) =>
+            init?.method === 'POST'
+              ? jsonResponse(saved.shift(), 201)
+              : jsonResponse([cat, bread]),
+          [food, seasons],
+          [],
+          suggest,
+        )
+        renderAt('/?tag=5')
+        await screen.findByRole('list', { name: 'Suggested cards' })
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el invierno',
+        )
+        await user.type(
+          screen.getByLabelText('English', { exact: false }),
+          'the winter',
+        )
+        await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+        await waitFor(() => {
+          expect(suggestionList()).toHaveTextContent('el verano')
+        })
+        expect(suggest).toHaveBeenLastCalledWith(
+          `${suggestionsUrl}?relatedTo=4&tag=6`,
+        )
+        expect(
+          screen.getByText(
+            'New “Seasons” words and phrases that go with “el invierno”.',
+          ),
+        ).toBeInTheDocument()
+
+        await user.click(
+          screen.getByRole('button', { name: 'Add "el verano"' }),
+        )
+
+        await waitFor(() => {
+          expect(saved).toHaveLength(0)
+        })
+        const posts = calls.filter((call) => call.init?.method === 'POST')
+        expect(posts.at(-1)?.init?.body).toBe(
+          JSON.stringify({
+            spanish: ['el verano'],
+            english: ['the summer'],
+            tags: ['Seasons'],
+          }),
+        )
+      })
     })
 
     it('says so when suggestions fail, and tries again', async () => {

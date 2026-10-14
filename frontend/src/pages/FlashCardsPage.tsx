@@ -544,6 +544,14 @@ function FlashCardsPage() {
     visibleCards.length > 0 && pickedIds.length === visibleCards.length
   // Looked up so an edit shows in the suggestions, and once the card is deleted they go back to all the cards.
   const added = cards.find((card) => card.id === addedId)
+  // The tag the suggestions go under: the one whose cards are shown, but once a card is added, one of that card's
+  // (the shown one if it has it), so they're about the card rather than a tag it isn't under.
+  const suggestionTag =
+    added === undefined
+      ? selectedTag
+      : (added.tags.find((tag) => tag.id === selectedTag?.id) ??
+        added.tags.at(0) ??
+        null)
 
   // Loads the list and the tags once. The page starts out loading, and the other actions keep both up to date
   // themselves.
@@ -725,7 +733,7 @@ function FlashCardsPage() {
     }
   }
 
-  // Adds a suggested card as it is, with the tag whose cards are shown, returning whether it was saved.
+  // Adds a suggested card as it is, with the tag the suggestions go under, returning whether it was saved.
   async function handleAddSuggestion(suggestion: CardSuggestion) {
     setErrorMessage('')
 
@@ -733,7 +741,7 @@ function FlashCardsPage() {
       const created = await createFlashCard({
         spanish: [suggestion.spanish],
         english: [suggestion.english],
-        tags: selectedTag === null ? [] : [selectedTag.name],
+        tags: suggestionTag === null ? [] : [suggestionTag.name],
       })
       trackEvent('SuggestedFlashCardAdded')
       setCards((current) => [...current, created])
@@ -864,10 +872,10 @@ function FlashCardsPage() {
       {preferences?.showSuggestions === true &&
         !(loading && searchParams.has('tag')) && (
           <CardSuggestions
-            key={`${added?.id ?? 'all'}-${selectedTag?.id ?? 'all'}`}
+            key={`${added?.id ?? 'all'}-${suggestionTag?.id ?? 'all'}`}
             cards={cards}
             relatedTo={added}
-            tag={selectedTag ?? undefined}
+            tag={suggestionTag ?? undefined}
             onAdd={handleAddSuggestion}
           />
         )}
