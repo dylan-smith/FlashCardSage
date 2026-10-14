@@ -5,12 +5,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App, { tagline } from '../App'
 import type { Deck } from '../api/decks'
 import { unreachableMessage } from '../api/flashCards'
-import type { FlashCard, Tag } from '../api/flashCards'
+import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
 import { defaultPreferences } from '../api/preferences'
 import type { Preferences } from '../api/preferences'
 import type { SystemDeck } from '../api/systemDecks'
 import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
+import { tagSuggestDelayMs } from '../hooks/useTagSuggestions'
 import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
 import { trackEvent, trackException } from '../telemetry'
 
@@ -26,9 +27,15 @@ const tagsUrl = 'http://localhost:5269/api/tags'
 const decksUrl = 'http://localhost:5269/api/decks'
 const suggestionsUrl = 'http://localhost:5269/api/card-suggestions'
 const preferencesUrl = 'http://localhost:5269/api/preferences'
+const tagSuggestionsUrl = 'http://localhost:5269/api/tag-suggestions'
 
 // The preferences loading them gets, which a test can change before the app renders. Null makes loading them fail.
 let preferences: Preferences | null = defaultPreferences
+
+// What asking for tag suggestions gets, which a test can change (by default, that they aren't available), and the
+// cards they were asked for.
+let suggestTags: () => Promise<Response>
+let tagSuggestionRequests: FlashCardFields[] = []
 
 // Answers every fetch with the handler, except that loading the tags or decks gets these, loading suggestions gets
 // what suggest answers (by default, that they aren't available), and loading the preferences gets preferences. It
@@ -46,6 +53,12 @@ function mockFetch(
       const url = input instanceof Request ? input.url : input.toString()
       if (url.startsWith(suggestionsUrl)) {
         return suggest(url)
+      }
+      if (url === tagSuggestionsUrl) {
+        tagSuggestionRequests.push(
+          JSON.parse(init?.body as string) as FlashCardFields,
+        )
+        return suggestTags()
       }
       if (init?.method === undefined && url === preferencesUrl) {
         return Promise.resolve(
@@ -106,6 +119,8 @@ async function showCards(cards: FlashCard[], tags: Tag[] = []) {
 beforeEach(() => {
   setSession({ token: 'test:Tester', name: 'Tester', provider: 'test' })
   preferences = defaultPreferences
+  suggestTags = async () => new Response(null, { status: 503 })
+  tagSuggestionRequests = []
 })
 
 afterEach(() => {
@@ -1947,6 +1962,192 @@ describe('App', () => {
           tags: ['Food', 'Travel'],
         }),
       )
+    })
+
+    describe('suggested tags', () => {
+      // waitFor gives up after a second by default, which is about how long the suggestions wait for typing to stop.
+      const untilSuggested = { timeout: tagSuggestDelayMs + 1000 }
+
+      // Long enough for suggestions to have been asked for, for checking that they weren't.
+      function waitPastSuggestDelay() {
+        return new Promise((resolve) =>
+          setTimeout(resolve, tagSuggestDelayMs + 200),
+        )
+      }
+
+      // These tests type one side of a card, so it isn't translated.
+      beforeEach(() => {
+        preferences = { ...defaultPreferences, autoTranslate: false }
+      })
+
+      it('suggests tags for a new card, and adds the one the user clicks', async () => {
+        const user = userEvent.setup()
+        suggestTags = async () => jsonResponse([food])
+        const calls = mockFetch(
+          async (_url, init) =>
+            init?.method === 'POST'
+              ? jsonResponse(
+                  { ...train, id: 3, spanish: ['el pan'], tags: [food] },
+                  201,
+                )
+              : jsonResponse([apple, train]),
+          [food, travel],
+        )
+        renderAt('/')
+        await screen.findByText('la manzana')
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el pan',
+        )
+
+        const chip = await screen.findByRole(
+          'button',
+          { name: 'Add tag Food' },
+          untilSuggested,
+        )
+        expect(screen.getByText('Suggested tags:')).toBeInTheDocument()
+        expect(tagSuggestionRequests).toEqual([
+          { spanish: ['el pan'], english: [], tags: [] },
+        ])
+
+        await user.click(chip)
+
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+        await user.type(
+          screen.getByLabelText('English', { exact: false }),
+          'the bread',
+        )
+        await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+        const post = await waitFor(() => {
+          const sent = calls.find((call) => call.init?.method === 'POST')
+          expect(sent).toBeDefined()
+          return sent
+        })
+        expect(post?.init?.body).toBe(
+          JSON.stringify({
+            spanish: ['el pan'],
+            english: ['the bread'],
+            tags: ['Food'],
+          }),
+        )
+      })
+
+      it('suggests tags for a card being edited, leaving out the ones it has', async () => {
+        const user = userEvent.setup()
+        suggestTags = async () => jsonResponse([food, travel])
+        const calls = mockFetch(
+          async (_url, init) =>
+            init?.method === 'PUT'
+              ? jsonResponse({ ...apple, tags: [food, travel] })
+              : jsonResponse([apple]),
+          [food, travel],
+        )
+        renderAt('/')
+        await screen.findByText('la manzana')
+
+        await user.click(
+          screen.getByRole('button', { name: 'Edit "la manzana"' }),
+        )
+        const item = screen.getAllByRole('listitem')[0]
+        await user.click(
+          await within(item).findByRole(
+            'button',
+            { name: 'Add tag Travel' },
+            untilSuggested,
+          ),
+        )
+        expect(
+          within(item).queryByRole('button', { name: 'Add tag Food' }),
+        ).not.toBeInTheDocument()
+        await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+        expect(
+          await screen.findByRole('button', { name: 'Travel (1)' }),
+        ).toBeInTheDocument()
+        expect(tagSuggestionRequests).toEqual([
+          { spanish: ['la manzana'], english: ['the apple'], tags: ['Food'] },
+        ])
+        const put = calls.find((call) => call.init?.method === 'PUT')
+        expect(put?.init?.body).toBe(
+          JSON.stringify({
+            spanish: ['la manzana'],
+            english: ['the apple'],
+            tags: ['Food', 'Travel'],
+          }),
+        )
+      })
+
+      it('takes the suggestions away when the words change', async () => {
+        const user = userEvent.setup()
+        suggestTags = async () => jsonResponse([food])
+        await showCards([apple], [food])
+        const spanish = screen.getByLabelText('Spanish', { exact: false })
+        await user.type(spanish, 'el pan')
+        await screen.findByText('Suggested tags:', {}, untilSuggested)
+
+        suggestTags = async () => jsonResponse([])
+        await user.type(spanish, 'adero')
+
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+        await waitFor(
+          () => expect(tagSuggestionRequests).toHaveLength(2),
+          untilSuggested,
+        )
+        expect(tagSuggestionRequests[1].spanish).toEqual(['el panadero'])
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+      })
+
+      it("doesn't ask once they aren't available", async () => {
+        const user = userEvent.setup()
+        await showCards([apple], [food])
+        const spanish = screen.getByLabelText('Spanish', { exact: false })
+        await user.type(spanish, 'el pan')
+        await waitFor(
+          () => expect(tagSuggestionRequests).toHaveLength(1),
+          untilSuggested,
+        )
+
+        await user.type(spanish, 'adero')
+        await waitPastSuggestDelay()
+
+        expect(tagSuggestionRequests).toHaveLength(1)
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+      })
+
+      it("doesn't ask when the user has no tags", async () => {
+        const user = userEvent.setup()
+        suggestTags = async () => jsonResponse([food])
+        await showCards([])
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el pan',
+        )
+        await waitPastSuggestDelay()
+
+        expect(tagSuggestionRequests).toEqual([])
+      })
+
+      it("doesn't ask when the user turned suggestions off", async () => {
+        const user = userEvent.setup()
+        preferences = {
+          ...defaultPreferences,
+          autoTranslate: false,
+          showSuggestions: false,
+        }
+        suggestTags = async () => jsonResponse([food])
+        await showCards([apple], [food])
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el pan',
+        )
+        await waitPastSuggestDelay()
+
+        expect(tagSuggestionRequests).toEqual([])
+      })
     })
 
     describe('the Tags page', () => {

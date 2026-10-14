@@ -31,7 +31,8 @@ const options: {
   {
     key: 'showSuggestions',
     label: 'Suggest cards',
-    description: 'Suggest new cards that go with yours on the Cards page.',
+    description:
+      'Suggest new cards that go with yours on the Cards page, and tags for a card you add or edit.',
   },
   {
     key: 'autoTranslate',

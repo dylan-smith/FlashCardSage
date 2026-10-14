@@ -37,6 +37,7 @@ import type { AutoTranslate } from '../hooks/useAutoTranslate'
 import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
 import { usePreferences } from '../hooks/usePreferences'
+import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { trackEvent, trackException } from '../telemetry'
 import { PictureField } from './FlashCardPicture'
 import { FlashCardRow } from './FlashCardRow'
@@ -335,6 +336,7 @@ function FlashCardEditForm({
     onChange(setFirstWords(change)),
   )
   const showPictures = usePreferences()?.showPictures === true
+  const suggestedTags = useTagSuggestions(edit, tags)
 
   useEffect(() => {
     inputRef.current?.focus()
@@ -381,6 +383,7 @@ function FlashCardEditForm({
           onChange={(names) =>
             onChange((current) => ({ ...current, tags: names }))
           }
+          suggestions={suggestedTags}
           size="small"
         />
         {showPictures && (
@@ -522,6 +525,7 @@ function FlashCardsPage() {
     setFields(setFirstWords(change)),
   )
   const preferences = usePreferences()
+  const suggestedTags = useTagSuggestions(fields, tags)
   // The pictures offered by the add form and by the edit form (one card is edited at a time).
   const newPicture = useCardPicture(null)
   const editPicture = useCardPicture(edit?.imageUrl ?? null)
@@ -886,6 +890,7 @@ function FlashCardsPage() {
             onChange={(names) =>
               setFields((current) => ({ ...current, tags: names }))
             }
+            suggestions={suggestedTags}
           />
           {preferences?.showPictures === true && (
             <PictureField
