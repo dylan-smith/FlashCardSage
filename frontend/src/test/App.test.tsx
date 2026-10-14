@@ -2264,6 +2264,52 @@ describe('App', () => {
         expect(trackEvent).toHaveBeenCalledWith('TagDeleted')
       })
 
+      it('creates a tag with no cards', async () => {
+        const user = userEvent.setup()
+        const calls = await showTags(async () =>
+          jsonResponse({ id: 5, name: 'Animals' }, 201),
+        )
+
+        const name = screen.getByLabelText('New tag name', { exact: false })
+        await user.type(name, ' Animals ')
+        await user.click(screen.getByRole('button', { name: 'Create tag' }))
+
+        expect(
+          await screen.findByRole('link', { name: 'Animals' }),
+        ).toHaveAttribute('href', '/?tag=5')
+        const items = within(screen.getByRole('list')).getAllByRole('listitem')
+        expect(items.map((item) => item.textContent)).toEqual([
+          expect.stringContaining('Animals0 cards'),
+          expect.stringContaining('Food2 cards'),
+          expect.stringContaining('Travel1 card'),
+        ])
+        expect(name).toHaveValue('')
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.url).toBe(tagsUrl)
+        expect(post?.init?.body).toBe(JSON.stringify({ name: 'Animals' }))
+        expect(trackEvent).toHaveBeenCalledWith('TagCreated')
+      })
+
+      it("shows the API's reason when it rejects a new tag", async () => {
+        const user = userEvent.setup()
+        await showTags(async () =>
+          jsonResponse(
+            { errors: { Name: ["There's already a tag with that name."] } },
+            400,
+          ),
+        )
+
+        const name = screen.getByLabelText('New tag name', { exact: false })
+        await user.type(name, 'food')
+        await user.click(screen.getByRole('button', { name: 'Create tag' }))
+
+        expect(await screen.findByRole('alert')).toHaveTextContent(
+          "There's already a tag with that name.",
+        )
+        expect(name).toHaveValue('food')
+        expect(trackException).not.toHaveBeenCalled()
+      })
+
       it('says when there are no tags yet', async () => {
         mockFetch(async () => jsonResponse([]))
         renderAt('/tags')

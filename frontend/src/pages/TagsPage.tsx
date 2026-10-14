@@ -9,14 +9,16 @@ import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
+import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router'
 import { ApiError, describeFetchError, listFlashCards } from '../api/flashCards'
 import type { Tag } from '../api/flashCards'
-import { deleteTag, listTags, renameTag } from '../api/tags'
+import { createTag, deleteTag, listTags, renameTag } from '../api/tags'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
-import { TagRenameForm } from './FlashCardTags'
+import { TagRenameForm, tagMaxLength } from './FlashCardTags'
 
 // Tags in name order whatever their case, as the API sends them.
 function sortTags(tags: Tag[]) {
@@ -25,14 +27,17 @@ function sortTags(tags: Tag[]) {
   )
 }
 
-// The user's tags, with how many cards have each. Tags are made by naming them on a card, and here they can be
-// renamed or deleted.
+// The user's tags, with how many cards have each. Tags are made here or by naming them on a card, and here they can
+// be renamed or deleted.
 function TagsPage() {
   const [tags, setTags] = useState<Tag[]>([])
   // How many cards have each tag, by its id.
   const [counts, setCounts] = useState<Map<number, number>>(new Map())
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
+  // The new tag's name as typed so far.
+  const [name, setName] = useState('')
+  const [creating, setCreating] = useState(false)
   // The tag being renamed and its new name as typed so far. One at a time keeps the list simple.
   const [rename, setRename] = useState<{ id: number; name: string } | null>(
     null,
@@ -71,6 +76,32 @@ function TagsPage() {
       cancelled = true
     }
   }, [])
+
+  async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault()
+    const trimmed = name.trim()
+    if (!trimmed) {
+      setErrorMessage('Tag name is required.')
+      return
+    }
+
+    setCreating(true)
+    setErrorMessage('')
+
+    try {
+      const created = await createTag(trimmed)
+      trackEvent('TagCreated')
+      setTags((current) => sortTags([...current, created]))
+      setName('')
+    } catch (error) {
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'createTag' })
+      }
+      setErrorMessage(describeFetchError(error, 'Unable to save tag.'))
+    } finally {
+      setCreating(false)
+    }
+  }
 
   async function handleRename(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -123,12 +154,44 @@ function TagsPage() {
   }
 
   return (
-    <>
-      {errorMessage && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {errorMessage}
-        </Alert>
-      )}
+    <Stack spacing={2}>
+      <Paper component="section" elevation={2} sx={{ p: 3 }}>
+        <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
+          New tag
+        </Typography>
+        <Box
+          component="form"
+          onSubmit={(event) => void handleCreate(event)}
+          sx={{
+            display: 'flex',
+            flexDirection: { xs: 'column', sm: 'row' },
+            alignItems: { xs: 'stretch', sm: 'flex-start' },
+            gap: 2,
+          }}
+        >
+          <TextField
+            id="new-tag-name"
+            label="New tag name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+            slotProps={{ htmlInput: { maxLength: tagMaxLength } }}
+            required
+            placeholder="e.g. Food"
+            sx={{ flexGrow: 1 }}
+          />
+          <Button
+            type="submit"
+            variant="contained"
+            disabled={creating}
+            sx={{ flexShrink: 0, alignSelf: { sm: 'center' } }}
+          >
+            {creating ? 'Saving…' : 'Create tag'}
+          </Button>
+        </Box>
+      </Paper>
+
+      {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
         <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
           Tags
@@ -139,8 +202,8 @@ function TagsPage() {
           </Box>
         ) : loadFailed ? null : tags.length === 0 ? (
           <Typography color="text.secondary">
-            You haven&apos;t made any tags yet. Add one to a card on the Cards
-            page.
+            You haven&apos;t made any tags yet. Create one above, or add one to
+            a card on the Cards page.
           </Typography>
         ) : (
           <List disablePadding>
@@ -203,7 +266,7 @@ function TagsPage() {
           </List>
         )}
       </Paper>
-    </>
+    </Stack>
   )
 }
 
