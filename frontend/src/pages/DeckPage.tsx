@@ -21,6 +21,7 @@ import {
 import type { FlashCard } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 import { CardPicker } from './CardPicker'
+import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameMaxLength, deckNameRequiredMessage } from './DecksPage'
 import { TagRenameForm } from './FlashCardTags'
@@ -159,7 +160,7 @@ function DeckPage() {
     setNotice('')
     try {
       await deleteFlashCards(ids)
-      trackEvent('FlashCardsDeleted', { count: String(ids.length) })
+      trackEvent('FlashCardsDeleted')
       const deleted = new Set(ids)
       setCards((loaded) => loaded.filter((card) => !deleted.has(card.id)))
       setDeck({
@@ -169,13 +170,11 @@ function DeckPage() {
         ),
       })
       setNotice(`Deleted ${cardCount(ids.length)}.`)
-      return true
     } catch (error) {
       trackException(error, { operation: 'deleteCards' })
       setErrorMessage(
-        describeFetchError(error, 'Unable to delete flash cards.'),
+        describeFetchError(error, 'Unable to delete the flash cards.'),
       )
-      return false
     } finally {
       setBusy(false)
     }
@@ -299,11 +298,16 @@ function DeckPage() {
           <CardPicker
             cards={deckCards}
             emptyMessage="This deck has no cards yet. Add some from the Add cards tab."
-            actions={[
-              { label: 'Remove', onApply: (ids) => handleChange([], ids) },
-              { label: 'Delete', color: 'error', onApply: handleDeleteCards },
-            ]}
+            actionLabel="Remove"
             busy={busy}
+            onApply={(ids) => handleChange([], ids)}
+            pickedActions={(ids) => (
+              <DeleteCards
+                count={ids.length}
+                busy={busy}
+                onDelete={() => handleDeleteCards(ids)}
+              />
+            )}
             rowActions={(card) => {
               const spanish = formatWords(card.spanish)
               return (
@@ -347,10 +351,9 @@ function DeckPage() {
                 ? 'You have no flash cards yet.'
                 : 'Every card is in this deck.'
             }
-            actions={[
-              { label: 'Add', onApply: (ids) => handleChange(ids, []) },
-            ]}
+            actionLabel="Add"
             busy={busy}
+            onApply={(ids) => handleChange(ids, [])}
           />
         </Box>
       </Paper>

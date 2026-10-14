@@ -158,7 +158,11 @@ test.describe('Decks', () => {
     await expect(page.getByRole('tab', { name: 'Add cards (1)' })).toBeVisible()
 
     await page.getByRole('checkbox', { name: 'Pick all 2' }).check()
-    await page.getByRole('button', { name: 'Delete 2 cards' }).click()
+    await page.getByRole('button', { name: 'Delete 2 cards…' }).click()
+    await page
+      .getByRole('dialog', { name: 'Delete 2 cards?' })
+      .getByRole('button', { name: 'Delete' })
+      .click()
     await expect(page.getByRole('status')).toHaveText('Deleted 2 cards.')
     await expect(
       page.getByRole('tab', { name: 'In this deck (0)' }),

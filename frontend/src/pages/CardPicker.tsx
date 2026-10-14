@@ -36,29 +36,28 @@ function tagsOf(cards: FlashCard[]) {
   )
 }
 
-// Something to do with the picked cards, such as Add, with a button of its own.
-export type CardPickerAction = {
-  // What the button does, such as Remove, followed by how many cards are picked.
-  label: string
-  color?: 'primary' | 'error'
-  // Resolves to whether it worked, so the cards stay picked when it didn't.
-  onApply: (ids: number[]) => Promise<boolean>
-}
-
 // A list of cards to pick some of and do something with, such as add them to a deck. It can be searched and
 // narrowed to a tag, and shows a page of cards at a time. Pick all picks every card that matches, on every page,
 // so all the cards with a tag can be picked at once.
 export function CardPicker({
   cards,
   emptyMessage,
-  actions,
+  actionLabel,
   busy,
+  onApply,
+  pickedActions,
   rowActions,
 }: {
   cards: FlashCard[]
   emptyMessage: string
-  actions: CardPickerAction[]
+  // What the button does with the picked cards, such as Add, followed by how many there are.
+  actionLabel: string
   busy: boolean
+  // Resolves to whether it worked, so the cards stay picked when it didn't.
+  onApply: (ids: number[]) => Promise<boolean>
+  // More buttons for the picked cards, shown after the main one, such as Delete. A picked card that leaves the list
+  // stops counting as picked, so they needn't clear the picks.
+  pickedActions?: (ids: number[]) => ReactNode
   // Buttons for a single card, shown at the end of its row, such as Delete.
   rowActions?: (card: FlashCard) => ReactNode
 }) {
@@ -114,8 +113,8 @@ export function CardPicker({
     })
   }
 
-  async function apply(action: CardPickerAction) {
-    if (await action.onApply(picked)) {
+  async function apply() {
+    if (await onApply(picked)) {
       setSelected(new Set())
     }
   }
@@ -182,20 +181,17 @@ export function CardPicker({
           }
         />
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
-          {actions.map((action) => (
-            <Button
-              key={action.label}
-              type="button"
-              variant="contained"
-              color={action.color}
-              disabled={busy || picked.length === 0}
-              onClick={() => void apply(action)}
-            >
-              {picked.length === 0
-                ? `${action.label} cards`
-                : `${action.label} ${cardCount(picked.length)}`}
-            </Button>
-          ))}
+          <Button
+            type="button"
+            variant="contained"
+            disabled={busy || picked.length === 0}
+            onClick={() => void apply()}
+          >
+            {picked.length === 0
+              ? `${actionLabel} cards`
+              : `${actionLabel} ${cardCount(picked.length)}`}
+          </Button>
+          {pickedActions?.(picked)}
         </Box>
       </Box>
       {matching.length === 0 ? (

@@ -3009,7 +3009,7 @@ describe('App', () => {
         )
         const post = calls.find((call) => call.init?.method === 'POST')
         expect(post?.url).toBe('http://localhost:5269/api/flashcards/delete')
-        expect(post?.init?.body).toBe(JSON.stringify({ ids: [1] }))
+        expect(post?.init?.body).toBe(JSON.stringify({ flashCardIds: [1] }))
         expect(calls.some((call) => call.init?.method === 'PATCH')).toBe(false)
         expect(screen.getByText('1 card')).toBeInTheDocument()
         expect(
@@ -3022,9 +3022,7 @@ describe('App', () => {
         expect(
           screen.getByRole('tab', { name: 'Add cards (2)' }),
         ).toBeInTheDocument()
-        expect(trackEvent).toHaveBeenCalledWith('FlashCardsDeleted', {
-          count: '1',
-        })
+        expect(trackEvent).toHaveBeenCalledWith('FlashCardsDeleted')
       })
 
       it('removes a card from the deck with its own button, keeping the card', async () => {
@@ -3052,7 +3050,7 @@ describe('App', () => {
         ).toBeInTheDocument()
       })
 
-      it('deletes the cards picked', async () => {
+      it('deletes the cards picked once the user says so', async () => {
         const user = userEvent.setup()
         const calls = mockDeckApi(
           animals,
@@ -3060,17 +3058,22 @@ describe('App', () => {
         )
         await showPage('/decks/7')
 
-        expect(
-          screen.getByRole('button', { name: 'Delete cards' }),
-        ).toBeDisabled()
+        expect(screen.getByRole('button', { name: 'Delete…' })).toBeDisabled()
         await user.click(screen.getByRole('checkbox', { name: 'Pick all 2' }))
-        await user.click(screen.getByRole('button', { name: 'Delete 2 cards' }))
+        await user.click(
+          screen.getByRole('button', { name: 'Delete 2 cards…' }),
+        )
+        await user.click(
+          within(
+            await screen.findByRole('dialog', { name: 'Delete 2 cards?' }),
+          ).getByRole('button', { name: 'Delete' }),
+        )
 
         expect(await screen.findByRole('status')).toHaveTextContent(
           'Deleted 2 cards.',
         )
         const post = calls.find((call) => call.init?.method === 'POST')
-        expect(post?.init?.body).toBe(JSON.stringify({ ids: [1, 2] }))
+        expect(post?.init?.body).toBe(JSON.stringify({ flashCardIds: [1, 2] }))
         expect(
           screen.getByRole('tab', { name: 'In this deck (0)' }),
         ).toBeInTheDocument()
@@ -3089,7 +3092,7 @@ describe('App', () => {
         )
 
         expect(await screen.findByRole('alert')).toHaveTextContent(
-          'Unable to delete flash cards.',
+          'Unable to delete the flash cards.',
         )
         expect(cardBox('el gato')).toBeInTheDocument()
         expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
