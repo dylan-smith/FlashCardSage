@@ -89,6 +89,9 @@ else
     builder.Services.AddSingleton<IImageStore, BlobImageStore>();
 }
 
+// Puts the built-in cards' pictures on them once the API has started.
+builder.Services.AddHostedService<SystemDeckImageSyncService>();
+
 var allowedOrigins = builder.Configuration
     .GetSection("Cors:AllowedOrigins")
     .Get<string[]>() ?? [];

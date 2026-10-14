@@ -1,3 +1,4 @@
+using System.Security.Cryptography;
 using System.Text.RegularExpressions;
 
 namespace FlashCardSage.Api.Images;
@@ -34,13 +35,20 @@ public static partial class CardImage
         return $"{Guid.NewGuid():N}.{Extensions[contentType]}";
     }
 
-    // Whether a name is one NewName made, so a store only touches its own files.
+    // A name for a picture from its content, for one kept under the same name everywhere (a built-in card's): the
+    // same picture always gets the same name, and a changed one a new name and so a new URL.
+    public static string ContentName(ReadOnlySpan<byte> data, string contentType)
+    {
+        return $"{Convert.ToHexStringLower(SHA256.HashData(data))[..32]}.{Extensions[contentType]}";
+    }
+
+    // Whether a name is one NewName or ContentName made, so a store only touches its own files.
     public static bool IsName(string name)
     {
         return Name().IsMatch(name);
     }
 
-    // The content type of a picture by a name NewName made, from its extension.
+    // The content type of a picture by a name NewName or ContentName made, from its extension.
     public static string ContentTypeOf(string name)
     {
         var extension = Path.GetExtension(name).TrimStart('.');
