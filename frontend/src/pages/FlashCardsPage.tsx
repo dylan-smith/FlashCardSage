@@ -21,6 +21,7 @@ import {
   ApiError,
   createFlashCard,
   deleteFlashCard,
+  deleteFlashCards,
   describeFetchError,
   formatWords,
   listFlashCards,
@@ -42,6 +43,7 @@ import { PictureField } from './FlashCardPicture'
 import { FlashCardRow } from './FlashCardRow'
 import { AddToDeck } from './AddToDeck'
 import { CardSuggestions } from './CardSuggestions'
+import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameRequiredMessage } from './DecksPage'
 import { TagFilter, TagsInput } from './FlashCardTags'
@@ -508,9 +510,12 @@ function FlashCardsPage() {
   const [addedId, setAddedId] = useState<number | null>(null)
   // The user's decks, to add the picked cards to.
   const [decks, setDecks] = useState<Deck[]>([])
-  // The cards picked to add to a deck.
+  // The cards picked to add to a deck or delete.
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [deckBusy, setDeckBusy] = useState(false)
+  const [deletingPicked, setDeletingPicked] = useState(false)
+  // How many picked cards were just deleted, to say so.
+  const [deletedCount, setDeletedCount] = useState<number | null>(null)
   // Says which deck the picked cards went into.
   const [deckNotice, setDeckNotice] = useState<{
     deck: Deck
@@ -540,7 +545,8 @@ function FlashCardsPage() {
   for (const tag of cards.flatMap((card) => card.tags)) {
     tagCounts.set(tag.id, (tagCounts.get(tag.id) ?? 0) + 1)
   }
-  // Only the picked cards that are shown count, so a card hidden by the tag filter is never added to a deck.
+  // Only the picked cards that are shown count, so a card hidden by the tag filter is never added to a deck or
+  // deleted.
   const pickedIds = visibleCards
     .filter((card) => picked.has(card.id))
     .map((card) => card.id)
@@ -620,6 +626,7 @@ function FlashCardsPage() {
     setDeckBusy(true)
     setErrorMessage('')
     setDeckNotice(null)
+    setDeletedCount(null)
     try {
       const updated = await changeDeckCards(deck.id, { add: pickedIds })
       trackEvent('DeckCardsAdded')
@@ -648,6 +655,7 @@ function FlashCardsPage() {
     setDeckBusy(true)
     setErrorMessage('')
     setDeckNotice(null)
+    setDeletedCount(null)
     try {
       const created = await createDeck({
         name: trimmed,
@@ -814,6 +822,32 @@ function FlashCardsPage() {
     }
   }
 
+  async function handleDeletePicked() {
+    const ids = new Set(pickedIds)
+    setDeletingPicked(true)
+    setErrorMessage('')
+    setDeckNotice(null)
+    setDeletedCount(null)
+
+    try {
+      await deleteFlashCards([...ids])
+      trackEvent('FlashCardsDeleted')
+      setCards((current) => current.filter((item) => !ids.has(item.id)))
+      setEdit((current) =>
+        current !== null && ids.has(current.id) ? null : current,
+      )
+      setDeletedCount(ids.size)
+      setPicked(new Set())
+    } catch (error) {
+      trackException(error, { operation: 'deleteMany' })
+      setErrorMessage(
+        describeFetchError(error, 'Unable to delete the flash cards.'),
+      )
+    } finally {
+      setDeletingPicked(false)
+    }
+  }
+
   function selectTag(tag: Tag | null) {
     setPicked(new Set())
     // The suggestions go back to being about the tag's cards, not a card added before.
@@ -899,6 +933,15 @@ function FlashCardsPage() {
           .
         </Alert>
       )}
+      {deletedCount !== null && (
+        <Alert
+          severity="success"
+          role="status"
+          onClose={() => setDeletedCount(null)}
+        >
+          Deleted {cardCount(deletedCount)}.
+        </Alert>
+      )}
 
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
         <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
@@ -956,13 +999,20 @@ function FlashCardsPage() {
                       />
                     }
                   />
-                  <AddToDeck
-                    decks={decks}
-                    count={pickedIds.length}
-                    busy={deckBusy}
-                    onAdd={(deck) => void handleAddToDeck(deck)}
-                    onCreate={handleCreateDeck}
-                  />
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                    <AddToDeck
+                      decks={decks}
+                      count={pickedIds.length}
+                      busy={deckBusy || deletingPicked}
+                      onAdd={(deck) => void handleAddToDeck(deck)}
+                      onCreate={handleCreateDeck}
+                    />
+                    <DeleteCards
+                      count={pickedIds.length}
+                      busy={deckBusy || deletingPicked}
+                      onDelete={handleDeletePicked}
+                    />
+                  </Box>
                 </Box>
                 <List disablePadding>
                   {visibleCards.map((card) => (

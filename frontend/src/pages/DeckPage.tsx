@@ -13,7 +13,7 @@ import { Link, useNavigate, useParams } from 'react-router'
 import { changeDeckCards, deleteDeck, getDeck, renameDeck } from '../api/decks'
 import type { Deck } from '../api/decks'
 import {
-  deleteFlashCard,
+  deleteFlashCards,
   describeFetchError,
   formatWords,
   listFlashCards,
@@ -21,6 +21,7 @@ import {
 import type { FlashCard } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 import { CardPicker } from './CardPicker'
+import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameMaxLength, deckNameRequiredMessage } from './DecksPage'
 import { TagRenameForm } from './FlashCardTags'
@@ -152,25 +153,28 @@ function DeckPage() {
     }
   }
 
-  // Deletes the card itself, not just from this deck, so it's gone from every deck and the cards page too.
-  async function handleDeleteCard(card: FlashCard) {
+  // Deletes the cards themselves, not just from this deck, so they're gone from every deck and the cards page too.
+  async function handleDeleteCards(ids: number[]) {
     setBusy(true)
     setErrorMessage('')
     setNotice('')
     try {
-      await deleteFlashCard(card.id)
-      trackEvent('FlashCardDeleted')
-      setCards((loaded) => loaded.filter((item) => item.id !== card.id))
+      await deleteFlashCards(ids)
+      trackEvent('FlashCardsDeleted')
+      const deleted = new Set(ids)
+      setCards((loaded) => loaded.filter((card) => !deleted.has(card.id)))
       setDeck({
         ...current,
         flashCardIds: current.flashCardIds.filter(
-          (cardId) => cardId !== card.id,
+          (cardId) => !deleted.has(cardId),
         ),
       })
-      setNotice(`Deleted "${formatWords(card.spanish)}".`)
+      setNotice(`Deleted ${cardCount(ids.length)}.`)
     } catch (error) {
-      trackException(error, { operation: 'deleteCard' })
-      setErrorMessage(describeFetchError(error, 'Unable to delete flash card.'))
+      trackException(error, { operation: 'deleteCards' })
+      setErrorMessage(
+        describeFetchError(error, 'Unable to delete the flash cards.'),
+      )
     } finally {
       setBusy(false)
     }
@@ -297,19 +301,41 @@ function DeckPage() {
             actionLabel="Remove"
             busy={busy}
             onApply={(ids) => handleChange([], ids)}
-            rowActions={(card) => (
-              <Button
-                type="button"
-                size="small"
-                color="error"
-                disabled={busy}
-                aria-label={`Delete "${formatWords(card.spanish)}"`}
-                onClick={() => void handleDeleteCard(card)}
-                sx={{ flexShrink: 0 }}
-              >
-                Delete
-              </Button>
+            pickedActions={(ids) => (
+              <DeleteCards
+                count={ids.length}
+                busy={busy}
+                onDelete={() => handleDeleteCards(ids)}
+              />
             )}
+            rowActions={(card) => {
+              const spanish = formatWords(card.spanish)
+              return (
+                <>
+                  <Button
+                    type="button"
+                    size="small"
+                    disabled={busy}
+                    aria-label={`Remove "${spanish}" from the deck`}
+                    onClick={() => void handleChange([], [card.id])}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Remove
+                  </Button>
+                  <Button
+                    type="button"
+                    size="small"
+                    color="error"
+                    disabled={busy}
+                    aria-label={`Delete "${spanish}"`}
+                    onClick={() => void handleDeleteCards([card.id])}
+                    sx={{ flexShrink: 0 }}
+                  >
+                    Delete
+                  </Button>
+                </>
+              )
+            }}
           />
         </Box>
         <Box

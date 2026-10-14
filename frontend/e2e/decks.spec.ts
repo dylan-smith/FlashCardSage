@@ -130,29 +130,52 @@ test.describe('Decks', () => {
     ).toBeVisible()
   })
 
-  test("deletes a card from a deck's page, so it's gone from the cards page too", async ({
+  test("removes and deletes cards on a deck's page, one at a time and picked together", async ({
     page,
   }) => {
     await page.goto('/decks')
-    await page.getByLabel('Deck name').fill('House')
+    await page.getByLabel('Deck name').fill('Everything')
     await page.getByRole('button', { name: 'Create deck' }).click()
-    await page.getByRole('checkbox', { name: 'Pick "la casa"' }).check()
-    await page.getByRole('button', { name: 'Add 1 card' }).click()
-    await page.getByRole('tab', { name: 'In this deck (1)' }).click()
+    await page.getByRole('checkbox', { name: 'Pick all 4' }).check()
+    await page.getByRole('button', { name: 'Add 4 cards' }).click()
+    await page.getByRole('tab', { name: 'In this deck (4)' }).click()
 
+    // Removing takes a card out of the deck but keeps it.
+    await page
+      .getByRole('button', { name: 'Remove "el libro" from the deck' })
+      .click()
+    await expect(page.getByRole('status')).toHaveText(
+      'Removed 1 card from the deck.',
+    )
+    await expect(page.getByRole('tab', { name: 'Add cards (1)' })).toBeVisible()
+
+    // Deleting takes the card away altogether.
     await page.getByRole('button', { name: 'Delete "la casa"' }).click()
-    await expect(page.getByRole('status')).toHaveText('Deleted "la casa".')
+    await expect(page.getByRole('status')).toHaveText('Deleted 1 card.')
+    await expect(
+      page.getByRole('tab', { name: 'In this deck (2)' }),
+    ).toBeVisible()
+    await expect(page.getByRole('tab', { name: 'Add cards (1)' })).toBeVisible()
+
+    await page.getByRole('checkbox', { name: 'Pick all 2' }).check()
+    await page.getByRole('button', { name: 'Delete 2 cards…' }).click()
+    await page
+      .getByRole('dialog', { name: 'Delete 2 cards?' })
+      .getByRole('button', { name: 'Delete' })
+      .click()
+    await expect(page.getByRole('status')).toHaveText('Deleted 2 cards.')
     await expect(
       page.getByRole('tab', { name: 'In this deck (0)' }),
     ).toBeVisible()
-    await expect(page.getByRole('tab', { name: 'Add cards (3)' })).toBeVisible()
 
     await page
       .getByRole('navigation', { name: 'Manage cards' })
       .getByRole('link', { name: 'Cards', exact: true })
       .click()
     await expect(page.getByText('el libro', { exact: true })).toBeVisible()
-    await expect(page.getByText('la casa', { exact: true })).toBeHidden()
+    for (const spanish of ['la casa', 'el gato', 'el perro']) {
+      await expect(page.getByText(spanish, { exact: true })).toBeHidden()
+    }
   })
 
   test('practices only the cards with the tag picked', async ({ page }) => {
