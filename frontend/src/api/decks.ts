@@ -1,4 +1,5 @@
 import { apiBaseUrl } from '../config'
+import { refreshCounts } from '../hooks/useCounts'
 import { apiFetch } from './client'
 import { throwIfNotSaved } from './flashCards'
 
@@ -61,8 +62,10 @@ async function sendDeck(
   return (await response.json()) as Deck
 }
 
-export function createDeck(fields: DeckFields) {
-  return sendDeck(decksUrl, 'POST', fields, 'Unable to save deck.')
+export async function createDeck(fields: DeckFields) {
+  const deck = await sendDeck(decksUrl, 'POST', fields, 'Unable to save deck.')
+  refreshCounts()
+  return deck
 }
 
 // Renames the deck, leaving its cards as they are.
@@ -93,4 +96,5 @@ export async function deleteDeck(id: number) {
   if (!response.ok && response.status !== 404) {
     throw new Error('Unable to delete deck.')
   }
+  refreshCounts()
 }

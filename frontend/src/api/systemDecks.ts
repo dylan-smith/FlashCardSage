@@ -1,4 +1,5 @@
 import { apiBaseUrl } from '../config'
+import { refreshCounts } from '../hooks/useCounts'
 import { apiFetch } from './client'
 import type { Deck } from './decks'
 import { throwIfNotSaved } from './flashCards'
@@ -37,5 +38,6 @@ export async function importSystemDeck(id: number): Promise<SystemDeckImport> {
     method: 'POST',
   })
   await throwIfNotSaved(response, 'Unable to add the deck.')
+  refreshCounts()
   return (await response.json()) as SystemDeckImport
 }
