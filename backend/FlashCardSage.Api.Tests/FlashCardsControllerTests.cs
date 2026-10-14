@@ -309,6 +309,53 @@ public class FlashCardsControllerTests
     }
 
     [Fact]
+    public async Task DeleteMany_RemovesTheCardsAndTheirPictures_AndKeepsTheRest()
+    {
+        await using var dbContext = TestDb.Create();
+        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat"), ImageUrl = "https://images.test/card-images/cat.jpg" };
+        var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
+        var house = new FlashCard { Words = TestDb.Words("la casa", "the house") };
+        dbContext.FlashCards.AddRange(cat, dog, house);
+        await dbContext.SaveChangesAsync();
+        dbContext.ChangeTracker.Clear();
+        var store = new FakeImageStore();
+        var controller = new FlashCardsController(dbContext, store, NullLogger<FlashCardsController>.Instance);
+
+        var result = await controller.DeleteMany(new DeleteFlashCardsRequest { Ids = [cat.Id, dog.Id, cat.Id] });
+
+        Assert.IsType<NoContentResult>(result);
+        Assert.Equal([house.Id], await dbContext.FlashCards.Select(card => card.Id).ToListAsync());
+        // Only the house's Spanish and English are left.
+        Assert.Equal(2, await dbContext.FlashCardWords.CountAsync());
+        Assert.Equal(["https://images.test/card-images/cat.jpg"], store.Deleted);
+    }
+
+    [Fact]
+    public async Task DeleteMany_SkipsCardsThatAreGoneOrAnotherUsers()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        int otherId;
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            var other = new FlashCard { Words = TestDb.Words("suyo", "theirs") };
+            otherContext.FlashCards.Add(other);
+            await otherContext.SaveChangesAsync();
+            otherId = other.Id;
+        }
+
+        var cardId = await SaveCardAsync(databaseName, "el gato", "the cat");
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.DeleteMany(new DeleteFlashCardsRequest { Ids = [cardId, otherId, 999] });
+
+        Assert.IsType<NoContentResult>(result);
+        Assert.False(await dbContext.FlashCards.AnyAsync());
+        await using var otherCheck = TestDb.Create(databaseName, TestDb.OtherUserId);
+        Assert.True(await otherCheck.FlashCards.AnyAsync(card => card.Id == otherId));
+    }
+
+    [Fact]
     public async Task OtherUsersFlashCards_AreNotListedOrFound()
     {
         var databaseName = Guid.NewGuid().ToString();

@@ -2870,11 +2870,11 @@ describe('App', () => {
         )
 
         expect(await screen.findByRole('status')).toHaveTextContent(
-          'Deleted "el gato".',
+          'Deleted 1 card.',
         )
-        expect(calls.find((call) => call.init?.method === 'DELETE')?.url).toBe(
-          'http://localhost:5269/api/flashcards/1',
-        )
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.url).toBe('http://localhost:5269/api/flashcards/delete')
+        expect(post?.init?.body).toBe(JSON.stringify({ ids: [1] }))
         expect(calls.some((call) => call.init?.method === 'PATCH')).toBe(false)
         expect(screen.getByText('1 card')).toBeInTheDocument()
         expect(
@@ -2887,7 +2887,61 @@ describe('App', () => {
         expect(
           screen.getByRole('tab', { name: 'Add cards (2)' }),
         ).toBeInTheDocument()
-        expect(trackEvent).toHaveBeenCalledWith('FlashCardDeleted')
+        expect(trackEvent).toHaveBeenCalledWith('FlashCardsDeleted', {
+          count: '1',
+        })
+      })
+
+      it('removes a card from the deck with its own button, keeping the card', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(animals, async () =>
+          jsonResponse({ ...animals, flashCardIds: [2] }),
+        )
+        await showPage('/decks/7')
+
+        await user.click(
+          screen.getByRole('button', {
+            name: 'Remove "el gato" from the deck',
+          }),
+        )
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Removed 1 card from the deck.',
+        )
+        const patch = calls.find((call) => call.init?.method === 'PATCH')
+        expect(patch?.init?.body).toBe(JSON.stringify({ add: [], remove: [1] }))
+        expect(calls.some((call) => call.init?.method === 'POST')).toBe(false)
+        // It's still a card, so it can be added back.
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (3)' }),
+        ).toBeInTheDocument()
+      })
+
+      it('deletes the cards picked', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(
+          animals,
+          async () => new Response(null, { status: 204 }),
+        )
+        await showPage('/decks/7')
+
+        expect(
+          screen.getByRole('button', { name: 'Delete cards' }),
+        ).toBeDisabled()
+        await user.click(screen.getByRole('checkbox', { name: 'Pick all 2' }))
+        await user.click(screen.getByRole('button', { name: 'Delete 2 cards' }))
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Deleted 2 cards.',
+        )
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.init?.body).toBe(JSON.stringify({ ids: [1, 2] }))
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (0)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (2)' }),
+        ).toBeInTheDocument()
       })
 
       it('keeps the card and says why when deleting it fails', async () => {
@@ -2900,11 +2954,11 @@ describe('App', () => {
         )
 
         expect(await screen.findByRole('alert')).toHaveTextContent(
-          'Unable to delete flash card.',
+          'Unable to delete flash cards.',
         )
         expect(cardBox('el gato')).toBeInTheDocument()
         expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
-          operation: 'deleteCard',
+          operation: 'deleteCards',
         })
       })
 

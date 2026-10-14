@@ -135,6 +135,20 @@ export async function deleteFlashCard(id: number) {
   }
 }
 
+// Deletes all these cards in one request. Cards that are already gone are skipped, which is what the caller wanted.
+export async function deleteFlashCards(ids: number[]) {
+  const response = await apiFetch(`${flashCardsUrl}/delete`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ ids }),
+  })
+  if (!response.ok) {
+    throw new Error('Unable to delete flash cards.')
+  }
+}
+
 // How the user did at a card in practice mode, by the name the API stores.
 export type PracticeOutcome = 'GotIt' | 'WasClose' | 'Failed'
 

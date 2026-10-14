@@ -40,6 +40,16 @@ Authorization: Bearer {{token}}
 
 ###
 
+POST {{FlashCardSage.Api_HostAddress}}/api/flashcards/delete
+Content-Type: {{contentType}}
+Authorization: Bearer {{token}}
+
+{
+  "ids": [2, 3]
+}
+
+###
+
 GET {{FlashCardSage.Api_HostAddress}}/api/flashcards/practice/next
 Accept: {{contentType}}
 Authorization: Bearer {{token}}
