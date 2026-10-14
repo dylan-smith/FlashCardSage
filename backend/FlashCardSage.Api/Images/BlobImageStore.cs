@@ -14,16 +14,24 @@ public class BlobImageStore(IOptions<ImageStoreOptions> options) : IImageStore
     public async Task<string> SaveAsync(ReadOnlyMemory<byte> data, string contentType, CancellationToken cancellationToken)
     {
         var blob = container.GetBlobClient(CardImage.NewName(contentType));
-        // A picture never changes under its URL, so browsers can keep it for as long as they like.
-        var upload = new BlobUploadOptions
+        await blob.UploadAsync(BinaryData.FromBytes(data), UploadOptions(contentType), cancellationToken);
+        return blob.Uri.AbsoluteUri;
+    }
+
+    public async Task<string> SaveAsync(string name, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+    {
+        var blob = container.GetBlobClient(name);
+        var upload = UploadOptions(CardImage.ContentTypeOf(name));
+        upload.Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All };
+        try
         {
-            HttpHeaders = new BlobHttpHeaders
-            {
-                ContentType = contentType,
-                CacheControl = "public, max-age=31536000, immutable"
-            }
-        };
-        await blob.UploadAsync(BinaryData.FromBytes(data), upload, cancellationToken);
+            await blob.UploadAsync(BinaryData.FromBytes(data), upload, cancellationToken);
+        }
+        catch (RequestFailedException ex) when (ex.Status == StatusCodes.Status409Conflict)
+        {
+            // It's there already.
+        }
+
         return blob.Uri.AbsoluteUri;
     }
 
@@ -55,6 +63,19 @@ public class BlobImageStore(IOptions<ImageStoreOptions> options) : IImageStore
         {
             await container.GetBlobClient(name).DeleteIfExistsAsync(cancellationToken: cancellationToken);
         }
+    }
+
+    // A picture never changes under its URL, so browsers can keep it for as long as they like.
+    private static BlobUploadOptions UploadOptions(string contentType)
+    {
+        return new BlobUploadOptions
+        {
+            HttpHeaders = new BlobHttpHeaders
+            {
+                ContentType = contentType,
+                CacheControl = "public, max-age=31536000, immutable"
+            }
+        };
     }
 
     // The name of this store's picture at the URL, or null when it isn't one.

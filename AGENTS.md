@@ -89,6 +89,8 @@ npm run test:e2e
   API adds any that are missing from `backend/FlashCardSage.Api/SystemDecks/system-decks.json` when it starts, and
   only `SystemDecksController` reads them past the query filter. Importing copies them, so edit the JSON to change
   them: a deck that's already in the database is left as it is, so a changed deck needs a new name or a script.
+  Their pictures are committed in `SystemDecks/images` (made by `scripts/Generate-SystemDeckImages.ps1`), and the API
+  puts them on the cards when it starts (`SystemDeckImageSync`). A new built-in card needs the script run for it too.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
 
 ### Database
