@@ -1,4 +1,5 @@
 import { apiBaseUrl } from '../config'
+import { refreshCounts } from '../hooks/useCounts'
 import { apiFetch } from './client'
 import { throwIfNotSaved } from './flashCards'
 import type { Tag } from './flashCards'
@@ -47,4 +48,5 @@ export async function deleteTag(id: number) {
   if (!response.ok && response.status !== 404) {
     throw new Error('Unable to delete tag.')
   }
+  refreshCounts()
 }
