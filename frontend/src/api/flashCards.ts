@@ -1,4 +1,5 @@
 import { apiBaseUrl } from '../config'
+import { refreshCounts } from '../hooks/useCounts'
 import { apiFetch } from './client'
 
 // A name the user puts on cards to organize them, such as Food or Travel.
@@ -97,6 +98,8 @@ async function saveFlashCard(
   })
 
   await throwIfNotSaved(response, 'Unable to save flash card.')
+  // A new card, or a new name on a card, adds to the counts.
+  refreshCounts()
   return (await response.json()) as FlashCard
 }
 
@@ -133,6 +136,7 @@ export async function deleteFlashCard(id: number) {
   if (!response.ok && response.status !== 404) {
     throw new Error('Unable to delete flash card.')
   }
+  refreshCounts()
 }
 
 // How the user did at a card in practice mode, by the name the API stores.

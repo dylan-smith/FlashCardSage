@@ -3,6 +3,7 @@ import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import App, { tagline } from '../App'
+import type { Counts } from '../api/counts'
 import type { Deck } from '../api/decks'
 import { unreachableMessage } from '../api/flashCards'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
@@ -28,6 +29,10 @@ const decksUrl = 'http://localhost:5269/api/decks'
 const suggestionsUrl = 'http://localhost:5269/api/card-suggestions'
 const preferencesUrl = 'http://localhost:5269/api/preferences'
 const tagSuggestionsUrl = 'http://localhost:5269/api/tag-suggestions'
+const countsUrl = 'http://localhost:5269/api/counts'
+
+// What loading the counts in the navigation gets, which a test can change. Null makes loading them fail.
+let counts: Counts | null = { cards: 0, decks: 0, tags: 0 }
 
 // The preferences loading them gets, which a test can change before the app renders. Null makes loading them fail.
 let preferences: Preferences | null = defaultPreferences
@@ -59,6 +64,13 @@ function mockFetch(
           JSON.parse(init?.body as string) as FlashCardFields,
         )
         return suggestTags()
+      }
+      if (url === countsUrl) {
+        return Promise.resolve(
+          counts === null
+            ? new Response(null, { status: 500 })
+            : jsonResponse(counts),
+        )
       }
       if (init?.method === undefined && url === preferencesUrl) {
         return Promise.resolve(
@@ -119,6 +131,7 @@ async function showCards(cards: FlashCard[], tags: Tag[] = []) {
 beforeEach(() => {
   setSession({ token: 'test:Tester', name: 'Tester', provider: 'test' })
   preferences = defaultPreferences
+  counts = { cards: 0, decks: 0, tags: 0 }
   suggestTags = async () => new Response(null, { status: 503 })
   tagSuggestionRequests = []
 })
@@ -2113,6 +2126,9 @@ describe('App', () => {
           async () => new Response(null, { status: 204 }),
         )
 
+        await screen.findByRole('link', { name: 'Tags 0' })
+        counts = { cards: 0, decks: 0, tags: 1 }
+
         await user.click(
           screen.getByRole('button', { name: 'Delete tag "Food"' }),
         )
@@ -2123,6 +2139,10 @@ describe('App', () => {
           ).not.toBeInTheDocument()
         })
         expect(screen.getByRole('link', { name: 'Travel' })).toBeInTheDocument()
+        // The counts in the navigation are loaded again.
+        expect(
+          await screen.findByRole('link', { name: 'Tags 1' }),
+        ).toBeInTheDocument()
         expect(calls.find((call) => call.init?.method === 'DELETE')?.url).toBe(
           `${tagsUrl}/1`,
         )
@@ -2726,7 +2746,7 @@ describe('App', () => {
         expect(
           within(
             screen.getByRole('navigation', { name: 'Manage cards' }),
-          ).getByRole('link', { name: 'Decks' }),
+          ).getByRole('link', { name: /^Decks/ }),
         ).toHaveAttribute('aria-current', 'page')
         expect(
           screen.getByRole('tab', { name: 'In this deck (2)' }),
@@ -3275,6 +3295,42 @@ describe('App', () => {
   })
 
   describe('modes', () => {
+    it('shows how many cards, decks and tags the user has', async () => {
+      counts = { cards: 12, decks: 3, tags: 1 }
+      mockFetch(async () => jsonResponse([]))
+      renderAt('/')
+      const sections = screen.getByRole('navigation', { name: 'Manage cards' })
+
+      expect(
+        await within(sections).findByRole('link', { name: 'Cards 12' }),
+      ).toHaveAttribute('href', '/')
+      expect(
+        within(sections).getByRole('link', { name: 'Decks 3' }),
+      ).toHaveAttribute('href', '/decks')
+      expect(
+        within(sections).getByRole('link', { name: 'Tags 1' }),
+      ).toHaveAttribute('href', '/tags')
+      expect(
+        within(sections).getByRole('link', { name: 'Import cards' }),
+      ).toHaveAttribute('href', '/import')
+    })
+
+    it("leaves the counts out when they can't be loaded", async () => {
+      counts = null
+      mockFetch(async () => jsonResponse([]))
+      renderAt('/')
+
+      await waitFor(() => {
+        expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+          operation: 'refreshCounts',
+        })
+      })
+      const sections = screen.getByRole('navigation', { name: 'Manage cards' })
+      expect(
+        within(sections).getByRole('link', { name: 'Cards' }),
+      ).toBeInTheDocument()
+    })
+
     it('links to each mode and marks the current one', async () => {
       const user = userEvent.setup()
       // No cards, so there's nothing to practice either.
@@ -3308,19 +3364,19 @@ describe('App', () => {
         '/import',
       ])
       expect(
-        within(sections).getByRole('link', { name: 'Cards' }),
+        await within(sections).findByRole('link', { name: 'Cards 0' }),
       ).toHaveAttribute('aria-current', 'page')
 
-      await user.click(within(sections).getByRole('link', { name: 'Tags' }))
+      await user.click(within(sections).getByRole('link', { name: 'Tags 0' }))
 
       expect(
         await screen.findByRole('heading', { level: 2, name: 'Tags' }),
       ).toBeInTheDocument()
       expect(
-        within(sections).getByRole('link', { name: 'Tags' }),
+        within(sections).getByRole('link', { name: 'Tags 0' }),
       ).toHaveAttribute('aria-current', 'page')
       expect(
-        within(sections).getByRole('link', { name: 'Cards' }),
+        within(sections).getByRole('link', { name: 'Cards 0' }),
       ).not.toHaveAttribute('aria-current')
       expect(
         within(nav).getByRole('link', { name: 'Manage cards' }),
