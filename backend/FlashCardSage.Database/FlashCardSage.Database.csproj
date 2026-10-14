@@ -6,6 +6,8 @@
 
   <ItemGroup>
     <PackageReference Include="dbup-sqlserver" Version="7.2.0" />
+    <!-- dbup-sqlserver pulls in a 9.0.11 that has known vulnerabilities (NU1902/NU1903). -->
+    <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" />
   </ItemGroup>
 
   <ItemGroup>
