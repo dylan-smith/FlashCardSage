@@ -85,7 +85,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "requests\n| where timestamp {TimeRange} and isnotempty(user_AuthenticatedId)\n| make-series ['Active users'] = dcount(user_AuthenticatedId) default = 0\n    on timestamp from startofday(todatetime('{TimeRange:start}')) to todatetime('{TimeRange:end}') step 1d",
+        "query": "requests\n| where timestamp {TimeRange} and isnotempty(user_AuthenticatedId)\n| make-series ['Active users'] = dcount(user_AuthenticatedId) default = 0\n    on timestamp from startofday(todatetime('{TimeRange:startISO}')) to todatetime('{TimeRange:endISO}') step 1d",
         "size": 0,
         "title": "Daily active users",
         "noDataMessage": "Nobody signed in during this period.",
@@ -217,7 +217,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "requests\n| where timestamp {TimeRange} and isnotempty(user_AuthenticatedId)\n| where name startswith 'POST' and resultCode == '200'\n| where tostring(parse_url(url).Path) matches regex @'^/api/flashcards/\\d+/practice-results$'\n| make-series ['Practice results'] = sum(itemCount) default = 0\n    on timestamp from startofday(todatetime('{TimeRange:start}')) to todatetime('{TimeRange:end}') step 1d",
+        "query": "requests\n| where timestamp {TimeRange} and isnotempty(user_AuthenticatedId)\n| where name startswith 'POST' and resultCode == '200'\n| where tostring(parse_url(url).Path) matches regex @'^/api/flashcards/\\d+/practice-results$'\n| make-series ['Practice results'] = sum(itemCount) default = 0\n    on timestamp from startofday(todatetime('{TimeRange:startISO}')) to todatetime('{TimeRange:endISO}') step 1d",
         "size": 0,
         "title": "Practice results per day",
         "noDataMessage": "Nobody practiced during this period.",
@@ -283,7 +283,7 @@
       "type": 3,
       "content": {
         "version": "KqlItem/1.0",
-        "query": "requests\n| where timestamp {TimeRange} and isnotempty(user_AuthenticatedId)\n| where name startswith 'POST' and resultCode == '200'\n| where tostring(parse_url(url).Path) == '/api/flashcards/images/generate'\n| make-series ['Pictures generated'] = sum(itemCount) default = 0\n    on timestamp from startofday(todatetime('{TimeRange:start}')) to todatetime('{TimeRange:end}') step 1d",
+        "query": "requests\n| where timestamp {TimeRange} and isnotempty(user_AuthenticatedId)\n| where name startswith 'POST' and resultCode == '200'\n| where tostring(parse_url(url).Path) == '/api/flashcards/images/generate'\n| make-series ['Pictures generated'] = sum(itemCount) default = 0\n    on timestamp from startofday(todatetime('{TimeRange:startISO}')) to todatetime('{TimeRange:endISO}') step 1d",
         "size": 0,
         "title": "Pictures generated per day",
         "noDataMessage": "No pictures were generated during this period.",
