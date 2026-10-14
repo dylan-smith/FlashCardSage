@@ -14,8 +14,17 @@ using Microsoft.Extensions.Logging.Abstractions;
 namespace FlashCardSage.Api.Tests;
 
 public class DocumentScansControllerTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+    : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
+    // The uploads' streams, which a FormFile doesn't dispose, disposed once the test is done.
+    private readonly List<MemoryStream> streams = [];
+
+    public void Dispose()
+    {
+        streams.ForEach(stream => stream.Dispose());
+        GC.SuppressFinalize(this);
+    }
+
     [Fact]
     public async Task Scan_ReturnsTheCandidates_LeavingOutCardsTheUserHas()
     {
@@ -153,10 +162,11 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
-    private static FormFile File(string fileName, string content)
+    private FormFile File(string fileName, string content)
     {
-        var bytes = Encoding.UTF8.GetBytes(content);
-        return new FormFile(new MemoryStream(bytes), 0, bytes.Length, "file", fileName);
+        var stream = new MemoryStream(Encoding.UTF8.GetBytes(content));
+        streams.Add(stream);
+        return new FormFile(stream, 0, stream.Length, "file", fileName);
     }
 
     // A text document, as the page uploads it.
