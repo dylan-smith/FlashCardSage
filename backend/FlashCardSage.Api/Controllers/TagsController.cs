@@ -7,8 +7,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// The user's tags. A tag is made by putting a new name on a card (see FlashCardsController), and here it can be
-/// renamed or deleted.
+/// The user's tags. A tag is made here or by putting a new name on a card (see FlashCardsController), and here it
+/// can be renamed or deleted.
 /// </summary>
 /// <remarks>
 /// Like FlashCardsController, log statements include ids only, never a tag's name.
@@ -32,6 +32,26 @@ public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController
         return Ok(tags);
     }
 
+    // A tag with no cards yet. There's no route to read one tag, so the 201 has no Location.
+    [HttpPost]
+    public async Task<ActionResult<Tag>> Create([FromBody] TagRequest request)
+    {
+        var tags = await dbContext.Tags.ToListAsync();
+        var name = ValidateName(request.Name, tags, id: null);
+        if (!ModelState.IsValid)
+        {
+            return ValidationProblem(ModelState);
+        }
+
+        var tag = new Tag { Name = name };
+        dbContext.Tags.Add(tag);
+        await dbContext.SaveChangesAsync();
+
+        logger.LogInformation("Created tag {TagId}", tag.Id);
+
+        return StatusCode(StatusCodes.Status201Created, tag);
+    }
+
     [HttpPut("{id:int}")]
     public async Task<ActionResult<Tag>> Update(int id, [FromBody] TagRequest request)
     {
@@ -44,18 +64,9 @@ public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController
             return NotFound();
         }
 
-        var name = request.Name.Trim();
-
-        if (name.Length == 0)
+        var name = ValidateName(request.Name, tags, id);
+        if (!ModelState.IsValid)
         {
-            ModelState.AddModelError(nameof(request.Name), "Tag name is required.");
-            return ValidationProblem(ModelState);
-        }
-
-        // Names are unique whatever their case, as the database's index is.
-        if (tags.Any(item => item.Id != id && string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase)))
-        {
-            ModelState.AddModelError(nameof(request.Name), "There's already a tag with that name.");
             return ValidationProblem(ModelState);
         }
 
@@ -87,5 +98,24 @@ public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController
         logger.LogInformation("Deleted tag {TagId}", id);
 
         return NoContent();
+    }
+
+    // The trimmed name, adding a model error if it's blank or another of the user's tags (not the one with this id)
+    // has it. A person's tags are few, so they're matched here rather than in SQL.
+    private string ValidateName(string name, List<Tag> tags, int? id)
+    {
+        var trimmed = name.Trim();
+
+        if (trimmed.Length == 0)
+        {
+            ModelState.AddModelError(nameof(TagRequest.Name), "Tag name is required.");
+        }
+        // Names are unique whatever their case, as the database's index is.
+        else if (tags.Any(item => item.Id != id && string.Equals(item.Name, trimmed, StringComparison.OrdinalIgnoreCase)))
+        {
+            ModelState.AddModelError(nameof(TagRequest.Name), "There's already a tag with that name.");
+        }
+
+        return trimmed;
     }
 }

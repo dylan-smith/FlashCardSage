@@ -32,6 +32,69 @@ public class TagsControllerTests
     }
 
     [Fact]
+    public async Task Create_TrimsAndAddsTheTag()
+    {
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new TagRequest { Name = "  Food  " });
+
+        var created = Assert.IsType<ObjectResult>(result.Result);
+        Assert.Equal(201, created.StatusCode);
+        var tag = Assert.IsType<Tag>(created.Value);
+        Assert.Equal("Food", tag.Name);
+        Assert.Equal(tag.Id, (await dbContext.Tags.SingleAsync()).Id);
+    }
+
+    [Fact]
+    public async Task Create_ReturnsValidationProblem_WhenTheNameIsBlank()
+    {
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new TagRequest { Name = "   " });
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
+        Assert.Equal(["Tag name is required."], problem.Errors["Name"]);
+        Assert.Empty(await dbContext.Tags.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Create_ReturnsValidationProblem_WhenTheUserHasTheNameAlready()
+    {
+        await using var dbContext = TestDb.Create();
+        dbContext.Tags.Add(new Tag { Name = "Food" });
+        await dbContext.SaveChangesAsync();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new TagRequest { Name = "food" });
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
+        Assert.Equal(["There's already a tag with that name."], problem.Errors["Name"]);
+        Assert.Single(await dbContext.Tags.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Create_AllowsANameAnotherUserHas()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            otherContext.Tags.Add(new Tag { Name = "Food" });
+            await otherContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Create(new TagRequest { Name = "Food" });
+
+        Assert.Equal(201, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        Assert.Equal(2, await dbContext.Tags.IgnoreQueryFilters().CountAsync());
+        Assert.Equal(TestDb.UserId, (await dbContext.Tags.SingleAsync()).UserId);
+    }
+
+    [Fact]
     public async Task Update_TrimsAndRenamesTheTag()
     {
         await using var dbContext = TestDb.Create();
