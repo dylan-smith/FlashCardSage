@@ -143,6 +143,59 @@ test.describe('Practice', () => {
     expect(pictureBox.y).toBeGreaterThanOrEqual(textBox.y + textBox.height)
   })
 
+  for (const viewport of [
+    { width: 360, height: 640 },
+    { width: 390, height: 664 },
+    { width: 667, height: 375 },
+  ]) {
+    test(`keeps a revealed card and its picture on a ${viewport.width}x${viewport.height} screen`, async ({
+      page,
+      request,
+    }) => {
+      // Only one card, with long words and a picture, so it's the one that comes up.
+      const response = await request.get(flashCardsApiUrl)
+      for (const { id } of (await response.json()) as { id: number }[]) {
+        await request.delete(`${flashCardsApiUrl}/${id}`)
+      }
+      const created = await request.post(flashCardsApiUrl, {
+        data: cardData(
+          'el perro grande y simpático',
+          'the big and friendly dog',
+        ),
+      })
+      expect(created.ok()).toBe(true)
+      const { id } = (await created.json()) as { id: number }
+      expect(
+        (
+          await request.put(`${flashCardsApiUrl}/${id}/image`, {
+            data: onePixelPng,
+          })
+        ).ok(),
+      ).toBe(true)
+
+      await page.setViewportSize(viewport)
+      await page.goto('/practice')
+      await page.getByRole('button', { name: 'Reveal' }).click()
+
+      // All of it on the screen at once, without the user scrolling.
+      for (const locator of [
+        page.getByText('el perro grande y simpático', { exact: true }),
+        page.getByText('the big and friendly dog', { exact: true }),
+        page.getByRole('img', { name: /^Picture for/ }),
+        page.getByRole('button', { name: 'Got it!' }),
+        page.getByRole('button', { name: 'I was close' }),
+        page.getByRole('button', { name: 'Failed :(' }),
+      ]) {
+        await expect(locator).toBeInViewport({ ratio: 1 })
+      }
+      // Still a picture worth showing, not squashed to nothing.
+      const picture = await page
+        .getByRole('img', { name: /^Picture for/ })
+        .boundingBox()
+      expect(picture?.height).toBeGreaterThanOrEqual(120)
+    })
+  }
+
   test('points to adding cards when there are none', async ({
     page,
     request,

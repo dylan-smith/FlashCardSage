@@ -197,6 +197,7 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
   const revealRef = useRef<HTMLButtonElement>(null)
   const firstOutcomeRef = useRef<HTMLButtonElement>(null)
   const answeredRef = useRef(false)
+  const cardRef = useRef<HTMLDivElement>(null)
   const showPictures = usePreferences()?.showPictures === true
 
   // The API picks the first card here, and each one after that when an answer is saved.
@@ -228,7 +229,10 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
 
   useEffect(() => {
     if (revealed) {
-      firstOutcomeRef.current?.focus()
+      // The whole revealed card fits on the screen, so bring all of it into view rather than just the button, and
+      // the user never has to scroll to answer.
+      firstOutcomeRef.current?.focus({ preventScroll: true })
+      cardRef.current?.scrollIntoView({ block: 'nearest' })
     } else if (answeredRef.current) {
       revealRef.current?.focus()
     }
@@ -289,7 +293,21 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
         </Typography>
       )}
 
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
+      {/* Never taller than the screen: the picture shrinks to fit, so the words, picture and buttons are all on it at
+          once. */}
+      <Paper
+        ref={cardRef}
+        component="section"
+        elevation={2}
+        sx={{
+          p: { xs: 2, sm: 3 },
+          display: 'flex',
+          flexDirection: 'column',
+          maxHeight: 'calc(100dvh - 32px)',
+          overflowY: 'auto',
+          scrollMarginBlock: '16px',
+        }}
+      >
         {loading ? (
           <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
             <CircularProgress aria-label="Loading" />
@@ -312,20 +330,20 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
             </Stack>
           )
         ) : (
-          <Stack spacing={3}>
+          <Stack spacing={{ xs: 2, sm: 3 }} sx={{ minHeight: 0 }}>
             {/* The picture sits to the left of the text, or below it on a narrow screen. The row is reversed so the
                 text still comes first for screen readers. */}
             <Stack
               direction={{ xs: 'column', sm: 'row-reverse' }}
-              spacing={3}
+              spacing={{ xs: 2, sm: 3 }}
               aria-live="polite"
-              sx={{ alignItems: 'center', py: 2 }}
+              sx={{ alignItems: 'center', py: { xs: 0, sm: 2 }, minHeight: 0 }}
             >
               <Stack
                 spacing={2}
                 sx={{
                   textAlign: 'center',
-                  flex: 1,
+                  flex: { xs: 'none', sm: 1 },
                   minWidth: 0,
                   width: '100%',
                 }}
@@ -350,11 +368,15 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
                   component="img"
                   src={prompt.imageUrl}
                   alt={`Picture for "${formatWords(prompt.spanish)}"`}
+                  // Up to 240px square, and smaller when that's all the room the card has left.
                   sx={{
-                    width: 240,
+                    flex: { xs: '0 1 240px', sm: 'none' },
+                    width: 'auto',
+                    height: { sm: 240 },
+                    minHeight: 0,
                     maxWidth: '100%',
-                    height: 240,
-                    flexShrink: 0,
+                    maxHeight: { sm: '100%' },
+                    aspectRatio: '1',
                     objectFit: 'cover',
                     borderRadius: 1,
                   }}
@@ -362,10 +384,11 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
               )}
             </Stack>
             {revealed ? (
+              // In a row even on a phone, where they share its width, so they take up less of the screen's height.
               <Stack
-                direction={{ xs: 'column', sm: 'row' }}
+                direction="row"
                 spacing={1}
-                sx={{ justifyContent: 'center' }}
+                sx={{ justifyContent: 'center', flexShrink: 0 }}
               >
                 {outcomes.map(({ outcome, label, color }, index) => (
                   <Button
@@ -376,6 +399,7 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
                     color={color}
                     disabled={saving}
                     onClick={() => void handleAnswer(outcome)}
+                    sx={{ flex: { xs: 1, sm: 'none' } }}
                   >
                     {label}
                   </Button>
