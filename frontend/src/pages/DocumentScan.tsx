@@ -18,15 +18,19 @@ import {
   maxDocumentCandidates,
   scanDocument,
 } from '../api/documentScans'
-import { createFlashCards, describeFetchError } from '../api/flashCards'
+import {
+  createFlashCard,
+  createFlashCards,
+  describeFetchError,
+} from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
 
 // A card made from the document, with a key of its own, since the user can change its words.
 type Candidate = CardSuggestion & { key: number }
 
-// limitReached is whether the scan made as many cards as it can, so the document may have more, and foundAny whether it
-// made any, before the user removed some.
+// limitReached is whether the scan made as many cards as it can, so the document may have more, foundAny whether it made
+// any, before the user removed or added some, and addedCount how many the user has added one at a time.
 type ScanState =
   | { status: 'idle' }
   | { status: 'scanning' }
@@ -36,6 +40,7 @@ type ScanState =
       truncated: boolean
       limitReached: boolean
       foundAny: boolean
+      addedCount: number
     }
 
 // What adding the cards did, and whether the document may have more.
@@ -57,14 +62,17 @@ function describeAdded({ count, skippedCount, limitReached }: Added) {
 }
 
 // Scans a document the user picks for words and phrases to make cards for. They're listed for the user to look over,
-// change or remove, and then added all at once. A scan makes at most maxDocumentCandidates cards and leaves out the
+// change or remove, and then added one at a time or all at once. A scan makes at most maxDocumentCandidates cards and leaves out the
 // user's cards, so a document with more can be scanned again once they're added.
 export function DocumentScan() {
   const [state, setState] = useState<ScanState>({ status: 'idle' })
   // The document last scanned, so it can be scanned again.
   const [file, setFile] = useState<File | null>(null)
   const [editing, setEditing] = useState<Editing | null>(null)
-  const [adding, setAdding] = useState(false)
+  // What's being added: all the cards, or the one with this key.
+  const [adding, setAdding] = useState<'all' | number | null>(null)
+  // The card just added on its own, which has left the list, so the user sees it went in.
+  const [addedOne, setAddedOne] = useState('')
   const [added, setAdded] = useState<Added | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const spanishRef = useRef<HTMLInputElement>(null)
@@ -82,6 +90,7 @@ export function DocumentScan() {
     setState({ status: 'scanning' })
     setEditing(null)
     setAdded(null)
+    setAddedOne('')
     setErrorMessage('')
 
     try {
@@ -101,6 +110,7 @@ export function DocumentScan() {
         truncated: result.truncated,
         limitReached: result.candidates.length >= maxDocumentCandidates,
         foundAny: result.candidates.length > 0,
+        addedCount: 0,
       })
     } catch (error) {
       trackException(error, { operation: 'scan' })
@@ -149,8 +159,50 @@ export function DocumentScan() {
     setEditing(null)
   }
 
-  async function addAll(candidates: Candidate[], limitReached: boolean) {
-    setAdding(true)
+  async function addOne(candidate: Candidate) {
+    if (state.status !== 'ready') {
+      return
+    }
+    const { candidates, addedCount, limitReached } = state
+    setAdding(candidate.key)
+    setAddedOne('')
+    setErrorMessage('')
+
+    try {
+      await createFlashCard({
+        spanish: [candidate.spanish],
+        english: [candidate.english],
+        tags: [],
+      })
+      trackEvent('DocumentCardAdded')
+      const remaining = candidates.filter((item) => item.key !== candidate.key)
+      if (remaining.length === 0) {
+        // The last one, so the scan's done, as if they'd all been added at once.
+        setAdded({ count: addedCount + 1, skippedCount: 0, limitReached })
+        setState({ status: 'idle' })
+      } else {
+        setAddedOne(`Added “${candidate.spanish}”.`)
+        setState({
+          ...state,
+          candidates: remaining,
+          addedCount: addedCount + 1,
+        })
+      }
+    } catch (error) {
+      trackException(error, { operation: 'add' })
+      setErrorMessage(describeFetchError(error, 'Unable to add the card.'))
+    } finally {
+      setAdding(null)
+    }
+  }
+
+  async function addAll(
+    candidates: Candidate[],
+    addedCount: number,
+    limitReached: boolean,
+  ) {
+    setAdding('all')
+    setAddedOne('')
     setErrorMessage('')
 
     try {
@@ -163,7 +215,8 @@ export function DocumentScan() {
       )
       trackEvent('DocumentCardsAdded')
       setAdded({
-        count: result.cards.length,
+        // With the ones the user added one at a time before.
+        count: result.cards.length + addedCount,
         skippedCount: result.skippedCount,
         limitReached,
       })
@@ -172,11 +225,11 @@ export function DocumentScan() {
       trackException(error, { operation: 'add' })
       setErrorMessage(describeFetchError(error, 'Unable to add the cards.'))
     } finally {
-      setAdding(false)
+      setAdding(null)
     }
   }
 
-  const busy = state.status === 'scanning' || adding
+  const busy = state.status === 'scanning' || adding !== null
 
   return (
     <Paper component="section" elevation={2} sx={{ p: 3 }}>
@@ -187,7 +240,8 @@ export function DocumentScan() {
         Choose a document in Spanish, such as an article, a story or a
         film&apos;s subtitles (.txt, .md, .srt, .vtt, .docx or .pdf), to find
         words and phrases in it to make cards for. You can change or remove them
-        before you add them. Words you already have cards for are left out.
+        before you add them, one at a time or all at once. Words you already
+        have cards for are left out.
       </Typography>
       <Stack spacing={2}>
         {added && (
@@ -248,11 +302,14 @@ export function DocumentScan() {
                 This document is long, so only its start was scanned.
               </Alert>
             )}
+            {addedOne && <Alert severity="success">{addedOne}</Alert>}
             {state.candidates.length === 0 ? (
               <Typography color="text.secondary">
-                {state.foundAny
-                  ? 'You removed all the cards.'
-                  : 'No new words or phrases were found in this document.'}
+                {!state.foundAny
+                  ? 'No new words or phrases were found in this document.'
+                  : state.addedCount > 0
+                    ? `You added ${cardCount(state.addedCount)} and removed the rest.`
+                    : 'You removed all the cards.'}
               </Typography>
             ) : (
               <>
@@ -340,7 +397,17 @@ export function DocumentScan() {
                         <Button
                           type="button"
                           size="small"
-                          disabled={adding}
+                          disabled={adding !== null || editing !== null}
+                          aria-label={`Add "${candidate.spanish}"`}
+                          onClick={() => void addOne(candidate)}
+                          sx={{ flexShrink: 0 }}
+                        >
+                          {adding === candidate.key ? 'Adding…' : 'Add'}
+                        </Button>
+                        <Button
+                          type="button"
+                          size="small"
+                          disabled={adding !== null}
                           aria-label={`Edit "${candidate.spanish}"`}
                           onClick={() =>
                             setEditing({
@@ -357,7 +424,7 @@ export function DocumentScan() {
                           type="button"
                           size="small"
                           color="error"
-                          disabled={adding}
+                          disabled={adding !== null}
                           aria-label={`Remove "${candidate.spanish}"`}
                           onClick={() => remove(candidate.key)}
                           sx={{ flexShrink: 0 }}
@@ -372,14 +439,20 @@ export function DocumentScan() {
                   <Button
                     type="button"
                     variant="contained"
-                    disabled={adding || editing !== null}
+                    disabled={adding !== null || editing !== null}
                     onClick={() =>
-                      void addAll(state.candidates, state.limitReached)
+                      void addAll(
+                        state.candidates,
+                        state.addedCount,
+                        state.limitReached,
+                      )
                     }
                   >
-                    {adding
+                    {adding === 'all'
                       ? 'Adding…'
-                      : `Add ${cardCount(state.candidates.length)}`}
+                      : state.candidates.length === 1
+                        ? 'Add 1 card'
+                        : `Add all ${state.candidates.length} cards`}
                   </Button>
                 </Box>
               </>

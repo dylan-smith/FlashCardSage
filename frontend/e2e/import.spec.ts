@@ -88,7 +88,7 @@ test.describe('Import cards', () => {
     )
   })
 
-  test('adds the cards scanned from a document, after changing and removing some', async ({
+  test('adds the cards scanned from a document, one and then the rest, after changing and removing some', async ({
     page,
   }) => {
     // The E2E backend has no Foundry endpoint or key, so stand in for the scan with as many cards as one makes, one of
@@ -130,7 +130,11 @@ test.describe('Import cards', () => {
     await page.getByRole('button', { name: 'Save' }).click()
     await expect(cards.getByRole('listitem')).toHaveCount(99)
 
-    await page.getByRole('button', { name: 'Add 99 cards' }).click()
+    // One card added on its own leaves the list, and the rest are added all at once.
+    await page.getByRole('button', { name: 'Add "palabra 3"' }).click()
+    await expect(page.getByText('Added “palabra 3”.')).toBeVisible()
+    await expect(cards.getByRole('listitem')).toHaveCount(98)
+    await page.getByRole('button', { name: 'Add all 98 cards' }).click()
 
     await expect(
       page.getByText(
@@ -144,6 +148,7 @@ test.describe('Import cards', () => {
     await expect(page.getByText('la palabra', { exact: true })).toBeVisible()
     await expect(page.getByText('the word', { exact: true })).toBeVisible()
     await expect(page.getByText('palabra 2', { exact: true })).toHaveCount(0)
+    await expect(page.getByText('palabra 3', { exact: true })).toBeVisible()
   })
 
   test('says why a document can’t be scanned', async ({ page }) => {
