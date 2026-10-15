@@ -18,6 +18,7 @@ import type { Deck } from '../api/decks'
 import { ApiError, describeFetchError } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
+import { ConfirmDelete } from './ConfirmDelete'
 
 export const deckNameRequiredMessage = 'Deck name is required.'
 
@@ -35,6 +36,8 @@ function DecksPage() {
   // The deck being deleted, so its buttons can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
+  // The deck whose Delete was clicked, while the user is asked whether they mean it.
+  const [confirmingDelete, setConfirmingDelete] = useState<Deck | null>(null)
 
   // Loads the decks once. The page starts out loading, and deleting keeps the list up to date itself.
   useEffect(() => {
@@ -99,6 +102,7 @@ function DecksPage() {
       setErrorMessage(describeFetchError(error, 'Unable to delete deck.'))
     } finally {
       setBusyId(null)
+      setConfirmingDelete(null)
     }
   }
 
@@ -184,7 +188,7 @@ function DecksPage() {
                     color="error"
                     aria-label={`Delete deck "${deck.name}"`}
                     disabled={busyId === deck.id}
-                    onClick={() => void handleDelete(deck)}
+                    onClick={() => setConfirmingDelete(deck)}
                   >
                     Delete
                   </Button>
@@ -192,6 +196,18 @@ function DecksPage() {
               </ListItem>
             ))}
           </List>
+        )}
+        {confirmingDelete !== null && (
+          <ConfirmDelete
+            open
+            title={`Delete deck "${confirmingDelete.name}"?`}
+            busy={busyId === confirmingDelete.id}
+            onCancel={() => setConfirmingDelete(null)}
+            onConfirm={() => void handleDelete(confirmingDelete)}
+          >
+            This can&apos;t be undone. Its cards won&apos;t be deleted, and keep
+            their scores.
+          </ConfirmDelete>
         )}
       </Paper>
     </Stack>

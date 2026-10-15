@@ -99,6 +99,10 @@ async function visit(browser: Browser, title: string) {
     await expect(page.getByText(renamed, { exact: true })).toBeVisible()
 
     await page.getByRole('button', { name: `Delete "${renamed}"` }).click()
+    await page
+      .getByRole('dialog', { name: `Delete "${renamed}"?` })
+      .getByRole('button', { name: 'Delete' })
+      .click()
     await expect(page.getByText(renamed, { exact: true })).toBeHidden()
     rmSync(pendingFile, { force: true })
 

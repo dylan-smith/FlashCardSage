@@ -25,7 +25,7 @@ import {
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
-import type { CardSuggestion } from '../api/cardSuggestions'
+import { putCardImage } from '../api/cardImages'
 import { listTags } from '../api/tags'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
 import { useCardPicture } from '../hooks/useCardPicture'
@@ -38,7 +38,10 @@ import { showToast } from '../toasts'
 import { PictureField } from './FlashCardPicture'
 import { FlashCardRow } from './FlashCardRow'
 import { AddToDeck } from './AddToDeck'
+import type { Candidate } from './candidates'
 import { CardSuggestions } from './CardSuggestions'
+import { ConfirmDelete } from './ConfirmDelete'
+import { cardDeleteWarning } from './cardDeleteWarning'
 import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameRequiredMessage } from './DecksPage'
@@ -162,6 +165,10 @@ function FlashCardsPage() {
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [deckBusy, setDeckBusy] = useState(false)
   const [deletingPicked, setDeletingPicked] = useState(false)
+  // The card whose Delete was clicked, while the user is asked whether they mean it.
+  const [confirmingDelete, setConfirmingDelete] = useState<FlashCard | null>(
+    null,
+  )
   const translation = useAutoTranslate(firstWords(fields), (change) =>
     setFields(setFirstWords(change)),
   )
@@ -403,18 +410,37 @@ function FlashCardsPage() {
     }
   }
 
-  // Adds a suggested card as it is, with the tag the suggestions go under, returning whether it was saved.
-  async function handleAddSuggestion(suggestion: CardSuggestion) {
+  // Adds a suggested card, with any changes the user made to it, returning whether it was saved. The card is saved
+  // whatever happens to its picture, so a failure there is reported and the card kept without it.
+  async function handleAddSuggestion({
+    spanish,
+    english,
+    tags: tagNames,
+    picture,
+  }: Candidate) {
     setErrorMessage('')
 
     try {
-      const created = await createFlashCard({
-        spanish: [suggestion.spanish],
-        english: [suggestion.english],
-        tags: suggestionTag === null ? [] : [suggestionTag.name],
-      })
+      let card = await createFlashCard({ spanish, english, tags: tagNames })
       trackEvent('SuggestedFlashCardAdded')
-      setCards((current) => [...current, created])
+      if (picture !== null) {
+        try {
+          card = await putCardImage(card.id, picture)
+          trackEvent('FlashCardImageAdded')
+        } catch (error) {
+          if (!(error instanceof ApiError)) {
+            trackException(error, { operation: 'picture' })
+          }
+          setErrorMessage(
+            describeFetchError(
+              error,
+              "Flash card saved, but the picture couldn't be added.",
+            ),
+          )
+        }
+      }
+      setCards((current) => [...current, card])
+      addNewTags(card)
       return true
     } catch (error) {
       if (!(error instanceof ApiError)) {
@@ -477,6 +503,7 @@ function FlashCardsPage() {
       setErrorMessage(describeFetchError(error, 'Unable to delete flash card.'))
     } finally {
       setBusyId(null)
+      setConfirmingDelete(null)
     }
   }
 
@@ -576,7 +603,9 @@ function FlashCardsPage() {
             cards={cards}
             relatedTo={added}
             tag={suggestionTag ?? undefined}
+            tags={tags}
             onAdd={handleAddSuggestion}
+            onError={setErrorMessage}
           />
         )}
 
@@ -687,13 +716,24 @@ function FlashCardsPage() {
                         setEdit(null)
                       }}
                       onEditSave={(event) => void handleEditSave(event)}
-                      onDelete={() => void handleDelete(card)}
+                      onDelete={() => setConfirmingDelete(card)}
                     />
                   ))}
                 </List>
               </>
             )}
           </>
+        )}
+        {confirmingDelete !== null && (
+          <ConfirmDelete
+            open
+            title={`Delete "${formatWords(confirmingDelete.spanish)}"?`}
+            busy={busyId === confirmingDelete.id}
+            onCancel={() => setConfirmingDelete(null)}
+            onConfirm={() => void handleDelete(confirmingDelete)}
+          >
+            {cardDeleteWarning(1)}
+          </ConfirmDelete>
         )}
       </Paper>
     </Stack>

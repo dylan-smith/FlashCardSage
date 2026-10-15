@@ -24,6 +24,8 @@ import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
 import { CardIconButton } from './CardIconButton'
 import { CardPicker } from './CardPicker'
+import { ConfirmDelete } from './ConfirmDelete'
+import { cardDeleteWarning } from './cardDeleteWarning'
 import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameMaxLength, deckNameRequiredMessage } from './DecksPage'
@@ -49,6 +51,10 @@ function DeckPage() {
   const [busy, setBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const [tab, setTab] = useState<DeckTab>('deck')
+  // The card whose Delete was clicked, or the deck itself, while the user is asked whether they mean it.
+  const [confirmingDelete, setConfirmingDelete] = useState<
+    FlashCard | 'deck' | null
+  >(null)
 
   useEffect(() => {
     let cancelled = false
@@ -204,7 +210,13 @@ function DeckPage() {
       trackException(error, { operation: 'delete' })
       setErrorMessage(describeFetchError(error, 'Unable to delete deck.'))
       setBusy(false)
+      setConfirmingDelete(null)
     }
+  }
+
+  async function handleDeleteCard(card: FlashCard) {
+    await handleDeleteCards([card.id])
+    setConfirmingDelete(null)
   }
 
   return (
@@ -252,7 +264,7 @@ function DeckPage() {
               size="small"
               color="error"
               disabled={busy}
-              onClick={() => void handleDelete()}
+              onClick={() => setConfirmingDelete('deck')}
             >
               Delete deck
             </Button>
@@ -332,7 +344,7 @@ function DeckPage() {
                     tooltip="Delete"
                     label={`Delete "${spanish}"`}
                     disabled={busy}
-                    onClick={() => void handleDeleteCards([card.id])}
+                    onClick={() => setConfirmingDelete(card)}
                   />
                 </>
               )
@@ -358,6 +370,31 @@ function DeckPage() {
           />
         </Box>
       </Paper>
+
+      {confirmingDelete === 'deck' ? (
+        <ConfirmDelete
+          open
+          title={`Delete deck "${current.name}"?`}
+          busy={busy}
+          onCancel={() => setConfirmingDelete(null)}
+          onConfirm={() => void handleDelete()}
+        >
+          This can&apos;t be undone. Its cards won&apos;t be deleted, and keep
+          their scores.
+        </ConfirmDelete>
+      ) : (
+        confirmingDelete !== null && (
+          <ConfirmDelete
+            open
+            title={`Delete "${formatWords(confirmingDelete.spanish)}"?`}
+            busy={busy}
+            onCancel={() => setConfirmingDelete(null)}
+            onConfirm={() => void handleDeleteCard(confirmingDelete)}
+          >
+            {cardDeleteWarning(1)}
+          </ConfirmDelete>
+        )
+      )}
     </Stack>
   )
 }

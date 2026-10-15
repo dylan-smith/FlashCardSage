@@ -68,6 +68,12 @@ test('smoke: can add, edit and delete a flash card', async ({ page }) => {
       await page
         .getByRole('button', { name: `Delete "${name}"`, exact: true })
         .click({ timeout: 5_000 })
+        .then(() =>
+          page
+            .getByRole('dialog', { name: `Delete "${name}"?`, exact: true })
+            .getByRole('button', { name: 'Delete' })
+            .click({ timeout: 5_000 }),
+        )
         .catch(() => {})
     }
   }

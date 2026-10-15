@@ -114,6 +114,21 @@ function renderAt(path: string) {
   )
 }
 
+// Clicks a Delete button, then Delete in the dialog that asks whether the user means it.
+async function clickDelete(
+  user: ReturnType<typeof userEvent.setup>,
+  button: string,
+  dialog: string,
+) {
+  await user.click(screen.getByRole('button', { name: button }))
+  await user.click(
+    within(await screen.findByRole('dialog', { name: dialog })).getByRole(
+      'button',
+      { name: 'Delete' },
+    ),
+  )
+}
+
 // Renders the flash cards page with these cards and tags already loaded.
 async function showCards(cards: FlashCard[], tags: Tag[] = []) {
   const calls = mockFetch(async (url, init) => {
@@ -645,6 +660,82 @@ describe('App', () => {
       )
       expect(suggestionList()).toHaveTextContent('el perro')
       expect(trackException).not.toHaveBeenCalled()
+    })
+
+    it('edits a suggestion with the card form before adding it', async () => {
+      const user = userEvent.setup()
+      const calls = await showSuggestions(
+        async () =>
+          jsonResponse([
+            { spanish: 'el perro', english: 'the dog' },
+            { spanish: 'el pez', english: 'the fish' },
+          ]),
+        async () =>
+          jsonResponse(
+            {
+              id: 2,
+              spanish: ['el perro'],
+              english: ['the dog', 'the hound'],
+              tags: ['Pets'],
+              imageUrl: null,
+            },
+            201,
+          ),
+      )
+      await screen.findByRole('list', { name: 'Suggested cards' })
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el perro"' }))
+      const item = within(suggestionList()).getAllByRole('listitem')[0]
+      expect(within(item).getByLabelText('Spanish')).toHaveValue('el perro')
+      expect(within(item).getByLabelText('Spanish')).toHaveFocus()
+      expect(
+        within(suggestionList()).getByRole('button', { name: 'Add "el pez"' }),
+      ).toBeDisabled()
+      await user.click(
+        within(item).getByRole('button', { name: 'Add English translation' }),
+      )
+      await user.type(within(item).getByLabelText('English 2'), 'the hound')
+      await user.type(within(item).getByLabelText('Tags'), 'Pets{Enter}')
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      expect(suggestionList()).toHaveTextContent('the dog / the hound')
+      expect(suggestionList()).toHaveTextContent('Pets')
+      expect(calls.filter((call) => call.init?.method === 'POST')).toEqual([])
+
+      await user.click(screen.getByRole('button', { name: 'Add "el perro"' }))
+
+      await waitFor(() => {
+        expect(within(suggestionList()).getAllByRole('listitem')).toHaveLength(
+          1,
+        )
+      })
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.init?.body).toBe(
+        JSON.stringify({
+          spanish: ['el perro'],
+          english: ['the dog', 'the hound'],
+          tags: ['Pets'],
+        }),
+      )
+    })
+
+    it('keeps a suggestion as it was when its edit is cancelled', async () => {
+      const user = userEvent.setup()
+      await showSuggestions(async () =>
+        jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+      )
+      await screen.findByRole('list', { name: 'Suggested cards' })
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el perro"' }))
+      await user.clear(screen.getByDisplayValue('the dog'))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'English is required.',
+      )
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(suggestionList()).toHaveTextContent('el perrothe dog')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
     })
 
     it('asks for more suggestions', async () => {
@@ -1655,7 +1746,7 @@ describe('App', () => {
       renderAt('/')
       await screen.findByText('el gato')
 
-      await user.click(screen.getByRole('button', { name: 'Delete "el gato"' }))
+      await clickDelete(user, 'Delete "el gato"', 'Delete "el gato"?')
 
       await waitFor(() => {
         expect(screen.queryByText('el gato')).not.toBeInTheDocument()
@@ -1665,6 +1756,34 @@ describe('App', () => {
         'http://localhost:5269/api/flashcards/1',
       )
       expect(trackEvent).toHaveBeenCalledWith('FlashCardDeleted')
+    })
+
+    it('asks first, saying what is lost, and keeps the card when cancelled', async () => {
+      const user = userEvent.setup()
+      const { calls } = await showCards([
+        {
+          id: 1,
+          spanish: ['el gato'],
+          english: ['the cat'],
+          tags: [],
+          imageUrl: null,
+        },
+      ])
+
+      await user.click(screen.getByRole('button', { name: 'Delete "el gato"' }))
+      const dialog = await screen.findByRole('dialog', {
+        name: 'Delete "el gato"?',
+      })
+      expect(dialog).toHaveTextContent("This can't be undone.")
+      expect(dialog).toHaveTextContent("All of the card's scores")
+      expect(dialog).toHaveTextContent('every deck and tag')
+      await user.click(within(dialog).getByRole('button', { name: 'Cancel' }))
+
+      await waitFor(() => {
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+      })
+      expect(screen.getByText('el gato')).toBeInTheDocument()
+      expect(calls.some((call) => call.init?.method === 'DELETE')).toBe(false)
     })
 
     it('says so when there are no cards left', async () => {
@@ -1685,7 +1804,7 @@ describe('App', () => {
       renderAt('/')
       await screen.findByText('el gato')
 
-      await user.click(screen.getByRole('button', { name: 'Delete "el gato"' }))
+      await clickDelete(user, 'Delete "el gato"', 'Delete "el gato"?')
 
       expect(await screen.findByText('No flash cards yet.')).toBeInTheDocument()
     })
@@ -1708,7 +1827,7 @@ describe('App', () => {
       renderAt('/')
       await screen.findByText('el gato')
 
-      await user.click(screen.getByRole('button', { name: 'Delete "el gato"' }))
+      await clickDelete(user, 'Delete "el gato"', 'Delete "el gato"?')
 
       expect(await screen.findByRole('alert')).toHaveTextContent(
         'Unable to delete flash card.',
@@ -2315,6 +2434,11 @@ describe('App', () => {
         await user.click(
           screen.getByRole('button', { name: 'Delete tag "Food"' }),
         )
+        const dialog = await screen.findByRole('dialog', {
+          name: 'Delete tag "Food"?',
+        })
+        expect(dialog).toHaveTextContent("This can't be undone.")
+        await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
 
         await waitFor(() => {
           expect(
@@ -2938,8 +3062,10 @@ describe('App', () => {
         )
         await showPage('/decks')
 
-        await user.click(
-          screen.getByRole('button', { name: 'Delete deck "Animals"' }),
+        await clickDelete(
+          user,
+          'Delete deck "Animals"',
+          'Delete deck "Animals"?',
         )
 
         expect(
@@ -3117,9 +3243,7 @@ describe('App', () => {
         )
         await showPage('/decks/7')
 
-        await user.click(
-          screen.getByRole('button', { name: 'Delete "el gato"' }),
-        )
+        await clickDelete(user, 'Delete "el gato"', 'Delete "el gato"?')
 
         expect(await screen.findByRole('status')).toHaveTextContent(
           'Deleted 1 card.',
@@ -3204,9 +3328,7 @@ describe('App', () => {
         mockDeckApi(animals, async () => new Response(null, { status: 500 }))
         await showPage('/decks/7')
 
-        await user.click(
-          screen.getByRole('button', { name: 'Delete "el gato"' }),
-        )
+        await clickDelete(user, 'Delete "el gato"', 'Delete "el gato"?')
 
         expect(await screen.findByRole('alert')).toHaveTextContent(
           'Unable to delete the flash cards.',
@@ -3298,7 +3420,7 @@ describe('App', () => {
         )
         await showPage('/decks/7')
 
-        await user.click(screen.getByRole('button', { name: 'Delete deck' }))
+        await clickDelete(user, 'Delete deck', 'Delete deck "Animals"?')
 
         expect(
           await screen.findByRole('heading', { level: 2, name: 'New deck' }),

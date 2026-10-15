@@ -155,6 +155,10 @@ test.describe('Tags', () => {
     await goToTags(page)
 
     await page.getByRole('button', { name: 'Delete tag "Food"' }).click()
+    await page
+      .getByRole('dialog', { name: 'Delete tag "Food"?' })
+      .getByRole('button', { name: 'Delete' })
+      .click()
 
     await expect(page.getByRole('link', { name: 'Food' })).toBeHidden()
     await page
