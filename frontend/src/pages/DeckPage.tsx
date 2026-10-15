@@ -22,7 +22,7 @@ import {
 import type { FlashCard } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
-import { CardIconButton } from './CardIconButton'
+import { CardActionButton } from './CardActionButton'
 import { CardPicker } from './CardPicker'
 import { ConfirmDelete } from './ConfirmDelete'
 import { cardDeleteWarning } from './cardDeleteWarning'
@@ -332,16 +332,16 @@ function DeckPage() {
               const spanish = formatWords(card.spanish)
               return (
                 <>
-                  <CardIconButton
+                  <CardActionButton
                     icon="remove"
-                    tooltip="Remove from deck"
+                    text="Remove from deck"
                     label={`Remove "${spanish}" from deck`}
                     disabled={busy}
                     onClick={() => void handleChange([], [card.id])}
                   />
-                  <CardIconButton
+                  <CardActionButton
                     icon="delete"
-                    tooltip="Delete"
+                    text="Delete"
                     label={`Delete "${spanish}"`}
                     disabled={busy}
                     onClick={() => setConfirmingDelete(card)}

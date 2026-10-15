@@ -32,7 +32,7 @@ import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
 import { usePreferences } from '../hooks/usePreferences'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
-import { CardIconButton } from './CardIconButton'
+import { CardActionButton } from './CardActionButton'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
 import { PictureField } from './FlashCardPicture'
@@ -123,16 +123,16 @@ function FlashCardItem({
       onPick={onPick}
       actions={
         <>
-          <CardIconButton
+          <CardActionButton
             icon="edit"
-            tooltip="Edit"
+            text="Edit"
             label={`Edit "${spanish}"`}
             disabled={busy}
             onClick={onEdit}
           />
-          <CardIconButton
+          <CardActionButton
             icon="delete"
-            tooltip="Delete"
+            text="Delete"
             label={`Delete "${spanish}"`}
             disabled={busy}
             onClick={onDelete}

@@ -11,7 +11,7 @@ import type {
   Tag,
 } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
-import { CardIconButton } from './CardIconButton'
+import { CardActionButton } from './CardActionButton'
 import { asCard, useCandidateEditing } from './candidates'
 import type { Candidate } from './candidates'
 import { FlashCardEditForm } from './FlashCardForm'
@@ -209,24 +209,24 @@ export function CardCandidates({
               card={asCard(candidate)}
               actions={
                 <>
-                  <CardIconButton
+                  <CardActionButton
                     icon="add"
-                    tooltip="Add"
+                    text="Add"
                     label={`Add "${spanish}"`}
                     disabled={adding !== null || editing !== null}
-                    busy={adding === candidate.key}
+                    busyText={adding === candidate.key ? 'Adding…' : undefined}
                     onClick={() => void handleAddOne(candidate)}
                   />
-                  <CardIconButton
+                  <CardActionButton
                     icon="edit"
-                    tooltip="Edit"
+                    text="Edit"
                     label={`Edit "${spanish}"`}
                     disabled={adding !== null}
                     onClick={() => startEditing(candidate)}
                   />
-                  <CardIconButton
+                  <CardActionButton
                     icon="remove"
-                    tooltip="Remove"
+                    text="Remove"
                     label={`Remove "${spanish}"`}
                     disabled={adding !== null}
                     onClick={() => remove(candidate.key)}

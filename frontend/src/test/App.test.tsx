@@ -241,7 +241,39 @@ describe('App', () => {
       ).toBe('Bearer test:Tester')
     })
 
-    it("shows each card's buttons as icons, with a tooltip that says what they do", async () => {
+    it("shows each card's buttons as text on a wide screen", async () => {
+      // A screen at least as wide as the sm breakpoint. jsdom has no matchMedia of its own, so it's taken as a phone
+      // everywhere else.
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: query.includes('min-width:600px'),
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }))
+      try {
+        await showCards([
+          {
+            id: 1,
+            spanish: ['el gato'],
+            english: ['the cat'],
+            tags: [],
+            imageUrl: null,
+          },
+        ])
+
+        expect(screen.getByRole('listitem')).toHaveTextContent(
+          'el gatothe catEditDelete',
+        )
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it("shows each card's buttons as icons on a phone, with a tooltip that says what they do", async () => {
       const user = userEvent.setup()
       await showCards([
         {

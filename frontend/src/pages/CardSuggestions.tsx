@@ -11,7 +11,7 @@ import { listCardSuggestions } from '../api/cardSuggestions'
 import { formatWords } from '../api/flashCards'
 import type { FlashCardWords, Tag } from '../api/flashCards'
 import { trackException } from '../telemetry'
-import { CardIconButton } from './CardIconButton'
+import { CardActionButton } from './CardActionButton'
 import { asCard, useCandidateEditing } from './candidates'
 import type { Candidate } from './candidates'
 import { FlashCardEditForm } from './FlashCardForm'
@@ -259,17 +259,19 @@ export function CardSuggestions({
                   card={asCard(suggestion)}
                   actions={
                     <>
-                      <CardIconButton
+                      <CardActionButton
                         icon="add"
-                        tooltip="Add"
+                        text="Add"
                         label={`Add "${spanish}"`}
                         disabled={adding !== null || editing !== null}
-                        busy={adding === suggestion.key}
+                        busyText={
+                          adding === suggestion.key ? 'Adding…' : undefined
+                        }
                         onClick={() => void add(suggestion)}
                       />
-                      <CardIconButton
+                      <CardActionButton
                         icon="edit"
-                        tooltip="Edit"
+                        text="Edit"
                         label={`Edit "${spanish}"`}
                         disabled={adding !== null}
                         onClick={() => startEditing(suggestion)}
