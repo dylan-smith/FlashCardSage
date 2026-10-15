@@ -68,6 +68,9 @@ test('the user can turn off pictures, suggestions and translation', async ({
   await expect(
     page.getByRole('heading', { name: 'Preferences', level: 2 }),
   ).toBeVisible()
+  // Move off the cog so its tooltip closes: the tooltip sits outside the landmarks, which axe flags.
+  await page.mouse.move(0, 0)
+  await expect(page.getByRole('tooltip')).toBeHidden()
   expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
   for (const option of [
     'Show pictures',

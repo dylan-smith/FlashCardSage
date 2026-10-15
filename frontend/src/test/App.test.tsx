@@ -4594,7 +4594,10 @@ describe('App', () => {
       renderAt('/')
       await screen.findByText('el gato')
 
-      await user.click(screen.getByRole('link', { name: 'Preferences' }))
+      // A cog icon, named for screen readers, rather than text.
+      const link = screen.getByRole('link', { name: 'Preferences' })
+      expect(link).not.toHaveTextContent(/\S/)
+      await user.click(link)
 
       expect(
         await screen.findByRole('heading', { level: 2, name: 'Preferences' }),
