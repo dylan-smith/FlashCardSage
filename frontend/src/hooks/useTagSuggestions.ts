@@ -14,7 +14,8 @@ function trimWords(words: string[]) {
 // The names of the user's tags that the card being added or changed goes under, for the user to add with a click.
 // They're asked for once the card has words and the user has stopped typing, and only when the user has tags and
 // wants suggestions (which cost a request to the model). None when no tag fits, suggestions fail or they aren't
-// available, and a tag the user has put on the card isn't suggested.
+// available, and a tag the user has put on the card isn't suggested. Loading is true while the model is being asked
+// for the card's words, so the user knows to wait for them.
 export function useTagSuggestions(fields: FlashCardFields, tags: Tag[]) {
   const enabled = usePreferences()?.showSuggestions === true
   // The suggestions, with the words they're for, so they disappear as soon as the words change.
@@ -22,6 +23,8 @@ export function useTagSuggestions(fields: FlashCardFields, tags: Tag[]) {
     key: string
     names: string[]
   } | null>(null)
+  // The words the suggestions are being asked for, until the answer comes back.
+  const [pending, setPending] = useState<string | null>(null)
   // Set once the API says suggestions aren't available, so they aren't asked for again.
   const unavailable = useRef(false)
   const spanish = trimWords(fields.spanish)
@@ -32,6 +35,7 @@ export function useTagSuggestions(fields: FlashCardFields, tags: Tag[]) {
 
   // Reads the card's tags as they are when the suggestions are asked for, so changing them doesn't ask again.
   const request = useEffectEvent((signal: AbortSignal) => {
+    setPending(key)
     suggestTags({ spanish, english, tags: fields.tags }, signal)
       .then((result) => {
         if (result === null) {
@@ -42,6 +46,9 @@ export function useTagSuggestions(fields: FlashCardFields, tags: Tag[]) {
       })
       .catch(() => {
         // The user picks the tags themselves.
+      })
+      .finally(() => {
+        setPending((current) => (current === key ? null : current))
       })
   })
 
@@ -61,7 +68,11 @@ export function useTagSuggestions(fields: FlashCardFields, tags: Tag[]) {
   }, [key, enabled, hasTags, hasWords])
 
   const onCard = new Set(fields.tags.map((name) => name.toLowerCase()))
-  return suggested?.key === key
-    ? suggested.names.filter((name) => !onCard.has(name.toLowerCase()))
-    : []
+  return {
+    names:
+      suggested?.key === key
+        ? suggested.names.filter((name) => !onCard.has(name.toLowerCase()))
+        : [],
+    loading: enabled && hasTags && hasWords && pending === key,
+  }
 }
