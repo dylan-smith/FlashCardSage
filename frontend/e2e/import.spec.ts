@@ -160,7 +160,7 @@ test.describe('Import cards', () => {
     await page.getByRole('button', { name: 'Add "palabra 3"' }).click()
     await expect(page.getByText('Added “palabra 3”.')).toBeVisible()
     await expect(cards.getByRole('listitem')).toHaveCount(98)
-    await page.getByRole('button', { name: 'Add all 98 cards' }).click()
+    await page.getByRole('button', { name: 'Add all 98 cards' }).last().click()
 
     await expect(
       page.getByText(
@@ -221,7 +221,7 @@ test.describe('Import cards', () => {
       page.getByRole('img', { name: 'Picture for "nadar"' }),
     ).toHaveAttribute('src', /^data:image\/png;base64,/)
 
-    await page.getByRole('button', { name: 'Add all 2 cards' }).click()
+    await page.getByRole('button', { name: 'Add all 2 cards' }).last().click()
     await expect(
       page.getByText('Added 2 cards from “cuento.txt”.'),
     ).toBeVisible()

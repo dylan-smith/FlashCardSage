@@ -3755,9 +3755,17 @@ describe('App', () => {
           within(rows[0]).getByRole('button', { name: `${name} "tostado"` }),
         ).toBeInTheDocument()
       }
+      // Above and below the list, so a long one can be added from either end.
+      const addAll = screen.getAllByRole('button', { name: 'Add all 3 cards' })
+      expect(addAll).toHaveLength(2)
       expect(
-        screen.getByRole('button', { name: 'Add all 3 cards' }),
-      ).toBeInTheDocument()
+        addAll[0].compareDocumentPosition(list) &
+          Node.DOCUMENT_POSITION_FOLLOWING,
+      ).toBeTruthy()
+      expect(
+        addAll[1].compareDocumentPosition(list) &
+          Node.DOCUMENT_POSITION_PRECEDING,
+      ).toBeTruthy()
     })
 
     it('adds one card to a new Preply deck', async () => {
@@ -3780,8 +3788,8 @@ describe('App', () => {
         within(list).queryByRole('button', { name: 'Add "avena"' }),
       ).not.toBeInTheDocument()
       expect(
-        screen.getByRole('button', { name: 'Add all 2 cards' }),
-      ).toBeInTheDocument()
+        screen.getAllByRole('button', { name: 'Add all 2 cards' }),
+      ).toHaveLength(2)
       const posts = calls.filter((call) => call.init?.method === 'POST')
       expect(posts.map((call) => call.url)).toEqual([flashCardsUrl, decksUrl])
       expect(JSON.parse(posts[0].init?.body as string)).toEqual({
@@ -3813,7 +3821,10 @@ describe('App', () => {
       await user.click(
         within(list).getByRole('button', { name: 'Remove "avena"' }),
       )
-      await user.click(screen.getByRole('button', { name: 'Add all 2 cards' }))
+      // The one at the bottom.
+      await user.click(
+        screen.getAllByRole('button', { name: 'Add all 2 cards' })[1],
+      )
 
       expect(
         await screen.findByText(

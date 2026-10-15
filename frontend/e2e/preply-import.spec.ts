@@ -126,7 +126,8 @@ test.describe('Import from Preply', () => {
     await expect(
       importPage.getByText('Added “tostado” to your Preply deck.'),
     ).toBeVisible()
-    await importPage.getByRole('button', { name: 'Add 1 card' }).click()
+    // The one above the list. There's another below it.
+    await importPage.getByRole('button', { name: 'Add 1 card' }).first().click()
 
     await expect(
       importPage.getByText('Added 2 cards to your Preply deck.'),

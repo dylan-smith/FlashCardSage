@@ -234,8 +234,27 @@ export function CardCandidates({
     }
   }
 
+  // Above and below the list, so a long list can be added from either end without scrolling past it.
+  const addAllButton = (
+    <Box>
+      <Button
+        type="button"
+        variant="contained"
+        disabled={adding !== null || editing !== null}
+        onClick={() => void handleAddAll()}
+      >
+        {adding === 'all'
+          ? 'Adding…'
+          : candidates.length === 1
+            ? 'Add 1 card'
+            : `Add all ${candidates.length} cards`}
+      </Button>
+    </Box>
+  )
+
   return (
     <>
+      {addAllButton}
       <List disablePadding aria-label={label}>
         {candidates.map((candidate) => {
           if (editing?.key === candidate.key) {
@@ -305,20 +324,7 @@ export function CardCandidates({
           )
         })}
       </List>
-      <Box>
-        <Button
-          type="button"
-          variant="contained"
-          disabled={adding !== null || editing !== null}
-          onClick={() => void handleAddAll()}
-        >
-          {adding === 'all'
-            ? 'Adding…'
-            : candidates.length === 1
-              ? 'Add 1 card'
-              : `Add all ${candidates.length} cards`}
-        </Button>
-      </Box>
+      {addAllButton}
     </>
   )
 }
