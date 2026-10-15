@@ -18,6 +18,7 @@ import type { Tag } from '../api/flashCards'
 import { createTag, deleteTag, listTags, renameTag } from '../api/tags'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
+import { ConfirmDelete } from './ConfirmDelete'
 import { TagRenameForm, tagMaxLength } from './FlashCardTags'
 
 // Tags in name order whatever their case, as the API sends them.
@@ -45,6 +46,8 @@ function TagsPage() {
   // The tag being renamed or deleted, so its buttons can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
+  // The tag whose Delete was clicked, while the user is asked whether they mean it.
+  const [confirmingDelete, setConfirmingDelete] = useState<Tag | null>(null)
 
   // The cards are only loaded to count each tag's.
   useEffect(() => {
@@ -150,6 +153,7 @@ function TagsPage() {
       setErrorMessage(describeFetchError(error, 'Unable to delete tag.'))
     } finally {
       setBusyId(null)
+      setConfirmingDelete(null)
     }
   }
 
@@ -255,7 +259,7 @@ function TagsPage() {
                       color="error"
                       aria-label={`Delete tag "${tag.name}"`}
                       disabled={busyId === tag.id}
-                      onClick={() => void handleDelete(tag)}
+                      onClick={() => setConfirmingDelete(tag)}
                     >
                       Delete
                     </Button>
@@ -264,6 +268,19 @@ function TagsPage() {
               ),
             )}
           </List>
+        )}
+        {confirmingDelete !== null && (
+          <ConfirmDelete
+            open
+            title={`Delete tag "${confirmingDelete.name}"?`}
+            busy={busyId === confirmingDelete.id}
+            onCancel={() => setConfirmingDelete(null)}
+            onConfirm={() => void handleDelete(confirmingDelete)}
+          >
+            This can&apos;t be undone. It&apos;ll be taken off its{' '}
+            {cardCount(counts.get(confirmingDelete.id) ?? 0)}, but the cards
+            won&apos;t be deleted, and keep their scores.
+          </ConfirmDelete>
         )}
       </Paper>
     </Stack>

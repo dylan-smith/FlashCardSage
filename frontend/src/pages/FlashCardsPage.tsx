@@ -38,6 +38,8 @@ import { PictureField } from './FlashCardPicture'
 import { FlashCardRow } from './FlashCardRow'
 import { AddToDeck } from './AddToDeck'
 import { CardSuggestions } from './CardSuggestions'
+import { ConfirmDelete } from './ConfirmDelete'
+import { cardDeleteWarning } from './cardDeleteWarning'
 import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameRequiredMessage } from './DecksPage'
@@ -168,6 +170,10 @@ function FlashCardsPage() {
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [deckBusy, setDeckBusy] = useState(false)
   const [deletingPicked, setDeletingPicked] = useState(false)
+  // The card whose Delete was clicked, while the user is asked whether they mean it.
+  const [confirmingDelete, setConfirmingDelete] = useState<FlashCard | null>(
+    null,
+  )
   const translation = useAutoTranslate(firstWords(fields), (change) =>
     setFields(setFirstWords(change)),
   )
@@ -483,6 +489,7 @@ function FlashCardsPage() {
       setErrorMessage(describeFetchError(error, 'Unable to delete flash card.'))
     } finally {
       setBusyId(null)
+      setConfirmingDelete(null)
     }
   }
 
@@ -692,13 +699,24 @@ function FlashCardsPage() {
                         setEdit(null)
                       }}
                       onEditSave={(event) => void handleEditSave(event)}
-                      onDelete={() => void handleDelete(card)}
+                      onDelete={() => setConfirmingDelete(card)}
                     />
                   ))}
                 </List>
               </>
             )}
           </>
+        )}
+        {confirmingDelete !== null && (
+          <ConfirmDelete
+            open
+            title={`Delete "${formatWords(confirmingDelete.spanish)}"?`}
+            busy={busyId === confirmingDelete.id}
+            onCancel={() => setConfirmingDelete(null)}
+            onConfirm={() => void handleDelete(confirmingDelete)}
+          >
+            {cardDeleteWarning(1)}
+          </ConfirmDelete>
         )}
       </Paper>
     </Stack>

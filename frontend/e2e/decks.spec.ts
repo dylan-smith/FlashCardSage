@@ -151,6 +151,10 @@ test.describe('Decks', () => {
 
     // Deleting takes the card away altogether.
     await page.getByRole('button', { name: 'Delete "la casa"' }).click()
+    await page
+      .getByRole('dialog', { name: 'Delete "la casa"?' })
+      .getByRole('button', { name: 'Delete' })
+      .click()
     await expect(page.getByRole('status')).toHaveText('Deleted 1 card.')
     await expect(
       page.getByRole('tab', { name: 'In this deck (2)' }),
