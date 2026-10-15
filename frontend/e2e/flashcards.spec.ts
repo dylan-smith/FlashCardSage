@@ -287,6 +287,9 @@ test.describe('Flash card management', () => {
       await createFlashCard(page, 'el perro', 'the dog')
 
       await page.getByRole('button', { name: 'Delete "el gato"' }).click()
+      const dialog = page.getByRole('dialog', { name: 'Delete "el gato"?' })
+      await expect(dialog).toContainText("This can't be undone.")
+      await dialog.getByRole('button', { name: 'Delete' }).click()
 
       await expect(page.getByText('el gato', { exact: true })).toBeHidden()
       await expect(page.getByText('el perro', { exact: true })).toBeVisible()
@@ -301,8 +304,26 @@ test.describe('Flash card management', () => {
       await createFlashCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Delete "el gato"' }).click()
+      await page
+        .getByRole('dialog', { name: 'Delete "el gato"?' })
+        .getByRole('button', { name: 'Delete' })
+        .click()
 
       await expect(page.getByText('No flash cards yet.')).toBeVisible()
+    })
+
+    test('keeps the card when the delete is cancelled', async ({ page }) => {
+      await createFlashCard(page, 'el gato', 'the cat')
+
+      await page.getByRole('button', { name: 'Delete "el gato"' }).click()
+      await page
+        .getByRole('dialog', { name: 'Delete "el gato"?' })
+        .getByRole('button', { name: 'Cancel' })
+        .click()
+
+      await expect(page.getByRole('dialog')).toBeHidden()
+      await page.reload()
+      await expect(page.getByText('el gato', { exact: true })).toBeVisible()
     })
 
     test('deletes the cards picked at once', async ({ page }) => {
