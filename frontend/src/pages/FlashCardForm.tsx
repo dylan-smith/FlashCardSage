@@ -284,7 +284,8 @@ export function FlashCardEditForm({
           onChange={(names) =>
             onChange((current) => ({ ...current, tags: names }))
           }
-          suggestions={suggestedTags}
+          suggestions={suggestedTags.names}
+          suggesting={suggestedTags.loading}
           size="small"
         />
         {showPictures && (
