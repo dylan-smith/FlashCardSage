@@ -25,6 +25,7 @@ import PreferencesPage from './pages/PreferencesPage'
 import ScoresPage from './pages/ScoresPage'
 import TagsPage from './pages/TagsPage'
 import { trackPageView } from './telemetry'
+import { Toaster } from './Toaster'
 
 export const tagline = 'Learn a language one card at a time.'
 
@@ -255,6 +256,7 @@ function App() {
           </Routes>
         </>
       )}
+      <Toaster />
     </Container>
   )
 }
