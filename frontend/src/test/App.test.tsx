@@ -642,6 +642,82 @@ describe('App', () => {
       expect(trackException).not.toHaveBeenCalled()
     })
 
+    it('edits a suggestion with the card form before adding it', async () => {
+      const user = userEvent.setup()
+      const calls = await showSuggestions(
+        async () =>
+          jsonResponse([
+            { spanish: 'el perro', english: 'the dog' },
+            { spanish: 'el pez', english: 'the fish' },
+          ]),
+        async () =>
+          jsonResponse(
+            {
+              id: 2,
+              spanish: ['el perro'],
+              english: ['the dog', 'the hound'],
+              tags: ['Pets'],
+              imageUrl: null,
+            },
+            201,
+          ),
+      )
+      await screen.findByRole('list', { name: 'Suggested cards' })
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el perro"' }))
+      const item = within(suggestionList()).getAllByRole('listitem')[0]
+      expect(within(item).getByLabelText('Spanish')).toHaveValue('el perro')
+      expect(within(item).getByLabelText('Spanish')).toHaveFocus()
+      expect(
+        within(suggestionList()).getByRole('button', { name: 'Add "el pez"' }),
+      ).toBeDisabled()
+      await user.click(
+        within(item).getByRole('button', { name: 'Add English translation' }),
+      )
+      await user.type(within(item).getByLabelText('English 2'), 'the hound')
+      await user.type(within(item).getByLabelText('Tags'), 'Pets{Enter}')
+      await user.click(within(item).getByRole('button', { name: 'Save' }))
+
+      expect(suggestionList()).toHaveTextContent('the dog / the hound')
+      expect(suggestionList()).toHaveTextContent('Pets')
+      expect(calls.filter((call) => call.init?.method === 'POST')).toEqual([])
+
+      await user.click(screen.getByRole('button', { name: 'Add "el perro"' }))
+
+      await waitFor(() => {
+        expect(within(suggestionList()).getAllByRole('listitem')).toHaveLength(
+          1,
+        )
+      })
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.init?.body).toBe(
+        JSON.stringify({
+          spanish: ['el perro'],
+          english: ['the dog', 'the hound'],
+          tags: ['Pets'],
+        }),
+      )
+    })
+
+    it('keeps a suggestion as it was when its edit is cancelled', async () => {
+      const user = userEvent.setup()
+      await showSuggestions(async () =>
+        jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+      )
+      await screen.findByRole('list', { name: 'Suggested cards' })
+
+      await user.click(screen.getByRole('button', { name: 'Edit "el perro"' }))
+      await user.clear(screen.getByDisplayValue('the dog'))
+      await user.click(screen.getByRole('button', { name: 'Save' }))
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        'English is required.',
+      )
+      await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+      expect(suggestionList()).toHaveTextContent('el perrothe dog')
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
     it('asks for more suggestions', async () => {
       const user = userEvent.setup()
       const suggest = vi

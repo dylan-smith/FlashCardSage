@@ -1,25 +1,26 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Collapse from '@mui/material/Collapse'
 import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
 import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import { listCardSuggestions } from '../api/cardSuggestions'
-import type { CardSuggestion } from '../api/cardSuggestions'
 import { formatWords } from '../api/flashCards'
 import type { FlashCardWords, Tag } from '../api/flashCards'
 import { trackException } from '../telemetry'
+import { asCard, useCandidateEditing } from './candidates'
+import type { Candidate } from './candidates'
+import { FlashCardEditForm } from './FlashCardForm'
+import { FlashCardRow } from './FlashCardRow'
 
 type SuggestionsState =
   | { status: 'loading' }
   | { status: 'unavailable' }
   | { status: 'failed' }
-  | { status: 'ready'; suggestions: CardSuggestion[] }
+  | { status: 'ready'; suggestions: Candidate[] }
 
 function sameText(a: string, b: string) {
   return a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
@@ -61,30 +62,38 @@ function storeCollapsed(collapsed: boolean) {
   }
 }
 
-// A handful of new cards suggested from the user's cards, each with a button that adds it. The section isn't shown
-// when suggestions aren't available, and a suggestion the user has since added a card for is left out. With relatedTo
-// (e.g. a card just added), the suggestions are related to that card, and with tag (e.g. the one whose cards are
-// shown), they go under that tag. Give it a key that changes with relatedTo and tag, so new suggestions load when they
-// do.
+// A handful of new cards suggested from the user's cards, each with a button that adds it and one that changes it
+// first, with the same form as the cards page. The section isn't shown when suggestions aren't available, and a
+// suggestion the user has since added a card for is left out. With relatedTo (e.g. a card just added), the suggestions
+// are related to that card, and with tag (e.g. the one whose cards are shown), they go under that tag. Give it a key
+// that changes with relatedTo and tag, so new suggestions load when they do.
 export function CardSuggestions({
   cards,
   relatedTo,
   tag,
+  tags,
   onAdd,
+  onError,
 }: {
   cards: FlashCardWords[]
   relatedTo?: FlashCardWords
   tag?: Tag
-  onAdd: (suggestion: CardSuggestion) => Promise<boolean>
+  // The user's tags, offered when a suggestion is changed.
+  tags: Tag[]
+  onAdd: (suggestion: Candidate) => Promise<boolean>
+  onError: (message: string) => void
 }) {
   const [state, setState] = useState<SuggestionsState>({ status: 'loading' })
   // Bumped to ask for a fresh handful.
   const [request, setRequest] = useState(0)
-  // The suggestion being added, so its button can wait for the API.
-  const [adding, setAdding] = useState<CardSuggestion | null>(null)
+  // The key of the suggestion being added, so its button can wait for the API.
+  const [adding, setAdding] = useState<number | null>(null)
   const [collapsed, setCollapsed] = useState(readCollapsed)
+  // Each suggestion gets a key of its own, since the user can change its words.
+  const nextKey = useRef(0)
 
   const relatedToId = relatedTo?.id
+  const tagName = tag?.name
   const tagId = tag?.id
 
   useEffect(() => {
@@ -97,7 +106,16 @@ export function CardSuggestions({
         setState(
           suggestions === null
             ? { status: 'unavailable' }
-            : { status: 'ready', suggestions },
+            : {
+                status: 'ready',
+                suggestions: suggestions.map(({ spanish, english }) => ({
+                  key: nextKey.current++,
+                  spanish: [spanish],
+                  english: [english],
+                  tags: tagName === undefined ? [] : [tagName],
+                  picture: null,
+                })),
+              },
         )
       })
       .catch((error: unknown) => {
@@ -109,7 +127,26 @@ export function CardSuggestions({
     return () => {
       controller.abort()
     }
-  }, [request, relatedToId, tagId])
+  }, [request, relatedToId, tagId, tagName])
+
+  const suggestions = state.status === 'ready' ? state.suggestions : []
+
+  function changeSuggestions(update: (current: Candidate[]) => Candidate[]) {
+    setState((current) =>
+      current.status === 'ready'
+        ? { status: 'ready', suggestions: update(current.suggestions) }
+        : current,
+    )
+  }
+
+  const {
+    editing,
+    editPicture,
+    startEditing,
+    changeEdit,
+    cancelEdit,
+    saveEdit,
+  } = useCandidateEditing(suggestions, changeSuggestions, onError)
 
   function refresh() {
     setState({ status: 'loading' })
@@ -121,19 +158,12 @@ export function CardSuggestions({
     setCollapsed(!collapsed)
   }
 
-  async function add(suggestion: CardSuggestion) {
-    setAdding(suggestion)
+  async function add(suggestion: Candidate) {
+    setAdding(suggestion.key)
     try {
       if (await onAdd(suggestion)) {
-        setState((current) =>
-          current.status === 'ready'
-            ? {
-                status: 'ready',
-                suggestions: current.suggestions.filter(
-                  (item) => item !== suggestion,
-                ),
-              }
-            : current,
+        changeSuggestions((current) =>
+          current.filter((item) => item.key !== suggestion.key),
         )
       }
     } finally {
@@ -145,19 +175,18 @@ export function CardSuggestions({
     return null
   }
 
-  const visible =
-    state.status === 'ready'
-      ? state.suggestions.filter(
-          (suggestion) =>
-            !cards.some(
-              (card) =>
-                card.spanish.some((word) =>
-                  sameText(word, suggestion.spanish),
-                ) ||
-                card.english.some((word) => sameText(word, suggestion.english)),
-            ),
-        )
-      : []
+  const visible = suggestions.filter(
+    (suggestion) =>
+      !cards.some(
+        (card) =>
+          card.spanish.some((word) =>
+            suggestion.spanish.some((other) => sameText(word, other)),
+          ) ||
+          card.english.some((word) =>
+            suggestion.english.some((other) => sameText(word, other)),
+          ),
+      ),
+  )
 
   return (
     <Paper component="section" elevation={2} sx={{ p: 3 }}>
@@ -207,36 +236,61 @@ export function CardSuggestions({
           </Typography>
         ) : (
           <List disablePadding aria-label="Suggested cards">
-            {visible.map((suggestion) => (
-              <ListItem
-                key={`${suggestion.spanish}\n${suggestion.english}`}
-                divider
-                disablePadding
-                sx={{ py: 1, gap: 1 }}
-              >
-                <ListItemText
-                  primary={suggestion.spanish}
-                  secondary={suggestion.english}
-                  sx={{ overflowWrap: 'anywhere' }}
+            {visible.map((suggestion) => {
+              if (editing?.key === suggestion.key) {
+                return (
+                  <FlashCardEditForm
+                    key={suggestion.key}
+                    edit={editing}
+                    tags={tags}
+                    picture={editPicture}
+                    busy={adding !== null}
+                    onChange={changeEdit}
+                    onCancel={cancelEdit}
+                    onSave={saveEdit}
+                  />
+                )
+              }
+              const spanish = formatWords(suggestion.spanish)
+              return (
+                <FlashCardRow
+                  key={suggestion.key}
+                  card={asCard(suggestion)}
+                  actions={
+                    <>
+                      <Button
+                        type="button"
+                        size="small"
+                        disabled={adding !== null || editing !== null}
+                        aria-label={`Add "${spanish}"`}
+                        onClick={() => void add(suggestion)}
+                        sx={{ flexShrink: 0 }}
+                      >
+                        {adding === suggestion.key ? 'Adding…' : 'Add'}
+                      </Button>
+                      <Button
+                        type="button"
+                        size="small"
+                        disabled={adding !== null}
+                        aria-label={`Edit "${spanish}"`}
+                        onClick={() => startEditing(suggestion)}
+                        sx={{ flexShrink: 0 }}
+                      >
+                        Edit
+                      </Button>
+                    </>
+                  }
                 />
-                <Button
-                  type="button"
-                  size="small"
-                  disabled={adding !== null}
-                  aria-label={`Add "${suggestion.spanish}"`}
-                  onClick={() => void add(suggestion)}
-                  sx={{ flexShrink: 0 }}
-                >
-                  {adding === suggestion ? 'Adding…' : 'Add'}
-                </Button>
-              </ListItem>
-            ))}
+              )
+            })}
           </List>
         )}
         <Button
           type="button"
           size="small"
-          disabled={state.status === 'loading' || adding !== null}
+          disabled={
+            state.status === 'loading' || adding !== null || editing !== null
+          }
           onClick={refresh}
           sx={{ mt: 1 }}
         >
