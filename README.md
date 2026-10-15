@@ -14,6 +14,7 @@ A flash card app for learning a language, with:
 - Import a built-in deck (about 30 of them, such as Numbers 0–20, Food or Common verbs), which copies its cards and tags into your own; cards you already have are left out
 - Import your Preply vocabulary into a Preply deck. Preply has no API we can call for you, so the Import cards page's From Preply tab has a "Send to FlashCardSage" bookmarklet (`frontend/src/preply/`): clicked on your Preply vocabulary page, it reads your words from Preply's own internal GraphQL API, signed in as you, and opens that tab with them listed like a scanned document's cards, to change, remove and add one at a time or all at once. Preply can change that API without notice; the bookmarklet then shows Preply's error on the import page
 - A handful of suggested new cards, which gpt-5-mini on Azure AI Foundry picks to go with your cards; add one with a click
+- A handful of suggested new tags on the Tags page, which the same model picks to go with your tags and cards
 - Scan a document (.txt, .md, .srt, .vtt, .docx or .pdf) for words and phrases to make cards for: gpt-5-mini makes up to 100 cards from it, leaving out ones you have, and you change or remove any before adding them all at once; scan it again for more
 - Ask for a picture of what a card means, made by FLUX.2-pro on Azure AI Foundry, which goes on the card when you save it unless you discard it; practice mode shows it once the card is revealed
 - A Preferences page, where each user can turn off pictures, suggested cards and translation as they type

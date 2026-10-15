@@ -14,6 +14,7 @@ import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
 import { tagSuggestDelayMs } from '../hooks/useTagSuggestions'
 import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
+import { tagSuggestionsCollapsedKey } from '../pages/TagSuggestions'
 import { clearPreplyHandoff, startPreplyHandoff } from '../preply/preplyHandoff'
 import { touchOnlyQuery } from '../pages/PreplyBookmarklet'
 import { trackEvent, trackException } from '../telemetry'
@@ -44,6 +45,11 @@ let preferences: Preferences | null = defaultPreferences
 let suggestTags: () => Promise<Response>
 let tagSuggestionRequests: FlashCardFields[] = []
 
+// What asking for new tags on the Tags page gets, which a test can change (by default, that they aren't available),
+// and how many times they were asked for.
+let suggestNewTags: () => Promise<Response>
+let newTagSuggestionRequests = 0
+
 // Answers every fetch with the handler, except that loading the tags or decks gets these, loading suggestions gets
 // what suggest answers (by default, that they aren't available), and loading the preferences gets preferences. It
 // keeps the calls, apart from the suggestions and loading the preferences, so a test can check what was sent.
@@ -60,6 +66,10 @@ function mockFetch(
       const url = input instanceof Request ? input.url : input.toString()
       if (url.startsWith(suggestionsUrl)) {
         return suggest(url)
+      }
+      if (url === `${tagSuggestionsUrl}/new`) {
+        newTagSuggestionRequests++
+        return suggestNewTags()
       }
       if (url === tagSuggestionsUrl) {
         tagSuggestionRequests.push(
@@ -151,6 +161,8 @@ beforeEach(() => {
   counts = { cards: 0, decks: 0, tags: 0 }
   suggestTags = async () => new Response(null, { status: 503 })
   tagSuggestionRequests = []
+  suggestNewTags = async () => new Response(null, { status: 503 })
+  newTagSuggestionRequests = 0
 })
 
 afterEach(() => {
@@ -2541,6 +2553,205 @@ describe('App', () => {
         expect(
           await screen.findByText(/You haven't made any tags yet\./),
         ).toBeInTheDocument()
+      })
+
+      describe('suggested tags', () => {
+        beforeEach(() => {
+          localStorage.removeItem(tagSuggestionsCollapsedKey)
+        })
+
+        function suggestedTags() {
+          return within(
+            screen.getByRole('list', { name: 'Suggested tags' }),
+          ).getAllByRole('listitem')
+        }
+
+        it('suggests new tags, leaving out ones the user has', async () => {
+          suggestNewTags = async () =>
+            jsonResponse(['Animals', 'food', 'Colors'])
+          await showTags()
+
+          await screen.findByRole('list', { name: 'Suggested tags' })
+          expect(suggestedTags().map((item) => item.textContent)).toEqual([
+            expect.stringContaining('Animals'),
+            expect.stringContaining('Colors'),
+          ])
+          expect(
+            screen.getByText('New tags that go with your cards.'),
+          ).toBeInTheDocument()
+        })
+
+        it("isn't shown when suggestions aren't available", async () => {
+          await showTags()
+
+          await waitFor(() => {
+            expect(newTagSuggestionRequests).toBe(1)
+            expect(
+              screen.queryByLabelText('Loading suggestions'),
+            ).not.toBeInTheDocument()
+          })
+          expect(
+            screen.queryByRole('button', { name: 'Suggested tags' }),
+          ).not.toBeInTheDocument()
+        })
+
+        it("isn't shown or asked for when the user has turned suggestions off", async () => {
+          preferences = { ...defaultPreferences, showSuggestions: false }
+          suggestNewTags = async () => jsonResponse(['Animals'])
+          await showTags()
+
+          expect(
+            screen.queryByRole('button', { name: 'Suggested tags' }),
+          ).not.toBeInTheDocument()
+          expect(newTagSuggestionRequests).toBe(0)
+        })
+
+        it('adds a suggested tag', async () => {
+          const user = userEvent.setup()
+          suggestNewTags = async () => jsonResponse(['Animals', 'Colors'])
+          const calls = await showTags(async () =>
+            jsonResponse({ id: 5, name: 'Animals' }, 201),
+          )
+
+          await user.click(
+            await screen.findByRole('button', { name: 'Add tag "Animals"' }),
+          )
+
+          expect(
+            await screen.findByRole('link', { name: 'Animals' }),
+          ).toHaveAttribute('href', '/?tag=5')
+          expect(suggestedTags().map((item) => item.textContent)).toEqual([
+            expect.stringContaining('Colors'),
+          ])
+          const post = calls.find((call) => call.init?.method === 'POST')
+          expect(post?.url).toBe(tagsUrl)
+          expect(post?.init?.body).toBe(JSON.stringify({ name: 'Animals' }))
+          expect(trackEvent).toHaveBeenCalledWith('SuggestedTagAdded')
+        })
+
+        it("keeps a suggestion that couldn't be saved, and says why", async () => {
+          const user = userEvent.setup()
+          suggestNewTags = async () => jsonResponse(['Animals'])
+          await showTags(async () =>
+            jsonResponse(
+              { errors: { Name: ["There's already a tag with that name."] } },
+              400,
+            ),
+          )
+
+          await user.click(
+            await screen.findByRole('button', { name: 'Add tag "Animals"' }),
+          )
+
+          expect(await screen.findByRole('alert')).toHaveTextContent(
+            "There's already a tag with that name.",
+          )
+          expect(
+            screen.getByRole('button', { name: 'Add tag "Animals"' }),
+          ).toBeEnabled()
+        })
+
+        it('changes a suggested name before adding it', async () => {
+          const user = userEvent.setup()
+          suggestNewTags = async () => jsonResponse(['Animals'])
+          const calls = await showTags(async () =>
+            jsonResponse({ id: 5, name: 'Pets' }, 201),
+          )
+
+          await user.click(
+            await screen.findByRole('button', { name: 'Edit tag "Animals"' }),
+          )
+          const name = screen.getByLabelText('Tag name')
+          expect(name).toHaveFocus()
+          expect(name).toHaveValue('Animals')
+          await user.clear(name)
+          await user.type(name, ' Pets ')
+          await user.click(screen.getByRole('button', { name: 'Save' }))
+
+          expect(
+            await screen.findByRole('link', { name: 'Pets' }),
+          ).toBeInTheDocument()
+          expect(screen.getByText('No suggestions right now.')).toBeVisible()
+          const post = calls.find((call) => call.init?.method === 'POST')
+          expect(post?.init?.body).toBe(JSON.stringify({ name: 'Pets' }))
+        })
+
+        it('cancels changing a suggestion', async () => {
+          const user = userEvent.setup()
+          suggestNewTags = async () => jsonResponse(['Animals'])
+          await showTags()
+
+          await user.click(
+            await screen.findByRole('button', { name: 'Edit tag "Animals"' }),
+          )
+          await user.type(screen.getByLabelText('Tag name'), 'x')
+          await user.click(screen.getByRole('button', { name: 'Cancel' }))
+
+          expect(
+            screen.getByRole('button', { name: 'Add tag "Animals"' }),
+          ).toBeInTheDocument()
+          expect(screen.queryByLabelText('Tag name')).not.toBeInTheDocument()
+        })
+
+        it('asks for more suggestions', async () => {
+          const user = userEvent.setup()
+          suggestNewTags = async () => jsonResponse(['Animals'])
+          await showTags()
+          await screen.findByRole('button', { name: 'Add tag "Animals"' })
+
+          suggestNewTags = async () => jsonResponse(['Colors'])
+          await user.click(
+            screen.getByRole('button', { name: 'More suggestions' }),
+          )
+
+          expect(
+            await screen.findByRole('button', { name: 'Add tag "Colors"' }),
+          ).toBeInTheDocument()
+          expect(
+            screen.queryByRole('button', { name: 'Add tag "Animals"' }),
+          ).not.toBeInTheDocument()
+          expect(newTagSuggestionRequests).toBe(2)
+        })
+
+        it('says when suggesting failed, and tries again', async () => {
+          const user = userEvent.setup()
+          suggestNewTags = async () => new Response(null, { status: 502 })
+          await showTags()
+
+          expect(
+            await screen.findByText('Unable to suggest tags right now.'),
+          ).toBeInTheDocument()
+          expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+            operation: 'suggestTags',
+          })
+
+          suggestNewTags = async () => jsonResponse(['Animals'])
+          await user.click(screen.getByRole('button', { name: 'Try again' }))
+
+          expect(
+            await screen.findByRole('button', { name: 'Add tag "Animals"' }),
+          ).toBeInTheDocument()
+        })
+
+        it('collapses, and stays collapsed after a reload', async () => {
+          const user = userEvent.setup()
+          suggestNewTags = async () => jsonResponse(['Animals'])
+          await showTags()
+          const heading = await screen.findByRole('button', {
+            name: 'Suggested tags',
+          })
+          expect(heading).toHaveAttribute('aria-expanded', 'true')
+
+          await user.click(heading)
+
+          expect(heading).toHaveAttribute('aria-expanded', 'false')
+          await waitFor(() => {
+            expect(
+              screen.queryByRole('list', { name: 'Suggested tags' }),
+            ).not.toBeInTheDocument()
+          })
+          expect(localStorage.getItem(tagSuggestionsCollapsedKey)).toBe('true')
+        })
       })
 
       it("leaves renaming and deleting to the Tags page, so the cards page's chips only filter", async () => {
