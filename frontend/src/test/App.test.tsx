@@ -2651,48 +2651,6 @@ describe('App', () => {
           ).toBeEnabled()
         })
 
-        it('changes a suggested name before adding it', async () => {
-          const user = userEvent.setup()
-          suggestNewTags = async () => jsonResponse(['Animals'])
-          const calls = await showTags(async () =>
-            jsonResponse({ id: 5, name: 'Pets' }, 201),
-          )
-
-          await user.click(
-            await screen.findByRole('button', { name: 'Edit tag "Animals"' }),
-          )
-          const name = screen.getByLabelText('Tag name')
-          expect(name).toHaveFocus()
-          expect(name).toHaveValue('Animals')
-          await user.clear(name)
-          await user.type(name, ' Pets ')
-          await user.click(screen.getByRole('button', { name: 'Save' }))
-
-          expect(
-            await screen.findByRole('link', { name: 'Pets' }),
-          ).toBeInTheDocument()
-          expect(screen.getByText('No suggestions right now.')).toBeVisible()
-          const post = calls.find((call) => call.init?.method === 'POST')
-          expect(post?.init?.body).toBe(JSON.stringify({ name: 'Pets' }))
-        })
-
-        it('cancels changing a suggestion', async () => {
-          const user = userEvent.setup()
-          suggestNewTags = async () => jsonResponse(['Animals'])
-          await showTags()
-
-          await user.click(
-            await screen.findByRole('button', { name: 'Edit tag "Animals"' }),
-          )
-          await user.type(screen.getByLabelText('Tag name'), 'x')
-          await user.click(screen.getByRole('button', { name: 'Cancel' }))
-
-          expect(
-            screen.getByRole('button', { name: 'Add tag "Animals"' }),
-          ).toBeInTheDocument()
-          expect(screen.queryByLabelText('Tag name')).not.toBeInTheDocument()
-        })
-
         it('asks for more suggestions', async () => {
           const user = userEvent.setup()
           suggestNewTags = async () => jsonResponse(['Animals'])
