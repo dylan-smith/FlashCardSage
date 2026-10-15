@@ -23,7 +23,6 @@ import {
   describeFetchError,
   formatWords,
   listFlashCards,
-  updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
 import { putCardImage } from '../api/cardImages'
@@ -57,22 +56,14 @@ import {
 import type { FieldsUpdate } from './cardFields'
 import { FlashCardEditForm, WordFields } from './FlashCardForm'
 import { TagFilter, TagsInput } from './FlashCardTags'
+import { useCardEditor, withNewTags, withPicture } from './useCardEditor'
+import type { EditedFlashCard } from './useCardEditor'
 
 // The toast for what was just done to the picked cards, so a new one replaces the last.
 const cardsPageToast = 'picked-cards'
 
 // A new card starts with one empty field for each side.
 const emptyFields: FlashCardFields = { spanish: [''], english: [''], tags: [] }
-
-// A card being edited, with its tags by name as they're typed in, and the picture it has.
-type EditedFlashCard = FlashCardFields & { id: number; imageUrl: string | null }
-
-// Tags in name order whatever their case, as the API sends them.
-function sortTags(tags: Tag[]) {
-  return [...tags].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-  )
-}
 
 // One card in the list, with Edit and Delete buttons, or, while it's being edited, the form above.
 function FlashCardItem({
@@ -152,9 +143,7 @@ function FlashCardsPage() {
   // Set when the list couldn't be loaded, so the page doesn't claim there are no cards.
   const [loadFailed, setLoadFailed] = useState(false)
   const [submitting, setSubmitting] = useState(false)
-  // The card being edited, as typed so far. One at a time keeps the list simple.
-  const [edit, setEdit] = useState<EditedFlashCard | null>(null)
-  // The card whose edit is being saved or that is being deleted, so its buttons can wait for the API.
+  // The card being deleted, so its buttons can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
   // The user's tags in name order, including any no card has any more.
   const [tags, setTags] = useState<Tag[]>([])
@@ -176,9 +165,18 @@ function FlashCardsPage() {
   )
   const preferences = usePreferences()
   const suggestedTags = useTagSuggestions(fields, tags)
-  // The pictures offered by the add form and by the edit form (one card is edited at a time).
+  // The picture offered by the add form.
   const newPicture = useCardPicture(null)
-  const editPicture = useCardPicture(edit?.imageUrl ?? null)
+  // The card being edited. One at a time keeps the list simple.
+  const editor = useCardEditor({
+    setErrorMessage,
+    onSaved: (card) => {
+      setCards((current) =>
+        current.map((item) => (item.id === card.id ? card : item)),
+      )
+      addNewTags(card)
+    },
+  })
 
   // The tag whose cards are shown is in the URL, so the back button and a refresh keep it. One that doesn't exist
   // (any more) shows every card.
@@ -350,30 +348,7 @@ function FlashCardsPage() {
 
   // A saved card can have tags the API just made for new names, so they're added to the user's tags.
   function addNewTags(card: FlashCard) {
-    setTags((current) => {
-      const added = card.tags.filter(
-        (tag) => !current.some((item) => item.id === tag.id),
-      )
-      return added.length === 0 ? current : sortTags([...current, ...added])
-    })
-  }
-
-  // Puts the picture the user chose on a card that's just been saved. The card is saved whatever happens to the
-  // picture, so a failure is reported and the card kept as it is.
-  async function withPicture(
-    picture: CardPicture,
-    card: FlashCard,
-    failureMessage: string,
-  ) {
-    try {
-      return (await picture.apply(card.id)) ?? card
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'picture' })
-      }
-      setErrorMessage(describeFetchError(error, failureMessage))
-      return card
-    }
+    setTags((current) => withNewTags(current, card))
   }
 
   async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
@@ -399,6 +374,7 @@ function FlashCardsPage() {
         newPicture,
         created,
         "Flash card saved, but the picture couldn't be added.",
+        setErrorMessage,
       )
       newPicture.reset()
       setCards((current) => [...current, card])
@@ -456,45 +432,6 @@ function FlashCardsPage() {
     }
   }
 
-  async function handleEditSave(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (edit === null) {
-      return
-    }
-
-    const trimmed = trimFields(edit)
-    if (typeof trimmed === 'string') {
-      setErrorMessage(trimmed)
-      return
-    }
-
-    setBusyId(edit.id)
-    setErrorMessage('')
-
-    try {
-      const updated = await updateFlashCard(edit.id, trimmed)
-      trackEvent('FlashCardUpdated')
-      const card = await withPicture(
-        editPicture,
-        updated,
-        "Flash card saved, but its picture couldn't be changed.",
-      )
-      editPicture.reset()
-      setCards((current) =>
-        current.map((item) => (item.id === card.id ? card : item)),
-      )
-      addNewTags(card)
-      setEdit(null)
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'update' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to save flash card.'))
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   async function handleDelete(card: FlashCard) {
     setBusyId(card.id)
     setErrorMessage('')
@@ -521,9 +458,9 @@ function FlashCardsPage() {
       await deleteFlashCards([...ids])
       trackEvent('FlashCardsDeleted')
       setCards((current) => current.filter((item) => !ids.has(item.id)))
-      setEdit((current) =>
-        current !== null && ids.has(current.id) ? null : current,
-      )
+      if (editor.edit !== null && ids.has(editor.edit.id)) {
+        editor.cancel()
+      }
       showToast({
         key: cardsPageToast,
         severity: 'success',
@@ -707,36 +644,19 @@ function FlashCardsPage() {
                     <FlashCardItem
                       key={card.id}
                       card={card}
-                      edit={edit?.id === card.id ? edit : null}
+                      edit={editor.edit?.id === card.id ? editor.edit : null}
                       tags={tags}
-                      picture={editPicture}
-                      busy={busyId === card.id}
+                      picture={editor.picture}
+                      busy={
+                        busyId === card.id ||
+                        (editor.saving && editor.edit?.id === card.id)
+                      }
                       picked={picked.has(card.id)}
                       onPick={() => togglePicked(card.id)}
-                      onEdit={() => {
-                        setErrorMessage('')
-                        editPicture.reset()
-                        setEdit({
-                          id: card.id,
-                          spanish: card.spanish,
-                          english: card.english,
-                          tags: card.tags.map((tag) => tag.name),
-                          imageUrl: card.imageUrl,
-                        })
-                      }}
-                      onEditChange={(update) =>
-                        setEdit((current) =>
-                          current === null
-                            ? null
-                            : { ...current, ...update(current) },
-                        )
-                      }
-                      onEditCancel={() => {
-                        setErrorMessage('')
-                        editPicture.reset()
-                        setEdit(null)
-                      }}
-                      onEditSave={(event) => void handleEditSave(event)}
+                      onEdit={() => editor.start(card)}
+                      onEditChange={editor.change}
+                      onEditCancel={editor.cancel}
+                      onEditSave={(event) => void editor.save(event)}
                       onDelete={() => setConfirmingDelete(card)}
                     />
                   ))}

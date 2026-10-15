@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { Fragment, useState } from 'react'
 import type { ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -40,6 +40,7 @@ export function CardPicker({
   onApply,
   pickedActions,
   rowActions,
+  edit,
 }: {
   cards: FlashCard[]
   emptyMessage: string
@@ -54,6 +55,8 @@ export function CardPicker({
   pickedActions?: (ids: number[]) => ReactNode
   // Buttons for a single card, shown at the end of its row, such as Delete.
   rowActions?: (card: FlashCard) => ReactNode
+  // The card being edited, if one is, and the form shown in its row's place.
+  edit?: { id: number; form: ReactNode }
 }) {
   const [search, setSearch] = useState('')
   const [tagId, setTagId] = useState<number | null>(null)
@@ -189,15 +192,19 @@ export function CardPicker({
         <Typography color="text.secondary">No cards match.</Typography>
       ) : (
         <List disablePadding>
-          {shown.map((card) => (
-            <FlashCardRow
-              key={card.id}
-              card={card}
-              picked={selected.has(card.id)}
-              onPick={() => toggle(card.id)}
-              actions={rowActions?.(card)}
-            />
-          ))}
+          {shown.map((card) =>
+            edit?.id === card.id ? (
+              <Fragment key={card.id}>{edit.form}</Fragment>
+            ) : (
+              <FlashCardRow
+                key={card.id}
+                card={card}
+                picked={selected.has(card.id)}
+                onPick={() => toggle(card.id)}
+                actions={rowActions?.(card)}
+              />
+            ),
+          )}
         </List>
       )}
       {pageCount > 1 && (
