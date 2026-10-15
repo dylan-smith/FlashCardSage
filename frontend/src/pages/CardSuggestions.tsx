@@ -11,6 +11,7 @@ import { listCardSuggestions } from '../api/cardSuggestions'
 import { formatWords } from '../api/flashCards'
 import type { FlashCardWords, Tag } from '../api/flashCards'
 import { trackException } from '../telemetry'
+import { CardActionButton } from './CardActionButton'
 import { asCard, useCandidateEditing } from './candidates'
 import type { Candidate } from './candidates'
 import { FlashCardEditForm } from './FlashCardForm'
@@ -258,26 +259,23 @@ export function CardSuggestions({
                   card={asCard(suggestion)}
                   actions={
                     <>
-                      <Button
-                        type="button"
-                        size="small"
+                      <CardActionButton
+                        icon="add"
+                        text="Add"
+                        label={`Add "${spanish}"`}
                         disabled={adding !== null || editing !== null}
-                        aria-label={`Add "${spanish}"`}
+                        busyText={
+                          adding === suggestion.key ? 'Adding…' : undefined
+                        }
                         onClick={() => void add(suggestion)}
-                        sx={{ flexShrink: 0 }}
-                      >
-                        {adding === suggestion.key ? 'Adding…' : 'Add'}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="small"
+                      />
+                      <CardActionButton
+                        icon="edit"
+                        text="Edit"
+                        label={`Edit "${spanish}"`}
                         disabled={adding !== null}
-                        aria-label={`Edit "${spanish}"`}
                         onClick={() => startEditing(suggestion)}
-                        sx={{ flexShrink: 0 }}
-                      >
-                        Edit
-                      </Button>
+                      />
                     </>
                   }
                 />

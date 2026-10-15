@@ -230,8 +230,8 @@ describe('App', () => {
       expect(screen.getByLabelText('Loading')).toBeInTheDocument()
       const items = await screen.findAllByRole('listitem')
       expect(items.map((item) => item.textContent)).toEqual([
-        'el gatothe catEditDelete',
-        'el perrothe dogEditDelete',
+        'el gatothe cat',
+        'el perrothe dog',
       ])
       expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
       expect(
@@ -239,6 +239,58 @@ describe('App', () => {
           (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers,
         ).get('Authorization'),
       ).toBe('Bearer test:Tester')
+    })
+
+    it("shows each card's buttons as text on a wide screen", async () => {
+      // A screen at least as wide as the sm breakpoint. jsdom has no matchMedia of its own, so it's taken as a phone
+      // everywhere else.
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: query.includes('min-width:600px'),
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }))
+      try {
+        await showCards([
+          {
+            id: 1,
+            spanish: ['el gato'],
+            english: ['the cat'],
+            tags: [],
+            imageUrl: null,
+          },
+        ])
+
+        expect(screen.getByRole('listitem')).toHaveTextContent(
+          'el gatothe catEditDelete',
+        )
+      } finally {
+        vi.unstubAllGlobals()
+      }
+    })
+
+    it("shows each card's buttons as icons on a phone, with a tooltip that says what they do", async () => {
+      const user = userEvent.setup()
+      await showCards([
+        {
+          id: 1,
+          spanish: ['el gato'],
+          english: ['the cat'],
+          tags: [],
+          imageUrl: null,
+        },
+      ])
+
+      await user.hover(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      expect(await screen.findByRole('tooltip')).toHaveTextContent('Edit')
+      await user.hover(screen.getByRole('button', { name: 'Delete "el gato"' }))
+      await waitFor(() =>
+        expect(screen.getByRole('tooltip')).toHaveTextContent('Delete'),
+      )
     })
 
     it('says so when there are no cards', async () => {

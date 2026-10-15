@@ -32,6 +32,7 @@ import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
 import { usePreferences } from '../hooks/usePreferences'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
+import { CardActionButton } from './CardActionButton'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
 import { PictureField } from './FlashCardPicture'
@@ -122,27 +123,20 @@ function FlashCardItem({
       onPick={onPick}
       actions={
         <>
-          <Button
-            type="button"
-            size="small"
+          <CardActionButton
+            icon="edit"
+            text="Edit"
+            label={`Edit "${spanish}"`}
             disabled={busy}
-            aria-label={`Edit "${spanish}"`}
             onClick={onEdit}
-            sx={{ flexShrink: 0 }}
-          >
-            Edit
-          </Button>
-          <Button
-            type="button"
-            size="small"
-            color="error"
+          />
+          <CardActionButton
+            icon="delete"
+            text="Delete"
+            label={`Delete "${spanish}"`}
             disabled={busy}
-            aria-label={`Delete "${spanish}"`}
             onClick={onDelete}
-            sx={{ flexShrink: 0 }}
-          >
-            Delete
-          </Button>
+          />
         </>
       }
     />
