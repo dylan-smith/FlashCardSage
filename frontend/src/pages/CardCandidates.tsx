@@ -11,6 +11,7 @@ import type {
   Tag,
 } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
+import { CardActionButton } from './CardActionButton'
 import { asCard, useCandidateEditing } from './candidates'
 import type { Candidate } from './candidates'
 import { FlashCardEditForm } from './FlashCardForm'
@@ -208,37 +209,28 @@ export function CardCandidates({
               card={asCard(candidate)}
               actions={
                 <>
-                  <Button
-                    type="button"
-                    size="small"
+                  <CardActionButton
+                    icon="add"
+                    text="Add"
+                    label={`Add "${spanish}"`}
                     disabled={adding !== null || editing !== null}
-                    aria-label={`Add "${spanish}"`}
+                    busyText={adding === candidate.key ? 'Adding…' : undefined}
                     onClick={() => void handleAddOne(candidate)}
-                    sx={{ flexShrink: 0 }}
-                  >
-                    {adding === candidate.key ? 'Adding…' : 'Add'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="small"
+                  />
+                  <CardActionButton
+                    icon="edit"
+                    text="Edit"
+                    label={`Edit "${spanish}"`}
                     disabled={adding !== null}
-                    aria-label={`Edit "${spanish}"`}
                     onClick={() => startEditing(candidate)}
-                    sx={{ flexShrink: 0 }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    size="small"
-                    color="error"
+                  />
+                  <CardActionButton
+                    icon="remove"
+                    text="Remove"
+                    label={`Remove "${spanish}"`}
                     disabled={adding !== null}
-                    aria-label={`Remove "${spanish}"`}
                     onClick={() => remove(candidate.key)}
-                    sx={{ flexShrink: 0 }}
-                  >
-                    Remove
-                  </Button>
+                  />
                 </>
               }
             />
