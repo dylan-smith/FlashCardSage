@@ -31,10 +31,10 @@ export function PreplyBookmarklet() {
   if (touchOnly) {
     return (
       <Alert severity="info">
-        Bringing in your Preply words needs a computer. It uses a bookmark you
-        click on Preply&apos;s website, and phones and tablets don&apos;t have a
-        bookmarks bar to add it to. Do this step on a computer, and the cards
-        will be in your Preply deck here too.
+        Bringing in your Preply words needs a computer. It uses a bookmarklet
+        you click on Preply&apos;s website, and phones and tablets don&apos;t
+        have a bookmarks bar to add it to. Do this step on a computer, and the
+        cards will be in your Preply deck here too.
       </Alert>
     )
   }
