@@ -182,6 +182,41 @@ test.describe('Decks', () => {
     }
   })
 
+  test("edits a card on a deck's page", async ({ page }) => {
+    await page.goto('/decks')
+    await page.getByLabel('Deck name').fill('Everything')
+    await page.getByRole('button', { name: 'Create deck' }).click()
+    await page.getByRole('checkbox', { name: 'Pick all 4' }).check()
+    await page.getByRole('button', { name: 'Add 4 cards' }).click()
+    await page.getByRole('tab', { name: 'In this deck (4)' }).click()
+
+    await page.getByRole('button', { name: 'Edit "el gato"' }).click()
+    const spanish = page.getByRole('listitem').getByLabel('Spanish')
+    await expect(spanish).toHaveValue('el gato')
+    await spanish.fill('el gatito')
+    await page.getByRole('button', { name: 'Save' }).click()
+
+    await expect(page.getByText('el gatito', { exact: true })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'Save' })).toBeHidden()
+    await expect(
+      page.getByRole('tab', { name: 'In this deck (4)' }),
+    ).toBeVisible()
+
+    // Cancelling keeps the card as it was.
+    await page.getByRole('button', { name: 'Edit "la casa"' }).click()
+    await page.getByRole('listitem').getByLabel('Spanish').fill('changed')
+    await page.getByRole('button', { name: 'Cancel' }).click()
+    await expect(page.getByText('la casa', { exact: true })).toBeVisible()
+
+    // The change is to the card itself, so the cards page shows it too.
+    await page
+      .getByRole('navigation', { name: 'Manage cards' })
+      .getByRole('link', { name: /^Cards( \d+)?$/ })
+      .click()
+    await expect(page.getByText('el gatito', { exact: true })).toBeVisible()
+    await expect(page.getByText('el gato', { exact: true })).toBeHidden()
+  })
+
   test('practices only the cards with the tag picked', async ({ page }) => {
     await page.goto('/practice')
     await page.getByRole('combobox', { name: 'Practice' }).click()

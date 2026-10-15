@@ -19,7 +19,8 @@ import {
   formatWords,
   listFlashCards,
 } from '../api/flashCards'
-import type { FlashCard } from '../api/flashCards'
+import type { FlashCard, Tag } from '../api/flashCards'
+import { listTags } from '../api/tags'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
 import { CardActionButton } from './CardActionButton'
@@ -29,7 +30,9 @@ import { cardDeleteWarning } from './cardDeleteWarning'
 import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
 import { deckNameMaxLength, deckNameRequiredMessage } from './DecksPage'
+import { FlashCardEditForm } from './FlashCardForm'
 import { TagRenameForm } from './FlashCardTags'
+import { useCardEditor, withNewTags } from './useCardEditor'
 
 // The deck's own cards, or the user's other cards to add to it.
 type DeckTab = 'deck' | 'add'
@@ -37,14 +40,16 @@ type DeckTab = 'deck' | 'add'
 // The toast for the last change to the deck's cards, so a new one replaces it.
 const deckToast = 'deck-cards'
 
-// One deck: its cards, which can be taken out or deleted, and the user's other cards, which can be put in. Each
-// change is saved as it's made.
+// One deck: its cards, which can be edited, taken out or deleted, and the user's other cards, which can be put in.
+// Each change is saved as it's made.
 function DeckPage() {
   const { id } = useParams()
   const navigate = useNavigate()
   // Undefined while loading, and null when the user has no such deck.
   const [deck, setDeck] = useState<Deck | null | undefined>(undefined)
   const [cards, setCards] = useState<FlashCard[]>([])
+  // The user's tags, which the edit form offers.
+  const [tags, setTags] = useState<Tag[]>([])
   const [loadFailed, setLoadFailed] = useState(false)
   // The new name being typed, or null when the deck isn't being renamed.
   const [name, setName] = useState<string | null>(null)
@@ -55,6 +60,16 @@ function DeckPage() {
   const [confirmingDelete, setConfirmingDelete] = useState<
     FlashCard | 'deck' | null
   >(null)
+  // The card being edited, which is the same card on every deck and the cards page.
+  const editor = useCardEditor({
+    setErrorMessage,
+    onSaved: (card) => {
+      setCards((current) =>
+        current.map((item) => (item.id === card.id ? card : item)),
+      )
+      setTags((current) => withNewTags(current, card))
+    },
+  })
 
   useEffect(() => {
     let cancelled = false
@@ -62,11 +77,13 @@ function DeckPage() {
     Promise.all([
       Number.isInteger(deckId) ? getDeck(deckId) : Promise.resolve(null),
       listFlashCards(),
+      listTags(),
     ])
-      .then(([loadedDeck, loadedCards]) => {
+      .then(([loadedDeck, loadedCards, loadedTags]) => {
         if (!cancelled) {
           setDeck(loadedDeck)
           setCards(loadedCards)
+          setTags(loadedTags)
           // A new deck has nothing to show yet, so it opens on adding cards. It's only picked here, so adding the
           // first cards doesn't switch tabs.
           setTab(loadedDeck?.flashCardIds.length ? 'deck' : 'add')
@@ -178,6 +195,9 @@ function DeckPage() {
       trackEvent('FlashCardsDeleted')
       const deleted = new Set(ids)
       setCards((loaded) => loaded.filter((card) => !deleted.has(card.id)))
+      if (editor.edit !== null && deleted.has(editor.edit.id)) {
+        editor.cancel()
+      }
       setDeck({
         ...current,
         flashCardIds: current.flashCardIds.filter(
@@ -328,10 +348,35 @@ function DeckPage() {
                 onDelete={() => handleDeleteCards(ids)}
               />
             )}
+            edit={
+              editor.edit === null
+                ? undefined
+                : {
+                    id: editor.edit.id,
+                    form: (
+                      <FlashCardEditForm
+                        edit={editor.edit}
+                        tags={tags}
+                        picture={editor.picture}
+                        busy={editor.saving}
+                        onChange={editor.change}
+                        onCancel={editor.cancel}
+                        onSave={(event) => void editor.save(event)}
+                      />
+                    ),
+                  }
+            }
             rowActions={(card) => {
               const spanish = formatWords(card.spanish)
               return (
                 <>
+                  <CardActionButton
+                    icon="edit"
+                    text="Edit"
+                    label={`Edit "${spanish}"`}
+                    disabled={busy}
+                    onClick={() => editor.start(card)}
+                  />
                   <CardActionButton
                     icon="remove"
                     text="Remove from deck"
