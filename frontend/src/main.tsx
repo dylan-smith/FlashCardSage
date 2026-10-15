@@ -7,8 +7,11 @@ import './index.css'
 import App from './App.tsx'
 import ErrorBoundary from './ErrorBoundary.tsx'
 import { initTelemetry, trackException } from './telemetry.ts'
+import { startPreplyHandoff } from './preply/preplyHandoff.ts'
 
 initTelemetry()
+// Before rendering, since the user may need to sign in before they see the words the bookmarklet sends.
+startPreplyHandoff()
 
 const theme = createTheme({
   palette: {

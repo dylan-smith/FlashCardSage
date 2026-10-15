@@ -13,14 +13,17 @@ import SvgIcon from '@mui/material/SvgIcon'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
-import { Link as RouterLink, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { ApiError, describeFetchError } from '../api/flashCards'
 import { importSystemDeck, listSystemDecks } from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
+import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
+import { showToast } from '../toasts'
 import { cardCount } from './cardCount'
 import { DocumentScan } from './DocumentScan'
 import { FlashCardRow } from './FlashCardRow'
+import { PreplyImport } from './PreplyImport'
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
 function describeImport({ deck, skippedCount }: SystemDeckImport) {
@@ -31,19 +34,26 @@ function describeImport({ deck, skippedCount }: SystemDeckImport) {
   return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
 }
 
-// Where the cards come from: a built-in deck, or a document the user picks.
-type ImportTab = 'decks' | 'document'
+// Where the cards come from: a built-in deck, a document the user picks, or their Preply vocabulary.
+type ImportTab = 'decks' | 'document' | 'preply'
 
-// The URL's from parameter for each tab but the first, so a link, a refresh or the back button opens it.
+// The URL's from parameter for each tab but the first, so a link, a refresh or the back button opens it. The
+// "Send to FlashCardSage" bookmarklet opens the Preply tab this way.
 const documentTabParam = 'document'
 
-// The built-in decks the user can add to their own, and cards made from a document they pick, on tabs rather than one
-// after the other, since both can be long lists. Adding a deck copies its cards and tags, so the user can change them
-// like any of their cards.
+function tabFrom(param: string | null): ImportTab {
+  if (param === documentTabParam) {
+    return 'document'
+  }
+  return param === preplyTabParam ? 'preply' : 'decks'
+}
+
+// The built-in decks the user can add to their own, cards made from a document they pick, and the words in their
+// Preply vocabulary, on tabs rather than one after the other, since each can be a long list. Adding a deck copies its
+// cards and tags, so the user can change them like any of their cards.
 function ImportCardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
-  const tab: ImportTab =
-    searchParams.get('from') === documentTabParam ? 'document' : 'decks'
+  const tab = tabFrom(searchParams.get('from'))
   const [decks, setDecks] = useState<SystemDeck[]>([])
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
@@ -51,7 +61,6 @@ function ImportCardsPage() {
   const [shownIds, setShownIds] = useState<number[]>([])
   // The deck being added, so its button can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
-  const [imported, setImported] = useState<SystemDeckImport | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
@@ -91,13 +100,17 @@ function ImportCardsPage() {
 
   async function handleImport(deck: SystemDeck) {
     setBusyId(deck.id)
-    setImported(null)
     setErrorMessage('')
 
     try {
       const result = await importSystemDeck(deck.id)
       trackEvent('SystemDeckImported')
-      setImported(result)
+      showToast({
+        key: 'system-deck-imported',
+        severity: 'success',
+        message: describeImport(result),
+        action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
+      })
     } catch (error) {
       // Such as a 409 for a deck the user already has all the cards of, which is theirs to see, not a failure.
       if (!(error instanceof ApiError)) {
@@ -110,7 +123,13 @@ function ImportCardsPage() {
   }
 
   function selectTab(value: ImportTab) {
-    setSearchParams(value === 'document' ? { from: documentTabParam } : {})
+    setSearchParams(
+      value === 'document'
+        ? { from: documentTabParam }
+        : value === 'preply'
+          ? { from: preplyTabParam }
+          : {},
+    )
   }
 
   // Both tabs stay mounted, so a scan on its way or cards half looked over are still there after a look at the decks.
@@ -135,6 +154,12 @@ function ImportCardsPage() {
           id="import-tab-document"
           aria-controls="import-panel-document"
         />
+        <Tab
+          value="preply"
+          label="From Preply"
+          id="import-tab-preply"
+          aria-controls="import-panel-preply"
+        />
       </Tabs>
       {/* A Box, since a Stack's display would show the panel while it's hidden. */}
       <Box
@@ -144,23 +169,6 @@ function ImportCardsPage() {
         hidden={tab !== 'decks'}
       >
         <Stack spacing={2}>
-          {imported && (
-            <Alert
-              severity="success"
-              action={
-                <Button
-                  component={RouterLink}
-                  to={`/decks/${imported.deck.id}`}
-                  color="inherit"
-                  size="small"
-                >
-                  Open deck
-                </Button>
-              }
-            >
-              {describeImport(imported)}
-            </Alert>
-          )}
           {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
           <Box>
@@ -268,6 +276,14 @@ function ImportCardsPage() {
         hidden={tab !== 'document'}
       >
         <DocumentScan />
+      </Box>
+      <Box
+        role="tabpanel"
+        id="import-panel-preply"
+        aria-labelledby="import-tab-preply"
+        hidden={tab !== 'preply'}
+      >
+        <PreplyImport />
       </Box>
     </Paper>
   )
