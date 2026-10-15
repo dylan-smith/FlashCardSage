@@ -14,6 +14,7 @@ import type { CardSuggestion } from '../api/cardSuggestions'
 import { formatWords } from '../api/flashCards'
 import type { FlashCardWords, Tag } from '../api/flashCards'
 import { trackException } from '../telemetry'
+import { CardIconButton } from './CardIconButton'
 
 type SuggestionsState =
   | { status: 'loading' }
@@ -219,16 +220,14 @@ export function CardSuggestions({
                   secondary={suggestion.english}
                   sx={{ overflowWrap: 'anywhere' }}
                 />
-                <Button
-                  type="button"
-                  size="small"
+                <CardIconButton
+                  icon="add"
+                  tooltip="Add"
+                  label={`Add "${suggestion.spanish}"`}
                   disabled={adding !== null}
-                  aria-label={`Add "${suggestion.spanish}"`}
+                  busy={adding === suggestion}
                   onClick={() => void add(suggestion)}
-                  sx={{ flexShrink: 0 }}
-                >
-                  {adding === suggestion ? 'Adding…' : 'Add'}
-                </Button>
+                />
               </ListItem>
             ))}
           </List>

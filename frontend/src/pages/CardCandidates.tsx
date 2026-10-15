@@ -14,6 +14,7 @@ import type {
 } from '../api/flashCards'
 import { useCardPicture } from '../hooks/useCardPicture'
 import { trackEvent, trackException } from '../telemetry'
+import { CardIconButton } from './CardIconButton'
 import { trimFields } from './cardFields'
 import { FlashCardEditForm } from './FlashCardForm'
 import { FlashCardRow } from './FlashCardRow'
@@ -287,37 +288,28 @@ export function CardCandidates({
               card={asCard(candidate)}
               actions={
                 <>
-                  <Button
-                    type="button"
-                    size="small"
+                  <CardIconButton
+                    icon="add"
+                    tooltip="Add"
+                    label={`Add "${spanish}"`}
                     disabled={adding !== null || editing !== null}
-                    aria-label={`Add "${spanish}"`}
+                    busy={adding === candidate.key}
                     onClick={() => void handleAddOne(candidate)}
-                    sx={{ flexShrink: 0 }}
-                  >
-                    {adding === candidate.key ? 'Adding…' : 'Add'}
-                  </Button>
-                  <Button
-                    type="button"
-                    size="small"
+                  />
+                  <CardIconButton
+                    icon="edit"
+                    tooltip="Edit"
+                    label={`Edit "${spanish}"`}
                     disabled={adding !== null}
-                    aria-label={`Edit "${spanish}"`}
                     onClick={() => startEditing(candidate)}
-                    sx={{ flexShrink: 0 }}
-                  >
-                    Edit
-                  </Button>
-                  <Button
-                    type="button"
-                    size="small"
-                    color="error"
+                  />
+                  <CardIconButton
+                    icon="remove"
+                    tooltip="Remove"
+                    label={`Remove "${spanish}"`}
                     disabled={adding !== null}
-                    aria-label={`Remove "${spanish}"`}
                     onClick={() => remove(candidate.key)}
-                    sx={{ flexShrink: 0 }}
-                  >
-                    Remove
-                  </Button>
+                  />
                 </>
               }
             />

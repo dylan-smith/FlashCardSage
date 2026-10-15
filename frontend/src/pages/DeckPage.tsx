@@ -22,6 +22,7 @@ import {
 import type { FlashCard } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
+import { CardIconButton } from './CardIconButton'
 import { CardPicker } from './CardPicker'
 import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
@@ -317,36 +318,23 @@ function DeckPage() {
             )}
             rowActions={(card) => {
               const spanish = formatWords(card.spanish)
-              // One above the other on a phone, so the card's words keep room next to them.
               return (
-                <Box
-                  sx={{
-                    display: 'flex',
-                    flexDirection: { xs: 'column', sm: 'row' },
-                    alignItems: 'flex-end',
-                    flexShrink: 0,
-                  }}
-                >
-                  <Button
-                    type="button"
-                    size="small"
+                <>
+                  <CardIconButton
+                    icon="remove"
+                    tooltip="Remove from deck"
+                    label={`Remove "${spanish}" from deck`}
                     disabled={busy}
-                    aria-label={`Remove "${spanish}" from deck`}
                     onClick={() => void handleChange([], [card.id])}
-                  >
-                    Remove from deck
-                  </Button>
-                  <Button
-                    type="button"
-                    size="small"
-                    color="error"
+                  />
+                  <CardIconButton
+                    icon="delete"
+                    tooltip="Delete"
+                    label={`Delete "${spanish}"`}
                     disabled={busy}
-                    aria-label={`Delete "${spanish}"`}
                     onClick={() => void handleDeleteCards([card.id])}
-                  >
-                    Delete
-                  </Button>
-                </Box>
+                  />
+                </>
               )
             }}
           />

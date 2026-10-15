@@ -215,8 +215,8 @@ describe('App', () => {
       expect(screen.getByLabelText('Loading')).toBeInTheDocument()
       const items = await screen.findAllByRole('listitem')
       expect(items.map((item) => item.textContent)).toEqual([
-        'el gatothe catEditDelete',
-        'el perrothe dogEditDelete',
+        'el gatothe cat',
+        'el perrothe dog',
       ])
       expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
       expect(
@@ -224,6 +224,26 @@ describe('App', () => {
           (vi.mocked(fetch).mock.calls[0][1] as RequestInit).headers,
         ).get('Authorization'),
       ).toBe('Bearer test:Tester')
+    })
+
+    it("shows each card's buttons as icons, with a tooltip that says what they do", async () => {
+      const user = userEvent.setup()
+      await showCards([
+        {
+          id: 1,
+          spanish: ['el gato'],
+          english: ['the cat'],
+          tags: [],
+          imageUrl: null,
+        },
+      ])
+
+      await user.hover(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      expect(await screen.findByRole('tooltip')).toHaveTextContent('Edit')
+      await user.hover(screen.getByRole('button', { name: 'Delete "el gato"' }))
+      await waitFor(() =>
+        expect(screen.getByRole('tooltip')).toHaveTextContent('Delete'),
+      )
     })
 
     it('says so when there are no cards', async () => {
