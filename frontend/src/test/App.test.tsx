@@ -2076,6 +2076,28 @@ describe('App', () => {
       ).toBeInTheDocument()
     })
 
+    it('finds cards by either side as the search is typed, within the picked tag', async () => {
+      const user = userEvent.setup()
+      await showCards([apple, train], [food, travel])
+      const search = screen.getByRole('searchbox', { name: 'Search' })
+
+      await user.type(search, 'TREN')
+
+      expect(screen.getAllByRole('listitem')).toHaveLength(1)
+      expect(screen.getByText('el tren')).toBeInTheDocument()
+
+      await user.clear(search)
+      await user.type(search, 'the apple')
+
+      expect(screen.getAllByRole('listitem')).toHaveLength(1)
+      expect(screen.getByText('la manzana')).toBeInTheDocument()
+
+      await user.click(screen.getByRole('button', { name: 'Travel (1)' }))
+
+      expect(screen.queryAllByRole('listitem')).toHaveLength(0)
+      expect(screen.getByText('No cards match.')).toBeInTheDocument()
+    })
+
     it('sends the tags typed in for a new card and adds new ones to the list', async () => {
       const user = userEvent.setup()
       const calls = mockFetch(
