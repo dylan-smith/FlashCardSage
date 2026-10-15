@@ -39,7 +39,7 @@ param(
     [string]$ImageDeployment = 'flux-2-pro',
     [string]$ChatDeployment = 'gpt-5-mini',
     [ValidateRange(1, 60)]
-    [int]$RequestsPerMinute = 2,
+    [int]$RequestsPerMinute = 6,
     [ValidateRange(1, 20)]
     [int]$MaxInFlight = 4,
     # The pictures' width and height. The model bills for a megapixel whatever the size, but a smaller file keeps
