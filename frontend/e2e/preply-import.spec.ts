@@ -1,3 +1,4 @@
+import AxeBuilder from '@axe-core/playwright'
 import type { Route } from '@playwright/test'
 import { cardData, test, expect } from './fixtures'
 
@@ -77,6 +78,19 @@ test.describe('Import from Preply', () => {
         })
       ).ok(),
     ).toBe(true)
+  })
+
+  test('the steps have no detectable accessibility violations', async ({
+    page,
+  }) => {
+    await page.goto('/import?from=preply')
+    await expect(
+      page.getByRole('link', { name: 'Send to FlashCardSage' }),
+    ).toHaveAttribute('href', /^javascript:/)
+
+    const results = await new AxeBuilder({ page }).analyze()
+
+    expect(results.violations).toEqual([])
   })
 
   test('the bookmarklet brings the Preply words into a new deck', async ({

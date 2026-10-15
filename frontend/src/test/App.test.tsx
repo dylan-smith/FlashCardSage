@@ -3612,16 +3612,36 @@ describe('App', () => {
         'aria-selected',
         'true',
       )
-      const bookmarklet = screen.getByRole('link', {
+      // Four steps, in order, with the bookmarklet in the first and Preply's page in the second.
+      const steps = within(
+        screen.getByRole('tabpanel', { name: 'From Preply' }),
+      ).getAllByRole('listitem')
+      expect(
+        steps.map(
+          (step) => within(step).getByRole('heading', { level: 2 }).textContent,
+        ),
+      ).toEqual([
+        'Add the bookmarklet',
+        'Open Preply',
+        'Click the bookmarklet',
+        'Pick and add',
+      ])
+      const bookmarklet = within(steps[0]).getByRole('link', {
         name: 'Send to FlashCardSage',
       })
       expect(bookmarklet.getAttribute('href')).toMatch(/^javascript:/)
+      expect(
+        within(steps[1]).getByRole('link', { name: 'Preply vocabulary' }),
+      ).toHaveAttribute(
+        'href',
+        'https://preply.com/en/practice/vocab-bank?subject=spanish',
+      )
 
       // It only works as a bookmark, so clicking it here says how to use it.
       await user.click(bookmarklet)
 
       expect(
-        screen.getByText(/Drag the button to your bookmarks bar/),
+        screen.getByText(/This button only works from your bookmarks bar\./),
       ).toBeInTheDocument()
     })
   })
