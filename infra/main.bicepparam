@@ -34,7 +34,7 @@ param translatorSku = 'F0'
 param deployFoundry = true
 param foundryName = 'flashcardsage-foundry'
 param foundryLocation = 'westus3'
-param foundryCapacity = 2
+param foundryCapacity = 6
 param suggestionCapacity = 50
 
 // Database backups (BACPAC exports taken by CI before migrations, in the db-backups container)

@@ -118,7 +118,7 @@ Each built-in card's picture is committed in `backend/FlashCardSage.Api/SystemDe
 ./scripts/Generate-SystemDeckImages.ps1 -Only 'el perro'
 ```
 
-The image deployment allows 2 pictures a minute. For a big run, raise its capacity for a while (`az cognitiveservices account deployment create ... --sku-capacity <n>`, within the subscription's FLUX.2-pro quota) and pass `-RequestsPerMinute`. The next deployment puts the capacity back.
+The image deployment allows 6 pictures a minute. For a big run, raise its capacity for a while (`az cognitiveservices account deployment create ... --sku-capacity <n>`, within the subscription's FLUX.2-pro quota) and pass `-RequestsPerMinute`. The next deployment puts the capacity back.
 
 ## Deployment
 

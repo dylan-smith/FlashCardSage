@@ -563,7 +563,8 @@ function FlashCardsPage() {
             onChange={(names) =>
               setFields((current) => ({ ...current, tags: names }))
             }
-            suggestions={suggestedTags}
+            suggestions={suggestedTags.names}
+            suggesting={suggestedTags.loading}
           />
           {preferences?.showPictures === true && (
             <PictureField
