@@ -4,6 +4,7 @@ import Autocomplete from '@mui/material/Autocomplete'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
+import CircularProgress from '@mui/material/CircularProgress'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import type { Tag } from '../api/flashCards'
@@ -13,43 +14,50 @@ export const tagMaxLength = 50
 
 // Picks a card's tags by name from the user's tags, or makes a new one by typing a name. The typed name is added on
 // Enter, and when the field loses focus, so clicking Save straight after typing keeps it. Suggested tags show under
-// the field, like a translated word's other meanings, and are added with a click.
+// the field, like a translated word's other meanings, and are added with a click. While they're being looked for, a
+// spinner shows there instead.
 export function TagsInput({
   value,
   tags,
   onChange,
   suggestions = [],
+  suggesting = false,
   size,
 }: {
   value: string[]
   tags: Tag[]
   onChange: (names: string[]) => void
   suggestions?: string[]
+  suggesting?: boolean
   size?: 'small'
 }) {
-  const note =
-    suggestions.length === 0 ? undefined : (
-      <Box
-        sx={{
-          display: 'flex',
-          flexWrap: 'wrap',
-          alignItems: 'center',
-          gap: 0.5,
-        }}
-      >
-        Suggested tags:
-        {suggestions.map((name) => (
-          <Chip
-            key={name}
-            label={name}
-            size="small"
-            variant="outlined"
-            aria-label={`Add tag ${name}`}
-            onClick={() => onChange([...value, name])}
-          />
-        ))}
-      </Box>
-    )
+  const note = suggesting ? (
+    <Box role="status" sx={{ display: 'flex', alignItems: 'center', gap: 0.5 }}>
+      <CircularProgress size={12} aria-hidden />
+      Suggesting tags…
+    </Box>
+  ) : suggestions.length === 0 ? undefined : (
+    <Box
+      sx={{
+        display: 'flex',
+        flexWrap: 'wrap',
+        alignItems: 'center',
+        gap: 0.5,
+      }}
+    >
+      Suggested tags:
+      {suggestions.map((name) => (
+        <Chip
+          key={name}
+          label={name}
+          size="small"
+          variant="outlined"
+          aria-label={`Add tag ${name}`}
+          onClick={() => onChange([...value, name])}
+        />
+      ))}
+    </Box>
+  )
 
   return (
     <Autocomplete

@@ -2112,6 +2112,32 @@ describe('App', () => {
         expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
       })
 
+      it('says it is suggesting tags until the answer comes, and then nothing when no tag fits', async () => {
+        const user = userEvent.setup()
+        let answer: (response: Response) => void = () => undefined
+        suggestTags = () =>
+          new Promise((resolve) => {
+            answer = resolve
+          })
+        await showCards([apple], [food])
+
+        await user.type(
+          screen.getByLabelText('Spanish', { exact: false }),
+          'el pan',
+        )
+
+        expect(
+          await screen.findByText('Suggesting tags…', {}, untilSuggested),
+        ).toBeInTheDocument()
+        answer(jsonResponse([]))
+        await waitFor(() =>
+          expect(
+            screen.queryByText('Suggesting tags…'),
+          ).not.toBeInTheDocument(),
+        )
+        expect(screen.queryByText('Suggested tags:')).not.toBeInTheDocument()
+      })
+
       it("doesn't ask once they aren't available", async () => {
         const user = userEvent.setup()
         await showCards([apple], [food])
