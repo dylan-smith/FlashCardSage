@@ -186,6 +186,8 @@ describe('receiving the words from Preply', () => {
     return Object.assign(new EventTarget(), {
       location: { pathname, search },
       opener: window,
+      // This window's, so a test can use fake timers.
+      setTimeout: (handler: () => void, ms: number) => setTimeout(handler, ms),
     }) as unknown as Window
   }
 
@@ -278,11 +280,50 @@ describe('receiving the words from Preply', () => {
     const elsewhere = openedWindow('/import', '?from=document')
     const notOpened = Object.assign(openedWindow(), { opener: null })
 
+    // The Preply tab that opened it was closed since, so nothing can come.
+    const openerClosed = Object.assign(openedWindow(), {
+      opener: { closed: true, postMessage: vi.fn() },
+    })
+
     handoff.startPreplyHandoff(elsewhere)
     handoff.startPreplyHandoff(notOpened)
+    handoff.startPreplyHandoff(openerClosed)
 
     expect(posted).not.toHaveBeenCalled()
     expect(handoff.getPreplyHandoff()).toEqual({ status: 'none' })
+  })
+
+  // Such as the page reloaded, or come back to later, after the bookmarklet sent the words, which it only does once.
+  it('stops waiting when no words come', async () => {
+    vi.useFakeTimers()
+    try {
+      const handoff = await loadHandoff()
+      handoff.startPreplyHandoff(openedWindow())
+
+      vi.advanceTimersByTime(handoff.preplyWaitMs - 1)
+      expect(handoff.getPreplyHandoff()).toEqual({ status: 'waiting' })
+      vi.advanceTimersByTime(1)
+
+      expect(handoff.getPreplyHandoff()).toEqual({ status: 'timedOut' })
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
+  it('keeps the words that came in time', async () => {
+    vi.useFakeTimers()
+    try {
+      const handoff = await loadHandoff()
+      const target = openedWindow()
+      handoff.startPreplyHandoff(target)
+      send(target, { type: 'flashcardsage:preply-words', words })
+
+      vi.advanceTimersByTime(handoff.preplyWaitMs)
+
+      expect(handoff.getPreplyHandoff()).toEqual({ status: 'received', words })
+    } finally {
+      vi.useRealTimers()
+    }
   })
 
   it('forgets the words once cleared', async () => {

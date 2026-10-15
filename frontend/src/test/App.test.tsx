@@ -3669,9 +3669,15 @@ describe('App', () => {
 
     // This window, opened by the bookmarklet, which is the one that sends it messages. jsdom only takes a real window
     // as a message's source, so that's this one too.
+    // Ends the wait for the words, as its time limit does, which a test calls when it wants it to.
+    let endWait: () => void = () => {}
     const opened = Object.assign(new EventTarget(), {
       location: { pathname: '/import', search: '?from=preply' },
       opener: window,
+      setTimeout: (handler: () => void) => {
+        endWait = handler
+        return 0
+      },
     }) as unknown as Window
 
     function sendFromPreply(data: unknown, origin = 'https://preply.com') {
@@ -3923,6 +3929,39 @@ describe('App', () => {
       expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
         operation: 'readPreply',
       })
+      expect(
+        screen.getByRole('link', { name: 'Send to FlashCardSage' }),
+      ).toBeInTheDocument()
+    })
+
+    it('offers the steps again when no words come', async () => {
+      await showPreply()
+      expect(
+        screen.getByText('Getting your words from Preply…'),
+      ).toBeInTheDocument()
+
+      act(() => endWait())
+
+      expect(
+        screen.getByText(/No words came from Preply\./),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText('Getting your words from Preply…'),
+      ).not.toBeInTheDocument()
+      expect(
+        screen.getByRole('link', { name: 'Send to FlashCardSage' }),
+      ).toBeInTheDocument()
+    })
+
+    it('stops waiting for the words when asked to', async () => {
+      const user = userEvent.setup()
+      await showPreply()
+
+      await user.click(screen.getByRole('button', { name: 'Stop waiting' }))
+
+      expect(
+        screen.queryByText('Getting your words from Preply…'),
+      ).not.toBeInTheDocument()
       expect(
         screen.getByRole('link', { name: 'Send to FlashCardSage' }),
       ).toBeInTheDocument()

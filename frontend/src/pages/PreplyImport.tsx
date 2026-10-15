@@ -273,10 +273,25 @@ export function PreplyImport() {
               <Typography>Getting your words from Preply…</Typography>
             </Box>
             <Typography color="text.secondary" sx={{ mt: 1 }}>
-              If nothing comes, click the bookmark on your Preply vocabulary
-              page again.
+              This only takes a few seconds. If nothing comes, click the
+              bookmarklet on your Preply vocabulary page again.
             </Typography>
+            {/* The way back to the steps, and the bookmarklet, without waiting it out. */}
+            <Button
+              type="button"
+              onClick={clearPreplyHandoff}
+              sx={{ mt: 1, ml: -1 }}
+            >
+              Stop waiting
+            </Button>
           </Box>
+        )}
+        {handoff.status === 'timedOut' && (
+          <Alert severity="info">
+            No words came from Preply. To bring them in, click the bookmarklet
+            on your Preply vocabulary page again. If you don&apos;t have it any
+            more, drag it to your bookmarks bar from step 1 below.
+          </Alert>
         )}
 
         {received && (
@@ -328,9 +343,9 @@ export function PreplyImport() {
           </>
         )}
 
-        {(handoff.status === 'none' || handoff.status === 'failed') && (
-          <PreplyBookmarklet />
-        )}
+        {(handoff.status === 'none' ||
+          handoff.status === 'failed' ||
+          handoff.status === 'timedOut') && <PreplyBookmarklet />}
       </Stack>
     </Box>
   )

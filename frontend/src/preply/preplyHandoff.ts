@@ -5,13 +5,17 @@ import type { PreplyWord } from './sendToFlashCardSage'
 export const preplyTabParam = 'preply'
 export const preplyOrigin = 'https://preply.com'
 
-// What the bookmarklet has sent this window: nothing (opened some other way), nothing yet, the user's words, or why
-// they couldn't be read.
+// What the bookmarklet has sent this window: nothing (opened some other way), nothing yet, the user's words, why they
+// couldn't be read, or nothing after waiting long enough, such as when the page is reloaded after the words were sent.
 export type PreplyHandoff =
   | { status: 'none' }
   | { status: 'waiting' }
   | { status: 'received'; words: PreplyWord[] }
   | { status: 'failed'; message: string }
+  | { status: 'timedOut' }
+
+// How long to wait for the words. Reading them from Preply takes a few seconds, even for a long vocabulary.
+export const preplyWaitMs = 30_000
 
 // Kept for the tab, so the words are still here after the user signs in or reloads the page.
 export const preplyHandoffKey = 'flashcardsage.preplyHandoff'
@@ -93,7 +97,8 @@ export function subscribePreplyHandoff(listener: () => void) {
   }
 }
 
-// Forgets the words, such as once they've been imported, so the page doesn't offer them again.
+// Forgets the words, such as once they've been imported, so the page doesn't offer them again, or stops waiting for
+// them when the user gives up.
 export function clearPreplyHandoff() {
   update({ status: 'none' })
 }
@@ -105,12 +110,19 @@ export function startPreplyHandoff(target: Window = window) {
   const onPreplyTab =
     target.location.pathname === '/import' &&
     new URLSearchParams(target.location.search).get('from') === preplyTabParam
-  if (!onPreplyTab || opener === null) {
+  // A closed Preply tab can't send anything.
+  if (!onPreplyTab || opener === null || opener.closed) {
     return
   }
 
   if (current.status !== 'received') {
     update({ status: 'waiting' })
+    // The bookmarklet only sends the words once, so a page reloaded or come back to later would wait forever.
+    target.setTimeout(() => {
+      if (current.status === 'waiting') {
+        update({ status: 'timedOut' })
+      }
+    }, preplyWaitMs)
   }
   target.addEventListener('message', (event: MessageEvent) => {
     if (event.origin !== preplyOrigin || event.source !== opener) {

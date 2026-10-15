@@ -157,6 +157,42 @@ test.describe('Import from Preply', () => {
       0,
     )
   })
+
+  // The bookmarklet sends the words once, so the page it opened, reloaded after they're added, waits for nothing.
+  test('a reloaded page can stop waiting and offer the steps again', async ({
+    page,
+    context,
+  }) => {
+    await context.route('https://preply.com/**', fakePreply)
+    await page.goto('/import?from=preply')
+    const bookmarklet = page.getByRole('link', {
+      name: 'Send to FlashCardSage',
+    })
+    await expect(bookmarklet).toHaveAttribute('href', /^javascript:/)
+    const href = (await bookmarklet.getAttribute('href')) ?? ''
+    const preply = await context.newPage()
+    await preply.goto(preplyVocabularyUrl)
+    const opened = context.waitForEvent('page')
+    await preply.evaluate(decodeURIComponent(href.slice('javascript:'.length)))
+    const importPage = await opened
+    await importPage
+      .getByRole('button', { name: 'Add all 3 cards' })
+      .first()
+      .click()
+    await expect(
+      importPage.getByText(/^Added 3 cards to your Preply deck\./),
+    ).toBeVisible()
+
+    await importPage.reload()
+
+    await expect(
+      importPage.getByText('Getting your words from Preply…'),
+    ).toBeVisible()
+    await importPage.getByRole('button', { name: 'Stop waiting' }).click()
+    await expect(
+      importPage.getByRole('link', { name: 'Send to FlashCardSage' }),
+    ).toBeVisible()
+  })
 })
 
 test.describe('Import from Preply on a phone', () => {
