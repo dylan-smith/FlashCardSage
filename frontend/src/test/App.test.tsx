@@ -3830,6 +3830,55 @@ describe('App', () => {
       expect(trackEvent).toHaveBeenCalledWith('PreplyCardAdded')
     })
 
+    // A user can't have two cards with the same English, so Preply's tostado and tostada are one card.
+    it('puts Preply words with the same English on one card', async () => {
+      const user = userEvent.setup()
+      const calls = await showPreply(async (url) =>
+        url === `${flashCardsUrl}/batch`
+          ? jsonResponse({
+              cards: [
+                {
+                  id: 9,
+                  spanish: ['tostado', 'tostada'],
+                  english: ['toasted'],
+                  tags: [],
+                  imageUrl: null,
+                },
+              ],
+              skippedCount: 0,
+            })
+          : jsonResponse({ ...preplyDeck, flashCardIds: [9] }, 201),
+      )
+
+      sendFromPreply({
+        type: 'flashcardsage:preply-words',
+        words: [
+          { spanish: 'tostado', english: 'toasted', partOfSpeech: null },
+          { spanish: 'tostada', english: 'toasted', partOfSpeech: null },
+        ],
+      })
+
+      const list = await screen.findByRole('list', {
+        name: 'Cards from Preply',
+      })
+      const [card] = within(list).getAllByRole('listitem')
+      expect(within(list).getAllByRole('listitem')).toHaveLength(1)
+      expect(within(card).getByText('tostado / tostada')).toBeInTheDocument()
+      expect(within(card).getByText('toasted')).toBeInTheDocument()
+
+      await user.click(screen.getAllByRole('button', { name: 'Add 1 card' })[0])
+
+      expect(
+        await screen.findByText(/^Added 1 card to your Preply deck\./),
+      ).toBeInTheDocument()
+      const batch = calls.find((call) => call.url === `${flashCardsUrl}/batch`)
+      expect(JSON.parse(batch?.init?.body as string)).toEqual({
+        cards: [
+          { spanish: ['tostado', 'tostada'], english: ['toasted'], tags: [] },
+        ],
+      })
+    })
+
     it('adds all the cards left to the Preply deck the user has', async () => {
       const user = userEvent.setup()
       const calls = await showPreply(

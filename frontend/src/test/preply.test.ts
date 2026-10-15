@@ -1,5 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MockInstance } from 'vitest'
+import { maxWordsPerSide } from '../api/flashCards'
+import { groupWords } from '../preply/groupWords'
 import {
   bookmarkletHref,
   sendToFlashCardSage,
@@ -336,5 +338,63 @@ describe('receiving the words from Preply', () => {
 
     expect(handoff.getPreplyHandoff()).toEqual({ status: 'none' })
     expect(sessionStorage.getItem(handoff.preplyHandoffKey)).toBeNull()
+  })
+})
+
+describe('grouping Preply words into cards', () => {
+  function word(spanish: string, english: string | null) {
+    return { spanish, english, partOfSpeech: null }
+  }
+
+  it('puts words with the same English on one card', () => {
+    expect(
+      groupWords([
+        word('tostado', 'toasted'),
+        word('avena', 'oatmeal'),
+        word('tostada', 'Toasted'),
+      ]),
+    ).toEqual([
+      { spanish: ['tostado', 'tostada'], english: ['toasted'], wordCount: 2 },
+      { spanish: ['avena'], english: ['oatmeal'], wordCount: 1 },
+    ])
+  })
+
+  it('puts a Spanish word with two English words on one card', () => {
+    expect(
+      groupWords([word('picante', 'spicy'), word('Picante', 'hot')]),
+    ).toEqual([
+      { spanish: ['picante'], english: ['spicy', 'hot'], wordCount: 2 },
+    ])
+  })
+
+  // picantes shares "spicy" with the last word, which shares its Spanish with the third, which shares "hot" with
+  // caliente.
+  it('joins words linked through another word', () => {
+    expect(
+      groupWords([
+        word('picantes', 'spicy'),
+        word('caliente', 'hot'),
+        word('picante', 'hot'),
+        word('picante', 'spicy'),
+      ]),
+    ).toEqual([
+      {
+        spanish: ['picantes', 'caliente', 'picante'],
+        english: ['spicy', 'hot'],
+        wordCount: 4,
+      },
+    ])
+  })
+
+  it('leaves out words with no English, and words past a side’s limit', () => {
+    const many = Array.from({ length: maxWordsPerSide + 2 }, (_, index) =>
+      word(`tostado ${index}`, 'toasted'),
+    )
+
+    const [group, ...rest] = groupWords([word('gustaron', null), ...many])
+
+    expect(rest).toEqual([])
+    expect(group.spanish).toHaveLength(maxWordsPerSide)
+    expect(group.wordCount).toBe(maxWordsPerSide + 2)
   })
 })

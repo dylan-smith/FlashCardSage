@@ -7,7 +7,8 @@ const apiUrl = 'http://localhost:5269/api'
 const preplyVocabularyUrl =
   'https://preply.com/en/practice/vocab-bank?subject=spanish'
 
-// The words in the stand-in Preply vocabulary, in two pages as Preply's GraphQL API sends them.
+// The words in the stand-in Preply vocabulary, in two pages as Preply's GraphQL API sends them. tostado and tostada
+// share their English, so they're one card.
 const pages = [
   [
     { spelling: 'lunes', english: 'Monday' },
@@ -16,6 +17,7 @@ const pages = [
   [
     { spelling: 'avena', english: 'oatmeal' },
     { spelling: 'picante', english: 'spicy' },
+    { spelling: 'tostada', english: 'toasted' },
   ],
 ]
 
@@ -121,9 +123,13 @@ test.describe('Import from Preply', () => {
       importPage.getByRole('tab', { name: 'From Preply' }),
     ).toHaveAttribute('aria-selected', 'true')
 
-    // Listed like the cards from a document, leaving out the word the user has a card for.
+    // Listed like the cards from a document, leaving out the word the user has a card for, with the two words for
+    // "toasted" on one card.
     const cards = importPage.getByRole('list', { name: 'Cards from Preply' })
     await expect(cards.getByRole('listitem')).toHaveCount(3)
+    await expect(
+      cards.getByText('tostado / tostada', { exact: true }),
+    ).toBeVisible()
     await expect(
       importPage.getByText(
         '1 word is left out because you already have a card for it.',
@@ -136,9 +142,11 @@ test.describe('Import from Preply', () => {
     await importPage.getByLabel('English', { exact: true }).fill('oats')
     await importPage.getByRole('button', { name: 'Save' }).click()
     await expect(cards.getByText('oats', { exact: true })).toBeVisible()
-    await importPage.getByRole('button', { name: 'Add "tostado"' }).click()
+    await importPage
+      .getByRole('button', { name: 'Add "tostado / tostada"' })
+      .click()
     await expect(
-      importPage.getByText('Added “tostado” to your Preply deck.'),
+      importPage.getByText('Added “tostado / tostada” to your Preply deck.'),
     ).toBeVisible()
     // The one above the list. There's another below it.
     await importPage.getByRole('button', { name: 'Add 1 card' }).first().click()
@@ -151,7 +159,9 @@ test.describe('Import from Preply', () => {
     await expect(
       importPage.getByRole('tab', { name: 'In this deck (2)' }),
     ).toBeVisible()
-    await expect(importPage.getByText('tostado', { exact: true })).toBeVisible()
+    await expect(
+      importPage.getByText('tostado / tostada', { exact: true }),
+    ).toBeVisible()
     await expect(importPage.getByText('oats', { exact: true })).toBeVisible()
     await expect(importPage.getByText('picante', { exact: true })).toHaveCount(
       0,

@@ -19,6 +19,7 @@ import {
   getPreplyHandoff,
   subscribePreplyHandoff,
 } from '../preply/preplyHandoff'
+import { groupWords } from '../preply/groupWords'
 import type { PreplyHandoff } from '../preply/preplyHandoff'
 import type { PreplyWord } from '../preply/sendToFlashCardSage'
 import { trackEvent, trackException } from '../telemetry'
@@ -44,23 +45,21 @@ const preplyAddedToast = 'preply-added'
 // What adding the cards did: how many went in, one at a time or all at once, and how many were left out.
 type Added = { count: number; skippedCount: number }
 
+// Preply's words as cards, with the words that share a Spanish or English word on one card.
 function toCandidates(words: PreplyWord[]): Candidate[] {
-  return words.flatMap((word, key) =>
-    word.english === null
-      ? []
-      : [
-          {
-            spanish: [word.spanish],
-            english: [word.english],
-            tags: [],
-            key,
-            picture: null,
-          },
-        ],
-  )
+  return groupWords(words).map(({ spanish, english }, key) => ({
+    spanish,
+    english,
+    tags: [],
+    key,
+    picture: null,
+  }))
 }
 
-function isKnown(known: Known, candidate: Candidate) {
+function isKnown(
+  known: Known,
+  candidate: Pick<Candidate, 'spanish' | 'english'>,
+) {
   return (
     candidate.spanish.some((word) => known.spanish.has(word.toLowerCase())) ||
     candidate.english.some((word) => known.english.has(word.toLowerCase()))
@@ -141,9 +140,10 @@ export function PreplyImport() {
     if (handoff.status !== 'received' || known === null) {
       return
     }
-    const alreadyHave = toCandidates(handoff.words).filter((candidate) =>
-      isKnown(known, candidate),
-    ).length
+    // Counted in Preply's words, though they're left out a card at a time.
+    const alreadyHave = groupWords(handoff.words)
+      .filter((group) => isKnown(known, group))
+      .reduce((total, group) => total + group.wordCount, 0)
     if (alreadyHave > 0) {
       showToast({
         key: 'preply-already-have',
