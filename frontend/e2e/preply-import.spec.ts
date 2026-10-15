@@ -143,3 +143,23 @@ test.describe('Import from Preply', () => {
     )
   })
 })
+
+test.describe('Import from Preply on a phone', () => {
+  // A phone's touch screen, which has no bookmarks bar to drag the bookmarklet to.
+  test.use({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  })
+
+  test('says to bring the words in on a computer', async ({ page }) => {
+    await page.goto('/import?from=preply')
+
+    await expect(
+      page.getByText(/Bringing in your Preply words needs a computer\./),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('link', { name: 'Send to FlashCardSage' }),
+    ).toHaveCount(0)
+  })
+})

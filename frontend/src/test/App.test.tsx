@@ -15,6 +15,7 @@ import { translateDelayMs } from '../hooks/useAutoTranslate'
 import { tagSuggestDelayMs } from '../hooks/useTagSuggestions'
 import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
 import { clearPreplyHandoff, startPreplyHandoff } from '../preply/preplyHandoff'
+import { touchOnlyQuery } from '../pages/PreplyBookmarklet'
 import { trackEvent, trackException } from '../telemetry'
 
 vi.mock('../telemetry', () => ({
@@ -3906,6 +3907,33 @@ describe('App', () => {
       expect(
         screen.queryByText('Getting your words from Preply…'),
       ).not.toBeInTheDocument()
+    })
+
+    it('tells phone users to bring in their words on a computer', async () => {
+      // A touch screen with no mouse, as a phone has. jsdom has no matchMedia of its own.
+      vi.stubGlobal('matchMedia', (query: string) => ({
+        matches: query === touchOnlyQuery,
+        media: query,
+        onchange: null,
+        addEventListener: () => {},
+        removeEventListener: () => {},
+        addListener: () => {},
+        removeListener: () => {},
+        dispatchEvent: () => false,
+      }))
+      try {
+        clearPreplyHandoff()
+        await showPreply()
+
+        expect(
+          screen.getByText(/Bringing in your Preply words needs a computer\./),
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByRole('link', { name: 'Send to FlashCardSage' }),
+        ).not.toBeInTheDocument()
+      } finally {
+        vi.unstubAllGlobals()
+      }
     })
   })
 
