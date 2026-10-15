@@ -6,7 +6,6 @@ import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
 import type { Tag } from '../api/flashCards'
 
 // The most a tag name can be, as the API allows.
@@ -107,38 +106,28 @@ export function TagFilter({
   onSelect: (tag: Tag | null) => void
 }) {
   return (
-    <Box sx={{ mb: 2 }}>
-      <Typography
-        id="tag-filter-label"
-        variant="subtitle2"
-        color="text.secondary"
-        sx={{ mb: 1 }}
-      >
-        Show cards tagged
-      </Typography>
-      <Box
-        role="group"
-        aria-labelledby="tag-filter-label"
-        sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}
-      >
+    <Box
+      role="group"
+      aria-label="Show cards tagged"
+      sx={{ display: 'flex', flexWrap: 'wrap', gap: 1, mb: 2 }}
+    >
+      <Chip
+        label={`All (${total})`}
+        color={selected === null ? 'primary' : 'default'}
+        variant={selected === null ? 'filled' : 'outlined'}
+        aria-pressed={selected === null}
+        onClick={() => select(null)}
+      />
+      {tags.map((tag) => (
         <Chip
-          label={`All (${total})`}
-          color={selected === null ? 'primary' : 'default'}
-          variant={selected === null ? 'filled' : 'outlined'}
-          aria-pressed={selected === null}
-          onClick={() => select(null)}
+          key={tag.id}
+          label={`${tag.name} (${counts.get(tag.id) ?? 0})`}
+          color={selected?.id === tag.id ? 'primary' : 'default'}
+          variant={selected?.id === tag.id ? 'filled' : 'outlined'}
+          aria-pressed={selected?.id === tag.id}
+          onClick={() => select(tag)}
         />
-        {tags.map((tag) => (
-          <Chip
-            key={tag.id}
-            label={`${tag.name} (${counts.get(tag.id) ?? 0})`}
-            color={selected?.id === tag.id ? 'primary' : 'default'}
-            variant={selected?.id === tag.id ? 'filled' : 'outlined'}
-            aria-pressed={selected?.id === tag.id}
-            onClick={() => select(tag)}
-          />
-        ))}
-      </Box>
+      ))}
     </Box>
   )
 }
