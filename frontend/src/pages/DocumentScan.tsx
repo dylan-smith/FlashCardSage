@@ -6,7 +6,6 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { Link as RouterLink } from 'react-router'
 import {
   documentTypes,
   maxDocumentCandidates,
@@ -22,6 +21,7 @@ import {
 import type { FlashCardBatch } from '../api/flashCards'
 import { useUserTags } from '../hooks/useUserTags'
 import { trackEvent, trackException } from '../telemetry'
+import { showToast } from '../toasts'
 import { CardCandidates } from './CardCandidates'
 import type { Adding, Candidate } from './CardCandidates'
 import { cardCount } from './cardCount'
@@ -39,6 +39,9 @@ type ScanState =
       foundAny: boolean
       addedCount: number
     }
+
+// The toast for the cards just added, one at a time or all at once, so each replaces the last.
+const documentAddedToast = 'document-added'
 
 // What adding the cards did, and whether the document may have more.
 type Added = { count: number; skippedCount: number; limitReached: boolean }
@@ -76,17 +79,12 @@ export function DocumentScan() {
   // The document last scanned, so it can be scanned again.
   const [file, setFile] = useState<File | null>(null)
   const [adding, setAdding] = useState<Adding>(null)
-  // The card just added on its own, which has left the list, so the user sees it went in.
-  const [addedOne, setAddedOne] = useState('')
-  const [added, setAdded] = useState<Added | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [tags, addNewTags] = useUserTags()
 
   async function scan(document: File) {
     setFile(document)
     setState({ status: 'scanning' })
-    setAdded(null)
-    setAddedOne('')
     setErrorMessage('')
 
     try {
@@ -97,6 +95,20 @@ export function DocumentScan() {
         return
       }
       trackEvent('DocumentScanned')
+      if (result.candidates.length >= maxDocumentCandidates) {
+        showToast({
+          key: 'document-limit',
+          severity: 'info',
+          message: `This document has more words and phrases than one scan finds, so here are the first ${maxDocumentCandidates}. Once you've added them, scan it again for more.`,
+        })
+      }
+      if (result.truncated) {
+        showToast({
+          key: 'document-truncated',
+          severity: 'info',
+          message: 'This document is long, so only its start was scanned.',
+        })
+      }
       setState({
         status: 'ready',
         candidates: result.candidates.map(({ spanish, english }, key) => ({
@@ -135,11 +147,14 @@ export function DocumentScan() {
     )
   }
 
-  function handleAdding(value: Adding) {
-    setAdding(value)
-    if (value !== null) {
-      setAddedOne('')
-    }
+  // What adding the cards did, with a link to them.
+  function showAdded(added: Added) {
+    showToast({
+      key: documentAddedToast,
+      severity: 'success',
+      message: describeAdded(added, file?.name ?? ''),
+      action: { label: 'View cards', to: '/' },
+    })
   }
 
   function handleAddedOne(candidate: Candidate) {
@@ -151,10 +166,14 @@ export function DocumentScan() {
     const remaining = candidates.filter((item) => item.key !== candidate.key)
     if (remaining.length === 0) {
       // The last one, so the scan's done, as if they'd all been added at once.
-      setAdded({ count: addedCount + 1, skippedCount: 0, limitReached })
+      showAdded({ count: addedCount + 1, skippedCount: 0, limitReached })
       setState({ status: 'idle' })
     } else {
-      setAddedOne(`Added “${formatWords(candidate.spanish)}”.`)
+      showToast({
+        key: documentAddedToast,
+        severity: 'success',
+        message: `Added “${formatWords(candidate.spanish)}”.`,
+      })
       setState({ ...state, candidates: remaining, addedCount: addedCount + 1 })
     }
   }
@@ -164,7 +183,7 @@ export function DocumentScan() {
       return
     }
     trackEvent('DocumentCardsAdded')
-    setAdded({
+    showAdded({
       // With the ones the user added one at a time before.
       count: result.cards.length + state.addedCount,
       skippedCount: result.skippedCount,
@@ -185,23 +204,6 @@ export function DocumentScan() {
         already have cards for are left out.
       </Typography>
       <Stack spacing={2}>
-        {added && (
-          <Alert
-            severity="success"
-            action={
-              <Button
-                component={RouterLink}
-                to="/"
-                color="inherit"
-                size="small"
-              >
-                View cards
-              </Button>
-            }
-          >
-            {describeAdded(added, file?.name ?? '')}
-          </Alert>
-        )}
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           <Button variant="outlined" component="label" disabled={busy}>
@@ -241,17 +243,6 @@ export function DocumentScan() {
             >
               {`${cardCount(state.candidates.length)} from “${file?.name ?? ''}”`}
             </Typography>
-            {state.limitReached && (
-              <Alert severity="info">
-                {`This document has more words and phrases than one scan finds, so here are the first ${maxDocumentCandidates}. Once you've added them, scan it again for more.`}
-              </Alert>
-            )}
-            {state.truncated && (
-              <Alert severity="info">
-                This document is long, so only its start was scanned.
-              </Alert>
-            )}
-            {addedOne && <Alert severity="success">{addedOne}</Alert>}
             {state.candidates.length === 0 ? (
               <Typography color="text.secondary">
                 {!state.foundAny
@@ -268,7 +259,7 @@ export function DocumentScan() {
                 tags={tags}
                 onTagsAdded={addNewTags}
                 adding={adding}
-                onAddingChange={handleAdding}
+                onAddingChange={setAdding}
                 onError={setErrorMessage}
                 addOne={createFlashCard}
                 addAll={createFlashCards}

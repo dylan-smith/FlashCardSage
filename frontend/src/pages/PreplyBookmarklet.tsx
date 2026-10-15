@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useRef } from 'react'
 import type { ReactNode } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -10,6 +10,7 @@ import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
 import { bookmarkletHref } from '../preply/sendToFlashCardSage'
+import { showToast } from '../toasts'
 
 export const preplyVocabularyUrl =
   'https://preply.com/en/practice/vocab-bank?subject=spanish'
@@ -102,7 +103,6 @@ function Step({
 // click it there, and pick the words to add. On a phone that can't be done, so it says to do it on a computer instead.
 export function PreplyBookmarklet() {
   const linkRef = useRef<HTMLAnchorElement>(null)
-  const [clicked, setClicked] = useState(false)
   // Read straight away, since the app is only rendered in the browser, so a phone doesn't show the steps first.
   const touchOnly = useMediaQuery(touchOnlyQuery, { noSsr: true })
 
@@ -150,7 +150,12 @@ export function PreplyBookmarklet() {
             onClick={(event: React.MouseEvent) => {
               // It only works as a bookmark on Preply.
               event.preventDefault()
-              setClicked(true)
+              showToast({
+                key: 'bookmarklet-hint',
+                severity: 'info',
+                message:
+                  'This button only works from your bookmarks bar. Drag it there, then click it on your Preply vocabulary page.',
+              })
             }}
             sx={{ cursor: 'grab', mt: 'auto' }}
           >
@@ -182,12 +187,6 @@ export function PreplyBookmarklet() {
           </Typography>
         </Step>
       </Stack>
-      {clicked && (
-        <Alert severity="info" sx={{ mt: 2 }}>
-          This button only works from your bookmarks bar. Drag it there, then
-          click it on your Preply vocabulary page.
-        </Alert>
-      )}
     </Box>
   )
 }

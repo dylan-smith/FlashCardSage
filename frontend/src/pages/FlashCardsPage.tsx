@@ -33,6 +33,7 @@ import type { CardPicture } from '../hooks/useCardPicture'
 import { usePreferences } from '../hooks/usePreferences'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
 import { trackEvent, trackException } from '../telemetry'
+import { showToast } from '../toasts'
 import { PictureField } from './FlashCardPicture'
 import { FlashCardRow } from './FlashCardRow'
 import { AddToDeck } from './AddToDeck'
@@ -50,6 +51,9 @@ import {
 import type { FieldsUpdate } from './cardFields'
 import { FlashCardEditForm, WordFields } from './FlashCardForm'
 import { TagFilter, TagsInput } from './FlashCardTags'
+
+// The toast for what was just done to the picked cards, so a new one replaces the last.
+const cardsPageToast = 'picked-cards'
 
 // A new card starts with one empty field for each side.
 const emptyFields: FlashCardFields = { spanish: [''], english: [''], tags: [] }
@@ -164,13 +168,6 @@ function FlashCardsPage() {
   const [picked, setPicked] = useState<Set<number>>(new Set())
   const [deckBusy, setDeckBusy] = useState(false)
   const [deletingPicked, setDeletingPicked] = useState(false)
-  // How many picked cards were just deleted, to say so.
-  const [deletedCount, setDeletedCount] = useState<number | null>(null)
-  // Says which deck the picked cards went into.
-  const [deckNotice, setDeckNotice] = useState<{
-    deck: Deck
-    count: number
-  } | null>(null)
   const translation = useAutoTranslate(firstWords(fields), (change) =>
     setFields(setFirstWords(change)),
   )
@@ -272,18 +269,33 @@ function FlashCardsPage() {
     })
   }
 
+  // Says which deck the picked cards went into, with a link to it.
+  function showDeckNotice(deck: Deck, count: number) {
+    showToast({
+      key: cardsPageToast,
+      severity: 'success',
+      message: (
+        <>
+          Added {cardCount(count)} to{' '}
+          <Link component={RouterLink} to={`/decks/${deck.id}`} color="inherit">
+            {deck.name}
+          </Link>
+          .
+        </>
+      ),
+    })
+  }
+
   async function handleAddToDeck(deck: Deck) {
     setDeckBusy(true)
     setErrorMessage('')
-    setDeckNotice(null)
-    setDeletedCount(null)
     try {
       const updated = await changeDeckCards(deck.id, { add: pickedIds })
       trackEvent('DeckCardsAdded')
       setDecks((current) =>
         current.map((item) => (item.id === updated.id ? updated : item)),
       )
-      setDeckNotice({ deck: updated, count: pickedIds.length })
+      showDeckNotice(updated, pickedIds.length)
       setPicked(new Set())
     } catch (error) {
       if (!(error instanceof ApiError)) {
@@ -306,8 +318,6 @@ function FlashCardsPage() {
 
     setDeckBusy(true)
     setErrorMessage('')
-    setDeckNotice(null)
-    setDeletedCount(null)
     try {
       const created = await createDeck({
         name: trimmed,
@@ -319,7 +329,7 @@ function FlashCardsPage() {
           a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
         ),
       )
-      setDeckNotice({ deck: created, count: pickedIds.length })
+      showDeckNotice(created, pickedIds.length)
       setPicked(new Set())
       return null
     } catch (error) {
@@ -480,8 +490,6 @@ function FlashCardsPage() {
     const ids = new Set(pickedIds)
     setDeletingPicked(true)
     setErrorMessage('')
-    setDeckNotice(null)
-    setDeletedCount(null)
 
     try {
       await deleteFlashCards([...ids])
@@ -490,7 +498,11 @@ function FlashCardsPage() {
       setEdit((current) =>
         current !== null && ids.has(current.id) ? null : current,
       )
-      setDeletedCount(ids.size)
+      showToast({
+        key: cardsPageToast,
+        severity: 'success',
+        message: `Deleted ${cardCount(ids.size)}.`,
+      })
       setPicked(new Set())
     } catch (error) {
       trackException(error, { operation: 'deleteMany' })
@@ -574,29 +586,6 @@ function FlashCardsPage() {
         )}
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
-      {deckNotice && (
-        <Alert
-          severity="success"
-          role="status"
-          onClose={() => setDeckNotice(null)}
-        >
-          Added {cardCount(deckNotice.count)} to{' '}
-          <Link component={RouterLink} to={`/decks/${deckNotice.deck.id}`}>
-            {deckNotice.deck.name}
-          </Link>
-          .
-        </Alert>
-      )}
-      {deletedCount !== null && (
-        <Alert
-          severity="success"
-          role="status"
-          onClose={() => setDeletedCount(null)}
-        >
-          Deleted {cardCount(deletedCount)}.
-        </Alert>
-      )}
-
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
         <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
           Flash cards

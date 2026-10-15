@@ -21,6 +21,7 @@ import {
 } from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
+import { showToast } from '../toasts'
 import { CardPicker } from './CardPicker'
 import { DeleteCards } from './DeleteCards'
 import { cardCount } from './cardCount'
@@ -29,6 +30,9 @@ import { TagRenameForm } from './FlashCardTags'
 
 // The deck's own cards, or the user's other cards to add to it.
 type DeckTab = 'deck' | 'add'
+
+// The toast for the last change to the deck's cards, so a new one replaces it.
+const deckToast = 'deck-cards'
 
 // One deck: its cards, which can be taken out or deleted, and the user's other cards, which can be put in. Each
 // change is saved as it's made.
@@ -43,7 +47,6 @@ function DeckPage() {
   const [name, setName] = useState<string | null>(null)
   const [busy, setBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-  const [notice, setNotice] = useState('')
   const [tab, setTab] = useState<DeckTab>('deck')
 
   useEffect(() => {
@@ -119,7 +122,6 @@ function DeckPage() {
 
     setBusy(true)
     setErrorMessage('')
-    setNotice('')
     try {
       setDeck(await renameDeck(current.id, trimmed))
       trackEvent('DeckRenamed')
@@ -137,15 +139,17 @@ function DeckPage() {
   async function handleChange(add: number[], remove: number[]) {
     setBusy(true)
     setErrorMessage('')
-    setNotice('')
     try {
       setDeck(await changeDeckCards(current.id, { add, remove }))
       trackEvent(add.length > 0 ? 'DeckCardsAdded' : 'DeckCardsRemoved')
-      setNotice(
-        add.length > 0
-          ? `Added ${cardCount(add.length)} to the deck.`
-          : `Removed ${cardCount(remove.length)} from the deck.`,
-      )
+      showToast({
+        key: deckToast,
+        severity: 'success',
+        message:
+          add.length > 0
+            ? `Added ${cardCount(add.length)} to the deck.`
+            : `Removed ${cardCount(remove.length)} from the deck.`,
+      })
       return true
     } catch (error) {
       if (!(error instanceof ApiError)) {
@@ -162,7 +166,6 @@ function DeckPage() {
   async function handleDeleteCards(ids: number[]) {
     setBusy(true)
     setErrorMessage('')
-    setNotice('')
     try {
       await deleteFlashCards(ids)
       trackEvent('FlashCardsDeleted')
@@ -174,7 +177,11 @@ function DeckPage() {
           (cardId) => !deleted.has(cardId),
         ),
       })
-      setNotice(`Deleted ${cardCount(ids.length)}.`)
+      showToast({
+        key: deckToast,
+        severity: 'success',
+        message: `Deleted ${cardCount(ids.length)}.`,
+      })
     } catch (error) {
       trackException(error, { operation: 'deleteCards' })
       setErrorMessage(
@@ -266,11 +273,6 @@ function DeckPage() {
       </Paper>
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
-      {notice && (
-        <Alert severity="success" role="status">
-          {notice}
-        </Alert>
-      )}
 
       {/* Tabs rather than one list after the other, since a deck's list can be a page of 50 cards long. Both stay
           mounted, so each keeps its search while the other is shown. */}

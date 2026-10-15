@@ -127,17 +127,18 @@ test.describe('Import cards', () => {
     await expect(
       page.getByRole('heading', { name: '100 cards from “cuento.txt”' }),
     ).toBeVisible()
+    // Said in a toast when the scan is done.
+    await expect(
+      page.getByText(
+        "This document has more words and phrases than one scan finds, so here are the first 100. Once you've added them, scan it again for more.",
+      ),
+    ).toBeVisible()
 
     // A look at the built-in decks keeps the cards.
     await page.getByRole('tab', { name: 'Built-in decks' }).click()
     await expect(cards).toBeHidden()
     await page.getByRole('tab', { name: 'From a document' }).click()
     await expect(cards.getByRole('listitem')).toHaveCount(100)
-    await expect(
-      page.getByText(
-        "This document has more words and phrases than one scan finds, so here are the first 100. Once you've added them, scan it again for more.",
-      ),
-    ).toBeVisible()
 
     await page.getByRole('button', { name: 'Remove "palabra 2"' }).click()
     // Changed with the same form as the cards page: another English word and a tag.

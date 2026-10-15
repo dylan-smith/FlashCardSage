@@ -13,12 +13,13 @@ import SvgIcon from '@mui/material/SvgIcon'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
-import { Link as RouterLink, useSearchParams } from 'react-router'
+import { useSearchParams } from 'react-router'
 import { ApiError, describeFetchError } from '../api/flashCards'
 import { importSystemDeck, listSystemDecks } from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
+import { showToast } from '../toasts'
 import { cardCount } from './cardCount'
 import { DocumentScan } from './DocumentScan'
 import { FlashCardRow } from './FlashCardRow'
@@ -60,7 +61,6 @@ function ImportCardsPage() {
   const [shownIds, setShownIds] = useState<number[]>([])
   // The deck being added, so its button can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
-  const [imported, setImported] = useState<SystemDeckImport | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
 
   useEffect(() => {
@@ -100,13 +100,17 @@ function ImportCardsPage() {
 
   async function handleImport(deck: SystemDeck) {
     setBusyId(deck.id)
-    setImported(null)
     setErrorMessage('')
 
     try {
       const result = await importSystemDeck(deck.id)
       trackEvent('SystemDeckImported')
-      setImported(result)
+      showToast({
+        key: 'system-deck-imported',
+        severity: 'success',
+        message: describeImport(result),
+        action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
+      })
     } catch (error) {
       // Such as a 409 for a deck the user already has all the cards of, which is theirs to see, not a failure.
       if (!(error instanceof ApiError)) {
@@ -165,23 +169,6 @@ function ImportCardsPage() {
         hidden={tab !== 'decks'}
       >
         <Stack spacing={2}>
-          {imported && (
-            <Alert
-              severity="success"
-              action={
-                <Button
-                  component={RouterLink}
-                  to={`/decks/${imported.deck.id}`}
-                  color="inherit"
-                  size="small"
-                >
-                  Open deck
-                </Button>
-              }
-            >
-              {describeImport(imported)}
-            </Alert>
-          )}
           {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
           <Box>
