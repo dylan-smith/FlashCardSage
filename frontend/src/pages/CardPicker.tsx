@@ -12,18 +12,11 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { cardCount } from './cardCount'
+import { matchesSearch } from './cardSearch'
 import { FlashCardRow } from './FlashCardRow'
 
 // How many cards a page of the list shows. A deck can hold hundreds, and drawing them all at once is slow.
 export const cardPageSize = 50
-
-// Lower case and without accents, so "como" finds "¿cómo estás?".
-function normalize(text: string) {
-  return text
-    .normalize('NFD')
-    .replace(/\p{Diacritic}/gu, '')
-    .toLowerCase()
-}
 
 // The tags on any of the cards, in name order.
 function tagsOf(cards: FlashCard[]) {
@@ -75,14 +68,11 @@ export function CardPicker({
   }
   // The picked tag may have gone with the last of its cards.
   const activeTagId = tags.some((tag) => tag.id === tagId) ? tagId : null
-  const query = normalize(search.trim())
   const matching = cards.filter(
     (card) =>
       (activeTagId === null ||
         card.tags.some((tag) => tag.id === activeTagId)) &&
-      (query === '' ||
-        card.spanish.some((word) => normalize(word).includes(query)) ||
-        card.english.some((word) => normalize(word).includes(query))),
+      matchesSearch(card, search),
   )
   const pageCount = Math.max(1, Math.ceil(matching.length / cardPageSize))
   const currentPage = Math.min(page, pageCount)
