@@ -1,9 +1,7 @@
-import { useState } from 'react'
-import type { SubmitEvent } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import List from '@mui/material/List'
-import { cardImageDataUrl, putCardImage } from '../api/cardImages'
+import { putCardImage } from '../api/cardImages'
 import type { CardImage } from '../api/cardImages'
 import { ApiError, describeFetchError, formatWords } from '../api/flashCards'
 import type {
@@ -12,43 +10,22 @@ import type {
   FlashCardFields,
   Tag,
 } from '../api/flashCards'
-import { useCardPicture } from '../hooks/useCardPicture'
 import { trackEvent, trackException } from '../telemetry'
-import { trimFields } from './cardFields'
+import { asCard, useCandidateEditing } from './candidates'
+import type { Candidate } from './candidates'
 import { FlashCardEditForm } from './FlashCardForm'
 import { FlashCardRow } from './FlashCardRow'
 
-// A card to add, such as one made from a document or a Preply word, with a key of its own, since the user can change
-// it like any card: its words, its tags and a picture. The picture is kept here until the card is added, and then put
-// on it.
-export type Candidate = FlashCardFields & {
-  key: number
-  picture: CardImage | null
-}
+export type { Candidate } from './candidates'
 
 // What's being added: all the cards, or the one with this key.
 export type Adding = 'all' | number | null
-
-// The candidate being changed, as typed so far.
-type Editing = FlashCardFields & { key: number }
 
 // Reports a failure, unless it's an error the API sent for the user to see, such as a 409 for a card the user already
 // has, which is theirs to fix, not a failure.
 function reportFailure(error: unknown, operation: string) {
   if (!(error instanceof ApiError)) {
     trackException(error, { operation })
-  }
-}
-
-// A candidate as a card, so it's shown like the user's cards are, with its picture if it has one.
-function asCard(candidate: Candidate): FlashCard {
-  return {
-    id: candidate.key,
-    spanish: candidate.spanish,
-    english: candidate.english,
-    tags: candidate.tags.map((name, id) => ({ id, name })),
-    imageUrl:
-      candidate.picture === null ? null : cardImageDataUrl(candidate.picture),
   }
 }
 
@@ -93,66 +70,19 @@ export function CardCandidates({
   onAddedOne: (candidate: Candidate) => void
   onAddedAll: (result: FlashCardBatch) => void
 }) {
-  const [editing, setEditing] = useState<Editing | null>(null)
-  const editingCandidate =
-    editing === null
-      ? undefined
-      : candidates.find((candidate) => candidate.key === editing.key)
-  // The picture the edit form offers: the one the candidate has, if any, or one the user asks for.
-  const editPicture = useCardPicture(
-    editingCandidate?.picture
-      ? cardImageDataUrl(editingCandidate.picture)
-      : null,
-  )
+  const {
+    editing,
+    editPicture,
+    startEditing,
+    changeEdit,
+    cancelEdit,
+    saveEdit,
+  } = useCandidateEditing(candidates, onCandidatesChange, onError)
 
   function remove(key: number) {
     onCandidatesChange((current) =>
       current.filter((candidate) => candidate.key !== key),
     )
-  }
-
-  function startEditing(candidate: Candidate) {
-    onError('')
-    editPicture.reset()
-    setEditing({
-      key: candidate.key,
-      spanish: candidate.spanish,
-      english: candidate.english,
-      tags: candidate.tags,
-    })
-  }
-
-  function stopEditing() {
-    editPicture.reset()
-    setEditing(null)
-  }
-
-  // Keeps the changes on the candidate, including the picture the user asked for or took off, until it's added.
-  function saveEdit(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault()
-    if (editing === null) {
-      return
-    }
-    const trimmed = trimFields(editing)
-    if (typeof trimmed === 'string') {
-      onError(trimmed)
-      return
-    }
-    onError('')
-    const { generated, current } = editPicture
-    onCandidatesChange((all) =>
-      all.map((candidate) =>
-        candidate.key === editing.key
-          ? {
-              ...candidate,
-              ...trimmed,
-              picture:
-                generated ?? (current === null ? null : candidate.picture),
-            }
-          : candidate,
-      ),
-    )
-    stopEditing()
   }
 
   // Puts each added card's picture on it. The cards are added whatever happens to the pictures, so it returns how
@@ -265,17 +195,8 @@ export function CardCandidates({
                 tags={tags}
                 picture={editPicture}
                 busy={adding !== null}
-                onChange={(update) =>
-                  setEditing((current) =>
-                    current === null
-                      ? null
-                      : { ...current, ...update(current) },
-                  )
-                }
-                onCancel={() => {
-                  onError('')
-                  stopEditing()
-                }}
+                onChange={changeEdit}
+                onCancel={cancelEdit}
                 onSave={saveEdit}
               />
             )
