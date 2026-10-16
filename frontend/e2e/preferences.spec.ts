@@ -1,51 +1,14 @@
-import AxeBuilder from '@axe-core/playwright'
-import {
-  test,
-  expect,
-  cardData,
-  onePixelPng,
-  sessionStorageEntry,
-} from './fixtures'
-
-// The backend started by playwright.config.ts.
-const apiUrl = 'http://localhost:5269/api'
+import { test, expect, apiUrl, expectNoA11yViolations } from './fixtures'
 
 // A user of their own, since preferences apply to everything the user does and the other specs expect the defaults.
-const name = `Preferences Tester ${Date.now()}`
-const token = `test:${name}`
-
-test.use({
-  storageState: {
-    cookies: [],
-    origins: [
-      {
-        origin: 'http://localhost:4173',
-        localStorage: [sessionStorageEntry(name)],
-      },
-    ],
-  },
-})
+test.use({ userName: `Preferences Tester ${Date.now()}` })
 
 test('the user can turn off pictures, suggestions and translation', async ({
   page,
-  playwright,
+  api,
 }) => {
-  const request = await playwright.request.newContext({
-    extraHTTPHeaders: { Authorization: `Bearer ${token}` },
-  })
-  const created = await request.post(`${apiUrl}/flashcards`, {
-    data: cardData('el gato', 'the cat'),
-  })
-  expect(created.ok()).toBe(true)
-  const { id } = (await created.json()) as { id: number }
-  expect(
-    (
-      await request.put(`${apiUrl}/flashcards/${id}/image`, {
-        data: onePixelPng,
-      })
-    ).ok(),
-  ).toBe(true)
-  await request.dispose()
+  const { id } = await api.createCard('el gato', 'the cat')
+  await api.addPicture(id)
   // The E2E backend has no Foundry endpoint, key or translator key, so stand in for the model and the translator.
   await page.route('**/api/card-suggestions*', async (route) => {
     await route.fulfill({ json: [{ spanish: 'el perro', english: 'the dog' }] })
@@ -71,7 +34,7 @@ test('the user can turn off pictures, suggestions and translation', async ({
   // Move off the cog so its tooltip closes: the tooltip sits outside the landmarks, which axe flags.
   await page.mouse.move(0, 0)
   await expect(page.getByRole('tooltip')).toBeHidden()
-  expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([])
+  await expectNoA11yViolations(page)
   for (const option of [
     'Show pictures',
     'Suggest cards',
