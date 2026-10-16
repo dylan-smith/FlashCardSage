@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FlashCardSage.Api.Startup;
 using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
@@ -31,18 +32,18 @@ public static class AuthenticationSetup
         var serviceToken = configuration["Authentication:ServiceToken"];
         var useGoogle = !string.IsNullOrWhiteSpace(googleClientId);
 
-        Console.WriteLine(useGoogle
-            ? "[Startup] Authentication: Google sign-in enabled."
-            : "[Startup] Authentication: No Google client ID configured; Google sign-in is disabled.");
+        StartupLog.Info(useGoogle
+            ? "Authentication: Google sign-in enabled."
+            : "Authentication: No Google client ID configured; Google sign-in is disabled.");
 
         if (allowTestSignIn)
         {
-            Console.WriteLine("[Startup] WARNING: Test sign-in is enabled. Anyone can sign in as any test user.");
+            StartupLog.Info("WARNING: Test sign-in is enabled. Anyone can sign in as any test user.");
         }
 
         if (!string.IsNullOrEmpty(serviceToken))
         {
-            Console.WriteLine("[Startup] Authentication: Service token enabled.");
+            StartupLog.Info("Authentication: Service token enabled.");
         }
 
         var authentication = services.AddAuthentication(SelectorScheme)
