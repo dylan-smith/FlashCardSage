@@ -24,7 +24,7 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
 
         var decks = await dbContext.Decks
             .AsNoTracking()
-            .Include(deck => deck.FlashCards)
+            .WithCards()
             .OrderBy(deck => deck.Name)
             .ToListAsync();
 
@@ -40,7 +40,7 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
 
         var deck = await dbContext.Decks
             .AsNoTracking()
-            .Include(item => item.FlashCards)
+            .WithCards()
             .FirstOrDefaultAsync(item => item.Id == id);
 
         if (deck is null)
@@ -76,7 +76,7 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
     public async Task<ActionResult<DeckResponse>> Rename(int id, [FromBody] DeckNameRequest request)
     {
         var deck = await dbContext.Decks
-            .Include(item => item.FlashCards)
+            .WithCards()
             .FirstOrDefaultAsync(item => item.Id == id);
 
         if (deck is null)
@@ -105,7 +105,7 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
     {
         // The deck's cards are loaded so EF can work out which links to add and remove.
         var deck = await dbContext.Decks
-            .Include(item => item.FlashCards)
+            .WithCards()
             .FirstOrDefaultAsync(item => item.Id == id);
 
         if (deck is null)
@@ -141,7 +141,7 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
     {
         // The deck's cards are loaded so EF removes them from the deck first, which the database leaves to it.
         var deck = await dbContext.Decks
-            .Include(item => item.FlashCards)
+            .WithCards()
             .FirstOrDefaultAsync(item => item.Id == id);
 
         if (deck is null)
@@ -176,7 +176,7 @@ public class DecksController(FlashCardDbContext dbContext, ILogger<DecksControll
             .Where(deck => deck.Id != id)
             .Select(deck => deck.Name)
             .ToListAsync();
-        if (names.Any(item => string.Equals(item, name, StringComparison.OrdinalIgnoreCase)))
+        if (names.Any(item => TextRules.SameText(item, name)))
         {
             ModelState.AddModelError("Name", "There's already a deck with that name.");
         }

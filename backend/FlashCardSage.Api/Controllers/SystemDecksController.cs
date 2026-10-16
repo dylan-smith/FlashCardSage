@@ -21,7 +21,7 @@ namespace FlashCardSage.Api.Controllers;
 public class SystemDecksController(
     FlashCardDbContext dbContext,
     IImageStore imageStore,
-    ILogger<SystemDecksController> logger) : ControllerBase
+    ILogger<SystemDecksController> logger) : ApiControllerBase
 {
     public const string NothingToImportMessage = "You already have all of these cards.";
 
@@ -42,8 +42,8 @@ public class SystemDecksController(
 
         logger.LogInformation("Retrieved {Count} system decks", decks.Count);
 
-        var taken = await TakenWordsAsync(CancellationToken.None);
-        return Ok(decks.Select(deck => SystemDeckResponse.From(deck, card => HasAnyWord(taken, card))).ToList());
+        var taken = await TakenWords.LoadAsync(dbContext, exceptCardId: null, CancellationToken.None);
+        return Ok(decks.Select(deck => SystemDeckResponse.From(deck, taken.ContainsAny)).ToList());
     }
 
     // Copies the deck into the user's decks, leaving out any card whose Spanish or English is already on one of their
@@ -59,7 +59,7 @@ public class SystemDecksController(
             return NotFound();
         }
 
-        var taken = await TakenWordsAsync(cancellationToken);
+        var taken = await TakenWords.LoadAsync(dbContext, exceptCardId: null, cancellationToken);
         var tags = await dbContext.Tags.ToListAsync(cancellationToken);
 
         var deck = new Deck { Name = await UnusedDeckNameAsync(systemDeck.Name, cancellationToken) };
@@ -70,18 +70,15 @@ public class SystemDecksController(
         foreach (var systemCard in systemDeck.FlashCards.OrderBy(card => card.Id))
         {
             // A word is only ever on one of a user's cards, so a card with any word they have is left out.
-            if (HasAnyWord(taken, systemCard))
+            if (taken.ContainsAny(systemCard))
             {
                 skipped++;
                 continue;
             }
 
-            foreach (var word in systemCard.Words)
-            {
-                taken[word.Language].Add(word.Text);
-            }
+            taken.Add(systemCard);
 
-            var copy = CopyCard(systemCard, tags);
+            var copy = systemCard.CopyForUser(tags);
             deck.FlashCards.Add(copy);
 
             if (systemCard.ImageUrl is { } imageUrl)
@@ -93,7 +90,7 @@ public class SystemDecksController(
         if (deck.FlashCards.Count == 0)
         {
             logger.LogInformation("Nothing to import from system deck {DeckId}", id);
-            return Problem(detail: NothingToImportMessage, statusCode: StatusCodes.Status409Conflict);
+            return ConflictProblem(NothingToImportMessage);
         }
 
         // Each card gets a copy of the picture, never the built-in card's own, since deleting the user's card deletes
@@ -105,23 +102,24 @@ public class SystemDecksController(
 
         dbContext.Decks.Add(deck);
 
+        DbUpdateException? clash;
         try
         {
-            await dbContext.SaveChangesAsync(CancellationToken.None);
-        }
-        catch (DbUpdateException)
-        {
-            // A card or deck saved since the checks above failed a unique index.
-            dbContext.ChangeTracker.Clear();
-            await DeleteCopiedPicturesAsync(deck.FlashCards);
-            logger.LogWarning("Refused to import system deck {DeckId} over cards saved meanwhile", id);
-            return Problem(detail: ImportClashMessage, statusCode: StatusCodes.Status409Conflict);
+            clash = await dbContext.TrySaveUniqueAsync(CancellationToken.None);
         }
         catch
         {
             // Nothing points at the copied pictures, so they're removed rather than left behind.
             await DeleteCopiedPicturesAsync(deck.FlashCards);
             throw;
+        }
+
+        if (clash is not null)
+        {
+            // A card or deck saved since the checks above failed a unique index.
+            await DeleteCopiedPicturesAsync(deck.FlashCards);
+            logger.LogWarning("Refused to import system deck {DeckId} over cards saved meanwhile", id);
+            return ConflictProblem(ImportClashMessage);
         }
 
         logger.LogInformation(
@@ -155,13 +153,14 @@ public class SystemDecksController(
             return NotFound();
         }
 
-        if (HasAnyWord(await TakenWordsAsync(cancellationToken), systemCard))
+        var taken = await TakenWords.LoadAsync(dbContext, exceptCardId: null, cancellationToken);
+        if (taken.ContainsAny(systemCard))
         {
             logger.LogInformation("The user already has card {CardId} of system deck {DeckId}", cardId, id);
-            return Problem(detail: CardTakenMessage, statusCode: StatusCodes.Status409Conflict);
+            return ConflictProblem(CardTakenMessage);
         }
 
-        var copy = CopyCard(systemCard, await dbContext.Tags.ToListAsync(cancellationToken));
+        var copy = systemCard.CopyForUser(await dbContext.Tags.ToListAsync(cancellationToken));
         var deck = await DeckNamedAsync(systemDeck.Name, cancellationToken);
         var deckCreated = deck is null;
         if (deck is null)
@@ -177,22 +176,23 @@ public class SystemDecksController(
             copy.ImageUrl = await TryCopyPictureAsync(imageUrl, cancellationToken);
         }
 
+        DbUpdateException? clash;
         try
         {
-            await dbContext.SaveChangesAsync(CancellationToken.None);
-        }
-        catch (DbUpdateException)
-        {
-            // A card or deck saved since the checks above failed a unique index.
-            dbContext.ChangeTracker.Clear();
-            await DeleteCopiedPicturesAsync([copy]);
-            logger.LogWarning("Refused to import card {CardId} of system deck {DeckId} over cards saved meanwhile", cardId, id);
-            return Problem(detail: CardImportClashMessage, statusCode: StatusCodes.Status409Conflict);
+            clash = await dbContext.TrySaveUniqueAsync(CancellationToken.None);
         }
         catch
         {
             await DeleteCopiedPicturesAsync([copy]);
             throw;
+        }
+
+        if (clash is not null)
+        {
+            // A card or deck saved since the checks above failed a unique index.
+            await DeleteCopiedPicturesAsync([copy]);
+            logger.LogWarning("Refused to import card {CardId} of system deck {DeckId} over cards saved meanwhile", cardId, id);
+            return ConflictProblem(CardImportClashMessage);
         }
 
         logger.LogInformation(
@@ -210,54 +210,15 @@ public class SystemDecksController(
             new SystemDeckCardImportResponse(DeckResponse.From(deck), deckCreated, copy));
     }
 
-    // The words on the user's cards, by language. Compared in memory, ignoring case, since the in-memory database used
-    // in development can't in a query.
-    private async Task<Dictionary<Language, HashSet<string>>> TakenWordsAsync(CancellationToken cancellationToken)
-    {
-        var words = await dbContext.FlashCardWords
-            .AsNoTracking()
-            .Select(word => new { word.Language, word.Text })
-            .ToListAsync(cancellationToken);
-        return Enum.GetValues<Language>().ToDictionary(
-            language => language,
-            language => words
-                .Where(word => word.Language == language)
-                .Select(word => word.Text)
-                .ToHashSet(StringComparer.OrdinalIgnoreCase));
-    }
-
-    // A word is only ever on one of a user's cards, so a built-in card with any word they have can't be copied.
-    private static bool HasAnyWord(Dictionary<Language, HashSet<string>> taken, FlashCard systemCard)
-    {
-        return systemCard.Words.Any(word => taken[word.Language].Contains(word.Text));
-    }
-
-    // A new card for the user with the built-in card's words and tags, but not yet its picture.
-    private static FlashCard CopyCard(FlashCard systemCard, List<Tag> tags)
-    {
-        return new FlashCard
-        {
-            Words =
-            [
-                .. systemCard.Words.Select(word =>
-                    new FlashCardWord { Language = word.Language, Text = word.Text, Position = word.Position })
-            ],
-            Tags = systemCard.Tags
-                .Select(tag => FindOrMakeTag(tags, tag.Name))
-                .OrderBy(tag => tag.Name, StringComparer.OrdinalIgnoreCase)
-                .ToList()
-        };
-    }
-
     // The user's deck with this name, ignoring case as the database's index does, with its cards, or null.
     private async Task<Deck?> DeckNamedAsync(string name, CancellationToken cancellationToken)
     {
         var decks = await dbContext.Decks.Select(deck => new { deck.Id, deck.Name }).ToListAsync(cancellationToken);
-        var match = decks.FirstOrDefault(deck => string.Equals(deck.Name, name, StringComparison.OrdinalIgnoreCase));
+        var match = decks.FirstOrDefault(deck => TextRules.SameText(deck.Name, name));
 
         return match is null
             ? null
-            : await dbContext.Decks.Include(deck => deck.FlashCards).SingleAsync(deck => deck.Id == match.Id, cancellationToken);
+            : await dbContext.Decks.WithCards().SingleAsync(deck => deck.Id == match.Id, cancellationToken);
     }
 
     // A copy of the picture, or null when it's gone or can't be copied. The picture is only a nicety, so the card is
@@ -302,7 +263,7 @@ public class SystemDecksController(
     private async Task<string> UnusedDeckNameAsync(string name, CancellationToken cancellationToken)
     {
         var names = (await dbContext.Decks.Select(deck => deck.Name).ToListAsync(cancellationToken))
-            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            .ToHashSet(TextRules.Comparer);
 
         var candidate = name;
         for (var number = 2; names.Contains(candidate); number++)
@@ -312,20 +273,5 @@ public class SystemDecksController(
         }
 
         return candidate;
-    }
-
-    // The user's tag with this name, ignoring case, or a new one, which is kept with their tags so the deck's other
-    // cards use it too.
-    private static Tag FindOrMakeTag(List<Tag> tags, string name)
-    {
-        var tag = tags.FirstOrDefault(item => string.Equals(item.Name, name, StringComparison.OrdinalIgnoreCase));
-
-        if (tag is null)
-        {
-            tag = new Tag { Name = name };
-            tags.Add(tag);
-        }
-
-        return tag;
     }
 }
