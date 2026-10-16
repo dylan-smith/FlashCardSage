@@ -190,7 +190,7 @@ export type PracticeCard = FlashCardWords & {
   imageUrl: string | null
 }
 
-// Which cards to practice: a deck's, a tag's, or all of them when it's empty.
+// Which cards to practice or score: a deck's, a tag's, or all of them when it's empty.
 export type PracticeSelection = { deckId?: number; tagId?: number }
 
 // The selection as a query string, starting with ? unless it's empty.
@@ -253,15 +253,19 @@ export type FlashCardScore = FlashCardWords & {
   score: number
 }
 
-// Every card's score, lowest first, and the total out of the most the cards could score.
+// Each card's score in the selection, lowest first, and the total out of the most those cards could score.
 export type FlashCardScores = {
   total: number
   maximum: number
   cards: FlashCardScore[]
 }
 
-export async function listFlashCardScores(): Promise<FlashCardScores> {
-  const response = await apiFetch(`${flashCardsUrl}/scores`)
+export async function listFlashCardScores(
+  selection: PracticeSelection = {},
+): Promise<FlashCardScores> {
+  const response = await apiFetch(
+    `${flashCardsUrl}/scores${practiceQuery(selection)}`,
+  )
   if (!response.ok) {
     throw new Error('Unable to load scores.')
   }

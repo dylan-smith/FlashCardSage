@@ -14,12 +14,22 @@ namespace FlashCardSage.Api.Controllers;
 public class FlashCardScoresController(FlashCardDbContext dbContext, ILogger<FlashCardScoresController> logger)
     : ControllerBase
 {
+    // All the user's cards, or a deck's or a tag's, totalling just those. Not found when the deck or tag isn't the
+    // user's.
     [HttpGet]
-    public async Task<ActionResult<FlashCardScoresResponse>> Get()
+    [ProducesResponseType<FlashCardScoresResponse>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<FlashCardScoresResponse>> Get([FromQuery] PracticeSelection selection)
     {
         logger.LogInformation("Scoring flash cards");
 
-        var scores = (await dbContext.ScoreFlashCardsAsync())
+        if (!await dbContext.SelectionExistsAsync(selection))
+        {
+            logger.LogWarning("Deck {DeckId} or tag {TagId} not found to score", selection.DeckId, selection.TagId);
+            return NotFound();
+        }
+
+        var scores = (await dbContext.ScoreFlashCardsAsync(selection))
             .OrderBy(score => score.Score)
             .ThenBy(score => score.Id)
             .ToList();

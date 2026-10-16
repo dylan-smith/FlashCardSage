@@ -2,7 +2,7 @@ using System.ComponentModel.DataAnnotations;
 
 namespace FlashCardSage.Api.Contracts;
 
-// Which cards to practice, from the query string: a deck's, a tag's, or all of them when neither is given.
+// Which cards to practice or score, from the query string: a deck's, a tag's, or all of them when neither is given.
 public class PracticeSelection : IValidatableObject
 {
     public int? DeckId { get; set; }

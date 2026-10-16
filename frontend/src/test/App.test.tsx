@@ -5097,6 +5097,13 @@ describe('App', () => {
   })
 
   describe('scores', () => {
+    // The urls the page asked for its scores from, in order.
+    function scoresUrls(calls: Call[]) {
+      return calls
+        .map((call) => call.url)
+        .filter((url) => url.includes('/scores'))
+    }
+
     it('shows the total and each card with its score, in the order given', async () => {
       const calls = mockFetch(async () =>
         jsonResponse({
@@ -5123,7 +5130,9 @@ describe('App', () => {
         'el gatothe cat80 / 100',
       ])
       expect(screen.getByText('la casa')).toHaveAttribute('lang', 'es')
-      expect(calls[0].url).toMatch(/\/api\/flashcards\/scores$/)
+      expect(scoresUrls(calls)).toEqual([
+        'http://localhost:5269/api/flashcards/scores',
+      ])
     })
 
     it('shades each card from red for a low score to green for a high one', async () => {
@@ -5193,6 +5202,140 @@ describe('App', () => {
       expect(
         screen.queryByRole('list', { name: 'Card scores' }),
       ).not.toBeInTheDocument()
+    })
+
+    describe('picking which cards to score', () => {
+      const animals: Deck = { id: 3, name: 'Animals', flashCardIds: [1] }
+      const pets: Tag = { id: 4, name: 'Pets' }
+      const cat = { id: 1, spanish: ['el gato'], english: ['the cat'] }
+      const house = { id: 2, spanish: ['la casa'], english: ['the house'] }
+
+      // Every card scores 0 and 50 for the house and the cat, or just the cat's 50 for a deck or tag.
+      function mockScores() {
+        return mockFetch(
+          async (url) =>
+            jsonResponse(
+              url.includes('?')
+                ? { total: 50, maximum: 100, cards: [{ ...cat, score: 50 }] }
+                : {
+                    total: 50,
+                    maximum: 200,
+                    cards: [
+                      { ...house, score: 0 },
+                      { ...cat, score: 50 },
+                    ],
+                  },
+            ),
+          [pets],
+          [animals],
+        )
+      }
+
+      function items() {
+        return within(screen.getByRole('list', { name: 'Card scores' }))
+          .getAllByRole('listitem')
+          .map((item) => item.textContent)
+      }
+
+      it('offers every card, the decks and the tags, and scores and totals just the one picked', async () => {
+        const user = userEvent.setup()
+        const calls = mockScores()
+        renderAt('/scores')
+        await screen.findByText('Total score 50 / 200 (25%)')
+
+        await user.click(screen.getByRole('combobox', { name: 'Cards' }))
+        const listbox = screen.getByRole('listbox')
+        expect(
+          within(listbox)
+            .getAllByRole('option')
+            .map((option) => option.textContent),
+        ).toEqual(['All cards', 'Deck: Animals', 'Tag: Pets'])
+        await user.click(
+          within(listbox).getByRole('option', { name: 'Deck: Animals' }),
+        )
+
+        expect(
+          await screen.findByText('Total score 50 / 100 (50%)'),
+        ).toBeInTheDocument()
+        expect(items()).toEqual(['el gatothe cat50 / 100'])
+        expect(scoresUrls(calls)).toEqual([
+          'http://localhost:5269/api/flashcards/scores',
+          'http://localhost:5269/api/flashcards/scores?deckId=3',
+        ])
+        expect(
+          screen.getByRole('combobox', { name: 'Cards' }),
+        ).toHaveTextContent('Deck: Animals')
+      })
+
+      it('scores the tag in the URL', async () => {
+        const calls = mockScores()
+        renderAt('/scores?tag=4')
+
+        expect(
+          await screen.findByText('Total score 50 / 100 (50%)'),
+        ).toBeInTheDocument()
+        expect(scoresUrls(calls)).toEqual([
+          'http://localhost:5269/api/flashcards/scores?tagId=4',
+        ])
+        expect(
+          screen.getByRole('combobox', { name: 'Cards' }),
+        ).toHaveTextContent('Tag: Pets')
+      })
+
+      it('keeps the search when another deck or tag is picked', async () => {
+        const user = userEvent.setup()
+        mockScores()
+        renderAt('/scores')
+        await screen.findByText('Total score 50 / 200 (25%)')
+        await user.type(
+          screen.getByRole('searchbox', { name: 'Search' }),
+          'gato',
+        )
+
+        await user.click(screen.getByRole('combobox', { name: 'Cards' }))
+        await user.click(screen.getByRole('option', { name: 'Tag: Pets' }))
+
+        await screen.findByText('Total score 50 / 100 (50%)')
+        expect(screen.getByRole('searchbox', { name: 'Search' })).toHaveValue(
+          'gato',
+        )
+        expect(items()).toEqual(['el gatothe cat50 / 100'])
+      })
+
+      it('links to the decks when the deck has no cards', async () => {
+        mockFetch(
+          async () => jsonResponse({ total: 0, maximum: 0, cards: [] }),
+          [],
+          [animals],
+        )
+        renderAt('/scores?deck=3')
+
+        expect(
+          await screen.findByText('There are no cards in this deck.'),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('link', { name: 'Edit decks' }),
+        ).toHaveAttribute('href', '/decks')
+        expect(
+          screen.getByRole('combobox', { name: 'Cards' }),
+        ).toBeInTheDocument()
+      })
+
+      it('leaves out the picker when there are no decks or tags', async () => {
+        mockFetch(async () =>
+          jsonResponse({
+            total: 0,
+            maximum: 100,
+            cards: [{ ...cat, score: 0 }],
+          }),
+        )
+        renderAt('/scores')
+        await screen.findByText('Total score 0 / 100 (0%)')
+
+        expect(
+          screen.queryByRole('combobox', { name: 'Cards' }),
+        ).not.toBeInTheDocument()
+      })
     })
 
     it('links to adding cards when there are none', async () => {
