@@ -1,11 +1,8 @@
 import { useEffect, useState } from 'react'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
 import Collapse from '@mui/material/Collapse'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
-import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import type { Tag } from '../../api/flashCards'
 import { sameText } from '../../lib/text'
@@ -15,6 +12,9 @@ import { trackException } from '../../telemetry'
 import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { SuggestionsHeading } from './SuggestionsHeading'
+import { EmptyText } from '../common/EmptyText'
+import { Loading } from '../common/Loading'
+import { Section } from '../common/Section'
 
 type SuggestionsState =
   | { status: 'loading' }
@@ -100,7 +100,7 @@ export function TagSuggestions({
       : []
 
   return (
-    <Paper component="section" elevation={2} sx={{ p: 3 }}>
+    <Section>
       <SuggestionsHeading
         title="Suggested tags"
         collapsed={collapsed}
@@ -112,17 +112,11 @@ export function TagSuggestions({
           New tags that go with your cards.
         </Typography>
         {state.status === 'loading' ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-            <CircularProgress aria-label="Loading suggestions" />
-          </Box>
+          <Loading label="Loading suggestions" />
         ) : state.status === 'failed' ? (
-          <Typography color="text.secondary">
-            Unable to suggest tags right now.
-          </Typography>
+          <EmptyText>Unable to suggest tags right now.</EmptyText>
         ) : visible.length === 0 ? (
-          <Typography color="text.secondary">
-            No suggestions right now.
-          </Typography>
+          <EmptyText>No suggestions right now.</EmptyText>
         ) : (
           <AnimatedList disablePadding aria-label="Suggested tags">
             {visible.map((name) => (
@@ -160,6 +154,6 @@ export function TagSuggestions({
           {state.status === 'failed' ? 'Try again' : 'More suggestions'}
         </Button>
       </Collapse>
-    </Paper>
+    </Section>
   )
 }

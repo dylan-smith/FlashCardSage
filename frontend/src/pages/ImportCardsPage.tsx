@@ -1,20 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
 import Collapse from '@mui/material/Collapse'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
-import SvgIcon from '@mui/material/SvgIcon'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
 import { useSearchParams } from 'react-router'
-import { ApiError, describeFetchError } from '../api/client'
 import { formatWords } from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
 import {
@@ -25,6 +21,13 @@ import {
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
+import { useAction } from '../hooks/useAction'
+import { useLoad } from '../hooks/useLoad'
+import { ChevronIcon } from '../components/common/ChevronIcon'
+import { EmptyText } from '../components/common/EmptyText'
+import { Loading } from '../components/common/Loading'
+import { Section } from '../components/common/Section'
+import { TabPanel } from '../components/common/TabPanel'
 import { showToast } from '../toasts'
 import {
   AnimatedList,
@@ -65,46 +68,29 @@ function tabFrom(param: string | null): ImportTab {
 function ImportCardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = tabFrom(searchParams.get('from'))
-  const [decks, setDecks] = useState<SystemDeck[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadFailed, setLoadFailed] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  const {
+    data: decks,
+    setData: setDecks,
+    loading,
+    failed: loadFailed,
+  } = useLoad(() => listSystemDecks(), [], {
+    operation: 'load',
+    fallback: 'Unable to load the built-in decks.',
+    onError: setErrorMessage,
+    initial: [] as SystemDeck[],
+  })
   // The decks whose cards are showing.
   const [shownIds, setShownIds] = useState<number[]>([])
   // The deck being added, so its button can wait for the API.
-  const [busyId, setBusyId] = useState<number | null>(null)
+  const importingDeck = useAction<number>(setErrorMessage)
+  const busyId = importingDeck.busyKey
   // The built-in card being added on its own, and the ones added since the decks were loaded, which the user has now
   // like the decks' owned cards.
-  const [busyCardId, setBusyCardId] = useState<number | null>(null)
+  const importingCard = useAction<number>(setErrorMessage)
+  const busyCardId = importingCard.busyKey
   const [addedCardIds, setAddedCardIds] = useState<number[]>([])
-  const [errorMessage, setErrorMessage] = useState('')
-  const busy = busyId !== null || busyCardId !== null
-
-  useEffect(() => {
-    let cancelled = false
-    listSystemDecks()
-      .then((loaded) => {
-        if (!cancelled) {
-          setDecks(loaded)
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'load' })
-          setLoadFailed(true)
-          setErrorMessage(
-            describeFetchError(error, 'Unable to load the built-in decks.'),
-          )
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const busy = importingDeck.busy || importingCard.busy
 
   // Loads the decks again after cards are added, so every card the user now has a word of says so, such as all of a
   // deck's after adding the deck. The page already shows the decks, so a failure only leaves them as they were.
@@ -124,56 +110,50 @@ function ImportCardsPage() {
     )
   }
 
+  // A 409 for a deck the user already has all the cards of is theirs to see, not a failure.
   async function handleImport(deck: SystemDeck) {
-    setBusyId(deck.id)
-    setErrorMessage('')
-
-    try {
-      const result = await importSystemDeck(deck.id)
-      trackEvent('SystemDeckImported')
-      refreshDecks()
-      showToast({
-        key: 'system-deck-imported',
-        severity: 'success',
-        message: describeImport(result),
-        action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
-      })
-    } catch (error) {
-      // Such as a 409 for a deck the user already has all the cards of, which is theirs to see, not a failure.
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'import' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to add the deck.'))
-    } finally {
-      setBusyId(null)
-    }
+    await importingDeck.run(
+      {
+        operation: 'import',
+        fallback: 'Unable to add the deck.',
+        key: deck.id,
+      },
+      async () => {
+        const result = await importSystemDeck(deck.id)
+        trackEvent('SystemDeckImported')
+        refreshDecks()
+        showToast({
+          key: 'system-deck-imported',
+          severity: 'success',
+          message: describeImport(result),
+          action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
+        })
+      },
+    )
   }
 
   // Adds just this card, to the user's deck with the built-in deck's name, which the API makes if they haven't got it.
+  // A 409 for a card the user already has is theirs to see too.
   async function handleImportCard(deck: SystemDeck, card: FlashCard) {
-    setBusyCardId(card.id)
-    setErrorMessage('')
-
-    try {
-      const result = await importSystemDeckCard(deck.id, card.id)
-      trackEvent('SystemDeckCardImported')
-      setAddedCardIds((current) => [...current, card.id])
-      refreshDecks()
-      showToast({
-        key: 'system-deck-card-imported',
-        severity: 'success',
-        message: `Added "${formatWords(card.spanish)}" to ${result.deckCreated ? 'a new deck, ' : ''}${result.deck.name}.`,
-        action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
-      })
-    } catch (error) {
-      // Such as a 409 for a card the user already has.
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'import card' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to add the card.'))
-    } finally {
-      setBusyCardId(null)
-    }
+    await importingCard.run(
+      {
+        operation: 'import card',
+        fallback: 'Unable to add the card.',
+        key: card.id,
+      },
+      async () => {
+        const result = await importSystemDeckCard(deck.id, card.id)
+        trackEvent('SystemDeckCardImported')
+        setAddedCardIds((current) => [...current, card.id])
+        refreshDecks()
+        showToast({
+          key: 'system-deck-card-imported',
+          severity: 'success',
+          message: `Added "${formatWords(card.spanish)}" to ${result.deckCreated ? 'a new deck, ' : ''}${result.deck.name}.`,
+          action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
+        })
+      },
+    )
   }
 
   function selectTab(value: ImportTab) {
@@ -188,7 +168,7 @@ function ImportCardsPage() {
 
   // Both tabs stay mounted, so a scan on its way or cards half looked over are still there after a look at the decks.
   return (
-    <Paper component="section" elevation={2} sx={{ p: 3, pt: 1 }}>
+    <Section sx={{ pt: 1 }}>
       <Tabs
         value={tab}
         onChange={(_event, value: ImportTab) => selectTab(value)}
@@ -215,13 +195,7 @@ function ImportCardsPage() {
           aria-controls="import-panel-preply"
         />
       </Tabs>
-      {/* A Box, since a Stack's display would show the panel while it's hidden. */}
-      <Box
-        role="tabpanel"
-        id="import-panel-decks"
-        aria-labelledby="import-tab-decks"
-        hidden={tab !== 'decks'}
-      >
+      <TabPanel group="import" value="decks" current={tab}>
         <Stack spacing={2}>
           {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
@@ -232,13 +206,9 @@ function ImportCardsPage() {
               have are left out.
             </Typography>
             {loading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress aria-label="Loading" />
-              </Box>
+              <Loading />
             ) : loadFailed ? null : decks.length === 0 ? (
-              <Typography color="text.secondary">
-                There aren&apos;t any built-in decks yet.
-              </Typography>
+              <EmptyText>There aren&apos;t any built-in decks yet.</EmptyText>
             ) : (
               <List disablePadding>
                 {decks.map((deck) => {
@@ -263,18 +233,7 @@ function ImportCardsPage() {
                               aria-expanded={shown}
                               aria-controls={cardsId}
                               onClick={() => toggleShown(deck.id)}
-                              endIcon={
-                                <SvgIcon
-                                  sx={{
-                                    transform: shown
-                                      ? 'none'
-                                      : 'rotate(-90deg)',
-                                    transition: 'transform 150ms',
-                                  }}
-                                >
-                                  <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-                                </SvgIcon>
-                              }
+                              endIcon={<ChevronIcon expanded={shown} />}
                               sx={{
                                 font: 'inherit',
                                 textTransform: 'none',
@@ -355,24 +314,14 @@ function ImportCardsPage() {
             )}
           </Box>
         </Stack>
-      </Box>
-      <Box
-        role="tabpanel"
-        id="import-panel-document"
-        aria-labelledby="import-tab-document"
-        hidden={tab !== 'document'}
-      >
+      </TabPanel>
+      <TabPanel group="import" value="document" current={tab}>
         <DocumentScan />
-      </Box>
-      <Box
-        role="tabpanel"
-        id="import-panel-preply"
-        aria-labelledby="import-tab-preply"
-        hidden={tab !== 'preply'}
-      >
+      </TabPanel>
+      <TabPanel group="import" value="preply" current={tab}>
         <PreplyImport active={tab === 'preply'} />
-      </Box>
-    </Paper>
+      </TabPanel>
+    </Section>
   )
 }
 

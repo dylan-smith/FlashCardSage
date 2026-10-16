@@ -1,6 +1,6 @@
 import Button from '@mui/material/Button'
-import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
+import { ChevronIcon } from '../common/ChevronIcon'
 
 // A suggestions section's heading, as a button that collapses and expands the content with the id controls, with a
 // chevron that turns to show which.
@@ -23,16 +23,7 @@ export function SuggestionsHeading({
         aria-expanded={!collapsed}
         aria-controls={controls}
         onClick={onToggle}
-        endIcon={
-          <SvgIcon
-            sx={{
-              transform: collapsed ? 'rotate(-90deg)' : 'none',
-              transition: 'transform 150ms',
-            }}
-          >
-            <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-          </SvgIcon>
-        }
+        endIcon={<ChevronIcon expanded={!collapsed} />}
         sx={{
           font: 'inherit',
           textTransform: 'none',

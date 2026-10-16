@@ -17,7 +17,8 @@ import {
   createFlashCards,
   formatWords,
 } from '../../api/flashCards'
-import { ApiError, describeFetchError } from '../../api/client'
+import { describeFetchError } from '../../api/client'
+import { reportFailure } from '../../lib/reportFailure'
 import type { FlashCardBatch, FlashCardFields } from '../../api/flashCards'
 import { useUserTags } from '../../hooks/useUserTags'
 import { trackEvent, trackException } from '../../telemetry'
@@ -48,14 +49,6 @@ const documentAddedToast = 'document-added'
 
 // What adding the cards did, and whether the document may have more.
 type Added = { count: number; skippedCount: number; limitReached: boolean }
-
-// Reports a failure, unless it's an error the API sent for the user to see, such as a document it can't scan, which is
-// theirs to fix, not a failure.
-function reportFailure(error: unknown, operation: string) {
-  if (!(error instanceof ApiError)) {
-    trackException(error, { operation })
-  }
-}
 
 // What adding the cards did, naming the document they're from and the deck they went in.
 function describeAdded(

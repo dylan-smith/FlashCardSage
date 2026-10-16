@@ -1,10 +1,8 @@
 import { useRef, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
-import CircularProgress from '@mui/material/CircularProgress'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import FormGroup from '@mui/material/FormGroup'
-import Paper from '@mui/material/Paper'
 import Switch from '@mui/material/Switch'
 import Typography from '@mui/material/Typography'
 import { describeFetchError } from '../api/client'
@@ -16,6 +14,8 @@ import {
   usePreferences,
 } from '../hooks/usePreferences'
 import { trackEvent, trackException } from '../telemetry'
+import { Loading } from '../components/common/Loading'
+import { Section } from '../components/common/Section'
 
 const options: {
   key: keyof Preferences
@@ -76,19 +76,14 @@ function PreferencesPage() {
   }
 
   return (
-    <Paper component="section" elevation={2} sx={{ p: 3 }}>
-      <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-        Preferences
-      </Typography>
+    <Section title="Preferences">
       {errorMessage && (
         <Alert severity="error" sx={{ mb: 2 }}>
           {errorMessage}
         </Alert>
       )}
       {preferences === null ? (
-        <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-          <CircularProgress aria-label="Loading" />
-        </Box>
+        <Loading />
       ) : (
         <FormGroup sx={{ gap: 2 }}>
           {options.map(({ key, label, description }) => (
@@ -117,7 +112,7 @@ function PreferencesPage() {
           ))}
         </FormGroup>
       )}
-    </Paper>
+    </Section>
   )
 }
 
