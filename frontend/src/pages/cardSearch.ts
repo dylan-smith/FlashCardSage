@@ -9,7 +9,11 @@ function normalize(text: string) {
 }
 
 // Whether a card has the search on either side, whatever their accents and case. An empty search matches every card.
-export function matchesSearch(card: FlashCardWords, search: string) {
+// A card to add, such as one scanned from a document, is searched the same way.
+export function matchesSearch(
+  card: Pick<FlashCardWords, 'spanish' | 'english'>,
+  search: string,
+) {
   const query = normalize(search.trim())
   return (
     query === '' ||
