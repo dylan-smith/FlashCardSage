@@ -14,39 +14,35 @@ import {
 } from '../api/flashCards'
 import type { FlashCardBatch, FlashCardFields } from '../api/flashCards'
 import { useUserTags } from '../hooks/useUserTags'
-import {
-  clearPreplyHandoff,
-  getPreplyHandoff,
-  subscribePreplyHandoff,
-} from '../preply/preplyHandoff'
-import { groupWords } from '../preply/groupWords'
-import type { PreplyHandoff } from '../preply/preplyHandoff'
-import type { PreplyWord } from '../preply/sendToFlashCardSage'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
 import type { Toast } from '../toasts'
+import {
+  clearHandoff,
+  getHandoff,
+  subscribeHandoff,
+} from '../wordSources/handoff'
+import type { Handoff } from '../wordSources/handoff'
+import type { SourceWord, WordSource } from '../wordSources/wordSources'
+import { BookmarkletSteps } from './BookmarkletSteps'
 import { CardCandidates } from './CardCandidates'
 import type { Adding, Candidate } from './CardCandidates'
 import { cardCount } from './cardCount'
-import { PreplyBookmarklet } from './PreplyBookmarklet'
 
-// The deck the user's Preply words go in, made the first time and added to after.
-export const preplyDeckName = 'Preply'
-
-// As many cards as the API adds in one request (FlashCardBatchRequest.MaxCards), so a longer vocabulary is added a
-// part at a time.
+// As many cards as the API adds in one request (FlashCardBatchRequest.MaxCards), so a longer list is added a part at
+// a time.
 const batchSize = 100
 
-// The words on the user's cards, by language and ignoring case, so the Preply words they already have are left out.
+// The words on the user's cards, by language and ignoring case, so the site's words they already have are left out.
 type Known = { spanish: Set<string>; english: Set<string> }
 
-// The toast for the cards just added, one at a time or all at once, so each replaces the last.
-const preplyAddedToast = 'preply-added'
+// What this tab's panel sees when the bookmarklet that sent something, or is being waited for, is another site's.
+const noHandoff: Handoff = { status: 'none' }
 
 // The notices already shown for each lot of words, so coming back to the page doesn't show them again.
-const announced = new WeakMap<PreplyHandoff, Set<string>>()
+const announced = new WeakMap<Handoff, Set<string>>()
 
-function announceOnce(handoff: PreplyHandoff, toast: Toast) {
+function announceOnce(handoff: Handoff, toast: Toast) {
   const keys = announced.get(handoff) ?? new Set<string>()
   if (keys.has(toast.key)) {
     return
@@ -59,9 +55,8 @@ function announceOnce(handoff: PreplyHandoff, toast: Toast) {
 // What adding the cards did: how many went in, one at a time or all at once, and how many were left out.
 type Added = { count: number; skippedCount: number }
 
-// Preply's words as cards, with the words that share a Spanish or English word on one card.
-function toCandidates(words: PreplyWord[]): Candidate[] {
-  return groupWords(words).map(({ spanish, english }, key) => ({
+function toCandidates(source: WordSource, words: SourceWord[]): Candidate[] {
+  return source.toGroups(words).map(({ spanish, english }, key) => ({
     spanish,
     english,
     tags: [],
@@ -80,36 +75,44 @@ function isKnown(
   )
 }
 
-function describeAdded({ count, skippedCount }: Added) {
-  const added = `Added ${cardCount(count)} to your ${preplyDeckName} deck.`
-  if (skippedCount === 0) {
-    return added
-  }
-  return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
+function wordsAre(count: number) {
+  return count === 1 ? '1 word is' : `${count} words are`
 }
 
-// The Import cards page's Preply tab, where the "Send to FlashCardSage" bookmarklet brings the user's Preply
-// vocabulary. The words are listed like the cards from a document, to look over, change or remove, and then add one at
-// a time or all at once to the user's Preply deck. Words the user already has cards for are left out. Until the
-// bookmarklet sends words, it says how to use it. Its notices wait until its tab is showing.
-export function PreplyImport({ active }: { active: boolean }) {
-  const handoff = useSyncExternalStore(subscribePreplyHandoff, getPreplyHandoff)
+// The Import cards page's tab for a site the user learns on, where its "Send to FlashCardSage" bookmarklet brings the
+// user's words. The words are listed like the cards from a document, to look over, change or remove, and then add one
+// at a time or all at once to the user's deck for the site. Words the user already has cards for are left out. Until
+// the bookmarklet sends words, it says how to use it. Its notices wait until its tab is showing.
+export function WordSourceImport({
+  source,
+  active,
+}: {
+  source: WordSource
+  active: boolean
+}) {
+  const { name: deckName } = source
+  const everyHandoff = useSyncExternalStore(subscribeHandoff, getHandoff)
+  // Only this site's words. Another site's tab is waiting for, or has, its own.
+  const handoff =
+    everyHandoff.status !== 'none' && everyHandoff.source === source.id
+      ? everyHandoff
+      : noHandoff
   // The words as cards, which the user changes and removes, made again whenever the bookmarklet sends words.
-  const [source, setSource] = useState<PreplyHandoff>(handoff)
+  const [shownFor, setShownFor] = useState<Handoff>(handoff)
   const [candidates, setCandidates] = useState<Candidate[]>(() =>
-    handoff.status === 'received' ? toCandidates(handoff.words) : [],
+    handoff.status === 'received' ? toCandidates(source, handoff.words) : [],
   )
-  if (handoff !== source) {
-    setSource(handoff)
+  if (handoff !== shownFor) {
+    setShownFor(handoff)
     if (handoff.status === 'received') {
-      setCandidates(toCandidates(handoff.words))
+      setCandidates(toCandidates(source, handoff.words))
     }
   }
   const [known, setKnown] = useState<Known | null>(null)
   const [adding, setAdding] = useState<Adding>(null)
   // How many the user has added one at a time.
   const [addedCount, setAddedCount] = useState(0)
-  // The Preply deck the cards went in, for the toast's link once they're all added.
+  // The deck the cards went in, for the toast's link once they're all added.
   const deckId = useRef<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
   const [deckError, setDeckError] = useState('')
@@ -122,62 +125,74 @@ export function PreplyImport({ active }: { active: boolean }) {
       ? candidates
       : candidates.filter((candidate) => !isKnown(known, candidate))
   // Whether there were any new words to add before the user added or removed some.
-  const anyNew = toCandidates(words).some(
+  const anyNew = toCandidates(source, words).some(
     (candidate) => known === null || !isKnown(known, candidate),
   )
 
-  // Most likely Preply changed its API, which only shows up here.
+  // Most likely the site changed its API, which only shows up here.
   const failure = handoff.status === 'failed' ? handoff.message : null
   useEffect(() => {
     if (failure !== null) {
-      trackException(new Error(failure), { operation: 'readPreply' })
+      trackException(new Error(failure), { operation: `read${source.name}` })
     }
-  }, [failure])
+  }, [failure, source.name])
 
-  // Says which words are left out, once, when they come.
+  // Says which words are left out, once, when they come: the ones the site has no English for, and the ones whose
+  // English is all on other cards here (which only Duolingo's words can be).
   useEffect(() => {
     if (!active || handoff.status !== 'received') {
       return
     }
     const noEnglish = handoff.words.filter(
-      (word) => word.english === null,
+      (word) => word.english.length === 0,
     ).length
     if (noEnglish > 0) {
       announceOnce(handoff, {
-        key: 'preply-no-english',
+        key: `${source.id}-no-english`,
         severity: 'info',
-        message: `${noEnglish === 1 ? '1 word is' : `${noEnglish} words are`} left out because Preply has no English for ${noEnglish === 1 ? 'it' : 'them'}.`,
+        message: `${wordsAre(noEnglish)} left out because ${source.name} has no English for ${noEnglish === 1 ? 'it' : 'them'}.`,
       })
     }
-  }, [active, handoff])
+    const onCards = source
+      .toGroups(handoff.words)
+      .reduce((total, group) => total + group.wordCount, 0)
+    const englishTaken = handoff.words.length - noEnglish - onCards
+    if (englishTaken > 0) {
+      announceOnce(handoff, {
+        key: `${source.id}-english-taken`,
+        severity: 'info',
+        message: `${wordsAre(englishTaken)} left out because ${englishTaken === 1 ? 'its' : 'their'} English is on other cards here.`,
+      })
+    }
+  }, [active, handoff, source])
   useEffect(() => {
     if (!active || handoff.status !== 'received' || known === null) {
       return
     }
-    // Counted in Preply's words, though they're left out a card at a time.
-    const alreadyHave = groupWords(handoff.words)
+    // Counted in the site's words, though they're left out a card at a time.
+    const alreadyHave = source
+      .toGroups(handoff.words)
       .filter((group) => isKnown(known, group))
       .reduce((total, group) => total + group.wordCount, 0)
     if (alreadyHave > 0) {
       announceOnce(handoff, {
-        key: 'preply-already-have',
+        key: `${source.id}-already-have`,
         severity: 'info',
-        message: `${alreadyHave === 1 ? '1 word is' : `${alreadyHave} words are`} left out because you already have ${alreadyHave === 1 ? 'a card' : 'cards'} for ${alreadyHave === 1 ? 'it' : 'them'}.`,
+        message: `${wordsAre(alreadyHave)} left out because you already have ${alreadyHave === 1 ? 'a card' : 'cards'} for ${alreadyHave === 1 ? 'it' : 'them'}.`,
       })
     }
-  }, [active, handoff, known])
+  }, [active, handoff, known, source])
 
   // Says how to try again when no words came.
   useEffect(() => {
     if (active && handoff.status === 'timedOut') {
       announceOnce(handoff, {
-        key: 'preply-timed-out',
+        key: `${source.id}-timed-out`,
         severity: 'info',
-        message:
-          "No words came from Preply. To bring them in, click the bookmarklet on your Preply vocabulary page again. If you don't have it any more, drag it to your bookmarks bar from step 1 below.",
+        message: `No words came from ${source.name}. To bring them in, click the bookmarklet on your ${source.name} ${source.wordsName} page again. If you don't have it any more, drag it to your bookmarks bar from step 1 below.`,
       })
     }
-  }, [active, handoff])
+  }, [active, handoff, source])
 
   // The user's cards, once there are words to check against them. If they don't load, every word is listed, and the
   // API leaves out the ones the user has when they're added.
@@ -207,19 +222,19 @@ export function PreplyImport({ active }: { active: boolean }) {
     }
   }, [received])
 
-  // Puts the cards in the user's Preply deck, making it the first time. The cards are added whatever happens to the
-  // deck, so a failure is only said.
+  // Puts the cards in the user's deck for the site, making it the first time. The cards are added whatever happens to
+  // the deck, so a failure is only said.
   async function putInDeck(ids: number[]) {
     if (ids.length === 0) {
       return
     }
     try {
-      const deck = await addToNamedDeck(preplyDeckName, ids)
+      const deck = await addToNamedDeck(deckName, ids)
       deckId.current = deck.id
     } catch (error) {
-      trackException(error, { operation: 'preplyDeck' })
+      trackException(error, { operation: `${source.id}Deck` })
       setDeckError(
-        `The cards were added, but couldn't be put in your ${preplyDeckName} deck.`,
+        `The cards were added, but couldn't be put in your ${deckName} deck.`,
       )
     }
   }
@@ -250,10 +265,19 @@ export function PreplyImport({ active }: { active: boolean }) {
     }
   }
 
+  function describeAdded({ count, skippedCount }: Added) {
+    const added = `Added ${cardCount(count)} to your ${deckName} deck.`
+    if (skippedCount === 0) {
+      return added
+    }
+    return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
+  }
+
   // Once every word's been added or removed, they're forgotten, so a reload doesn't bring them back.
   function finish(result: Added) {
     showToast({
-      key: preplyAddedToast,
+      // The toast for the cards just added, one at a time or all at once, so each replaces the last.
+      key: `${source.id}-added`,
       severity: 'success',
       message: describeAdded(result),
       action:
@@ -263,19 +287,19 @@ export function PreplyImport({ active }: { active: boolean }) {
     })
     setAddedCount(0)
     setCandidates([])
-    clearPreplyHandoff()
+    clearHandoff()
   }
 
   function handleAddedOne(candidate: Candidate) {
-    trackEvent('PreplyCardAdded')
+    trackEvent(`${source.name}CardAdded`)
     const remaining = shown.filter((item) => item.key !== candidate.key)
     if (remaining.length === 0) {
       finish({ count: addedCount + 1, skippedCount: 0 })
     } else {
       showToast({
-        key: preplyAddedToast,
+        key: `${source.id}-added`,
         severity: 'success',
-        message: `Added “${formatWords(candidate.spanish)}” to your ${preplyDeckName} deck.`,
+        message: `Added “${formatWords(candidate.spanish)}” to your ${deckName} deck.`,
       })
       setAddedCount(addedCount + 1)
       setCandidates((current) =>
@@ -285,7 +309,9 @@ export function PreplyImport({ active }: { active: boolean }) {
   }
 
   function handleAddedAll(result: FlashCardBatch) {
-    trackEvent('PreplyCardsAdded', { count: String(result.cards.length) })
+    trackEvent(`${source.name}CardsAdded`, {
+      count: String(result.cards.length),
+    })
     finish({
       count: result.cards.length + addedCount,
       skippedCount: result.skippedCount,
@@ -299,7 +325,7 @@ export function PreplyImport({ active }: { active: boolean }) {
         {deckError && <Alert severity="error">{deckError}</Alert>}
         {failure !== null && (
           <Alert severity="error">
-            Your words couldn&apos;t be read from Preply. {failure}
+            Your words couldn&apos;t be read from {source.name}. {failure}
           </Alert>
         )}
 
@@ -310,18 +336,14 @@ export function PreplyImport({ active }: { active: boolean }) {
               sx={{ display: 'flex', alignItems: 'center', gap: 2, py: 1 }}
             >
               <CircularProgress aria-hidden size={32} />
-              <Typography>Getting your words from Preply…</Typography>
+              <Typography>Getting your words from {source.name}…</Typography>
             </Box>
             <Typography color="text.secondary" sx={{ mt: 1 }}>
               This only takes a few seconds. If nothing comes, click the
-              bookmarklet on your Preply vocabulary page again.
+              bookmarklet on your {source.name} {source.wordsName} page again.
             </Typography>
             {/* The way back to the steps, and the bookmarklet, without waiting it out. */}
-            <Button
-              type="button"
-              onClick={clearPreplyHandoff}
-              sx={{ mt: 1, ml: -1 }}
-            >
+            <Button type="button" onClick={clearHandoff} sx={{ mt: 1, ml: -1 }}>
               Stop waiting
             </Button>
           </Box>
@@ -330,13 +352,13 @@ export function PreplyImport({ active }: { active: boolean }) {
         {received && (
           <>
             <Typography color="text.secondary">
-              These are the words in your Preply vocabulary. You can change or
-              remove them before you add them to your {preplyDeckName} deck, one
-              at a time or all at once. Words you already have cards for are
-              left out.
+              These are the words in your {source.name} {source.wordsName}. You
+              can change or remove them before you add them to your {deckName}{' '}
+              deck, one at a time or all at once. Words you already have cards
+              for are left out.
             </Typography>
             <Typography variant="h6" component="h2">
-              {`${cardCount(shown.length)} from Preply`}
+              {`${cardCount(shown.length)} from ${source.name}`}
             </Typography>
             {shown.length === 0 ? (
               <Typography color="text.secondary">
@@ -344,11 +366,11 @@ export function PreplyImport({ active }: { active: boolean }) {
                   ? `You added ${cardCount(addedCount)} and removed the rest.`
                   : anyNew
                     ? 'You removed all the cards.'
-                    : "There aren't any new words in your Preply vocabulary."}
+                    : `There aren't any new words in your ${source.name} ${source.wordsName}.`}
               </Typography>
             ) : (
               <CardCandidates
-                label="Cards from Preply"
+                label={`Cards from ${source.name}`}
                 candidates={shown}
                 onCandidatesChange={setCandidates}
                 tags={tags}
@@ -367,7 +389,9 @@ export function PreplyImport({ active }: { active: boolean }) {
 
         {(handoff.status === 'none' ||
           handoff.status === 'failed' ||
-          handoff.status === 'timedOut') && <PreplyBookmarklet />}
+          handoff.status === 'timedOut') && (
+          <BookmarkletSteps source={source} />
+        )}
       </Stack>
     </Box>
   )

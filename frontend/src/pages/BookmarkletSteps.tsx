@@ -9,11 +9,8 @@ import Stack from '@mui/material/Stack'
 import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import { bookmarkletHref } from '../preply/sendToFlashCardSage'
 import { showToast } from '../toasts'
-
-export const preplyVocabularyUrl =
-  'https://preply.com/en/practice/vocab-bank?subject=spanish'
+import type { WordSource } from '../wordSources/wordSources'
 
 // A phone or tablet with only a touch screen, which has no bookmarks bar to drag the bookmarklet to.
 export const touchOnlyQuery = '(hover: none) and (pointer: coarse)'
@@ -99,9 +96,11 @@ function Step({
   )
 }
 
-// How to bring in the user's Preply vocabulary, as four steps: drag the bookmarklet to the bookmarks bar, open Preply,
-// click it there, and pick the words to add. On a phone that can't be done, so it says to do it on a computer instead.
-export function PreplyBookmarklet() {
+// How to bring in the user's words from a site, as four steps: drag its bookmarklet to the bookmarks bar, open the
+// site, click it there, and pick the words to add. On a phone that can't be done, so it says to do it on a computer
+// instead.
+export function BookmarkletSteps({ source }: { source: WordSource }) {
+  const { name, wordsName } = source
   const linkRef = useRef<HTMLAnchorElement>(null)
   // Read straight away, since the app is only rendered in the browser, so a phone doesn't show the steps first.
   const touchOnly = useMediaQuery(touchOnlyQuery, { noSsr: true })
@@ -110,17 +109,17 @@ export function PreplyBookmarklet() {
   useEffect(() => {
     linkRef.current?.setAttribute(
       'href',
-      bookmarkletHref(window.location.origin),
+      source.bookmarkletHref(window.location.origin),
     )
-  }, [touchOnly])
+  }, [source, touchOnly])
 
   if (touchOnly) {
     return (
       <Alert severity="info">
-        Bringing in your Preply words needs a computer. It uses a bookmarklet
-        you click on Preply&apos;s website, and phones and tablets don&apos;t
+        Bringing in your {name} words needs a computer. It uses a bookmarklet
+        you click on {name}&apos;s website, and phones and tablets don&apos;t
         have a bookmarks bar to add it to. Do this step on a computer, and the
-        cards will be in your Preply deck here too.
+        cards will be in your {name} deck here too.
       </Alert>
     )
   }
@@ -128,7 +127,7 @@ export function PreplyBookmarklet() {
   return (
     <Box>
       <Typography color="text.secondary" sx={{ mb: 2 }}>
-        Bring in the words in your Preply vocabulary as cards in your Preply
+        Bring in the words in your {name} {wordsName} as cards in your {name}{' '}
         deck:
       </Typography>
       <Stack
@@ -148,13 +147,12 @@ export function PreplyBookmarklet() {
             href="#send-to-flashcardsage"
             variant="contained"
             onClick={(event: React.MouseEvent) => {
-              // It only works as a bookmark on Preply.
+              // It only works as a bookmark on the site.
               event.preventDefault()
               showToast({
                 key: 'bookmarklet-hint',
                 severity: 'info',
-                message:
-                  'This button only works from your bookmarks bar. Drag it there, then click it on your Preply vocabulary page.',
+                message: `This button only works from your bookmarks bar. Drag it there, then click it on your ${name} ${wordsName} page.`,
               })
             }}
             sx={{ cursor: 'grab', mt: 'auto' }}
@@ -162,17 +160,17 @@ export function PreplyBookmarklet() {
             Send to FlashCardSage
           </Button>
         </Step>
-        <Step number={2} icon={openIcon} title="Open Preply">
+        <Step number={2} icon={openIcon} title={`Open ${name}`}>
           <Typography variant="body2" color="text.secondary">
-            Go to your vocabulary, signed in to Preply.
+            Go to your {wordsName}, signed in to {name}.
           </Typography>
           <Link
-            href={preplyVocabularyUrl}
+            href={source.wordsUrl}
             target="_blank"
             rel="noreferrer"
             sx={{ mt: 'auto' }}
           >
-            Preply vocabulary
+            {name} {wordsName}
           </Link>
         </Step>
         <Step number={3} icon={mouseIcon} title="Click the bookmarklet">
@@ -182,7 +180,7 @@ export function PreplyBookmarklet() {
         </Step>
         <Step number={4} icon={checkListIcon} title="Pick and add">
           <Typography variant="body2" color="text.secondary">
-            Change or remove any, then add them to your Preply deck. Words you
+            Change or remove any, then add them to your {name} deck. Words you
             already have are left out.
           </Typography>
         </Step>

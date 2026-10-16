@@ -22,14 +22,15 @@ import {
   listSystemDecks,
 } from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
-import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
+import { wordSourceFrom, wordSources } from '../wordSources/wordSources'
+import type { WordSourceId } from '../wordSources/wordSources'
 import { CardActionButton } from './CardActionButton'
 import { cardCount } from './cardCount'
 import { DocumentScan } from './DocumentScan'
 import { FlashCardRow } from './FlashCardRow'
-import { PreplyImport } from './PreplyImport'
+import { WordSourceImport } from './WordSourceImport'
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
 function describeImport({ deck, skippedCount }: SystemDeckImport) {
@@ -40,22 +41,22 @@ function describeImport({ deck, skippedCount }: SystemDeckImport) {
   return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
 }
 
-// Where the cards come from: a built-in deck, a document the user picks, or their Preply vocabulary.
-type ImportTab = 'decks' | 'document' | 'preply'
+// Where the cards come from: a built-in deck, a document the user picks, or their words on a site they learn on.
+type ImportTab = 'decks' | 'document' | WordSourceId
 
-// The URL's from parameter for each tab but the first, so a link, a refresh or the back button opens it. The
-// "Send to FlashCardSage" bookmarklet opens the Preply tab this way.
+// The URL's from parameter for each tab but the first, so a link, a refresh or the back button opens it. A site's
+// "Send to FlashCardSage" bookmarklet opens the site's tab this way, with the site's id.
 const documentTabParam = 'document'
 
 function tabFrom(param: string | null): ImportTab {
   if (param === documentTabParam) {
     return 'document'
   }
-  return param === preplyTabParam ? 'preply' : 'decks'
+  return wordSourceFrom(param)?.id ?? 'decks'
 }
 
-// The built-in decks the user can add to their own, cards made from a document they pick, and the words in their
-// Preply vocabulary, on tabs rather than one after the other, since each can be a long list. Adding a deck copies its
+// The built-in decks the user can add to their own, cards made from a document they pick, and the words on each site
+// they learn on, on tabs rather than one after the other, since each can be a long list. Adding a deck copies its
 // cards and tags, so the user can change them like any of their cards.
 function ImportCardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
@@ -175,13 +176,13 @@ function ImportCardsPage() {
     setSearchParams(
       value === 'document'
         ? { from: documentTabParam }
-        : value === 'preply'
-          ? { from: preplyTabParam }
-          : {},
+        : value === 'decks'
+          ? {}
+          : { from: value },
     )
   }
 
-  // Both tabs stay mounted, so a scan on its way or cards half looked over are still there after a look at the decks.
+  // Every tab stays mounted, so a scan on its way or cards half looked over are still there after a look at the decks.
   return (
     <Paper component="section" elevation={2} sx={{ p: 3, pt: 1 }}>
       <Tabs
@@ -203,12 +204,15 @@ function ImportCardsPage() {
           id="import-tab-document"
           aria-controls="import-panel-document"
         />
-        <Tab
-          value="preply"
-          label="From Preply"
-          id="import-tab-preply"
-          aria-controls="import-panel-preply"
-        />
+        {wordSources.map((source) => (
+          <Tab
+            key={source.id}
+            value={source.id}
+            label={`From ${source.name}`}
+            id={`import-tab-${source.id}`}
+            aria-controls={`import-panel-${source.id}`}
+          />
+        ))}
       </Tabs>
       {/* A Box, since a Stack's display would show the panel while it's hidden. */}
       <Box
@@ -356,14 +360,17 @@ function ImportCardsPage() {
       >
         <DocumentScan />
       </Box>
-      <Box
-        role="tabpanel"
-        id="import-panel-preply"
-        aria-labelledby="import-tab-preply"
-        hidden={tab !== 'preply'}
-      >
-        <PreplyImport active={tab === 'preply'} />
-      </Box>
+      {wordSources.map((source) => (
+        <Box
+          key={source.id}
+          role="tabpanel"
+          id={`import-panel-${source.id}`}
+          aria-labelledby={`import-tab-${source.id}`}
+          hidden={tab !== source.id}
+        >
+          <WordSourceImport source={source} active={tab === source.id} />
+        </Box>
+      ))}
     </Paper>
   )
 }

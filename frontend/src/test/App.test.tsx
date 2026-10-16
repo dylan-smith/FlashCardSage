@@ -16,8 +16,8 @@ import { tagSuggestDelayMs } from '../hooks/useTagSuggestions'
 import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
 import { documentDeckName } from '../pages/documentDeckName'
 import { tagSuggestionsCollapsedKey } from '../pages/TagSuggestions'
-import { clearPreplyHandoff, startPreplyHandoff } from '../preply/preplyHandoff'
-import { touchOnlyQuery } from '../pages/PreplyBookmarklet'
+import { clearHandoff, startHandoff } from '../wordSources/handoff'
+import { touchOnlyQuery } from '../pages/BookmarkletSteps'
 import { trackEvent, trackException } from '../telemetry'
 
 vi.mock('../telemetry', () => ({
@@ -4002,7 +4002,7 @@ describe('App', () => {
     it('lists the built-in decks with their card counts', async () => {
       await showImport()
 
-      // The built-in decks' tab is open, next to the document's and Preply's.
+      // The built-in decks' tab is open, next to the document's, Preply's and Duolingo's.
       expect(
         screen.getByRole('tab', { name: 'Built-in decks' }),
       ).toHaveAttribute('aria-selected', 'true')
@@ -4013,6 +4013,9 @@ describe('App', () => {
         'aria-selected',
         'false',
       )
+      expect(
+        screen.getByRole('tab', { name: 'From Duolingo' }),
+      ).toHaveAttribute('aria-selected', 'false')
       expect(
         within(
           screen.getByRole('navigation', { name: 'Manage cards' }),
@@ -4507,11 +4510,11 @@ describe('App', () => {
 
     beforeEach(() => {
       vi.spyOn(window, 'postMessage').mockImplementation(() => {})
-      startPreplyHandoff(opened)
+      startHandoff(opened)
     })
 
     afterEach(() => {
-      clearPreplyHandoff()
+      clearHandoff()
     })
 
     // Shows the Import cards page's Preply tab, as the bookmarklet opens it, with the user's cards and decks loaded.
@@ -4883,7 +4886,7 @@ describe('App', () => {
     })
 
     it('says how to use the bookmarklet when opened some other way', async () => {
-      clearPreplyHandoff()
+      clearHandoff()
       await showPreply()
 
       expect(
@@ -4907,7 +4910,7 @@ describe('App', () => {
         dispatchEvent: () => false,
       }))
       try {
-        clearPreplyHandoff()
+        clearHandoff()
         await showPreply()
 
         expect(
@@ -4919,6 +4922,233 @@ describe('App', () => {
       } finally {
         vi.unstubAllGlobals()
       }
+    })
+  })
+
+  // The Duolingo tab works like the Preply one, with its own bookmarklet, deck and words: Duolingo gives a word every
+  // English meaning it has, and a meaning goes on the first card that has it.
+  describe('importing from Duolingo', () => {
+    const flashCardsUrl = 'http://localhost:5269/api/flashcards'
+    const words = [
+      { spanish: 'a', english: ['to', 'at', 'for'] },
+      { spanish: 'para', english: ['for', 'in order to'] },
+      { spanish: 'por', english: ['for'] },
+      { spanish: 'gustaron', english: [] },
+      { spanish: 'el pan', english: ['bread'] },
+    ]
+    // The user already has a card for "el pan".
+    const ownCards: FlashCard[] = [
+      {
+        id: 1,
+        spanish: ['el pan'],
+        english: ['the bread'],
+        tags: [],
+        imageUrl: null,
+      },
+    ]
+    const duolingoDeck: Deck = { id: 41, name: 'Duolingo', flashCardIds: [] }
+
+    const opened = Object.assign(new EventTarget(), {
+      location: { pathname: '/import', search: '?from=duolingo' },
+      opener: window,
+      setTimeout: () => 0,
+    }) as unknown as Window
+
+    function sendFromDuolingo(
+      data: unknown,
+      origin = 'https://www.duolingo.com',
+    ) {
+      act(() => {
+        opened.dispatchEvent(
+          new MessageEvent('message', { origin, source: window, data }),
+        )
+      })
+    }
+
+    beforeEach(() => {
+      vi.spyOn(window, 'postMessage').mockImplementation(() => {})
+      startHandoff(opened)
+    })
+
+    afterEach(() => {
+      clearHandoff()
+    })
+
+    async function showDuolingo(
+      save: (url: string, init?: RequestInit) => Promise<Response> = () => {
+        throw new Error('Unexpected request')
+      },
+    ) {
+      const calls = mockFetch(
+        async (url, init) =>
+          init?.method !== undefined
+            ? save(url, init)
+            : jsonResponse(url === flashCardsUrl ? ownCards : []),
+        [],
+        [],
+      )
+      renderAt('/import?from=duolingo')
+      expect(
+        screen.getByRole('tab', { name: 'From Duolingo' }),
+      ).toHaveAttribute('aria-selected', 'true')
+      expect(
+        await screen.findByText("There aren't any built-in decks yet."),
+      ).not.toBeVisible()
+      return calls
+    }
+
+    it('offers its own bookmarklet and deck', async () => {
+      clearHandoff()
+      await showDuolingo()
+
+      // Only the Duolingo tab's steps show, though the Preply tab has its own.
+      expect(
+        screen.getByText(
+          'Bring in the words in your Duolingo word list as cards in your Duolingo deck:',
+        ),
+      ).toBeVisible()
+      const steps = within(
+        screen.getByRole('tabpanel', { name: 'From Duolingo' }),
+      ).getAllByRole('listitem')
+      expect(
+        within(steps[1]).getByRole('heading', { level: 2 }),
+      ).toHaveTextContent('Open Duolingo')
+      expect(
+        within(steps[1]).getByRole('link', { name: 'Duolingo word list' }),
+      ).toHaveAttribute('href', 'https://www.duolingo.com/practice-hub/words')
+      const bookmarklet = screen.getByRole('link', {
+        name: 'Send to FlashCardSage',
+      })
+      expect(
+        decodeURIComponent(bookmarklet.getAttribute('href') ?? ''),
+      ).toContain('/import?from=duolingo')
+    })
+
+    it('waits for the words, then lists each as a card with its English', async () => {
+      await showDuolingo()
+      expect(
+        screen.getByText('Getting your words from Duolingo…'),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByText('Getting your words from Preply…'),
+      ).not.toBeInTheDocument()
+      // Words from Preply, or in Preply's message, aren't Duolingo's.
+      sendFromDuolingo(
+        { type: 'flashcardsage:duolingo-words', words },
+        'https://preply.com',
+      )
+      sendFromDuolingo({ type: 'flashcardsage:preply-words', words })
+      expect(
+        screen.getByText('Getting your words from Duolingo…'),
+      ).toBeInTheDocument()
+
+      sendFromDuolingo({ type: 'flashcardsage:duolingo-words', words })
+
+      expect(
+        await screen.findByText(
+          '1 word is left out because you already have a card for it.',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          '1 word is left out because Duolingo has no English for it.',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          '1 word is left out because its English is on other cards here.',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByRole('heading', {
+          level: 2,
+          name: '2 cards from Duolingo',
+        }),
+      ).toBeInTheDocument()
+      const list = screen.getByRole('list', { name: 'Cards from Duolingo' })
+      const rows = within(list).getAllByRole('listitem')
+      expect(rows).toHaveLength(2)
+      expect(within(rows[0]).getByText('a')).toBeInTheDocument()
+      expect(within(rows[0]).getByText('to / at / for')).toBeInTheDocument()
+      expect(within(rows[1]).getByText('para')).toBeInTheDocument()
+      expect(within(rows[1]).getByText('in order to')).toBeInTheDocument()
+    })
+
+    it('adds all the cards to a new Duolingo deck', async () => {
+      const user = userEvent.setup()
+      const calls = await showDuolingo(async (url) =>
+        url === `${flashCardsUrl}/batch`
+          ? jsonResponse({
+              cards: [
+                {
+                  id: 9,
+                  spanish: ['a'],
+                  english: ['to', 'at', 'for'],
+                  tags: [],
+                  imageUrl: null,
+                },
+                {
+                  id: 10,
+                  spanish: ['para'],
+                  english: ['in order to'],
+                  tags: [],
+                  imageUrl: null,
+                },
+              ],
+              skippedCount: 0,
+            })
+          : jsonResponse({ ...duolingoDeck, flashCardIds: [9, 10] }, 201),
+      )
+      sendFromDuolingo({ type: 'flashcardsage:duolingo-words', words })
+      await screen.findByRole('list', { name: 'Cards from Duolingo' })
+
+      await user.click(
+        screen.getAllByRole('button', { name: 'Add all 2 cards' })[0],
+      )
+
+      expect(
+        await screen.findByText('Added 2 cards to your Duolingo deck.'),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Open deck' })).toHaveAttribute(
+        'href',
+        '/decks/41',
+      )
+      const batch = calls.find((call) => call.url === `${flashCardsUrl}/batch`)
+      expect(JSON.parse(batch?.init?.body as string)).toEqual({
+        cards: [
+          { spanish: ['a'], english: ['to', 'at', 'for'], tags: [] },
+          { spanish: ['para'], english: ['in order to'], tags: [] },
+        ],
+      })
+      const deck = calls.find(
+        (call) => call.url === decksUrl && call.init?.method === 'POST',
+      )
+      expect(JSON.parse(deck?.init?.body as string)).toEqual({
+        name: 'Duolingo',
+        flashCardIds: [9, 10],
+      })
+      expect(trackEvent).toHaveBeenCalledWith('DuolingoCardsAdded', {
+        count: '2',
+      })
+      expect(
+        screen.getByRole('link', { name: 'Send to FlashCardSage' }),
+      ).toBeInTheDocument()
+    })
+
+    it("says when Duolingo's words can't be read", async () => {
+      await showDuolingo()
+
+      sendFromDuolingo({
+        type: 'flashcardsage:duolingo-error',
+        message: 'Switch to that course on Duolingo.',
+      })
+
+      expect(screen.getByRole('alert')).toHaveTextContent(
+        "Your words couldn't be read from Duolingo. Switch to that course on Duolingo.",
+      )
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'readDuolingo',
+      })
     })
   })
 

@@ -1,7 +1,7 @@
 // The "Send to FlashCardSage" bookmarklet, which the user clicks on their Preply vocabulary page. Preply has no API
 // we can call for the user, but its own page reads the vocabulary from its GraphQL API with the user's Preply sign-in,
 // and so can a bookmarklet running on that page. It opens FlashCardSage's import page and sends it the words, which
-// preplyHandoff receives.
+// wordSources/handoff receives.
 
 // One word or phrase from the user's Preply vocabulary. Preply sometimes has no English for a word.
 export type PreplyWord = {
