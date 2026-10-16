@@ -20,8 +20,8 @@ import type { FlashCardScores } from '../api/flashCards'
 import { useCardSelection } from '../hooks/useCardSelection'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { trackException } from '../telemetry'
-import CardSelectionPicker from './CardSelectionPicker'
-import { matchesSearch } from './cardSearch'
+import { CardSelectionPicker } from '../components/cards/CardSelectionPicker'
+import { matchesSearch } from '../lib/cardSearch'
 
 const emptyMessages: Record<CardSelectionKind, string> = {
   all: 'There are no flash cards to score yet.',

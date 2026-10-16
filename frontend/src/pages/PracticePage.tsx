@@ -23,7 +23,7 @@ import { useCardSelection } from '../hooks/useCardSelection'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { usePreferences } from '../hooks/usePreferences'
 import { trackEvent, trackException } from '../telemetry'
-import CardSelectionPicker from './CardSelectionPicker'
+import { CardSelectionPicker } from '../components/cards/CardSelectionPicker'
 
 // Which field of a card holds each side, and its language.
 const sides: Record<

@@ -6,11 +6,11 @@ import {
   updateFlashCard,
 } from '../api/flashCards'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
-import { useCardPicture } from '../hooks/useCardPicture'
-import type { CardPicture } from '../hooks/useCardPicture'
+import { useCardPicture } from './useCardPicture'
+import type { CardPicture } from './useCardPicture'
 import { trackEvent, trackException } from '../telemetry'
-import { trimFields } from './cardFields'
-import type { FieldsUpdate } from './cardFields'
+import { trimFields } from '../lib/cardFields'
+import type { FieldsUpdate } from '../lib/cardFields'
 
 // A card being edited, with its tags by name as they're typed in, and the picture it has.
 export type EditedFlashCard = FlashCardFields & {

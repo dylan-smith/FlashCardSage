@@ -6,10 +6,8 @@ import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import CircularProgress from '@mui/material/CircularProgress'
 import TextField from '@mui/material/TextField'
-import type { Tag } from '../api/flashCards'
-
-// The most a tag name can be, as the API allows.
-export const tagMaxLength = 50
+import type { Tag } from '../../api/flashCards'
+import { tagMaxLength } from '../../api/tags'
 
 // Picks a card's tags by name from the user's tags, or makes a new one by typing a name. The typed name is added on
 // Enter, and when the field loses focus, so clicking Save straight after typing keeps it. Suggested tags show under
@@ -134,7 +132,7 @@ export function TagFilter({
 
 // The form for a tag's new name, used on the Tags page and for a deck's name too. Like the card edit form, the field gets focus when the form
 // appears.
-export function TagRenameForm({
+export function RenameForm({
   name,
   busy,
   onChange,

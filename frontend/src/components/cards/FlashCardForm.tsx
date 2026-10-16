@@ -5,21 +5,21 @@ import Button from '@mui/material/Button'
 import Chip from '@mui/material/Chip'
 import ListItem from '@mui/material/ListItem'
 import TextField from '@mui/material/TextField'
-import { maxWordsPerSide } from '../api/flashCards'
-import type { FlashCardFields, Tag } from '../api/flashCards'
-import type { CardSide } from '../api/translations'
-import { useAutoTranslate } from '../hooks/useAutoTranslate'
-import type { AutoTranslate } from '../hooks/useAutoTranslate'
-import type { CardPicture } from '../hooks/useCardPicture'
-import { usePreferences } from '../hooks/usePreferences'
-import { useTagSuggestions } from '../hooks/useTagSuggestions'
+import { maxWordLength, maxWordsPerSide } from '../../api/flashCards'
+import type { FlashCardFields, Tag } from '../../api/flashCards'
+import type { CardSide } from '../../api/translations'
+import { useAutoTranslate } from '../../hooks/useAutoTranslate'
+import type { AutoTranslate } from '../../hooks/useAutoTranslate'
+import type { CardPicture } from '../../hooks/useCardPicture'
+import { usePreferences } from '../../hooks/usePreferences'
+import { useTagSuggestions } from '../../hooks/useTagSuggestions'
 import {
   firstWords,
   pictureWords,
   setFirstWords,
   updateWords,
-} from './cardFields'
-import type { FieldsUpdate, WordsUpdate } from './cardFields'
+} from '../../lib/cardFields'
+import type { FieldsUpdate, WordsUpdate } from '../../lib/cardFields'
 import { PictureField } from './FlashCardPicture'
 import { TagsInput } from './FlashCardTags'
 
@@ -28,7 +28,7 @@ import { TagsInput } from './FlashCardTags'
 
 // A side's input is limited like the API's, and its note is a div, since it can hold the meanings' chips.
 const fieldSlotProps = {
-  htmlInput: { maxLength: 200 },
+  htmlInput: { maxLength: maxWordLength },
   formHelperText: { component: 'div' },
 } as const
 

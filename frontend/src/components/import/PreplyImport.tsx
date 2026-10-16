@@ -5,29 +5,29 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { addToNamedDeck } from '../api/decks'
+import { addToNamedDeck } from '../../api/decks'
 import {
   createFlashCard,
   createFlashCards,
   formatWords,
   listFlashCards,
-} from '../api/flashCards'
-import type { FlashCardBatch, FlashCardFields } from '../api/flashCards'
-import { useUserTags } from '../hooks/useUserTags'
+} from '../../api/flashCards'
+import type { FlashCardBatch, FlashCardFields } from '../../api/flashCards'
+import { useUserTags } from '../../hooks/useUserTags'
 import {
   clearPreplyHandoff,
   getPreplyHandoff,
   subscribePreplyHandoff,
-} from '../preply/preplyHandoff'
-import { groupWords } from '../preply/groupWords'
-import type { PreplyHandoff } from '../preply/preplyHandoff'
-import type { PreplyWord } from '../preply/sendToFlashCardSage'
-import { trackEvent, trackException } from '../telemetry'
-import { showToast } from '../toasts'
-import type { Toast } from '../toasts'
-import { CardCandidates } from './CardCandidates'
-import type { Adding, Candidate } from './CardCandidates'
-import { cardCount } from './cardCount'
+} from '../../preply/preplyHandoff'
+import { groupWords } from '../../preply/groupWords'
+import type { PreplyHandoff } from '../../preply/preplyHandoff'
+import type { PreplyWord } from '../../preply/sendToFlashCardSage'
+import { trackEvent, trackException } from '../../telemetry'
+import { showToast } from '../../toasts'
+import type { Toast } from '../../toasts'
+import { CardCandidates } from '../cards/CardCandidates'
+import type { Adding, Candidate } from '../cards/CardCandidates'
+import { cardCount } from '../../lib/cardCount'
 import { PreplyBookmarklet } from './PreplyBookmarklet'
 
 // The deck the user's Preply words go in, made the first time and added to after.

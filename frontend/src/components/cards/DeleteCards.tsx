@@ -1,8 +1,8 @@
 import { useState } from 'react'
 import Button from '@mui/material/Button'
-import { cardCount } from './cardCount'
-import { ConfirmDelete } from './ConfirmDelete'
-import { cardDeleteWarning } from './cardDeleteWarning'
+import { cardCount } from '../../lib/cardCount'
+import { ConfirmDelete } from '../common/ConfirmDelete'
+import { cardDeleteWarning } from '../../lib/cardDeleteWarning'
 
 // Deletes the cards picked on the cards page or a deck's page, once the user says so in a dialog, since it can't be undone.
 export function DeleteCards({

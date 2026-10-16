@@ -15,14 +15,24 @@ import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router'
 import { ApiError, describeFetchError, listFlashCards } from '../api/flashCards'
 import type { Tag } from '../api/flashCards'
-import { createTag, deleteTag, listTags, renameTag } from '../api/tags'
+import {
+  createTag,
+  deleteTag,
+  listTags,
+  renameTag,
+  tagMaxLength,
+  tagNameRequiredMessage,
+} from '../api/tags'
 import { usePreferences } from '../hooks/usePreferences'
 import { trackEvent, trackException } from '../telemetry'
-import { AnimatedList, AnimatedListItem } from './AnimatedList'
-import { cardCount } from './cardCount'
-import { ConfirmDelete } from './ConfirmDelete'
-import { TagRenameForm, tagMaxLength } from './FlashCardTags'
-import { TagSuggestions } from './TagSuggestions'
+import {
+  AnimatedList,
+  AnimatedListItem,
+} from '../components/common/AnimatedList'
+import { cardCount } from '../lib/cardCount'
+import { ConfirmDelete } from '../components/common/ConfirmDelete'
+import { RenameForm } from '../components/cards/FlashCardTags'
+import { TagSuggestions } from '../components/cards/TagSuggestions'
 
 // Tags in name order whatever their case, as the API sends them.
 function sortTags(tags: Tag[]) {
@@ -94,7 +104,7 @@ function TagsPage() {
   async function addTag(newName: string, event: string) {
     const trimmed = newName.trim()
     if (!trimmed) {
-      setErrorMessage('Tag name is required.')
+      setErrorMessage(tagNameRequiredMessage)
       return false
     }
 
@@ -133,7 +143,7 @@ function TagsPage() {
     }
     const trimmed = rename.name.trim()
     if (!trimmed) {
-      setErrorMessage('Tag name is required.')
+      setErrorMessage(tagNameRequiredMessage)
       return
     }
 
@@ -272,7 +282,7 @@ function TagsPage() {
                     disablePadding
                     sx={{ pb: 1 }}
                   >
-                    <TagRenameForm
+                    <RenameForm
                       name={rename.name}
                       busy={busyId === tag.id}
                       onChange={(name) => setRename({ id: tag.id, name })}

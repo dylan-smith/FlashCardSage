@@ -4,6 +4,11 @@ import { apiFetch } from './client'
 import { throwIfNotSaved } from './flashCards'
 import type { Tag } from './flashCards'
 
+export const tagNameRequiredMessage = 'Tag name is required.'
+
+// The most a tag name can be, as the API allows.
+export const tagMaxLength = 50
+
 const tagsUrl = `${apiBaseUrl}/api/tags`
 
 // The user's tags in name order.

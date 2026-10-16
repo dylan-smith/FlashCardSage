@@ -6,27 +6,27 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { addToNamedDeck } from '../api/decks'
+import { addToNamedDeck } from '../../api/decks'
 import {
   documentTypes,
   maxDocumentCandidates,
   scanDocument,
-} from '../api/documentScans'
+} from '../../api/documentScans'
 import {
   ApiError,
   createFlashCard,
   createFlashCards,
   describeFetchError,
   formatWords,
-} from '../api/flashCards'
-import type { FlashCardBatch, FlashCardFields } from '../api/flashCards'
-import { useUserTags } from '../hooks/useUserTags'
-import { trackEvent, trackException } from '../telemetry'
-import { showToast } from '../toasts'
-import { CardCandidates } from './CardCandidates'
-import type { Adding, Candidate } from './CardCandidates'
-import { cardCount } from './cardCount'
-import { documentDeckName } from './documentDeckName'
+} from '../../api/flashCards'
+import type { FlashCardBatch, FlashCardFields } from '../../api/flashCards'
+import { useUserTags } from '../../hooks/useUserTags'
+import { trackEvent, trackException } from '../../telemetry'
+import { showToast } from '../../toasts'
+import { CardCandidates } from '../cards/CardCandidates'
+import type { Adding, Candidate } from '../cards/CardCandidates'
+import { cardCount } from '../../lib/cardCount'
+import { documentDeckName } from '../../lib/documentDeckName'
 
 // limitReached is whether the scan made as many cards as it can, so the document may have more, foundAny whether it made
 // any, before the user removed or added some, addedCount how many the user has added so far, and skippedCount how

@@ -25,7 +25,7 @@ import PreferencesPage from './pages/PreferencesPage'
 import ScoresPage from './pages/ScoresPage'
 import TagsPage from './pages/TagsPage'
 import { trackPageView } from './telemetry'
-import { Toaster } from './Toaster'
+import { Toaster } from './components/common/Toaster'
 
 export const tagline = 'Learn a language one card at a time.'
 

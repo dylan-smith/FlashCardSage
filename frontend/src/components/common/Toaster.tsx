@@ -13,8 +13,8 @@ import {
   subscribeToasts,
   toastMs,
   toastWithActionMs,
-} from './toasts'
-import type { ShownToast } from './toasts'
+} from '../../toasts'
+import type { ShownToast } from '../../toasts'
 
 // One toast, which slides down into place and back up when it goes: after its time, or sooner if the user closes it
 // or follows its link. Its time stops while the pointer or focus is on it, so it can be read and its link reached.

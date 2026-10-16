@@ -3,25 +3,26 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { putCardImage } from '../api/cardImages'
-import type { CardImage } from '../api/cardImages'
-import { ApiError, describeFetchError, formatWords } from '../api/flashCards'
+import { putCardImage } from '../../api/cardImages'
+import type { CardImage } from '../../api/cardImages'
+import { ApiError, describeFetchError, formatWords } from '../../api/flashCards'
 import type {
   FlashCard,
   FlashCardBatch,
   FlashCardFields,
   Tag,
-} from '../api/flashCards'
-import { trackEvent, trackException } from '../telemetry'
-import { AnimatedList, AnimatedListItem } from './AnimatedList'
+} from '../../api/flashCards'
+import { trackEvent, trackException } from '../../telemetry'
+import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
 import { CardActionButton } from './CardActionButton'
-import { asCard, useCandidateEditing } from './candidates'
-import type { Candidate } from './candidates'
-import { matchesSearch } from './cardSearch'
+import { useCandidateEditing } from '../../hooks/useCandidateEditing'
+import { asCard } from '../../lib/candidates'
+import type { Candidate } from '../../lib/candidates'
+import { matchesSearch } from '../../lib/cardSearch'
 import { FlashCardEditForm } from './FlashCardForm'
 import { FlashCardRow } from './FlashCardRow'
 
-export type { Candidate } from './candidates'
+export type { Candidate } from '../../lib/candidates'
 
 // What's being added: all the cards, or the one with this key.
 export type Adding = 'all' | number | null

@@ -12,18 +12,22 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useNavigate } from 'react-router'
-import { createDeck, deleteDeck, listDecks } from '../api/decks'
+import {
+  createDeck,
+  deckNameMaxLength,
+  deckNameRequiredMessage,
+  deleteDeck,
+  listDecks,
+} from '../api/decks'
 import type { Deck } from '../api/decks'
 import { ApiError, describeFetchError } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
-import { AnimatedList, AnimatedListItem } from './AnimatedList'
-import { cardCount } from './cardCount'
-import { ConfirmDelete } from './ConfirmDelete'
-
-export const deckNameRequiredMessage = 'Deck name is required.'
-
-// The most a deck name can be, as the API allows.
-export const deckNameMaxLength = 50
+import {
+  AnimatedList,
+  AnimatedListItem,
+} from '../components/common/AnimatedList'
+import { cardCount } from '../lib/cardCount'
+import { ConfirmDelete } from '../components/common/ConfirmDelete'
 
 // The user's decks. A new deck opens on its own page, where its cards are picked.
 function DecksPage() {

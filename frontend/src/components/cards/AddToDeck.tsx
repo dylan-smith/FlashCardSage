@@ -9,9 +9,9 @@ import Divider from '@mui/material/Divider'
 import Menu from '@mui/material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
-import type { Deck } from '../api/decks'
-import { cardCount } from './cardCount'
-import { deckNameMaxLength } from './DecksPage'
+import { deckNameMaxLength } from '../../api/decks'
+import type { Deck } from '../../api/decks'
+import { cardCount } from '../../lib/cardCount'
 
 // Puts the cards picked on the cards page into one of the user's decks, or into a new deck named in a dialog.
 export function AddToDeck({
