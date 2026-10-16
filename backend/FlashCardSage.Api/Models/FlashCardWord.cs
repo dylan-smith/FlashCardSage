@@ -3,7 +3,7 @@ namespace FlashCardSage.Api.Models;
 // One of a card's Spanish or English words. A card has at least one in each language, in the order the user typed
 // them, and a word is only ever on one of a user's cards. It's only reached through its card, which returns its
 // words as lists, so it's never returned itself.
-public class FlashCardWord
+public class FlashCardWord : IUserOwned
 {
     public int Id { get; set; }
 

@@ -6,7 +6,7 @@ namespace FlashCardSage.Api.Models;
 
 // A meaning, with one or more Spanish words or phrases for it and one or more English ones (e.g. "solo" and
 // "únicamente" for "only").
-public class FlashCard
+public class FlashCard : IUserOwned
 {
     // The most words a card can have in each language.
     public const int MaxWordsPerSide = 10;
