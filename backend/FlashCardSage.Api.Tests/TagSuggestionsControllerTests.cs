@@ -159,6 +159,102 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
+    [Fact]
+    public async Task SuggestNewTags_SendsTheUsersTagsAndUntaggedCards_AndAsksForExtra()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var cards = await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"), ("rojo", "red"));
+        await SeedTagAsync(databaseName, TestDb.UserId, "Animals", cards[0]);
+        var others = await SeedAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"), ("azul", "blue"));
+        await SeedTagAsync(databaseName, TestDb.OtherUserId, "Home", others[0]);
+        var suggester = new FakeSuggester { Result = ["Colors"] };
+
+        var result = await CreateController(databaseName, suggester).SuggestNewTags(CancellationToken.None);
+
+        var names = Assert.IsType<List<string>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(["Colors"], names);
+        Assert.Equal(["Animals"], suggester.Tags!.Select(tag => tag.Name));
+        Assert.Equal(["el gato"], suggester.Tags![0].FlashCards.Select(card => card.Spanish.Single()));
+        Assert.Equal(["rojo"], suggester.Untagged!.Select(card => card.Spanish.Single()));
+        Assert.Equal(TagSuggestionsController.NewSuggestionCount + 3, suggester.Count);
+    }
+
+    [Fact]
+    public async Task SuggestNewTags_DescribesOnlyTheNewestUntaggedCards()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var many = Enumerable.Range(1, TagSuggestionsController.MaxUntaggedCards + 2)
+            .Select(i => ($"es {i}", $"en {i}"))
+            .ToArray();
+        await SeedAsync(databaseName, TestDb.UserId, many);
+        var suggester = new FakeSuggester();
+
+        await CreateController(databaseName, suggester).SuggestNewTags(CancellationToken.None);
+
+        var described = suggester.Untagged!.Select(card => card.Spanish.Single()).ToList();
+        Assert.Equal(TagSuggestionsController.MaxUntaggedCards, described.Count);
+        Assert.Contains($"es {many.Length}", described);
+        Assert.DoesNotContain("es 1", described);
+    }
+
+    [Fact]
+    public async Task SuggestNewTags_LeavesOutTagsTheUserHas_Blanks_LongNames_AndRepeats()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        await SeedTagAsync(databaseName, TestDb.UserId, "Animals");
+        var suggester = new FakeSuggester
+        {
+            Result =
+            [
+                "animals", " Food ", "", "  ", new string('x', Tag.MaxNameLength + 1), "food", "Colors", "Home",
+                "Travel", "Weather", "Work"
+            ]
+        };
+
+        var result = await CreateController(databaseName, suggester).SuggestNewTags(CancellationToken.None);
+
+        var names = Assert.IsType<List<string>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        Assert.Equal(["Food", "Colors", "Home", "Travel", "Weather"], names);
+    }
+
+    [Fact]
+    public async Task SuggestNewTags_ReturnsServiceUnavailable_WhenSuggestionsAreOff()
+    {
+        var suggester = new FakeSuggester { IsAvailable = false };
+
+        var result = await CreateController(Guid.NewGuid().ToString(), suggester).SuggestNewTags(CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        Assert.Null(suggester.Count);
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task SuggestNewTags_ReturnsBadGateway_WhenTheSuggesterFailsOrTimesOut(bool timesOut)
+    {
+        var suggester = new FakeSuggester
+        {
+            Failure = timesOut ? new TaskCanceledException("timed out") : new HttpRequestException("boom")
+        };
+
+        var result = await CreateController(Guid.NewGuid().ToString(), suggester).SuggestNewTags(CancellationToken.None);
+
+        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+    }
+
+    [Theory]
+    [InlineData(false, HttpStatusCode.Unauthorized)]
+    [InlineData(true, HttpStatusCode.ServiceUnavailable)]
+    public async Task SuggestNewTags_RequiresSignIn_AndAnApiKey(bool signedIn, HttpStatusCode expected)
+    {
+        using var client = CreateClient(signedIn);
+
+        var response = await client.GetAsync(new Uri("/api/tag-suggestions/new", UriKind.Relative));
+
+        Assert.Equal(expected, response.StatusCode);
+    }
+
     // Adds the cards for the user, returning their IDs.
     private static async Task<List<int>> SeedAsync(
         string databaseName, int userId, params (string Spanish, string English)[] cards)
@@ -231,6 +327,22 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
             Spanish = spanish;
             English = english;
             Tags = tags;
+            return Failure is null ? Task.FromResult(Result) : Task.FromException<IReadOnlyList<string>>(Failure);
+        }
+
+        public IReadOnlyList<FlashCard>? Untagged { get; private set; }
+
+        public int? Count { get; private set; }
+
+        public Task<IReadOnlyList<string>> SuggestNewAsync(
+            IReadOnlyList<Tag> tags,
+            IReadOnlyList<FlashCard> untagged,
+            int count,
+            CancellationToken cancellationToken)
+        {
+            Tags = tags;
+            Untagged = untagged;
+            Count = count;
             return Failure is null ? Task.FromResult(Result) : Task.FromException<IReadOnlyList<string>>(Failure);
         }
     }
