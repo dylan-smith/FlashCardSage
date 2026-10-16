@@ -16,10 +16,12 @@ import { Link as RouterLink } from 'react-router'
 import { ApiError, describeFetchError, listFlashCards } from '../api/flashCards'
 import type { Tag } from '../api/flashCards'
 import { createTag, deleteTag, listTags, renameTag } from '../api/tags'
+import { usePreferences } from '../hooks/usePreferences'
 import { trackEvent, trackException } from '../telemetry'
 import { cardCount } from './cardCount'
 import { ConfirmDelete } from './ConfirmDelete'
 import { TagRenameForm, tagMaxLength } from './FlashCardTags'
+import { TagSuggestions } from './TagSuggestions'
 
 // Tags in name order whatever their case, as the API sends them.
 function sortTags(tags: Tag[]) {
@@ -28,8 +30,8 @@ function sortTags(tags: Tag[]) {
   )
 }
 
-// The user's tags, with how many cards have each. Tags are made here or by naming them on a card, and here they can
-// be renamed or deleted.
+// The user's tags, with how many cards have each. Tags are made here, from a suggestion here, or by naming them on a
+// card, and here they can be renamed or deleted.
 function TagsPage() {
   const [tags, setTags] = useState<Tag[]>([])
   // How many cards have each tag, by its id.
@@ -48,6 +50,7 @@ function TagsPage() {
   const [errorMessage, setErrorMessage] = useState('')
   // The tag whose Delete was clicked, while the user is asked whether they mean it.
   const [confirmingDelete, setConfirmingDelete] = useState<Tag | null>(null)
+  const showSuggestions = usePreferences()?.showSuggestions === true
 
   // The cards are only loaded to count each tag's.
   useEffect(() => {
@@ -80,27 +83,37 @@ function TagsPage() {
     }
   }, [])
 
-  async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
-    event.preventDefault()
-    const trimmed = name.trim()
+  // Makes a tag with this name, typed or suggested, resolving to whether it was saved.
+  async function addTag(newName: string, event: string) {
+    const trimmed = newName.trim()
     if (!trimmed) {
       setErrorMessage('Tag name is required.')
-      return
+      return false
     }
 
-    setCreating(true)
     setErrorMessage('')
 
     try {
       const created = await createTag(trimmed)
-      trackEvent('TagCreated')
+      trackEvent(event)
       setTags((current) => sortTags([...current, created]))
-      setName('')
+      return true
     } catch (error) {
       if (!(error instanceof ApiError)) {
         trackException(error, { operation: 'createTag' })
       }
       setErrorMessage(describeFetchError(error, 'Unable to save tag.'))
+      return false
+    }
+  }
+
+  async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
+    event.preventDefault()
+    setCreating(true)
+    try {
+      if (await addTag(name, 'TagCreated')) {
+        setName('')
+      }
     } finally {
       setCreating(false)
     }
@@ -193,6 +206,13 @@ function TagsPage() {
           </Button>
         </Box>
       </Paper>
+
+      {showSuggestions && !loading && !loadFailed && (
+        <TagSuggestions
+          tags={tags}
+          onAdd={(suggested) => addTag(suggested, 'SuggestedTagAdded')}
+        />
+      )}
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 

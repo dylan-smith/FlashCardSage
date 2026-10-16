@@ -2,8 +2,8 @@ import { apiBaseUrl } from '../config'
 import { apiFetch } from './client'
 
 // What the user has chosen on the preferences page. showPictures: whether cards' pictures are shown, in practice and
-// where cards are managed. showSuggestions: whether the cards page suggests new cards, and tags for a card being added
-// or edited. autoTranslate: whether the
+// where cards are managed. showSuggestions: whether the cards page suggests new cards, tags for a card being added or
+// edited, and the Tags page new tags. autoTranslate: whether the
 // side of a card the user types is translated into the other side, or they type both.
 export type Preferences = {
   showPictures: boolean
