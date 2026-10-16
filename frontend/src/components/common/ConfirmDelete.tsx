@@ -33,6 +33,8 @@ export function ConfirmDelete({
     <Dialog
       open={open}
       onClose={busy ? undefined : onCancel}
+      // The rest of the page is back as soon as the dialog starts to close, rather than once it has faded out.
+      closeAfterTransition={false}
       aria-labelledby={`${id}-title`}
       aria-describedby={`${id}-text`}
       fullWidth
