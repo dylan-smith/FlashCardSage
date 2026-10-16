@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
@@ -134,6 +135,76 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     }
 
     [Fact]
+    public async Task Get_ScoresAndTotalsOnlyTheDecksCards()
+    {
+        await using var dbContext = TestDb.Create();
+        var deck = new Deck { Name = "Animals" };
+        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat"), Decks = [deck] };
+        var house = new FlashCard { Words = TestDb.Words("la casa", "the house") };
+        dbContext.FlashCards.AddRange(cat, house);
+        await dbContext.SaveChangesAsync();
+        await AddResultsAsync(dbContext, cat, GotIt);
+        await AddResultsAsync(dbContext, house, GotIt, GotIt);
+
+        var response = await GetAsync(dbContext, new PracticeSelection { DeckId = deck.Id });
+
+        Assert.Equal(cat.Id, Assert.Single(response.Cards).Id);
+        Assert.Equal((50, 100), (response.Total, response.Maximum));
+    }
+
+    [Fact]
+    public async Task Get_ScoresAndTotalsOnlyTheTagsCards()
+    {
+        await using var dbContext = TestDb.Create();
+        var tag = new Tag { Name = "Animals" };
+        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat"), Tags = [tag] };
+        var house = new FlashCard { Words = TestDb.Words("la casa", "the house") };
+        dbContext.FlashCards.AddRange(cat, house);
+        await dbContext.SaveChangesAsync();
+        await AddResultsAsync(dbContext, cat, GotIt, GotIt);
+        await AddResultsAsync(dbContext, house, GotIt);
+
+        var response = await GetAsync(dbContext, new PracticeSelection { TagId = tag.Id });
+
+        Assert.Equal(cat.Id, Assert.Single(response.Cards).Id);
+        Assert.Equal((80, 100), (response.Total, response.Maximum));
+    }
+
+    [Fact]
+    public async Task Get_ReturnsNotFound_ForAnotherUsersDeckOrTag()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        var otherDeck = new Deck { Name = "Theirs" };
+        var otherTag = new Tag { Name = "Theirs" };
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            otherContext.Decks.Add(otherDeck);
+            otherContext.Tags.Add(otherTag);
+            await otherContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = new FlashCardScoresController(dbContext, NullLogger<FlashCardScoresController>.Instance);
+
+        Assert.IsType<NotFoundResult>((await controller.Get(new PracticeSelection { DeckId = otherDeck.Id })).Result);
+        Assert.IsType<NotFoundResult>((await controller.Get(new PracticeSelection { TagId = otherTag.Id })).Result);
+    }
+
+    [Fact]
+    public async Task GetScores_TakesTheDeckOrTagFromTheQuery()
+    {
+        using var client = CreateClient();
+
+        var unknownDeck = await client.GetAsync("/api/flashcards/scores?deckId=999");
+        var unknownTag = await client.GetAsync("/api/flashcards/scores?tagId=999");
+        var both = await client.GetAsync("/api/flashcards/scores?deckId=1&tagId=1");
+
+        Assert.Equal(HttpStatusCode.NotFound, unknownDeck.StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, unknownTag.StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, both.StatusCode);
+    }
+
+    [Fact]
     public async Task GetScores_IsServedAlongsideTheCardRoutes()
     {
         using var client = CreateClient();
@@ -170,10 +241,11 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
         }
     }
 
-    private static async Task<FlashCardScoresResponse> GetAsync(FlashCardDbContext dbContext)
+    private static async Task<FlashCardScoresResponse> GetAsync(
+        FlashCardDbContext dbContext, PracticeSelection? selection = null)
     {
         var controller = new FlashCardScoresController(dbContext, NullLogger<FlashCardScoresController>.Instance);
-        var result = await controller.Get();
+        var result = await controller.Get(selection ?? new PracticeSelection());
         return Assert.IsType<FlashCardScoresResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
     }
 

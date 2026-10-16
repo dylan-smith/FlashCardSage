@@ -57,6 +57,50 @@ test.describe('Scores', () => {
     ).toHaveText([/el gato.*0 \/ 100/, /el perro.*80 \/ 100/])
   })
 
+  test('scores and totals just the cards in the deck picked', async ({
+    page,
+    request,
+  }) => {
+    const ids: number[] = []
+    for (const [spanish, english] of [
+      ['el perro', 'the dog'],
+      ['la casa', 'the house'],
+    ]) {
+      const response = await request.post(flashCardsApiUrl, {
+        data: cardData(spanish, english),
+      })
+      expect(response.ok()).toBe(true)
+      ids.push(((await response.json()) as { id: number }).id)
+    }
+    expect(
+      (
+        await request.post(`${flashCardsApiUrl}/${ids[0]}/practice-results`, {
+          data: { outcome: 'GotIt' },
+        })
+      ).ok(),
+    ).toBe(true)
+    // Decks outlive the cards deleted before each test, so this one's name is new each run.
+    const deckName = `Pets ${Date.now()}`
+    expect(
+      (
+        await request.post('http://localhost:5269/api/decks', {
+          data: { name: deckName, flashCardIds: [ids[0]] },
+        })
+      ).ok(),
+    ).toBe(true)
+
+    await page.goto('/scores')
+    await expect(page.getByText('Total score 50 / 200 (25%)')).toBeVisible()
+    await page.getByRole('combobox', { name: 'Cards' }).click()
+    await page.getByRole('option', { name: `Deck: ${deckName}` }).click()
+
+    await expect(page.getByText('Total score 50 / 100 (50%)')).toBeVisible()
+    await expect(
+      page.getByRole('list', { name: 'Card scores' }).getByRole('listitem'),
+    ).toHaveText([/el perro.*50 \/ 100/])
+    await expect(page).toHaveURL(/\/scores\?deck=\d+$/)
+  })
+
   test('points to adding cards when there are none', async ({ page }) => {
     await page.goto('/scores')
     await expect(

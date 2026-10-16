@@ -17,8 +17,17 @@ import {
   listFlashCardScores,
 } from '../api/flashCards'
 import type { FlashCardScores } from '../api/flashCards'
+import { useCardSelection } from '../hooks/useCardSelection'
+import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { trackException } from '../telemetry'
+import CardSelectionPicker from './CardSelectionPicker'
 import { matchesSearch } from './cardSearch'
+
+const emptyMessages: Record<CardSelectionKind, string> = {
+  all: 'There are no flash cards to score yet.',
+  deck: 'There are no cards in this deck.',
+  tag: 'There are no cards with this tag.',
+}
 
 // A light shade from red at 0 to green at 100, pale enough that the text on it stays readable.
 function scoreColor(score: number) {
@@ -26,16 +35,70 @@ function scoreColor(score: number) {
   return `hsl(${hue}, 70%, 90%)`
 }
 
+function Loading() {
+  return (
+    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
+      <CircularProgress aria-label="Loading" />
+    </Box>
+  )
+}
+
 function ScoresPage() {
+  const { choices, deck, tag, kind, value, waiting, select } =
+    useCardSelection()
+  // Kept here, so it still applies when another deck or tag is picked.
+  const [search, setSearch] = useState('')
+
+  return (
+    <Stack spacing={2}>
+      <CardSelectionPicker
+        label="Cards"
+        choices={choices}
+        value={value}
+        onSelect={select}
+      />
+      {waiting ? (
+        <Paper component="section" elevation={2} sx={{ p: 3 }}>
+          <Loading />
+        </Paper>
+      ) : (
+        // Loaded again for each choice.
+        <SelectionScores
+          key={value}
+          kind={kind}
+          deckId={deck?.id}
+          tagId={tag?.id}
+          search={search}
+          onSearchChange={setSearch}
+        />
+      )}
+    </Stack>
+  )
+}
+
+type SelectionScoresProps = {
+  kind: CardSelectionKind
+  deckId?: number
+  tagId?: number
+  search: string
+  onSearchChange: (search: string) => void
+}
+
+function SelectionScores({
+  kind,
+  deckId,
+  tagId,
+  search,
+  onSearchChange,
+}: SelectionScoresProps) {
   const [scores, setScores] = useState<FlashCardScores | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
-  const [search, setSearch] = useState('')
 
   // Loaded each time the page is opened, so it includes the latest practice.
   useEffect(() => {
     let cancelled = false
-    listFlashCardScores()
+    listFlashCardScores({ deckId, tagId })
       .then((loaded) => {
         if (!cancelled) {
           setScores(loaded)
@@ -55,9 +118,9 @@ function ScoresPage() {
     return () => {
       cancelled = true
     }
-  }, [])
+  }, [deckId, tagId])
 
-  // The total stays the score of every card, whatever the search shows.
+  // The total stays the score of every card picked, whatever the search shows.
   const matching =
     scores?.cards.filter((card) => matchesSearch(card, search)) ?? []
 
@@ -67,17 +130,21 @@ function ScoresPage() {
 
       <Paper component="section" elevation={2} sx={{ p: 3 }}>
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-            <CircularProgress aria-label="Loading" />
-          </Box>
+          <Loading />
         ) : scores === null ? null : scores.cards.length === 0 ? (
           <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
             <Typography color="text.secondary">
-              There are no flash cards to score yet.
+              {emptyMessages[kind]}
             </Typography>
-            <Button component={Link} to="/" variant="contained">
-              Add flash cards
-            </Button>
+            {kind === 'deck' ? (
+              <Button component={Link} to="/decks" variant="contained">
+                Edit decks
+              </Button>
+            ) : (
+              <Button component={Link} to="/" variant="contained">
+                {kind === 'tag' ? 'Manage cards' : 'Add flash cards'}
+              </Button>
+            )}
           </Stack>
         ) : (
           <>
@@ -90,7 +157,7 @@ function ScoresPage() {
               size="small"
               fullWidth
               value={search}
-              onChange={(event) => setSearch(event.target.value)}
+              onChange={(event) => onSearchChange(event.target.value)}
               sx={{ mb: 2 }}
             />
             {matching.length === 0 ? (
