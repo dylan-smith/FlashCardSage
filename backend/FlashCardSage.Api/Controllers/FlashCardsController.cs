@@ -261,10 +261,7 @@ public class FlashCardsController(
         dbContext.FlashCards.RemoveRange(cards);
         await dbContext.SaveChangesAsync();
 
-        foreach (var imageUrl in cards.Select(card => card.ImageUrl).OfType<string>())
-        {
-            await imageStore.TryDeleteAsync(imageUrl, logger, CancellationToken.None);
-        }
+        await imageStore.TryDeleteAllAsync(cards.Select(card => card.ImageUrl), logger, CancellationToken.None);
 
         logger.LogInformation("Deleted {Count} flash cards", cards.Count);
 
