@@ -3790,6 +3790,66 @@ describe('App', () => {
       expect(trackException).not.toHaveBeenCalled()
     })
 
+    it("adds one of a deck's cards and links to its deck", async () => {
+      const user = userEvent.setup()
+      const calls = await showImport(async () =>
+        jsonResponse(
+          {
+            deck: { id: 21, name: 'Days of the week', flashCardIds: [5] },
+            deckCreated: true,
+            card: {
+              id: 5,
+              spanish: ['martes'],
+              english: ['Tuesday'],
+              tags: [],
+              imageUrl: null,
+            },
+          },
+          201,
+        ),
+      )
+      await user.click(screen.getByRole('button', { name: 'Days of the week' }))
+
+      await user.click(screen.getByRole('button', { name: 'Add "martes"' }))
+
+      expect(
+        await screen.findByText(
+          'Added "martes" to a new deck, Days of the week.',
+        ),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Open deck' })).toHaveAttribute(
+        'href',
+        '/decks/21',
+      )
+      const post = calls.find((call) => call.init?.method === 'POST')
+      expect(post?.url).toBe(`${systemDecksUrl}/3/cards/32/import`)
+      expect(trackEvent).toHaveBeenCalledWith('SystemDeckCardImported')
+      // The card's button says it's been added, and the others can still be.
+      expect(
+        screen.getByRole('button', { name: 'Added "martes"' }),
+      ).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Add "lunes"' })).toBeEnabled()
+    })
+
+    it("says when the user already has a deck's card", async () => {
+      const user = userEvent.setup()
+      await showImport(async () =>
+        jsonResponse(
+          { status: 409, detail: 'You already have this card.' },
+          409,
+        ),
+      )
+      await user.click(screen.getByRole('button', { name: 'Days of the week' }))
+
+      await user.click(screen.getByRole('button', { name: 'Add "lunes"' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'You already have this card.',
+      )
+      expect(screen.getByRole('button', { name: 'Add "lunes"' })).toBeEnabled()
+      expect(trackException).not.toHaveBeenCalled()
+    })
+
     it("says when the built-in decks can't be loaded", async () => {
       mockFetch(unreachable)
       renderAt('/import')
