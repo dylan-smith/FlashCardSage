@@ -285,7 +285,7 @@ test.describe('Import cards', () => {
     await expect(cards.getByRole('listitem')).toHaveCount(2)
     await page.getByRole('button', { name: 'Add all 2 cards' }).last().click()
     await expect(
-      page.getByText('Added 2 cards from “cuento.txt”.'),
+      page.getByText('Added 2 cards from “cuento.txt” to your cuento deck.'),
     ).toBeVisible()
     await expect(
       page.getByRole('heading', { name: '1 card from “cuento.txt”' }),
@@ -297,7 +297,7 @@ test.describe('Import cards', () => {
     // The last one finishes the scan, counting the ones added before.
     await page.getByRole('button', { name: 'Add "bailar"' }).click()
     await expect(
-      page.getByText('Added 3 cards from “cuento.txt”.'),
+      page.getByText('Added 3 cards from “cuento.txt” to your cuento deck.'),
     ).toBeVisible()
   })
 
