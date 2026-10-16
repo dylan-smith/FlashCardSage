@@ -2,8 +2,8 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
+using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
@@ -14,9 +14,9 @@ public class FlashCardServiceTests
     [Fact]
     public async Task CreateAsync_ReturnsTheTakenSpanishWordFirst_IgnoringCase()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var catId = await SaveCardAsync(databaseName, "el gato", "the cat");
-        await SaveCardAsync(databaseName, "el perro", "the dog");
+        var databaseName = TestDb.NewDatabaseName();
+        var catId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"));
         await using var dbContext = TestDb.Create(databaseName);
 
         var result = await CreateService(dbContext).CreateAsync(
@@ -30,8 +30,8 @@ public class FlashCardServiceTests
     [Fact]
     public async Task CreateAsync_ReturnsTheSavedCard_WhenARetriedInsertAlreadySavedIt()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var interceptor = new UniqueIndexInterceptor(() => SaveCardAsync(databaseName, "el gato", "the cat"));
+        var databaseName = TestDb.NewDatabaseName();
+        var interceptor = new UniqueIndexInterceptor(() => TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat")));
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
 
         var result = await CreateService(dbContext).CreateAsync(
@@ -45,8 +45,8 @@ public class FlashCardServiceTests
     [Fact]
     public async Task CreateAsync_ReturnsDuplicate_WhenAnotherCardTookAWordMeanwhile()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var interceptor = new UniqueIndexInterceptor(() => SaveCardAsync(databaseName, "el gato", "the kitty"));
+        var databaseName = TestDb.NewDatabaseName();
+        var interceptor = new UniqueIndexInterceptor(() => TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the kitty")));
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
 
         var result = await CreateService(dbContext).CreateAsync(
@@ -69,9 +69,9 @@ public class FlashCardServiceTests
     [Fact]
     public async Task UpdateAsync_KeepsTheCardsOwnWords_ButReturnsDuplicate_ForAnotherCardsWord()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var catId = await SaveCardAsync(databaseName, "el gato", "the cat");
-        var dogId = await SaveCardAsync(databaseName, "el perro", "the dog");
+        var databaseName = TestDb.NewDatabaseName();
+        var catId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
+        var dogId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"));
         await using var dbContext = TestDb.Create(databaseName);
         var service = CreateService(dbContext);
 
@@ -85,9 +85,9 @@ public class FlashCardServiceTests
     [Fact]
     public async Task UpdateAsync_ReturnsDuplicate_WhenAnotherCardTookAWordMeanwhile()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var catId = await SaveCardAsync(databaseName, "el gato", "the cat");
-        var interceptor = new UniqueIndexInterceptor(() => SaveCardAsync(databaseName, "el perro", "the dog"));
+        var databaseName = TestDb.NewDatabaseName();
+        var catId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
+        var interceptor = new UniqueIndexInterceptor(() => TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog")));
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
 
         var result = await CreateService(dbContext).UpdateAsync(
@@ -110,8 +110,8 @@ public class FlashCardServiceTests
     [Fact]
     public async Task CreateManyAsync_SkipsCardsWithTakenWords_IncludingEarlierOnesInTheList()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await SaveCardAsync(databaseName, "el gato", "the cat");
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
         await using var dbContext = TestDb.Create(databaseName);
 
         var result = await CreateService(dbContext).CreateManyAsync(
@@ -129,8 +129,8 @@ public class FlashCardServiceTests
     [Fact]
     public async Task CreateManyAsync_ReturnsClash_WhenACardIsSavedMeanwhile()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var interceptor = new UniqueIndexInterceptor(() => SaveCardAsync(databaseName, "el perro", "the dog"));
+        var databaseName = TestDb.NewDatabaseName();
+        var interceptor = new UniqueIndexInterceptor(() => TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog")));
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
 
         var result = await CreateService(dbContext).CreateManyAsync(
@@ -156,38 +156,8 @@ public class FlashCardServiceTests
         Assert.False(await dbContext.FlashCards.AnyAsync());
     }
 
-    // Saves a card for the test user through a context of its own, as another request would.
-    private static async Task<int> SaveCardAsync(string databaseName, string spanish, string english)
-    {
-        await using var dbContext = TestDb.Create(databaseName);
-        var card = new FlashCard { Words = TestDb.Words(spanish, english) };
-        dbContext.FlashCards.Add(card);
-        await dbContext.SaveChangesAsync();
-        return card.Id;
-    }
-
     private static FlashCardService CreateService(FlashCardDbContext dbContext)
     {
         return new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance);
-    }
-
-    // Fails the first save as a unique index would, after running saveFirst (e.g. another request saving a card in
-    // the meantime). The in-memory database has no unique indexes of its own.
-    private sealed class UniqueIndexInterceptor(Func<Task> saveFirst) : SaveChangesInterceptor
-    {
-        private bool failed;
-
-        public override async ValueTask<InterceptionResult<int>> SavingChangesAsync(
-            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
-        {
-            if (failed)
-            {
-                return result;
-            }
-
-            failed = true;
-            await saveFirst();
-            throw new DbUpdateException("Cannot insert duplicate key row in object 'dbo.FlashCardWords'.");
-        }
     }
 }

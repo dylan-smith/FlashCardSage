@@ -1,17 +1,16 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
-using Microsoft.AspNetCore.Hosting;
+using FlashCardSage.Api.Tests.Fakes;
+using FlashCardSage.Api.Tests.TestData;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
@@ -19,10 +18,19 @@ namespace FlashCardSage.Api.Tests;
 public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program> factory)
     : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
-    private static readonly string Png = Convert.ToBase64String(CardImageTests.Png);
+    private static readonly string Png = Convert.ToBase64String(SampleImages.Png);
 
     // Where the app-level tests' pictures go, instead of the API project's App_Data.
     private readonly string pictures = Path.Join(Path.GetTempPath(), $"FlashCardSage-{Guid.NewGuid():N}");
+
+    // The picture settings: none to make them, and on disk, in the test's own folder.
+    private Dictionary<string, string> Settings => new()
+    {
+        ["ImageGeneration:Endpoint"] = "",
+        ["ImageGeneration:Key"] = "",
+        ["ImageStore:StorageConnectionString"] = "",
+        ["ImageStore:LocalPath"] = pictures
+    };
 
     public void Dispose()
     {
@@ -35,15 +43,15 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     [Fact]
     public async Task Generate_ReturnsThePictureAsBase64_FromTheTrimmedWords()
     {
-        var generator = new FakeImageGenerator { Result = new GeneratedImage("image/jpeg", CardImageTests.Jpeg) };
+        var generator = new FakeImageGenerator { Result = new GeneratedImage("image/jpeg", SampleImages.Jpeg) };
         await using var dbContext = TestDb.Create();
 
         var result = await CreateController(dbContext, generator).Generate(
             new ImageGenerationRequest { Spanish = " nadar ", English = " to swim " }, CancellationToken.None);
 
-        var response = Assert.IsType<CardImageResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<CardImageResponse>(result.Result);
         Assert.Equal("image/jpeg", response.ContentType);
-        Assert.Equal(CardImageTests.Jpeg, Convert.FromBase64String(response.Data));
+        Assert.Equal(SampleImages.Jpeg, Convert.FromBase64String(response.Data));
         Assert.Equal(("nadar", "to swim"), generator.Words);
     }
 
@@ -71,8 +79,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         var result = await CreateController(dbContext, generator).Generate(
             new ImageGenerationRequest { Spanish = "  ", English = null }, CancellationToken.None);
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal("Spanish or English is required.", Assert.Single(problem.Errors["Spanish"]));
+        ActionResultAssert.ValidationProblem(result.Result, "Spanish", "Spanish or English is required.");
         Assert.Null(generator.Words);
     }
 
@@ -85,7 +92,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         var result = await CreateController(dbContext, generator).Generate(
             new ImageGenerationRequest { Spanish = "nadar" }, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
         Assert.Null(generator.Words);
     }
 
@@ -114,7 +121,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         var result = await CreateController(dbContext, generator).Generate(
             new ImageGenerationRequest { Spanish = "nadar" }, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
 
     [Fact]
@@ -127,11 +134,11 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         var result = await CreateController(dbContext, store: store).Put(
             card.Id, new CardImageRequest { ContentType = "image/png", Data = Png }, CancellationToken.None);
 
-        var returned = Assert.IsType<FlashCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var returned = ActionResultAssert.Ok<FlashCard>(result.Result);
         var (url, contentType, data) = Assert.Single(store.Saved);
         Assert.Equal(url, returned.ImageUrl);
         Assert.Equal("image/png", contentType);
-        Assert.Equal(CardImageTests.Png, data);
+        Assert.Equal(SampleImages.Png, data);
         Assert.Equal("Verbs", Assert.Single(returned.Tags).Name);
         Assert.Equal(url, (await dbContext.FlashCards.AsNoTracking().SingleAsync()).ImageUrl);
         Assert.Empty(store.Deleted);
@@ -147,7 +154,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         var result = await CreateController(dbContext, store: store).Put(
             card.Id, new CardImageRequest { ContentType = "image/png", Data = Png }, CancellationToken.None);
 
-        var returned = Assert.IsType<FlashCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var returned = ActionResultAssert.Ok<FlashCard>(result.Result);
         Assert.Equal(Assert.Single(store.Saved).Url, returned.ImageUrl);
         Assert.Equal(["https://images.test/card-images/old.jpg"], store.Deleted);
     }
@@ -155,14 +162,13 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     [Fact]
     public async Task Put_ReturnsNotFound_ForAnotherUsersCard()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await using var theirs = TestDb.Create(databaseName, TestDb.OtherUserId);
-        var card = await AddCardAsync(theirs);
+        var databaseName = TestDb.NewDatabaseName();
+        var cardId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("nadar", "to swim"), TestDb.OtherUserId);
         await using var dbContext = TestDb.Create(databaseName);
         var store = new FakeImageStore();
 
         var result = await CreateController(dbContext, store: store).Put(
-            card.Id, new CardImageRequest { ContentType = "image/png", Data = Png }, CancellationToken.None);
+            cardId, new CardImageRequest { ContentType = "image/png", Data = Png }, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result.Result);
         Assert.Empty(store.Saved);
@@ -178,8 +184,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         var result = await CreateController(dbContext, store: store).Put(
             card.Id, new CardImageRequest { ContentType = "image/jpeg", Data = Png }, CancellationToken.None);
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal("The picture isn't the kind of image its content type says.", Assert.Single(problem.Errors["Data"]));
+        ActionResultAssert.ValidationProblem(result.Result, "Data", "The picture isn't the kind of image its content type says.");
         Assert.Empty(store.Saved);
         Assert.Null((await dbContext.FlashCards.AsNoTracking().SingleAsync()).ImageUrl);
     }
@@ -188,15 +193,14 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     public async Task Put_RemovesTheNewPicture_WhenTheCardCannotBeSaved()
     {
         var failure = new InvalidOperationException("the database is away");
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         // The card is added without the interceptor, which only fails the controller's save.
-        await using var setup = TestDb.Create(databaseName);
-        var card = await AddCardAsync(setup);
+        var cardId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("nadar", "to swim"));
         await using var dbContext = TestDb.Create(databaseName, interceptors: new FailingSaveInterceptor(failure));
         var store = new FakeImageStore();
 
         var thrown = await Assert.ThrowsAsync<InvalidOperationException>(() => CreateController(dbContext, store: store).Put(
-            card.Id, new CardImageRequest { ContentType = "image/png", Data = Png }, CancellationToken.None));
+            cardId, new CardImageRequest { ContentType = "image/png", Data = Png }, CancellationToken.None));
 
         Assert.Same(failure, thrown);
         Assert.Equal([Assert.Single(store.Saved).Url], store.Deleted);
@@ -211,7 +215,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
 
         var result = await CreateController(dbContext, store: store).Delete(card.Id, CancellationToken.None);
 
-        var returned = Assert.IsType<FlashCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var returned = ActionResultAssert.Ok<FlashCard>(result.Result);
         Assert.Null(returned.ImageUrl);
         Assert.Null((await dbContext.FlashCards.AsNoTracking().SingleAsync()).ImageUrl);
         Assert.Equal(["https://images.test/card-images/old.jpg"], store.Deleted);
@@ -231,7 +235,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
             ? await controller.Put(card.Id, new CardImageRequest { ContentType = "image/png", Data = Png }, CancellationToken.None)
             : await controller.Delete(card.Id, CancellationToken.None);
 
-        var returned = Assert.IsType<FlashCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var returned = ActionResultAssert.Ok<FlashCard>(result.Result);
         Assert.Equal(replace ? store.Saved.Single().Url : null, returned.ImageUrl);
         Assert.Equal(["https://images.test/card-images/old.jpg"], store.Deleted);
     }
@@ -245,20 +249,20 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
 
         var result = await CreateController(dbContext, store: store).Delete(card.Id, CancellationToken.None);
 
-        Assert.Null(Assert.IsType<FlashCard>(Assert.IsType<OkObjectResult>(result.Result).Value).ImageUrl);
+        Assert.Null(ActionResultAssert.Ok<FlashCard>(result.Result).ImageUrl);
         Assert.Empty(store.Deleted);
     }
 
     [Fact]
     public async Task Delete_ReturnsNotFound_ForAnotherUsersCard()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await using var theirs = TestDb.Create(databaseName, TestDb.OtherUserId);
-        var card = await AddCardAsync(theirs, imageUrl: "https://images.test/card-images/theirs.jpg");
+        var databaseName = TestDb.NewDatabaseName();
+        var cardId = await TestDb.SeedCardAsync(
+            databaseName, TestDb.Card("nadar", "to swim", imageUrl: "https://images.test/card-images/theirs.jpg"), TestDb.OtherUserId);
         await using var dbContext = TestDb.Create(databaseName);
         var store = new FakeImageStore();
 
-        var result = await CreateController(dbContext, store: store).Delete(card.Id, CancellationToken.None);
+        var result = await CreateController(dbContext, store: store).Delete(cardId, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result.Result);
         Assert.Empty(store.Deleted);
@@ -267,7 +271,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     [Fact]
     public async Task Generate_RequiresSignIn()
     {
-        using var client = CreateClient(signedIn: false);
+        using var client = TestApp.CreateSignedOutClient(factory, Settings);
 
         var response = await client.PostAsJsonAsync("/api/flashcards/images/generate", new { spanish = "nadar" });
 
@@ -277,7 +281,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     [Fact]
     public async Task Generate_IsUnavailable_WithoutAnEndpointAndKey()
     {
-        using var client = CreateClient(signedIn: true);
+        using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
 
         var response = await client.PostAsJsonAsync("/api/flashcards/images/generate", new { spanish = "nadar" });
 
@@ -287,7 +291,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     [Fact]
     public async Task Put_KeepsThePictureAsALocalFile_WhichAnyoneCanLoad()
     {
-        using var client = CreateClient(signedIn: true);
+        using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
         var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("nadar", "to swim"));
         var card = (await created.Content.ReadFromJsonAsync<FlashCard>())!;
 
@@ -300,11 +304,11 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         Assert.Single(Directory.GetFiles(pictures));
 
         // The picture is loaded by the browser like any image, so it doesn't need the user's token.
-        using var anyone = CreateClient(signedIn: false);
+        using var anyone = TestApp.CreateSignedOutClient(factory, Settings);
         var picture = await anyone.GetAsync(new Uri(withPicture.ImageUrl!));
         Assert.Equal(HttpStatusCode.OK, picture.StatusCode);
         Assert.Equal("image/png", picture.Content.Headers.ContentType?.MediaType);
-        Assert.Equal(CardImageTests.Png, await picture.Content.ReadAsByteArrayAsync());
+        Assert.Equal(SampleImages.Png, await picture.Content.ReadAsByteArrayAsync());
 
         var deleted = await client.DeleteAsync($"/api/flashcards/{card.Id}");
         Assert.Equal(HttpStatusCode.NoContent, deleted.StatusCode);
@@ -314,11 +318,11 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     [Fact]
     public async Task Put_TakesAnUploadedPictureAsBigAsTheLimit()
     {
-        using var client = CreateClient(signedIn: true);
+        using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
         var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("nadar", "to swim"));
         var card = (await created.Content.ReadFromJsonAsync<FlashCard>())!;
         var bytes = new byte[CardImage.MaxBytes];
-        CardImageTests.Jpeg.CopyTo(bytes, 0);
+        SampleImages.Jpeg.CopyTo(bytes, 0);
 
         var put = await client.PutAsJsonAsync(
             $"/api/flashcards/{card.Id}/image",
@@ -331,14 +335,7 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     private static async Task<FlashCard> AddCardAsync(
         FlashCardDbContext dbContext, string? imageUrl = null, params string[] tags)
     {
-        var card = new FlashCard
-        {
-            Words = TestDb.Words("nadar", "to swim"),
-            ImageUrl = imageUrl,
-            Tags = [.. tags.Select(name => new Tag { Name = name })]
-        };
-        dbContext.FlashCards.Add(card);
-        await dbContext.SaveChangesAsync();
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("nadar", "to swim", tags, imageUrl));
         dbContext.ChangeTracker.Clear();
         return card;
     }
@@ -353,33 +350,11 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
             NullLogger<FlashCardImagesController>.Instance);
     }
 
-    private HttpClient CreateClient(bool signedIn)
-    {
-        // Development uses the in-memory database and allows test sign-in, so the app starts without SQL Server.
-        var client = factory
-            .WithWebHostBuilder(builder => builder
-                .UseEnvironment("Development")
-                .UseSetting("Authentication:AllowTestSignIn", "true")
-                .UseSetting("ImageGeneration:Endpoint", "")
-                .UseSetting("ImageGeneration:Key", "")
-                .UseSetting("ImageStore:StorageConnectionString", "")
-                .UseSetting("ImageStore:LocalPath", pictures))
-            .CreateClient();
-        if (signedIn)
-        {
-            // The same user throughout, so the card one request made is there for the next.
-            client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", $"test:Pictures {pictures}");
-        }
-
-        return client;
-    }
-
     private sealed class FakeImageGenerator : IImageGenerator
     {
         public bool IsAvailable { get; init; } = true;
 
-        public GeneratedImage Result { get; init; } = new("image/jpeg", CardImageTests.Jpeg);
+        public GeneratedImage Result { get; init; } = new("image/jpeg", SampleImages.Jpeg);
 
         public Exception? Failure { get; init; }
 
@@ -389,18 +364,6 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         {
             Words = (spanish, english);
             return Failure is null ? Task.FromResult(Result) : Task.FromException<GeneratedImage>(Failure);
-        }
-    }
-
-    // Fails every save, as the database would if it were away.
-    private sealed class FailingSaveInterceptor(Exception failure) : SaveChangesInterceptor
-    {
-        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
-            DbContextEventData eventData,
-            InterceptionResult<int> result,
-            CancellationToken cancellationToken = default)
-        {
-            throw failure;
         }
     }
 }

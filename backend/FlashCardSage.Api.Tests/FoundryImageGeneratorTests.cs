@@ -1,31 +1,32 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using FlashCardSage.Api.Images;
+using FlashCardSage.Api.Tests.Fakes;
+using FlashCardSage.Api.Tests.TestData;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Tests;
 
 public class FoundryImageGeneratorTests
 {
-    private static readonly string Picture = Convert.ToBase64String(CardImageTests.Jpeg);
+    private static readonly string Picture = Convert.ToBase64String(SampleImages.Jpeg);
 
     [Fact]
     public async Task GenerateAsync_AsksTheModelForAMegapixelJpeg_AndDecodesIt()
     {
-        var handler = new FakeHandler(_ => (HttpStatusCode.OK, $$"""{"created":1,"data":[{"b64_json":"{{Picture}}"}]}"""));
+        var handler = new RecordingHttpHandler(_ => (HttpStatusCode.OK, $$"""{"created":1,"data":[{"b64_json":"{{Picture}}"}]}"""));
         using var httpClient = new HttpClient(handler);
 
         var image = await CreateGenerator(httpClient).GenerateAsync("nadar", "to swim", CancellationToken.None);
 
         Assert.Equal("image/jpeg", image.ContentType);
-        Assert.Equal(CardImageTests.Jpeg, image.Data.ToArray());
+        Assert.Equal(SampleImages.Jpeg, image.Data.ToArray());
         var request = Assert.Single(handler.Requests);
         Assert.Equal(HttpMethod.Post, request.Method);
         Assert.Equal(
             "https://foundry.example/providers/blackforestlabs/v1/flux-2-pro?api-version=preview",
             request.Url);
-        Assert.Equal("Bearer secret-key", request.Authorization);
+        Assert.Equal("Bearer secret-key", request.Header("Authorization"));
         // The service refuses a chunked body.
         Assert.Equal(request.Body!.Length, request.ContentLength);
         Assert.Equal("application/json", request.ContentType);
@@ -42,7 +43,7 @@ public class FoundryImageGeneratorTests
     [Fact]
     public async Task GenerateAsync_CallsTheDeploymentItIsGiven()
     {
-        var handler = new FakeHandler(_ => (HttpStatusCode.OK, $$"""{"data":[{"b64_json":"{{Picture}}"}]}"""));
+        var handler = new RecordingHttpHandler(_ => (HttpStatusCode.OK, $$"""{"data":[{"b64_json":"{{Picture}}"}]}"""));
         using var httpClient = new HttpClient(handler);
         var options = new ImageGenerationOptions
         {
@@ -81,7 +82,7 @@ public class FoundryImageGeneratorTests
     [InlineData("""{"error":{"code":"invalid_request_error","inner_error":{"code":"ResponsibleAIPolicyViolation"}}}""")]
     public async Task GenerateAsync_Throws_WhenASafetySystemRefuses(string body)
     {
-        var handler = new FakeHandler(_ => (HttpStatusCode.BadRequest, body));
+        var handler = new RecordingHttpHandler(_ => (HttpStatusCode.BadRequest, body));
         using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<ImageContentFilteredException>(() =>
@@ -96,7 +97,7 @@ public class FoundryImageGeneratorTests
     [InlineData(HttpStatusCode.InternalServerError, """{"error":"boom"}""", "The image generator answered 500.")]
     public async Task GenerateAsync_Throws_WhenTheServiceFails_NamingItsErrorCode(HttpStatusCode status, string body, string message)
     {
-        var handler = new FakeHandler(_ => (status, body));
+        var handler = new RecordingHttpHandler(_ => (status, body));
         using var httpClient = new HttpClient(handler);
 
         var exception = await Assert.ThrowsAsync<HttpRequestException>(() =>
@@ -112,7 +113,7 @@ public class FoundryImageGeneratorTests
     [InlineData("""{"created":1}""")]
     public async Task GenerateAsync_Throws_WhenThereIsNoPicture(string body)
     {
-        var handler = new FakeHandler(_ => (HttpStatusCode.OK, body));
+        var handler = new RecordingHttpHandler(_ => (HttpStatusCode.OK, body));
         using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
@@ -138,31 +139,4 @@ public class FoundryImageGeneratorTests
         return new FoundryImageGenerator(httpClient, Options.Create(options));
     }
 
-    private sealed record SentRequest(
-        HttpMethod Method, string Url, string? Authorization, string? Body, long? ContentLength, string? ContentType);
-
-    // Answers each request by its URL, and keeps what was sent.
-    private sealed class FakeHandler(Func<string, (HttpStatusCode Status, string Body)> respond) : HttpMessageHandler
-    {
-        public List<SentRequest> Requests { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            var url = request.RequestUri!.ToString();
-            Requests.Add(new SentRequest(
-                request.Method,
-                url,
-                request.Headers.Authorization?.ToString(),
-                request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken),
-                request.Content?.Headers.ContentLength,
-                request.Content?.Headers.ContentType?.ToString()));
-            var (status, body) = respond(url);
-            return new HttpResponseMessage(status)
-            {
-                Content = new StringContent(body, Encoding.UTF8, "application/json")
-            };
-        }
-    }
 }

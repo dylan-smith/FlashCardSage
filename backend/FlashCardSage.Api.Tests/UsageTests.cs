@@ -1,12 +1,10 @@
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using System.Globalization;
-using System.Net.Http.Headers;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Usage;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -22,7 +20,7 @@ public class UsageTests(WebApplicationFactory<Program> factory) : IClassFixture<
     [Fact]
     public async Task Snapshot_CountsEachPersonsCardsDecksTagsAndPracticeResults()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         await using var dbContext = TestDb.Create(databaseName);
         var aliceCreatedAt = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
         dbContext.Users.AddRange(
@@ -60,7 +58,7 @@ public class UsageTests(WebApplicationFactory<Program> factory) : IClassFixture<
     [Fact]
     public async Task SnapshotService_TakesASnapshotAtMostOncePerInterval()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         await using (var dbContext = TestDb.Create(databaseName))
         {
             dbContext.Users.Add(new User { Subject = "test:alice" });
@@ -88,7 +86,7 @@ public class UsageTests(WebApplicationFactory<Program> factory) : IClassFixture<
     [Fact]
     public async Task Requests_AreTaggedWithThePersonsUserId()
     {
-        var webFactory = CreateFactory();
+        using var webFactory = CreateFactory();
         var name = $"Alice {Guid.NewGuid()}";
         var subject = $"test:{name.ToLowerInvariant()}";
 
@@ -105,7 +103,8 @@ public class UsageTests(WebApplicationFactory<Program> factory) : IClassFixture<
     [Fact]
     public async Task Requests_AreNotTagged_ForTheServiceUser()
     {
-        var request = await SendAsync(CreateFactory(), ServiceToken);
+        using var webFactory = CreateFactory();
+        var request = await SendAsync(webFactory, ServiceToken);
 
         Assert.Null(request.GetTagItem(CurrentUserMiddleware.UserIdTag));
     }
@@ -141,8 +140,7 @@ public class UsageTests(WebApplicationFactory<Program> factory) : IClassFixture<
             }
         };
         ActivitySource.AddActivityListener(listener);
-        using var client = webFactory.CreateClient();
-        client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var client = TestApp.CreateClient(webFactory, token);
         client.DefaultRequestHeaders.Add("traceparent", $"00-{traceId}-{ActivitySpanId.CreateRandom()}-01");
 
         using var response = await client.GetAsync("/api/me");
@@ -153,11 +151,7 @@ public class UsageTests(WebApplicationFactory<Program> factory) : IClassFixture<
 
     private WebApplicationFactory<Program> CreateFactory()
     {
-        // Development uses the in-memory database, so the app starts without SQL Server.
-        return factory.WithWebHostBuilder(builder => builder
-            .UseEnvironment("Development")
-            .UseSetting("Authentication:AllowTestSignIn", "true")
-            .UseSetting("Authentication:ServiceToken", ServiceToken));
+        return TestApp.CreateFactory(factory, new Dictionary<string, string> { ["Authentication:ServiceToken"] = ServiceToken });
     }
 
     private sealed class FakeTimeProvider : TimeProvider

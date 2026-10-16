@@ -1,4 +1,5 @@
 using FlashCardSage.Api.Images;
+using FlashCardSage.Api.Tests.TestData;
 using Microsoft.AspNetCore.Hosting.Server;
 using Microsoft.AspNetCore.Hosting.Server.Features;
 using Microsoft.AspNetCore.Http;
@@ -45,12 +46,12 @@ public sealed class LocalFileImageStoreTests : IDisposable
         var store = CreateStore("pictures");
         Directory.CreateDirectory(store.Directory);
 
-        var url = await store.SaveAsync(CardImageTests.Png, "image/png", CancellationToken.None);
+        var url = await store.SaveAsync(SampleImages.Png, "image/png", CancellationToken.None);
 
         Assert.Matches(@"^http://localhost:5269/card-images/[0-9a-f]{32}\.png$", url);
         var file = Assert.Single(Directory.GetFiles(store.Directory));
         Assert.EndsWith("/" + Path.GetFileName(file), url, StringComparison.Ordinal);
-        Assert.Equal(CardImageTests.Png, await File.ReadAllBytesAsync(file));
+        Assert.Equal(SampleImages.Png, await File.ReadAllBytesAsync(file));
     }
 
     [Fact]
@@ -58,8 +59,8 @@ public sealed class LocalFileImageStoreTests : IDisposable
     {
         var store = CreateStore("pictures");
         Directory.CreateDirectory(store.Directory);
-        var url = await store.SaveAsync(CardImageTests.Png, "image/png", CancellationToken.None);
-        var other = await store.SaveAsync(CardImageTests.Jpeg, "image/jpeg", CancellationToken.None);
+        var url = await store.SaveAsync(SampleImages.Png, "image/png", CancellationToken.None);
+        var other = await store.SaveAsync(SampleImages.Jpeg, "image/jpeg", CancellationToken.None);
 
         await store.DeleteAsync(url, CancellationToken.None);
 
@@ -71,7 +72,7 @@ public sealed class LocalFileImageStoreTests : IDisposable
     {
         var store = CreateStore("pictures");
         Directory.CreateDirectory(store.Directory);
-        var url = await store.SaveAsync(CardImageTests.Jpeg, "image/jpeg", CancellationToken.None);
+        var url = await store.SaveAsync(SampleImages.Jpeg, "image/jpeg", CancellationToken.None);
 
         var copy = await store.CopyAsync(url, CancellationToken.None);
 
@@ -84,7 +85,7 @@ public sealed class LocalFileImageStoreTests : IDisposable
         Assert.Contains(files, file => copy.EndsWith("/" + Path.GetFileName(file), StringComparison.Ordinal));
         foreach (var file in files)
         {
-            Assert.Equal(CardImageTests.Jpeg, await File.ReadAllBytesAsync(file));
+            Assert.Equal(SampleImages.Jpeg, await File.ReadAllBytesAsync(file));
         }
     }
 
@@ -96,7 +97,7 @@ public sealed class LocalFileImageStoreTests : IDisposable
     {
         var store = CreateStore("pictures");
         Directory.CreateDirectory(store.Directory);
-        await File.WriteAllBytesAsync(Path.Join(store.Directory, "keep.png"), CardImageTests.Png);
+        await File.WriteAllBytesAsync(Path.Join(store.Directory, "keep.png"), SampleImages.Png);
 
         Assert.Null(await store.CopyAsync(url, CancellationToken.None));
         Assert.Single(Directory.GetFiles(store.Directory));
@@ -112,9 +113,9 @@ public sealed class LocalFileImageStoreTests : IDisposable
         var store = CreateStore("pictures");
         Directory.CreateDirectory(store.Directory);
         var keep = Path.Join(store.Directory, "keep.png");
-        await File.WriteAllBytesAsync(keep, CardImageTests.Png);
+        await File.WriteAllBytesAsync(keep, SampleImages.Png);
         var named = Path.Join(store.Directory, "0123456789abcdef0123456789abcdef.png");
-        await File.WriteAllBytesAsync(named, CardImageTests.Png);
+        await File.WriteAllBytesAsync(named, SampleImages.Png);
 
         await store.DeleteAsync(url, CancellationToken.None);
 
@@ -139,13 +140,13 @@ public sealed class LocalFileImageStoreTests : IDisposable
         Directory.CreateDirectory(store.Directory);
         const string name = "0123456789abcdef0123456789abcdef.jpg";
 
-        var url = await store.SaveAsync(name, CardImageTests.Jpeg, CancellationToken.None);
-        var again = await store.SaveAsync(name, CardImageTests.Png, CancellationToken.None);
+        var url = await store.SaveAsync(name, SampleImages.Jpeg, CancellationToken.None);
+        var again = await store.SaveAsync(name, SampleImages.Png, CancellationToken.None);
 
         Assert.Equal($"http://localhost:5269/card-images/{name}", url);
         Assert.Equal(url, again);
         // A picture that's there already is left as it is.
-        Assert.Equal(CardImageTests.Jpeg, await File.ReadAllBytesAsync(Path.Join(store.Directory, name)));
+        Assert.Equal(SampleImages.Jpeg, await File.ReadAllBytesAsync(Path.Join(store.Directory, name)));
     }
 
     [Fact]
@@ -155,7 +156,7 @@ public sealed class LocalFileImageStoreTests : IDisposable
         Directory.CreateDirectory(store.Directory);
 
         await Assert.ThrowsAsync<InvalidOperationException>(() =>
-            store.SaveAsync("0123456789abcdef0123456789abcdef.jpg", CardImageTests.Jpeg, CancellationToken.None));
+            store.SaveAsync("0123456789abcdef0123456789abcdef.jpg", SampleImages.Jpeg, CancellationToken.None));
         Assert.Empty(Directory.GetFiles(store.Directory));
     }
 

@@ -2,8 +2,9 @@ using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
 using FlashCardSage.Api.SystemDecks;
+using FlashCardSage.Api.Tests.Fakes;
+using FlashCardSage.Api.Tests.TestData;
 using Microsoft.EntityFrameworkCore;
-using Microsoft.EntityFrameworkCore.Diagnostics;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
@@ -14,18 +15,18 @@ public class SystemDeckImporterTests
     private static readonly SystemDeckDefinition Days = new(
         "Days",
         [
-            SystemDeckSeederTests.Card("lunes", "Monday", "Days"),
-            SystemDeckSeederTests.Card("martes", "Tuesday", "Days")
+            SystemDeckTestData.Card("lunes", "Monday", "Days"),
+            SystemDeckTestData.Card("martes", "Tuesday", "Days")
         ]);
 
     [Fact]
     public async Task ImportDeckAsync_ReturnsNothingToImport_WhenTheUserHasEveryCardsWords()
     {
-        var databaseName = await SeedAsync();
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
         await using var dbContext = TestDb.Create(databaseName);
         dbContext.FlashCards.AddRange(
-            new FlashCard { Words = TestDb.Words("LUNES", "the moon") },
-            new FlashCard { Words = TestDb.Words("el martes", "tuesday") });
+            TestDb.Card("LUNES", "the moon"),
+            TestDb.Card("el martes", "tuesday"));
         await dbContext.SaveChangesAsync();
         var importer = CreateImporter(dbContext);
 
@@ -38,11 +39,10 @@ public class SystemDeckImporterTests
     [Fact]
     public async Task ImportDeckAsync_ReturnsClash_AndRemovesTheCopiedPictures_WhenAUniqueIndexFails()
     {
-        var databaseName = await SeedAsync();
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
         var store = new FakeImageStore();
-        var systemUrl = await GiveLunesAPictureAsync(databaseName, store);
-        await using var dbContext = TestDb.Create(databaseName, interceptors: new FailingSaveInterceptor(
-            () => new DbUpdateException("Cannot insert duplicate key row in object 'dbo.Decks'.")));
+        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
+        await using var dbContext = TestDb.Create(databaseName, interceptors: FailingSaveInterceptor.DuplicateKey("Decks"));
         var importer = CreateImporter(dbContext, store);
 
         var result = await importer.ImportDeckAsync(await DaysIdAsync(importer), CancellationToken.None);
@@ -56,9 +56,9 @@ public class SystemDeckImporterTests
     [Fact]
     public async Task ImportDeckAsync_RemovesTheCopiedPictures_AndRethrows_WhenTheSaveFailsOtherwise()
     {
-        var databaseName = await SeedAsync();
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
         var store = new FakeImageStore();
-        var systemUrl = await GiveLunesAPictureAsync(databaseName, store);
+        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
         await using var dbContext = TestDb.Create(databaseName, interceptors: new FailingSaveInterceptor(
             () => new InvalidOperationException("The database is unreachable.")));
         var importer = CreateImporter(dbContext, store);
@@ -73,9 +73,9 @@ public class SystemDeckImporterTests
     [Fact]
     public async Task ImportCardAsync_ReturnsCardTaken_WhenTheUserHasOneOfItsWords()
     {
-        var databaseName = await SeedAsync();
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
         await using var dbContext = TestDb.Create(databaseName);
-        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el lunes", "MONDAY") });
+        dbContext.FlashCards.Add(TestDb.Card("el lunes", "MONDAY"));
         await dbContext.SaveChangesAsync();
         var importer = CreateImporter(dbContext);
         var days = await importer.SystemDecks().SingleAsync(deck => deck.Name == "Days");
@@ -90,11 +90,10 @@ public class SystemDeckImporterTests
     [Fact]
     public async Task ImportCardAsync_ReturnsClash_AndRemovesTheCopiedPicture_WhenAUniqueIndexFails()
     {
-        var databaseName = await SeedAsync();
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
         var store = new FakeImageStore();
-        var systemUrl = await GiveLunesAPictureAsync(databaseName, store);
-        await using var dbContext = TestDb.Create(databaseName, interceptors: new FailingSaveInterceptor(
-            () => new DbUpdateException("Cannot insert duplicate key row in object 'dbo.FlashCardWords'.")));
+        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
+        await using var dbContext = TestDb.Create(databaseName, interceptors: FailingSaveInterceptor.DuplicateKey("FlashCardWords"));
         var importer = CreateImporter(dbContext, store);
         var days = await importer.SystemDecks().SingleAsync(deck => deck.Name == "Days");
         var lunes = days.FlashCards.Single(card => card.Spanish.Single() == "lunes");
@@ -132,31 +131,9 @@ public class SystemDeckImporterTests
         Assert.Null(await importer.DeckNamedAsync("Months", CancellationToken.None));
     }
 
-    private static async Task<string> SeedAsync()
-    {
-        var databaseName = await SystemDeckSeederTests.CreateDatabaseWithUsersAsync();
-        await SystemDeckSeederTests.SeedAsync(databaseName, [Days]);
-        return databaseName;
-    }
-
     private static async Task<int> DaysIdAsync(SystemDeckImporter importer)
     {
         return (await importer.SystemDecks().SingleAsync(deck => deck.Name == "Days")).Id;
-    }
-
-    // Gives the built-in card for lunes a picture, saved in the store as an admin would have.
-    private static async Task<string> GiveLunesAPictureAsync(string databaseName, FakeImageStore store)
-    {
-        var url = await store.SaveAsync(CardImageTests.Png, "image/png", CancellationToken.None);
-        await using var dbContext = TestDb.Create(databaseName);
-        var systemCards = await dbContext.FlashCards
-            .IgnoreQueryFilters()
-            .Include(card => card.Words)
-            .Where(card => card.UserId != TestDb.UserId && card.UserId != TestDb.OtherUserId)
-            .ToListAsync();
-        systemCards.Single(card => card.Spanish.Contains("lunes")).ImageUrl = url;
-        await dbContext.SaveChangesAsync();
-        return url;
     }
 
     private static SystemDeckImporter CreateImporter(FlashCardDbContext dbContext, FakeImageStore? store = null)
@@ -164,14 +141,4 @@ public class SystemDeckImporterTests
         return new SystemDeckImporter(dbContext, store ?? new FakeImageStore(), NullLogger<SystemDeckImporter>.Instance);
     }
 
-    // Fails every save with the exception, such as the one a unique index would throw. The in-memory database has no
-    // unique indexes of its own.
-    private sealed class FailingSaveInterceptor(Func<Exception> failure) : SaveChangesInterceptor
-    {
-        public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
-            DbContextEventData eventData, InterceptionResult<int> result, CancellationToken cancellationToken = default)
-        {
-            throw failure();
-        }
-    }
 }

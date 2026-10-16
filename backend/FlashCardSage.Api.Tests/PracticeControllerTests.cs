@@ -1,11 +1,9 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -28,38 +26,28 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task GetNext_ReturnsOneOfTheUsersCards()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            otherContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el perro", "the dog") });
-            await otherContext.SaveChangesAsync();
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.FlashCards.Add(TestDb.Card("el perro", "the dog")));
 
         await using var dbContext = TestDb.Create(databaseName);
-        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
-        dbContext.FlashCards.Add(card);
-        await dbContext.SaveChangesAsync();
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
 
         var result = await CreateController(dbContext).GetNext(new PracticeSelection());
 
-        var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var next = ActionResultAssert.Ok<PracticeCard>(result.Result);
         Assert.Equal((card.Id, "el gato", "the cat"), (next.Id, next.Spanish.Single(), next.English.Single()));
     }
 
     [Fact]
     public async Task GetNext_ReturnsEveryTranslationOnTheCard()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await using (var setupContext = TestDb.Create(databaseName))
-        {
-            setupContext.FlashCards.Add(new FlashCard { Words = TestDb.Words(["solo", "únicamente"], ["only"]) });
-            await setupContext.SaveChangesAsync();
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardAsync(databaseName, new FlashCard { Words = TestDb.Words(["solo", "únicamente"], ["only"]) });
 
         await using var dbContext = TestDb.Create(databaseName);
         var result = await CreateController(dbContext).GetNext(new PracticeSelection());
 
-        var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var next = ActionResultAssert.Ok<PracticeCard>(result.Result);
         Assert.Equal(["solo", "únicamente"], next.Spanish);
         Assert.Equal(["only"], next.English);
     }
@@ -67,7 +55,7 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task GetNext_IsServedAlongsideTheCardRoutes()
     {
-        using var client = CreateClient();
+        using var client = TestApp.CreateSignedInClient(factory);
         var empty = await client.GetAsync("/api/flashcards/practice/next");
         var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("el gato", "the cat"));
         created.EnsureSuccessStatusCode();
@@ -82,8 +70,8 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     public async Task GetNext_OnlyPicksTheDecksCards()
     {
         await using var dbContext = TestDb.Create();
-        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
-        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el perro", "the dog") });
+        var cat = TestDb.Card("el gato", "the cat");
+        dbContext.FlashCards.Add(TestDb.Card("el perro", "the dog"));
         var deck = new Deck { Name = "Cats", FlashCards = [cat] };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -93,7 +81,7 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
         {
             var result = await CreateController(dbContext).GetNext(new PracticeSelection { DeckId = deck.Id });
 
-            var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+            var next = ActionResultAssert.Ok<PracticeCard>(result.Result);
             Assert.Equal(cat.Id, next.Id);
         }
     }
@@ -104,14 +92,14 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
         await using var dbContext = TestDb.Create();
         var tag = new Tag { Name = "Animals" };
         var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat"), Tags = [tag] };
-        dbContext.FlashCards.AddRange(cat, new FlashCard { Words = TestDb.Words("la casa", "the house") });
+        dbContext.FlashCards.AddRange(cat, TestDb.Card("la casa", "the house"));
         await dbContext.SaveChangesAsync();
 
         for (var attempt = 0; attempt < 10; attempt++)
         {
             var result = await CreateController(dbContext).GetNext(new PracticeSelection { TagId = tag.Id });
 
-            var next = Assert.IsType<PracticeCard>(Assert.IsType<OkObjectResult>(result.Result).Value);
+            var next = ActionResultAssert.Ok<PracticeCard>(result.Result);
             Assert.Equal(cat.Id, next.Id);
         }
     }
@@ -120,7 +108,7 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     public async Task GetNext_ReturnsNoContent_WhenTheDeckIsEmpty()
     {
         await using var dbContext = TestDb.Create();
-        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el gato", "the cat") });
+        dbContext.FlashCards.Add(TestDb.Card("el gato", "the cat"));
         var deck = new Deck { Name = "Empty" };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -133,15 +121,14 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task GetNext_ReturnsNotFound_ForAnotherUsersDeckOrTag()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         var otherDeck = new Deck { Name = "Theirs" };
         var otherTag = new Tag { Name = "Theirs" };
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext =>
         {
             otherContext.Decks.Add(otherDeck);
             otherContext.Tags.Add(otherTag);
-            await otherContext.SaveChangesAsync();
-        }
+        });
 
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
@@ -153,7 +140,7 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task GetNext_TakesTheDeckOrTagFromTheQuery()
     {
-        using var client = CreateClient();
+        using var client = TestApp.CreateSignedInClient(factory);
 
         var unknownDeck = await client.GetAsync("/api/flashcards/practice/next?deckId=999");
         var unknownTag = await client.GetAsync("/api/flashcards/practice/next?tagId=999");
@@ -167,18 +154,5 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
     private static PracticeController CreateController(FlashCardDbContext dbContext)
     {
         return new PracticeController(dbContext, NullLogger<PracticeController>.Instance);
-    }
-
-    private HttpClient CreateClient()
-    {
-        // Development uses the in-memory database and allows test sign-in, so the app starts without SQL Server.
-        var client = factory
-            .WithWebHostBuilder(builder => builder
-                .UseEnvironment("Development")
-                .UseSetting("Authentication:AllowTestSignIn", "true"))
-            .CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", $"test:Practice {Guid.NewGuid()}");
-        return client;
     }
 }

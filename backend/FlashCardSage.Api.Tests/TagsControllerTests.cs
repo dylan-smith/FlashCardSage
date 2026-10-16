@@ -13,12 +13,8 @@ public class TagsControllerTests
     [Fact]
     public async Task GetAll_ReturnsTheUsersTagsInNameOrder()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            otherContext.Tags.Add(new Tag { Name = "Theirs" });
-            await otherContext.SaveChangesAsync();
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.Tags.Add(new Tag { Name = "Theirs" }));
 
         await using var dbContext = TestDb.Create(databaseName);
         dbContext.Tags.AddRange(new Tag { Name = "Travel" }, new Tag { Name = "Food" });
@@ -54,8 +50,7 @@ public class TagsControllerTests
 
         var result = await controller.Create(new TagRequest { Name = "   " });
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal(["Tag name is required."], problem.Errors["Name"]);
+        ActionResultAssert.ValidationProblem(result.Result, "Name", "Tag name is required.");
         Assert.Empty(await dbContext.Tags.ToListAsync());
     }
 
@@ -69,20 +64,15 @@ public class TagsControllerTests
 
         var result = await controller.Create(new TagRequest { Name = "food" });
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal(["There's already a tag with that name."], problem.Errors["Name"]);
+        ActionResultAssert.ValidationProblem(result.Result, "Name", "There's already a tag with that name.");
         Assert.Single(await dbContext.Tags.ToListAsync());
     }
 
     [Fact]
     public async Task Create_AllowsANameAnotherUserHas()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            otherContext.Tags.Add(new Tag { Name = "Food" });
-            await otherContext.SaveChangesAsync();
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.Tags.Add(new Tag { Name = "Food" }));
 
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
@@ -105,7 +95,7 @@ public class TagsControllerTests
 
         var result = await controller.Update(tag.Id, new TagRequest { Name = "  Food  " });
 
-        Assert.Equal("Food", Assert.IsType<Tag>(Assert.IsType<OkObjectResult>(result.Result).Value).Name);
+        Assert.Equal("Food", ActionResultAssert.Ok<Tag>(result.Result).Name);
         Assert.Equal("Food", (await dbContext.Tags.SingleAsync()).Name);
     }
 
@@ -135,8 +125,7 @@ public class TagsControllerTests
 
         var result = await controller.Update(tag.Id, new TagRequest { Name = "   " });
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal(["Tag name is required."], problem.Errors["Name"]);
+        ActionResultAssert.ValidationProblem(result.Result, "Name", "Tag name is required.");
         Assert.Equal("Food", (await dbContext.Tags.SingleAsync()).Name);
     }
 
@@ -151,14 +140,13 @@ public class TagsControllerTests
 
         var result = await controller.Update(tag.Id, new TagRequest { Name = "food" });
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal(["There's already a tag with that name."], problem.Errors["Name"]);
+        ActionResultAssert.ValidationProblem(result.Result, "Name", "There's already a tag with that name.");
     }
 
     [Fact]
     public async Task Delete_RemovesTheTagFromItsCards_AndKeepsTheCards()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         int tagId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
@@ -184,7 +172,7 @@ public class TagsControllerTests
     [Fact]
     public async Task Delete_PutsTheReplacementOnItsCards()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         int tagId;
         int replacementId;
         await using (var setupContext = TestDb.Create(databaseName))
@@ -194,7 +182,7 @@ public class TagsControllerTests
             setupContext.FlashCards.AddRange(
                 new FlashCard { Words = TestDb.Words("el gato", "the cat"), Tags = [tag, replacement] },
                 new FlashCard { Words = TestDb.Words("el león", "the lion"), Tags = [tag] },
-                new FlashCard { Words = TestDb.Words("el pan", "the bread"), Tags = [new Tag { Name = "Food" }] });
+                TestDb.Card("el pan", "the bread", ["Food"]));
             await setupContext.SaveChangesAsync();
             tagId = tag.Id;
             replacementId = replacement.Id;
@@ -222,23 +210,16 @@ public class TagsControllerTests
 
         var result = await controller.Delete(tag.Id, tag.Id);
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result).Value);
-        Assert.Equal(["Pick another of your tags to replace it with."], problem.Errors["replaceWith"]);
+        ActionResultAssert.ValidationProblem(result, "replaceWith", "Pick another of your tags to replace it with.");
         Assert.Single(await dbContext.Tags.ToListAsync());
     }
 
     [Fact]
     public async Task Delete_ReturnsValidationProblem_WhenTheReplacementIsAnotherUsersTag()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        int otherId;
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            var other = new Tag { Name = "Theirs" };
-            otherContext.Tags.Add(other);
-            await otherContext.SaveChangesAsync();
-            otherId = other.Id;
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        var other = new Tag { Name = "Theirs" };
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.Tags.Add(other));
 
         await using var dbContext = TestDb.Create(databaseName);
         var tag = new Tag { Name = "Food" };
@@ -246,7 +227,7 @@ public class TagsControllerTests
         await dbContext.SaveChangesAsync();
         var controller = CreateController(dbContext);
 
-        var result = await controller.Delete(tag.Id, otherId);
+        var result = await controller.Delete(tag.Id, other.Id);
 
         Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result).Value);
         Assert.Equal(2, await dbContext.Tags.IgnoreQueryFilters().CountAsync());
@@ -257,21 +238,15 @@ public class TagsControllerTests
     [Fact]
     public async Task OtherUsersTags_CannotBeRenamedOrDeleted()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        int otherId;
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            var other = new Tag { Name = "Theirs" };
-            otherContext.Tags.Add(other);
-            await otherContext.SaveChangesAsync();
-            otherId = other.Id;
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        var other = new Tag { Name = "Theirs" };
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.Tags.Add(other));
 
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
 
-        Assert.IsType<NotFoundResult>((await controller.Update(otherId, new TagRequest { Name = "Mine" })).Result);
-        Assert.IsType<NotFoundResult>(await controller.Delete(otherId));
+        Assert.IsType<NotFoundResult>((await controller.Update(other.Id, new TagRequest { Name = "Mine" })).Result);
+        Assert.IsType<NotFoundResult>(await controller.Delete(other.Id));
         Assert.Equal("Theirs", (await dbContext.Tags.IgnoreQueryFilters().SingleAsync()).Name);
     }
 

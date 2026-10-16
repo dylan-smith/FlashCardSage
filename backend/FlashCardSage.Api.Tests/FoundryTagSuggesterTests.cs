@@ -1,9 +1,9 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
+using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Tests;
@@ -17,7 +17,7 @@ public class FoundryTagSuggesterTests
             Name = "Animals",
             FlashCards =
             [
-                new() { Words = TestDb.Words("el gato", "the cat") },
+                TestDb.Card("el gato", "the cat"),
                 new() { Words = TestDb.Words(["solo", "únicamente"], ["only"]) }
             ]
         },
@@ -27,7 +27,7 @@ public class FoundryTagSuggesterTests
     [Fact]
     public async Task SuggestAsync_AsksTheModelAboutTheCardAndTags_AndReturnsItsPicks()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"tags":["Animals"]}"""));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"tags":["Animals"]}"""));
         using var httpClient = new HttpClient(handler);
 
         var tags = await CreateSuggester(httpClient).SuggestAsync(
@@ -36,7 +36,7 @@ public class FoundryTagSuggesterTests
         Assert.Equal(["Animals"], tags);
         var request = Assert.Single(handler.Requests);
         Assert.Equal("https://foundry.example/openai/v1/chat/completions", request.Url);
-        Assert.Equal("secret-key", request.Key);
+        Assert.Equal("secret-key", request.Header("api-key"));
         using var body = JsonDocument.Parse(request.Body!);
         var root = body.RootElement;
         Assert.Equal("gpt-test", root.GetProperty("model").GetString());
@@ -54,7 +54,7 @@ public class FoundryTagSuggesterTests
     [Fact]
     public async Task SuggestAsync_DescribesACardWithOneSideFilledIn()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"tags":[]}"""));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"tags":[]}"""));
         using var httpClient = new HttpClient(handler);
 
         var tags = await CreateSuggester(httpClient).SuggestAsync([], ["the dog"], Tags, CancellationToken.None);
@@ -68,7 +68,7 @@ public class FoundryTagSuggesterTests
     [Fact]
     public async Task SuggestNewAsync_AsksTheModelForNewTags_FromTheTagsAndUntaggedCards()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"tags":["Food","Colors"]}"""));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"tags":["Food","Colors"]}"""));
         using var httpClient = new HttpClient(handler);
         List<FlashCard> untagged = [new() { Words = TestDb.Words(["rojo"], ["red", "scarlet"]) }];
 
@@ -94,7 +94,7 @@ public class FoundryTagSuggesterTests
     [Fact]
     public async Task SuggestNewAsync_AsksForBeginnersTags_WithNoTagsOrCards()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"tags":[]}"""));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"tags":[]}"""));
         using var httpClient = new HttpClient(handler);
 
         await CreateSuggester(httpClient).SuggestNewAsync([], [], 8, CancellationToken.None);
@@ -108,7 +108,7 @@ public class FoundryTagSuggesterTests
     [Fact]
     public async Task SuggestNewAsync_Throws_WhenTheServiceFails()
     {
-        var handler = new FakeHandler(HttpStatusCode.TooManyRequests, """{"error":{"code":"429"}}""");
+        var handler = new RecordingHttpHandler(HttpStatusCode.TooManyRequests, """{"error":{"code":"429"}}""");
         using var httpClient = new HttpClient(handler);
 
         var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
@@ -120,7 +120,7 @@ public class FoundryTagSuggesterTests
     [Fact]
     public async Task SuggestAsync_Throws_WhenTheServiceFails()
     {
-        var handler = new FakeHandler(HttpStatusCode.TooManyRequests, """{"error":{"code":"429"}}""");
+        var handler = new RecordingHttpHandler(HttpStatusCode.TooManyRequests, """{"error":{"code":"429"}}""");
         using var httpClient = new HttpClient(handler);
 
         var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
@@ -144,48 +144,7 @@ public class FoundryTagSuggesterTests
 
     private static FoundryTagSuggester CreateSuggester(HttpClient httpClient)
     {
-        var options = new FoundryChatOptions
-        {
-            Endpoint = "https://foundry.example/",
-            Key = "secret-key",
-            Deployment = "gpt-test"
-        };
-        return new FoundryTagSuggester(httpClient, Options.Create(options));
+        return new FoundryTagSuggester(httpClient, FoundryTestOptions.Default);
     }
 
-    // A chat completion whose answer is this text.
-    private static string Completion(string content, string? refusal = null)
-    {
-        return JsonSerializer.Serialize(new
-        {
-            id = "chatcmpl-test",
-            @object = "chat.completion",
-            choices = new[]
-            {
-                new { index = 0, finish_reason = "stop", message = new { role = "assistant", content, refusal } }
-            }
-        });
-    }
-
-    private sealed record SentRequest(string Url, string? Key, string? Body);
-
-    // Answers every request the same way, and keeps what was sent.
-    private sealed class FakeHandler(HttpStatusCode status, string body) : HttpMessageHandler
-    {
-        public List<SentRequest> Requests { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(new SentRequest(
-                request.RequestUri!.ToString(),
-                request.Headers.TryGetValues("api-key", out var keys) ? keys.Single() : null,
-                request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken)));
-            return new HttpResponseMessage(status)
-            {
-                Content = new StringContent(body, Encoding.UTF8, "application/json")
-            };
-        }
-    }
 }

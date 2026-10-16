@@ -8,9 +8,9 @@ public class TakenWordsTests
     [Fact]
     public async Task LoadAsync_TakesTheUsersWordsIgnoringCase_ButNotAnotherUsers()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await SeedAsync(databaseName, TestDb.UserId, TestDb.Words(["el gato", "el gatito"], ["the cat"]));
-        await SeedAsync(databaseName, TestDb.OtherUserId, TestDb.Words("el perro", "the dog"));
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardAsync(databaseName, new FlashCard { Words = TestDb.Words(["el gato", "el gatito"], ["the cat"]) });
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"), TestDb.OtherUserId);
         await using var dbContext = TestDb.Create(databaseName);
 
         var taken = await TakenWords.LoadAsync(dbContext, exceptCardId: null, CancellationToken.None);
@@ -24,9 +24,9 @@ public class TakenWordsTests
     [Fact]
     public async Task LoadAsync_LeavesOutTheCardBeingChanged()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var catId = await SeedAsync(databaseName, TestDb.UserId, TestDb.Words("el gato", "the cat"));
-        await SeedAsync(databaseName, TestDb.UserId, TestDb.Words("el perro", "the dog"));
+        var databaseName = TestDb.NewDatabaseName();
+        var catId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"));
         await using var dbContext = TestDb.Create(databaseName);
 
         var taken = await TakenWords.LoadAsync(dbContext, exceptCardId: catId, CancellationToken.None);
@@ -38,9 +38,9 @@ public class TakenWordsTests
     [Fact]
     public async Task FirstClash_IsTheSavedWord_SpanishFirstThenEnglishInOrder()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var catId = await SeedAsync(databaseName, TestDb.UserId, TestDb.Words("el gato", "the cat"));
-        await SeedAsync(databaseName, TestDb.UserId, TestDb.Words("el perro", "the dog"));
+        var databaseName = TestDb.NewDatabaseName();
+        var catId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"));
         await using var dbContext = TestDb.Create(databaseName);
         var taken = await TakenWords.LoadAsync(dbContext, exceptCardId: null, CancellationToken.None);
 
@@ -55,25 +55,15 @@ public class TakenWordsTests
     [Fact]
     public void From_TakesTheCardsWords_AndAddTakesMore()
     {
-        var taken = TakenWords.From([new FlashCard { Words = TestDb.Words("el gato", "the cat") }]);
+        var taken = TakenWords.From([TestDb.Card("el gato", "the cat")]);
 
-        taken.Add(new FlashCard { Words = TestDb.Words("el perro", "the dog") });
+        taken.Add(TestDb.Card("el perro", "the dog"));
         taken.Add(Language.English, "the house");
 
         Assert.True(taken.Contains(Language.Spanish, "El Perro"));
         Assert.True(taken.Contains(Language.English, "the house"));
         Assert.False(taken.Contains(Language.Spanish, "the house"));
-        Assert.True(taken.ContainsAny(new FlashCard { Words = TestDb.Words("la casa", "THE CAT") }));
-        Assert.False(taken.ContainsAny(new FlashCard { Words = TestDb.Words("la casa", "the home") }));
-    }
-
-    // Saves a card with these words for the user, returning its id.
-    private static async Task<int> SeedAsync(string databaseName, int userId, List<FlashCardWord> words)
-    {
-        await using var dbContext = TestDb.Create(databaseName, userId);
-        var card = new FlashCard { Words = words };
-        dbContext.FlashCards.Add(card);
-        await dbContext.SaveChangesAsync();
-        return card.Id;
+        Assert.True(taken.ContainsAny(TestDb.Card("la casa", "THE CAT")));
+        Assert.False(taken.ContainsAny(TestDb.Card("la casa", "the home")));
     }
 }
