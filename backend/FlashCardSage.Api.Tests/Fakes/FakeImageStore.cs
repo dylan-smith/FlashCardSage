@@ -1,6 +1,6 @@
 using FlashCardSage.Api.Images;
 
-namespace FlashCardSage.Api.Tests;
+namespace FlashCardSage.Api.Tests.Fakes;
 
 // Stands in for blob storage: hands out a URL for each picture saved, and remembers what's saved and deleted.
 internal sealed class FakeImageStore : IImageStore

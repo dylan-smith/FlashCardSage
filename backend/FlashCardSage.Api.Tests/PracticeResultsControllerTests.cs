@@ -5,7 +5,6 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -23,7 +22,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     public async Task Create_RecordsTheOutcomeAndWhenForTheCard(PracticeOutcome outcome)
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext);
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         var controller = CreateController(dbContext);
         var before = DateTimeOffset.UtcNow;
 
@@ -39,13 +38,13 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     public async Task Create_ReturnsAnotherCardToPracticeNext()
     {
         await using var dbContext = TestDb.Create();
-        var cat = await AddCardAsync(dbContext);
-        var dog = await AddCardAsync(dbContext, "el perro", "the dog");
+        var cat = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
+        var dog = await TestDb.AddCardAsync(dbContext, TestDb.Card("el perro", "the dog"));
         var controller = CreateController(dbContext);
 
         var result = await controller.Create(cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.Failed }, AllCards);
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<PracticeResultResponse>(result.Result);
         var next = Assert.IsType<PracticeCard>(response.Next);
         Assert.Equal((dog.Id, "el perro", "the dog"), (next.Id, next.Spanish.Single(), next.English.Single()));
     }
@@ -54,12 +53,12 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     public async Task Create_ReturnsTheSameCard_WhenItIsTheOnlyOne()
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext);
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         var controller = CreateController(dbContext);
 
         var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<PracticeResultResponse>(result.Result);
         Assert.Equal(card.Id, response.Next?.Id);
     }
 
@@ -67,9 +66,9 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     public async Task Create_PicksTheNextCardFromTheSelectedDeck()
     {
         await using var dbContext = TestDb.Create();
-        var cat = await AddCardAsync(dbContext);
-        var dog = await AddCardAsync(dbContext, "el perro", "the dog");
-        await AddCardAsync(dbContext, "la casa", "the house");
+        var cat = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
+        var dog = await TestDb.AddCardAsync(dbContext, TestDb.Card("el perro", "the dog"));
+        await TestDb.AddCardAsync(dbContext, TestDb.Card("la casa", "the house"));
         var deck = new Deck { Name = "Animals", FlashCards = [cat, dog] };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -78,7 +77,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var result = await controller.Create(
             cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, new PracticeSelection { DeckId = deck.Id });
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<PracticeResultResponse>(result.Result);
         Assert.Equal(dog.Id, response.Next?.Id);
     }
 
@@ -87,7 +86,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     {
         await using var dbContext = TestDb.Create();
         var tag = new Tag { Name = "Animals" };
-        var cat = await AddCardAsync(dbContext);
+        var cat = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog"), Tags = [tag] };
         dbContext.FlashCards.Add(dog);
         await dbContext.SaveChangesAsync();
@@ -96,7 +95,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var result = await controller.Create(
             cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, new PracticeSelection { TagId = tag.Id });
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<PracticeResultResponse>(result.Result);
         Assert.Equal(dog.Id, response.Next?.Id);
     }
 
@@ -104,7 +103,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     public async Task Create_ReturnsNoNextCard_WhenTheDeckHasNoCardsLeft()
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext);
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         var deck = new Deck { Name = "Empty" };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -113,7 +112,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         var result = await controller.Create(
             card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, new PracticeSelection { DeckId = deck.Id });
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<PracticeResultResponse>(result.Result);
         Assert.Null(response.Next);
         Assert.True(await dbContext.PracticeResults.AnyAsync());
     }
@@ -122,7 +121,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     public async Task Create_ReturnsNotFound_WhenTheDeckDoesNotExist()
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext);
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         var controller = CreateController(dbContext);
 
         var result = await controller.Create(
@@ -155,7 +154,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         PracticeOutcome[] earlier, PracticeOutcome outcome, int expected)
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext);
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         var controller = CreateController(dbContext);
         foreach (var earlierOutcome in earlier)
         {
@@ -164,7 +163,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
         var result = await controller.Create(card.Id, new PracticeResultRequest { Outcome = outcome }, AllCards);
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<PracticeResultResponse>(result.Result);
         Assert.Equal(expected, response.ScoreChange);
     }
 
@@ -172,14 +171,14 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     public async Task Create_OnlyCountsTheCardsOwnResults_ForTheScoreChange()
     {
         await using var dbContext = TestDb.Create();
-        var cat = await AddCardAsync(dbContext);
-        var dog = await AddCardAsync(dbContext, "el perro", "the dog");
+        var cat = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
+        var dog = await TestDb.AddCardAsync(dbContext, TestDb.Card("el perro", "the dog"));
         var controller = CreateController(dbContext);
         await controller.Create(dog.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
         var result = await controller.Create(cat.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
 
-        var response = Assert.IsType<PracticeResultResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<PracticeResultResponse>(result.Result);
         Assert.Equal(50, response.ScoreChange);
     }
 
@@ -187,7 +186,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     public async Task Create_KeepsEveryResult()
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext);
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         var controller = CreateController(dbContext);
 
         await controller.Create(card.Id, new PracticeResultRequest { Outcome = PracticeOutcome.Failed }, AllCards);
@@ -213,12 +212,8 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Create_ReturnsNotFound_ForAnotherUsersFlashCard()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        int otherId;
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            otherId = (await AddCardAsync(otherContext)).Id;
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        var otherId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"), TestDb.OtherUserId);
 
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
@@ -232,10 +227,10 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task OtherUsersPracticeResults_AreNotVisible()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
         {
-            var other = await AddCardAsync(otherContext);
+            var other = await TestDb.AddCardAsync(otherContext, TestDb.Card("el gato", "the cat"));
             await CreateController(otherContext)
                 .Create(other.Id, new PracticeResultRequest { Outcome = PracticeOutcome.GotIt }, AllCards);
         }
@@ -248,7 +243,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Post_AcceptsTheOutcomeByName()
     {
-        using var client = CreateClient();
+        using var client = TestApp.CreateSignedInClient(factory);
         var card = await CreateCardAsync(client);
 
         var response = await client.PostAsJsonAsync(
@@ -267,7 +262,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
     [InlineData("""{"outcome":42}""")]
     public async Task Post_ReturnsBadRequest_ForAMissingOrUnknownOutcome(string body)
     {
-        using var client = CreateClient();
+        using var client = TestApp.CreateSignedInClient(factory);
         var card = await CreateCardAsync(client);
 
         using var content = new StringContent(body, MediaTypeHeaderValue.Parse("application/json"));
@@ -279,31 +274,9 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
     private static PracticeSelection AllCards => new();
 
-    private static async Task<FlashCard> AddCardAsync(
-        FlashCardDbContext dbContext, string spanish = "el gato", string english = "the cat")
-    {
-        var card = new FlashCard { Words = TestDb.Words(spanish, english) };
-        dbContext.FlashCards.Add(card);
-        await dbContext.SaveChangesAsync();
-        return card;
-    }
-
     private static PracticeResultsController CreateController(FlashCardDbContext dbContext)
     {
         return new PracticeResultsController(dbContext, NullLogger<PracticeResultsController>.Instance);
-    }
-
-    private HttpClient CreateClient()
-    {
-        // Development uses the in-memory database and allows test sign-in, so the app starts without SQL Server.
-        var client = factory
-            .WithWebHostBuilder(builder => builder
-                .UseEnvironment("Development")
-                .UseSetting("Authentication:AllowTestSignIn", "true"))
-            .CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", $"test:Practice {Guid.NewGuid()}");
-        return client;
     }
 
     private static async Task<IdResponse> CreateCardAsync(HttpClient client)
@@ -312,6 +285,4 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
         response.EnsureSuccessStatusCode();
         return (await response.Content.ReadFromJsonAsync<IdResponse>())!;
     }
-
-    private sealed record IdResponse(int Id);
 }

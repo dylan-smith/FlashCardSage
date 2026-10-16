@@ -1,4 +1,5 @@
 using FlashCardSage.Api.Images;
+using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;

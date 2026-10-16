@@ -1,7 +1,8 @@
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Images;
-using FlashCardSage.Api.Models;
 using FlashCardSage.Api.SystemDecks;
+using FlashCardSage.Api.Tests.Fakes;
+using FlashCardSage.Api.Tests.TestData;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -12,9 +13,9 @@ public sealed class SystemDeckImageSyncTests : IDisposable
     private static readonly SystemDeckDefinition Days = new(
         "Days",
         [
-            SystemDeckSeederTests.Card("lunes", "Monday", "Days"),
+            SystemDeckTestData.Card("lunes", "Monday", "Days"),
             new(["martes", "el martes"], ["Tuesday"], ["Days"]),
-            SystemDeckSeederTests.Card("miércoles", "Wednesday", "Days")
+            SystemDeckTestData.Card("miércoles", "Wednesday", "Days")
         ]);
 
     private readonly string directory = Path.Join(Path.GetTempPath(), $"FlashCardSage-{Guid.NewGuid():N}");
@@ -32,25 +33,25 @@ public sealed class SystemDeckImageSyncTests : IDisposable
     [Fact]
     public async Task SyncAsync_GivesTheBuiltInCardsTheirPictures_AndLeavesUsersCardsAlone()
     {
-        var databaseName = await SystemDeckSeederTests.CreateDatabaseWithUsersAsync();
-        var systemUserId = await SystemDeckSeederTests.SeedAsync(databaseName, [Days]);
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithUsersAsync();
+        var systemUserId = await SystemDeckTestData.SeedAsync(databaseName, [Days]);
         await using (var userContext = TestDb.Create(databaseName))
         {
-            userContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("lunes", "Monday") });
+            userContext.FlashCards.Add(TestDb.Card("lunes", "Monday"));
             await userContext.SaveChangesAsync();
         }
 
         var store = new FakeImageStore();
         // Tuesday's picture is found by its second Spanish word, and Wednesday has none.
-        var updated = await SyncAsync(databaseName, store, Image("lunes", CardImageTests.Jpeg), Image("el martes", Jpeg2));
+        var updated = await SyncAsync(databaseName, store, Image("lunes", SampleImages.Jpeg), Image("el martes", Jpeg2));
 
         Assert.Equal(2, updated);
         await using var checkContext = TestDb.Create(databaseName, systemUserId);
         var cards = await checkContext.FlashCards.Include(card => card.Words).ToListAsync();
-        Assert.Equal(ExpectedUrl(CardImageTests.Jpeg), cards.Single(card => card.Spanish[0] == "lunes").ImageUrl);
+        Assert.Equal(ExpectedUrl(SampleImages.Jpeg), cards.Single(card => card.Spanish[0] == "lunes").ImageUrl);
         Assert.Equal(ExpectedUrl(Jpeg2), cards.Single(card => card.Spanish[0] == "martes").ImageUrl);
         Assert.Null(cards.Single(card => card.Spanish[0] == "miércoles").ImageUrl);
-        Assert.Equal(CardImageTests.Jpeg, store.Saved.Single(item => item.Url == ExpectedUrl(CardImageTests.Jpeg)).Data);
+        Assert.Equal(SampleImages.Jpeg, store.Saved.Single(item => item.Url == ExpectedUrl(SampleImages.Jpeg)).Data);
         Assert.Empty(store.Deleted);
 
         await using var userCheckContext = TestDb.Create(databaseName);
@@ -60,12 +61,12 @@ public sealed class SystemDeckImageSyncTests : IDisposable
     [Fact]
     public async Task SyncAsync_LeavesACardWithItsPictureAlone_AndReplacesAChangedOne()
     {
-        var databaseName = await SystemDeckSeederTests.CreateDatabaseWithUsersAsync();
-        var systemUserId = await SystemDeckSeederTests.SeedAsync(databaseName, [Days]);
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithUsersAsync();
+        var systemUserId = await SystemDeckTestData.SeedAsync(databaseName, [Days]);
         var store = new FakeImageStore();
-        await SyncAsync(databaseName, store, Image("lunes", CardImageTests.Jpeg), Image("martes", Jpeg2));
+        await SyncAsync(databaseName, store, Image("lunes", SampleImages.Jpeg), Image("martes", Jpeg2));
 
-        Assert.Equal(0, await SyncAsync(databaseName, store, Image("lunes", CardImageTests.Jpeg), Image("martes", Jpeg2)));
+        Assert.Equal(0, await SyncAsync(databaseName, store, Image("lunes", SampleImages.Jpeg), Image("martes", Jpeg2)));
         Assert.Equal(2, store.Saved.Count);
 
         // Monday's picture was made again.
@@ -75,15 +76,15 @@ public sealed class SystemDeckImageSyncTests : IDisposable
         var monday = (await checkContext.FlashCards.Include(card => card.Words).ToListAsync())
             .Single(card => card.Spanish[0] == "lunes");
         Assert.Equal(ExpectedUrl(Jpeg3), monday.ImageUrl);
-        Assert.Equal([ExpectedUrl(CardImageTests.Jpeg)], store.Deleted);
+        Assert.Equal([ExpectedUrl(SampleImages.Jpeg)], store.Deleted);
     }
 
     [Fact]
     public async Task SyncAsync_KeepsTheNewPicture_WhenTheOldOneCannotBeRemoved()
     {
-        var databaseName = await SystemDeckSeederTests.CreateDatabaseWithUsersAsync();
-        var systemUserId = await SystemDeckSeederTests.SeedAsync(databaseName, [Days]);
-        await SyncAsync(databaseName, new FakeImageStore(), Image("lunes", CardImageTests.Jpeg));
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithUsersAsync();
+        var systemUserId = await SystemDeckTestData.SeedAsync(databaseName, [Days]);
+        await SyncAsync(databaseName, new FakeImageStore(), Image("lunes", SampleImages.Jpeg));
 
         var store = new FakeImageStore { DeleteFailure = new IOException("Storage is down.") };
         Assert.Equal(1, await SyncAsync(databaseName, store, Image("lunes", Jpeg3)));
@@ -92,14 +93,14 @@ public sealed class SystemDeckImageSyncTests : IDisposable
         var monday = (await checkContext.FlashCards.Include(card => card.Words).ToListAsync())
             .Single(card => card.Spanish[0] == "lunes");
         Assert.Equal(ExpectedUrl(Jpeg3), monday.ImageUrl);
-        Assert.Equal([ExpectedUrl(CardImageTests.Jpeg)], store.Deleted);
+        Assert.Equal([ExpectedUrl(SampleImages.Jpeg)], store.Deleted);
     }
 
     [Fact]
     public async Task SyncAsync_DoesNothing_WithoutPictures()
     {
-        var databaseName = await SystemDeckSeederTests.CreateDatabaseWithUsersAsync();
-        await SystemDeckSeederTests.SeedAsync(databaseName, [Days]);
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithUsersAsync();
+        await SystemDeckTestData.SeedAsync(databaseName, [Days]);
         var store = new FakeImageStore();
 
         Assert.Equal(0, await SyncAsync(databaseName, store));
@@ -144,9 +145,9 @@ public sealed class SystemDeckImageSyncTests : IDisposable
         });
     }
 
-    private static readonly byte[] Jpeg2 = [.. CardImageTests.Jpeg, 0x02];
+    private static readonly byte[] Jpeg2 = [.. SampleImages.Jpeg, 0x02];
 
-    private static readonly byte[] Jpeg3 = [.. CardImageTests.Jpeg, 0x03];
+    private static readonly byte[] Jpeg3 = [.. SampleImages.Jpeg, 0x03];
 
     private static string ExpectedUrl(byte[] data)
     {

@@ -1,8 +1,6 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlashCardSage.Api.Data;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -17,7 +15,7 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Health_AllowsAnonymousRequests()
     {
-        using var client = CreateClient();
+        using var client = TestApp.CreateSignedOutClient(factory, Settings());
 
         var response = await client.GetAsync("/health");
 
@@ -27,7 +25,7 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Api_ReturnsUnauthorized_WithoutToken()
     {
-        using var client = CreateClient();
+        using var client = TestApp.CreateSignedOutClient(factory, Settings());
 
         var response = await client.GetAsync("/api/flashcards");
 
@@ -37,7 +35,8 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Api_ReturnsUnauthorized_ForUnknownToken()
     {
-        using var client = CreateClient(token: "not-a-real-token");
+        using var app = TestApp.CreateFactory(factory, Settings());
+        using var client = TestApp.CreateClient(app, "not-a-real-token");
 
         var response = await client.GetAsync("/api/flashcards");
 
@@ -48,15 +47,15 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     public async Task TestSignIn_CreatesTheUserOnce_AndReturnsThem()
     {
         var name = $"Alice {Guid.NewGuid()}";
-        var webFactory = CreateFactory();
-        using var client = CreateClient(webFactory, $"test:{name}");
+        using var app = TestApp.CreateFactory(factory, Settings());
+        using var client = TestApp.CreateClient(app, $"test:{name}");
 
         var first = await client.GetFromJsonAsync<MeResponse>("/api/me");
         var second = await client.GetFromJsonAsync<MeResponse>("/api/me");
 
         Assert.Equal(name, first!.DisplayName);
         Assert.Equal(name, second!.DisplayName);
-        using var scope = webFactory.Services.CreateScope();
+        using var scope = app.Services.CreateScope();
         var dbContext = scope.ServiceProvider.GetRequiredService<FlashCardDbContext>();
         var subject = $"test:{name.ToLowerInvariant()}";
         Assert.Equal(1, await dbContext.Users.CountAsync(user => user.Subject == subject));
@@ -65,7 +64,7 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task TestSignIn_IsRejected_WhenNotEnabled()
     {
-        using var client = CreateClient(CreateFactory(allowTestSignIn: false), "test:Alice");
+        using var client = TestApp.CreateSignedInClient(factory, "Alice", Settings(allowTestSignIn: false));
 
         var response = await client.GetAsync("/api/flashcards");
 
@@ -75,7 +74,8 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task ServiceToken_SignsInAsTheServiceUser()
     {
-        using var client = CreateClient(CreateFactory(serviceToken: ServiceToken), ServiceToken);
+        using var app = TestApp.CreateFactory(factory, Settings(serviceToken: ServiceToken));
+        using var client = TestApp.CreateClient(app, ServiceToken);
 
         var response = await client.GetFromJsonAsync<MeResponse>("/api/me");
 
@@ -85,7 +85,8 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task ServiceToken_IsRejected_WhenNotConfigured()
     {
-        using var client = CreateClient(token: ServiceToken);
+        using var app = TestApp.CreateFactory(factory, Settings());
+        using var client = TestApp.CreateClient(app, ServiceToken);
 
         var response = await client.GetAsync("/api/flashcards");
 
@@ -95,9 +96,9 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Users_OnlySeeTheirOwnFlashCards()
     {
-        var webFactory = CreateFactory();
-        using var alice = CreateClient(webFactory, $"test:Alice {Guid.NewGuid()}");
-        using var bob = CreateClient(webFactory, $"test:Bob {Guid.NewGuid()}");
+        using var app = TestApp.CreateFactory(factory, Settings());
+        using var alice = TestApp.CreateClient(app, $"test:Alice {Guid.NewGuid()}");
+        using var bob = TestApp.CreateClient(app, $"test:Bob {Guid.NewGuid()}");
         var created = await alice.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("buenos días", "good morning"));
         var card = await created.Content.ReadFromJsonAsync<IdResponse>();
 
@@ -108,33 +109,15 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
         Assert.Equal(HttpStatusCode.OK, (await alice.GetAsync($"/api/flashcards/{card.Id}")).StatusCode);
     }
 
-    private WebApplicationFactory<Program> CreateFactory(bool allowTestSignIn = true, string serviceToken = "")
+    // The sign-in settings, with test sign-in on and no service token unless the test says otherwise.
+    private static Dictionary<string, string> Settings(bool allowTestSignIn = true, string serviceToken = "")
     {
-        // Development uses the in-memory database, so the app starts without SQL Server.
-        return factory.WithWebHostBuilder(builder => builder
-            .UseEnvironment("Development")
-            .UseSetting("Authentication:AllowTestSignIn", allowTestSignIn.ToString())
-            .UseSetting("Authentication:ServiceToken", serviceToken));
-    }
-
-    private HttpClient CreateClient(string? token = null)
-    {
-        return CreateClient(CreateFactory(), token);
-    }
-
-    private static HttpClient CreateClient(WebApplicationFactory<Program> webFactory, string? token)
-    {
-        var client = webFactory.CreateClient();
-
-        if (token is not null)
+        return new()
         {
-            client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
-        }
-
-        return client;
+            ["Authentication:AllowTestSignIn"] = allowTestSignIn.ToString(),
+            ["Authentication:ServiceToken"] = serviceToken
+        };
     }
 
     private sealed record MeResponse(string? DisplayName, string? Email);
-
-    private sealed record IdResponse(int Id);
 }

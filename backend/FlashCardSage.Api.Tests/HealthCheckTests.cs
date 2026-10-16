@@ -1,4 +1,3 @@
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace FlashCardSage.Api.Tests;
@@ -9,9 +8,7 @@ public class HealthCheckTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Health_ReturnsHealthy()
     {
-        // Development uses the in-memory database, so the app starts without SQL Server.
-        using var client = factory.WithWebHostBuilder(builder => builder.UseEnvironment("Development"))
-            .CreateClient();
+        using var client = TestApp.CreateSignedOutClient(factory);
 
         var response = await client.GetAsync("/health");
 
