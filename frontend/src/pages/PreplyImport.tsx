@@ -5,7 +5,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { changeDeckCards, createDeck, listDecks } from '../api/decks'
+import { addToNamedDeck } from '../api/decks'
 import {
   createFlashCard,
   createFlashCards,
@@ -214,15 +214,7 @@ export function PreplyImport({ active }: { active: boolean }) {
       return
     }
     try {
-      const existing = (await listDecks()).find(
-        (deck) =>
-          deck.name.localeCompare(preplyDeckName, undefined, {
-            sensitivity: 'accent',
-          }) === 0,
-      )
-      const deck = existing
-        ? await changeDeckCards(existing.id, { add: ids })
-        : await createDeck({ name: preplyDeckName, flashCardIds: ids })
+      const deck = await addToNamedDeck(preplyDeckName, ids)
       deckId.current = deck.id
     } catch (error) {
       trackException(error, { operation: 'preplyDeck' })

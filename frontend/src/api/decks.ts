@@ -88,6 +88,18 @@ export function changeDeckCards(id: number, change: DeckCardsChange) {
   )
 }
 
+// Puts the cards in the user's deck with this name, whatever its case (as the API matches names), making the deck if
+// they don't have one. Returns the deck with all its cards.
+export async function addToNamedDeck(name: string, ids: number[]) {
+  const existing = (await listDecks()).find(
+    (deck) =>
+      deck.name.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0,
+  )
+  return existing
+    ? changeDeckCards(existing.id, { add: ids })
+    : createDeck({ name, flashCardIds: ids })
+}
+
 // Leaves the deck's cards as they are. A 404 means the deck is already gone, which is what the caller wanted.
 export async function deleteDeck(id: number) {
   const response = await apiFetch(`${decksUrl}/${id}`, {
