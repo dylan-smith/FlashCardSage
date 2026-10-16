@@ -9,6 +9,8 @@
     <AnalysisLevel>latest-recommended</AnalysisLevel>
     <!-- Keep the build warning-free: compiler, nullable and analyzer warnings all fail it. -->
     <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Check the .editorconfig code style rules in the build too, not only in dotnet format. -->
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
   </PropertyGroup>
 
 </Project>
