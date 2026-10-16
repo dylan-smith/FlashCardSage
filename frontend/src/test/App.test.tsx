@@ -14,6 +14,7 @@ import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
 import { tagSuggestDelayMs } from '../hooks/useTagSuggestions'
 import { suggestionsCollapsedKey } from '../pages/CardSuggestions'
+import { documentDeckName } from '../pages/documentDeckName'
 import { tagSuggestionsCollapsedKey } from '../pages/TagSuggestions'
 import { clearPreplyHandoff, startPreplyHandoff } from '../preply/preplyHandoff'
 import { touchOnlyQuery } from '../pages/PreplyBookmarklet'
@@ -4297,6 +4298,158 @@ describe('App', () => {
       expect(
         screen.getByText(/This button only works from your bookmarks bar\./),
       ).toBeInTheDocument()
+    })
+  })
+
+  describe('importing from a document', () => {
+    const flashCardsUrl = 'http://localhost:5269/api/flashcards'
+    const documentScansUrl = 'http://localhost:5269/api/document-scans'
+    const lessonDeck: Deck = { id: 50, name: 'Lección 3', flashCardIds: [] }
+
+    function savedCard(id: number, spanish: string, english: string) {
+      return {
+        id,
+        spanish: [spanish],
+        english: [english],
+        tags: [],
+        imageUrl: null,
+      }
+    }
+
+    // Shows the document's tab and scans "Lección 3.docx", which finds two cards. Saving anything else is answered with
+    // save. The other tabs' lists are empty.
+    async function scanLesson(
+      save: (url: string, init?: RequestInit) => Promise<Response>,
+      decks: Deck[] = [],
+    ) {
+      const user = userEvent.setup()
+      const calls = mockFetch(
+        async (url, init) =>
+          url === documentScansUrl
+            ? jsonResponse({
+                candidates: [
+                  { spanish: 'nadar', english: 'to swim' },
+                  { spanish: 'correr', english: 'to run' },
+                ],
+                truncated: false,
+              })
+            : init?.method !== undefined
+              ? save(url, init)
+              : jsonResponse([]),
+        [],
+        decks,
+      )
+      renderAt('/import?from=document')
+      await user.upload(
+        screen.getByLabelText('Choose a document'),
+        new File(['Nadar y correr.'], 'Lección 3.docx'),
+      )
+      const list = await screen.findByRole('list', {
+        name: 'Cards from the document',
+      })
+      return { user, calls, list }
+    }
+
+    it('names the deck after the document, without its extension', () => {
+      expect(documentDeckName('Lección 3.docx')).toBe('Lección 3')
+      expect(documentDeckName('notes.from.class.txt')).toBe('notes.from.class')
+      expect(documentDeckName('README')).toBe('README')
+      expect(documentDeckName('.txt')).toBe('.txt')
+      // Cut to the longest a deck name can be.
+      expect(documentDeckName(`${'a'.repeat(60)}.pdf`)).toBe('a'.repeat(50))
+    })
+
+    it('adds one card to a new deck named after the document', async () => {
+      const { user, calls, list } = await scanLesson(async (url) =>
+        url === flashCardsUrl
+          ? jsonResponse(savedCard(8, 'nadar', 'to swim'), 201)
+          : jsonResponse({ ...lessonDeck, flashCardIds: [8] }, 201),
+      )
+
+      await user.click(
+        within(list).getByRole('button', { name: 'Add "nadar"' }),
+      )
+
+      expect(
+        await screen.findByText('Added “nadar” to your Lección 3 deck.'),
+      ).toBeInTheDocument()
+      const posts = calls.filter(
+        (call) => call.init?.method === 'POST' && call.url !== documentScansUrl,
+      )
+      expect(posts.map((call) => call.url)).toEqual([flashCardsUrl, decksUrl])
+      expect(JSON.parse(posts[1].init?.body as string)).toEqual({
+        name: 'Lección 3',
+        flashCardIds: [8],
+      })
+    })
+
+    it('adds all the cards to the deck the user has with the document’s name', async () => {
+      const { user, calls } = await scanLesson(
+        async (url) =>
+          url === `${flashCardsUrl}/batch`
+            ? jsonResponse({
+                cards: [
+                  savedCard(8, 'nadar', 'to swim'),
+                  savedCard(9, 'correr', 'to run'),
+                ],
+                skippedCount: 0,
+              })
+            : jsonResponse({ ...lessonDeck, flashCardIds: [5, 8, 9] }),
+        [{ ...lessonDeck, name: 'lección 3', flashCardIds: [5] }],
+      )
+
+      await user.click(
+        screen.getAllByRole('button', { name: 'Add all 2 cards' })[0],
+      )
+
+      expect(
+        await screen.findByText(
+          'Added 2 cards from “Lección 3.docx” to your Lección 3 deck.',
+        ),
+      ).toBeInTheDocument()
+      expect(screen.getByRole('link', { name: 'Open deck' })).toHaveAttribute(
+        'href',
+        '/decks/50',
+      )
+      // The cards go in the deck the user already has, whatever its case.
+      const patch = calls.find((call) => call.init?.method === 'PATCH')
+      expect(patch?.url).toBe(`${decksUrl}/50/cards`)
+      expect(JSON.parse(patch?.init?.body as string)).toEqual({
+        add: [8, 9],
+        remove: [],
+      })
+    })
+
+    it("says when the cards were added but couldn't be put in the deck", async () => {
+      const { user } = await scanLesson(async (url) =>
+        url === `${flashCardsUrl}/batch`
+          ? jsonResponse({
+              cards: [
+                savedCard(8, 'nadar', 'to swim'),
+                savedCard(9, 'correr', 'to run'),
+              ],
+              skippedCount: 0,
+            })
+          : new Response(null, { status: 500 }),
+      )
+
+      await user.click(
+        screen.getAllByRole('button', { name: 'Add all 2 cards' })[0],
+      )
+
+      expect(
+        await screen.findByText(
+          "The cards were added, but couldn't be put in your Lección 3 deck.",
+        ),
+      ).toBeInTheDocument()
+      // With a link to the cards instead.
+      expect(screen.getByRole('link', { name: 'View cards' })).toHaveAttribute(
+        'href',
+        '/',
+      )
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'documentDeck',
+      })
     })
   })
 
