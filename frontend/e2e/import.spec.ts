@@ -212,19 +212,28 @@ test.describe('Import cards', () => {
 
     // One card added on its own leaves the list, and the rest are added all at once.
     await page.getByRole('button', { name: 'Add "palabra 3"' }).click()
-    await expect(page.getByText('Added “palabra 3”.')).toBeVisible()
+    await expect(
+      page.getByText('Added “palabra 3” to your cuento deck.'),
+    ).toBeVisible()
     await expect(cards.getByRole('listitem')).toHaveCount(98)
     await page.getByRole('button', { name: 'Add all 98 cards' }).last().click()
 
     await expect(
       page.getByText(
-        'Added 98 cards from “cuento.txt”. 1 card was left out because you already have it. The document may have more words and phrases, so scan it again to find them.',
+        'Added 98 cards from “cuento.txt” to your cuento deck. 1 card was left out because you already have it. The document may have more words and phrases, so scan it again to find them.',
       ),
     ).toBeVisible()
     await expect(
       page.getByRole('button', { name: 'Scan it again' }),
     ).toBeVisible()
-    await page.getByRole('link', { name: 'View cards' }).click()
+    // They're all in a deck named after the document, the one added on its own too.
+    await page.getByRole('link', { name: 'Open deck' }).click()
+    await expect(
+      page.getByRole('heading', { name: 'cuento', exact: true }),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('tab', { name: 'In this deck (98)' }),
+    ).toBeVisible()
     await expect(page.getByText('la palabra', { exact: true })).toBeVisible()
     await expect(
       page.getByText('the word / the term', { exact: true }),
@@ -276,7 +285,7 @@ test.describe('Import cards', () => {
     await expect(cards.getByRole('listitem')).toHaveCount(2)
     await page.getByRole('button', { name: 'Add all 2 cards' }).last().click()
     await expect(
-      page.getByText('Added 2 cards from “cuento.txt”.'),
+      page.getByText('Added 2 cards from “cuento.txt” to your cuento deck.'),
     ).toBeVisible()
     await expect(
       page.getByRole('heading', { name: '1 card from “cuento.txt”' }),
@@ -288,7 +297,7 @@ test.describe('Import cards', () => {
     // The last one finishes the scan, counting the ones added before.
     await page.getByRole('button', { name: 'Add "bailar"' }).click()
     await expect(
-      page.getByText('Added 3 cards from “cuento.txt”.'),
+      page.getByText('Added 3 cards from “cuento.txt” to your cuento deck.'),
     ).toBeVisible()
   })
 
@@ -330,9 +339,9 @@ test.describe('Import cards', () => {
 
     await page.getByRole('button', { name: 'Add all 2 cards' }).last().click()
     await expect(
-      page.getByText('Added 2 cards from “cuento.txt”.'),
+      page.getByText('Added 2 cards from “cuento.txt” to your cuento deck.'),
     ).toBeVisible()
-    await page.getByRole('link', { name: 'View cards' }).click()
+    await page.getByRole('link', { name: 'Open deck' }).click()
     await expect(
       page.getByRole('img', { name: 'Picture for "nadar"' }),
     ).toHaveAttribute(
