@@ -190,7 +190,14 @@ function ImportCardsPage() {
         onChange={(_event, value: ImportTab) => selectTab(value)}
         aria-label="Import cards from"
         variant="fullWidth"
-        sx={{ mb: 2 }}
+        // Four tabs at their usual least width and padding are wider than a phone, so there they're narrower.
+        sx={{
+          mb: 2,
+          '& .MuiTab-root': {
+            minWidth: { xs: 0, sm: 90 },
+            px: { xs: 0.5, sm: 2 },
+          },
+        }}
       >
         <Tab
           value="decks"
