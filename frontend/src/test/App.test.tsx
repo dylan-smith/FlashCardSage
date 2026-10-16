@@ -3546,6 +3546,60 @@ describe('App', () => {
         ).toBeInTheDocument()
       })
 
+      it('edits a card that is not in the deck yet', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(animals, async () =>
+          jsonResponse({ ...house, spanish: ['la casita'] }),
+        )
+        await showPage('/decks/7')
+        await user.click(screen.getByRole('tab', { name: 'Add cards (2)' }))
+
+        await user.click(screen.getByRole('button', { name: 'Edit "la casa"' }))
+        const spanish = screen.getByLabelText('Spanish')
+        expect(spanish).toHaveValue('la casa')
+        await user.clear(spanish)
+        await user.type(spanish, 'la casita')
+        await user.click(screen.getByRole('button', { name: 'Save' }))
+
+        expect(await screen.findByText('la casita')).toBeInTheDocument()
+        const put = calls.find((call) => call.init?.method === 'PUT')
+        expect(put?.url).toBe('http://localhost:5269/api/flashcards/3')
+        // Editing it doesn't put it in the deck.
+        expect(calls.some((call) => call.init?.method === 'PATCH')).toBe(false)
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (2)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', {
+            name: 'Remove "la casita" from deck',
+          }),
+        ).not.toBeInTheDocument()
+      })
+
+      it('deletes a card that is not in the deck', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(
+          animals,
+          async () => new Response(null, { status: 204 }),
+        )
+        await showPage('/decks/7')
+        await user.click(screen.getByRole('tab', { name: 'Add cards (2)' }))
+
+        await clickDelete(user, 'Delete "la casa"', 'Delete "la casa"?')
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Deleted 1 card.',
+        )
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.init?.body).toBe(JSON.stringify({ flashCardIds: [3] }))
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (1)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (2)' }),
+        ).toBeInTheDocument()
+      })
+
       it('keeps the card and says why when deleting it fails', async () => {
         const user = userEvent.setup()
         mockDeckApi(animals, async () => new Response(null, { status: 500 }))
