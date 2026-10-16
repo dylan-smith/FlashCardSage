@@ -40,9 +40,14 @@ export async function renameTag(id: number, name: string) {
   return (await response.json()) as Tag
 }
 
-// Takes the tag off every card that has it. A 404 means the tag is already gone, which is what the caller wanted.
-export async function deleteTag(id: number) {
-  const response = await apiFetch(`${tagsUrl}/${id}`, {
+// Takes the tag off every card that has it, putting the replacement tag on them instead when there is one, which merges
+// the two. A 404 means the tag is already gone, which is what the caller wanted.
+export async function deleteTag(id: number, replaceWith?: number) {
+  const url =
+    replaceWith === undefined
+      ? `${tagsUrl}/${id}`
+      : `${tagsUrl}/${id}?replaceWith=${replaceWith}`
+  const response = await apiFetch(url, {
     method: 'DELETE',
   })
   if (!response.ok && response.status !== 404) {

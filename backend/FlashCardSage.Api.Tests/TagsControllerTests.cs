@@ -182,6 +182,79 @@ public class TagsControllerTests
     }
 
     [Fact]
+    public async Task Delete_PutsTheReplacementOnItsCards()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        int tagId;
+        int replacementId;
+        await using (var setupContext = TestDb.Create(databaseName))
+        {
+            var tag = new Tag { Name = "Animal" };
+            var replacement = new Tag { Name = "Animals" };
+            setupContext.FlashCards.AddRange(
+                new FlashCard { Words = TestDb.Words("el gato", "the cat"), Tags = [tag, replacement] },
+                new FlashCard { Words = TestDb.Words("el león", "the lion"), Tags = [tag] },
+                new FlashCard { Words = TestDb.Words("el pan", "the bread"), Tags = [new Tag { Name = "Food" }] });
+            await setupContext.SaveChangesAsync();
+            tagId = tag.Id;
+            replacementId = replacement.Id;
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var controller = CreateController(dbContext);
+
+        Assert.IsType<NoContentResult>(await controller.Delete(tagId, replacementId));
+
+        await using var checkContext = TestDb.Create(databaseName);
+        var cards = await checkContext.FlashCards.Include(card => card.Tags).OrderBy(card => card.Id).ToListAsync();
+        Assert.Equal([["Animals"], ["Animals"], ["Food"]], cards.Select(card => card.Tags.Select(tag => tag.Name).ToList()));
+        Assert.Equal(["Animals", "Food"], await checkContext.Tags.OrderBy(tag => tag.Name).Select(tag => tag.Name).ToListAsync());
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsValidationProblem_WhenTheReplacementIsTheTagItself()
+    {
+        await using var dbContext = TestDb.Create();
+        var tag = new Tag { Name = "Food" };
+        dbContext.Tags.Add(tag);
+        await dbContext.SaveChangesAsync();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Delete(tag.Id, tag.Id);
+
+        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result).Value);
+        Assert.Equal(["Pick another of your tags to replace it with."], problem.Errors["replaceWith"]);
+        Assert.Single(await dbContext.Tags.ToListAsync());
+    }
+
+    [Fact]
+    public async Task Delete_ReturnsValidationProblem_WhenTheReplacementIsAnotherUsersTag()
+    {
+        var databaseName = Guid.NewGuid().ToString();
+        int otherId;
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            var other = new Tag { Name = "Theirs" };
+            otherContext.Tags.Add(other);
+            await otherContext.SaveChangesAsync();
+            otherId = other.Id;
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        var tag = new Tag { Name = "Food" };
+        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el pan", "the bread"), Tags = [tag] });
+        await dbContext.SaveChangesAsync();
+        var controller = CreateController(dbContext);
+
+        var result = await controller.Delete(tag.Id, otherId);
+
+        Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result).Value);
+        Assert.Equal(2, await dbContext.Tags.IgnoreQueryFilters().CountAsync());
+        await using var checkContext = TestDb.Create(databaseName);
+        Assert.Equal("Food", (await checkContext.FlashCards.Include(card => card.Tags).SingleAsync()).Tags.Single().Name);
+    }
+
+    [Fact]
     public async Task OtherUsersTags_CannotBeRenamedOrDeleted()
     {
         var databaseName = Guid.NewGuid().ToString();

@@ -2555,6 +2555,51 @@ describe('App', () => {
         expect(trackEvent).toHaveBeenCalledWith('TagDeleted')
       })
 
+      it('replaces a deleted tag with another, merging their cards', async () => {
+        const user = userEvent.setup()
+        const calls = await showTags(
+          async () => new Response(null, { status: 204 }),
+        )
+
+        await user.click(
+          screen.getByRole('button', { name: 'Delete tag "Food"' }),
+        )
+        const dialog = await screen.findByRole('dialog', {
+          name: 'Delete tag "Food"?',
+        })
+        const replaceWith = within(dialog).getByRole('combobox', {
+          name: 'Replace with',
+        })
+        expect(replaceWith).toHaveTextContent('No tag')
+        await user.click(replaceWith)
+        const options = within(screen.getByRole('listbox')).getAllByRole(
+          'option',
+        )
+        expect(options.map((option) => option.textContent)).toEqual([
+          'No tag',
+          'Travel',
+        ])
+        await user.click(screen.getByRole('option', { name: 'Travel' }))
+        expect(dialog).toHaveTextContent(
+          '"Travel" will take its place on its 2 cards',
+        )
+        await user.click(within(dialog).getByRole('button', { name: 'Delete' }))
+
+        await waitFor(() => {
+          expect(
+            screen.queryByRole('link', { name: 'Food' }),
+          ).not.toBeInTheDocument()
+        })
+        const items = within(screen.getByRole('list')).getAllByRole('listitem')
+        expect(items.map((item) => item.textContent)).toEqual([
+          expect.stringContaining('Travel3 cards'),
+        ])
+        expect(calls.find((call) => call.init?.method === 'DELETE')?.url).toBe(
+          `${tagsUrl}/1?replaceWith=2`,
+        )
+        expect(trackEvent).toHaveBeenCalledWith('TagReplaced')
+      })
+
       it('creates a tag with no cards', async () => {
         const user = userEvent.setup()
         const calls = await showTags(async () =>

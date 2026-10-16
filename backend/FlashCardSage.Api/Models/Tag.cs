@@ -18,7 +18,7 @@ public class Tag
     [JsonIgnore]
     public int UserId { get; set; }
 
-    // Only used to remove the tag from its cards when it's deleted, so it's never returned.
+    // Only used to remove the tag from its cards when it's deleted (or put another on them), so it's never returned.
     [JsonIgnore]
     public List<FlashCard> FlashCards { get; set; } = [];
 }

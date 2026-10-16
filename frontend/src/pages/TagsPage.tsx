@@ -7,6 +7,7 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Link from '@mui/material/Link'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
+import MenuItem from '@mui/material/MenuItem'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
@@ -31,11 +32,11 @@ function sortTags(tags: Tag[]) {
 }
 
 // The user's tags, with how many cards have each. Tags are made here, from a suggestion here, or by naming them on a
-// card, and here they can be renamed or deleted.
+// card, and here they can be renamed or deleted (optionally replaced by another tag, merging the two).
 function TagsPage() {
   const [tags, setTags] = useState<Tag[]>([])
-  // How many cards have each tag, by its id.
-  const [counts, setCounts] = useState<Map<number, number>>(new Map())
+  // The ids of the cards with each tag, by its id, to count them and to merge them when a tag is replaced.
+  const [tagCards, setTagCards] = useState<Map<number, Set<number>>>(new Map())
   const [loading, setLoading] = useState(true)
   const [loadFailed, setLoadFailed] = useState(false)
   // The new tag's name as typed so far.
@@ -50,6 +51,8 @@ function TagsPage() {
   const [errorMessage, setErrorMessage] = useState('')
   // The tag whose Delete was clicked, while the user is asked whether they mean it.
   const [confirmingDelete, setConfirmingDelete] = useState<Tag | null>(null)
+  // The id of the tag picked to go on its cards instead, or '' to just take it off them.
+  const [replacementId, setReplacementId] = useState('')
   const showSuggestions = usePreferences()?.showSuggestions === true
 
   // The cards are only loaded to count each tag's.
@@ -58,12 +61,16 @@ function TagsPage() {
     Promise.all([listTags(), listFlashCards()])
       .then(([loadedTags, cards]) => {
         if (!cancelled) {
-          const loadedCounts = new Map<number, number>()
-          for (const tag of cards.flatMap((card) => card.tags)) {
-            loadedCounts.set(tag.id, (loadedCounts.get(tag.id) ?? 0) + 1)
+          const loadedTagCards = new Map<number, Set<number>>()
+          for (const card of cards) {
+            for (const tag of card.tags) {
+              const ids = loadedTagCards.get(tag.id) ?? new Set<number>()
+              ids.add(card.id)
+              loadedTagCards.set(tag.id, ids)
+            }
           }
           setTags(loadedTags)
-          setCounts(loadedCounts)
+          setTagCards(loadedTagCards)
         }
       })
       .catch((error: unknown) => {
@@ -152,15 +159,40 @@ function TagsPage() {
     }
   }
 
-  // Deleting a tag takes it off its cards but leaves the cards.
+  // How many cards have this tag, in words.
+  function tagCardCount(id: number) {
+    return cardCount(tagCards.get(id)?.size ?? 0)
+  }
+
+  function confirmDelete(tag: Tag) {
+    setReplacementId('')
+    setConfirmingDelete(tag)
+  }
+
+  // Deleting a tag takes it off its cards but leaves the cards. With a replacement picked, that tag goes on them
+  // instead, which merges the two.
   async function handleDelete(tag: Tag) {
+    const replacement = replacementId === '' ? undefined : Number(replacementId)
     setBusyId(tag.id)
     setErrorMessage('')
 
     try {
-      await deleteTag(tag.id)
-      trackEvent('TagDeleted')
+      await deleteTag(tag.id, replacement)
+      trackEvent(replacement === undefined ? 'TagDeleted' : 'TagReplaced')
       setTags((current) => current.filter((item) => item.id !== tag.id))
+      if (replacement !== undefined) {
+        setTagCards((current) => {
+          const merged = new Map(current)
+          merged.set(
+            replacement,
+            new Set([
+              ...(current.get(replacement) ?? []),
+              ...(current.get(tag.id) ?? []),
+            ]),
+          )
+          return merged
+        })
+      }
     } catch (error) {
       trackException(error, { operation: 'deleteTag' })
       setErrorMessage(describeFetchError(error, 'Unable to delete tag.'))
@@ -267,7 +299,7 @@ function TagsPage() {
                           {tag.name}
                         </Link>
                       }
-                      secondary={cardCount(counts.get(tag.id) ?? 0)}
+                      secondary={tagCardCount(tag.id)}
                       sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
                     />
                     <Box sx={{ display: 'flex', flexShrink: 0 }}>
@@ -287,7 +319,7 @@ function TagsPage() {
                         color="error"
                         aria-label={`Delete tag "${tag.name}"`}
                         disabled={busyId === tag.id}
-                        onClick={() => setConfirmingDelete(tag)}
+                        onClick={() => confirmDelete(tag)}
                       >
                         Delete
                       </Button>
@@ -305,10 +337,42 @@ function TagsPage() {
             busy={busyId === confirmingDelete.id}
             onCancel={() => setConfirmingDelete(null)}
             onConfirm={() => void handleDelete(confirmingDelete)}
+            options={
+              // Only another tag can replace it, and there might not be one.
+              tags.length > 1 && (
+                <TextField
+                  select
+                  label="Replace with"
+                  helperText="Put another tag on its cards instead, merging the two."
+                  value={replacementId}
+                  onChange={(event) => setReplacementId(event.target.value)}
+                  disabled={busyId === confirmingDelete.id}
+                  // "No tag" is shown rather than an empty field.
+                  slotProps={{
+                    select: { displayEmpty: true },
+                    inputLabel: { shrink: true },
+                  }}
+                  fullWidth
+                  sx={{ mt: 3 }}
+                >
+                  <MenuItem value="">No tag</MenuItem>
+                  {tags
+                    .filter((item) => item.id !== confirmingDelete.id)
+                    .map((item) => (
+                      <MenuItem key={item.id} value={String(item.id)}>
+                        {item.name}
+                      </MenuItem>
+                    ))}
+                </TextField>
+              )
+            }
           >
-            This can&apos;t be undone. It&apos;ll be taken off its{' '}
-            {cardCount(counts.get(confirmingDelete.id) ?? 0)}, but the cards
-            won&apos;t be deleted, and keep their scores.
+            This can&apos;t be undone.{' '}
+            {replacementId === ''
+              ? "It'll be taken off its"
+              : `"${tags.find((item) => String(item.id) === replacementId)?.name}" will take its place on its`}{' '}
+            {tagCardCount(confirmingDelete.id)}, but the cards won&apos;t be
+            deleted, and keep their scores.
           </ConfirmDelete>
         )}
       </Paper>
