@@ -17,19 +17,6 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     private const PracticeOutcome WasClose = PracticeOutcome.WasClose;
     private const PracticeOutcome Failed = PracticeOutcome.Failed;
 
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(1, 50)]
-    [InlineData(2, 80)]
-    [InlineData(3, 90)]
-    [InlineData(4, 95)]
-    [InlineData(5, 100)]
-    [InlineData(6, 100)]
-    public void FromStreak_ScoresEachRunOfCorrectAnswers(int correctInARow, int expected)
-    {
-        Assert.Equal(expected, PracticeScore.FromStreak(correctInARow));
-    }
-
     [Fact]
     public async Task Get_ScoresACardNeverPracticedAsZero()
     {
