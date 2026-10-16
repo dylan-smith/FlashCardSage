@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react'
 import type { FlashCard, Tag } from '../api/flashCards'
+import { byName } from '../lib/text'
 import { listTags } from '../api/tags'
 import { trackException } from '../telemetry'
 
@@ -36,11 +37,7 @@ export function useUserTags() {
             !current.some((item) => item.id === tag.id) &&
             all.findIndex((item) => item.id === tag.id) === index,
         )
-      return added.length === 0
-        ? current
-        : [...current, ...added].sort((a, b) =>
-            a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-          )
+      return added.length === 0 ? current : [...current, ...added].sort(byName)
     })
   }
 

@@ -10,6 +10,7 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import type { FlashCard, Tag } from '../../api/flashCards'
+import { byName } from '../../lib/text'
 import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
 import { cardCount } from '../../lib/cardCount'
 import { matchesSearch } from '../../lib/cardSearch'
@@ -24,9 +25,7 @@ function tagsOf(cards: FlashCard[]) {
   for (const tag of cards.flatMap((card) => card.tags)) {
     tags.set(tag.id, tag)
   }
-  return [...tags.values()].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-  )
+  return [...tags.values()].sort(byName)
 }
 
 // A list of cards to pick some of and do something with, such as add them to a deck. It can be searched and

@@ -8,6 +8,7 @@ import Typography from '@mui/material/Typography'
 import { listCardSuggestions } from '../../api/cardSuggestions'
 import { formatWords } from '../../api/flashCards'
 import type { FlashCardWords, Tag } from '../../api/flashCards'
+import { sameText } from '../../lib/text'
 import { useCollapsed } from '../../hooks/useCollapsed'
 import { trackException } from '../../telemetry'
 import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
@@ -24,10 +25,6 @@ type SuggestionsState =
   | { status: 'unavailable' }
   | { status: 'failed' }
   | { status: 'ready'; suggestions: Candidate[] }
-
-function sameText(a: string, b: string) {
-  return a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
-}
 
 // What the suggestions are for, under the heading.
 function describe(relatedTo?: FlashCardWords, tag?: Tag) {
