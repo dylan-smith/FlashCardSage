@@ -6,10 +6,11 @@ namespace FlashCardSage.Api.Images;
 // The pictures a card can have: the kinds of image, how big one can be, and the names they're kept under.
 public static partial class CardImage
 {
-    // Plenty for a compressed JPEG from the generator, which is around a hundred kilobytes.
-    public const int MaxBytes = 2 * 1024 * 1024;
+    // Room for a photo the user uploads. A compressed JPEG from the generator is around a hundred kilobytes. The
+    // frontend checks the same limit before sending one.
+    public const int MaxBytes = 5 * 1024 * 1024;
 
-    public const string TooBigMessage = "The picture can be at most 2 MB.";
+    public const string TooBigMessage = "The picture can be at most 5 MB.";
 
     // The most characters the base64 of a picture within the limit can take.
     private const int MaxBase64Length = (MaxBytes + 2) / 3 * 4;

@@ -90,15 +90,14 @@ export function useCandidateEditing(
       return
     }
     onError('')
-    const { generated, current } = editPicture
+    const { chosen, current } = editPicture
     onCandidatesChange((all) =>
       all.map((candidate) =>
         candidate.key === editing.key
           ? {
               ...candidate,
               ...trimmed,
-              picture:
-                generated ?? (current === null ? null : candidate.picture),
+              picture: chosen ?? (current === null ? null : candidate.picture),
             }
           : candidate,
       ),
