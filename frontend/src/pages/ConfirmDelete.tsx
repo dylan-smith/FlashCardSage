@@ -12,6 +12,7 @@ export function ConfirmDelete({
   open,
   title,
   children,
+  options,
   busy,
   onCancel,
   onConfirm,
@@ -20,6 +21,8 @@ export function ConfirmDelete({
   title: string
   // What will be lost.
   children: ReactNode
+  // Fields that change what deleting does, shown under what will be lost.
+  options?: ReactNode
   busy: boolean
   onCancel: () => void
   onConfirm: () => void
@@ -40,6 +43,7 @@ export function ConfirmDelete({
       </DialogTitle>
       <DialogContent>
         <DialogContentText id={`${id}-text`}>{children}</DialogContentText>
+        {options}
       </DialogContent>
       <DialogActions>
         <Button type="button" disabled={busy} onClick={onCancel}>
