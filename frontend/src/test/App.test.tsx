@@ -2889,6 +2889,98 @@ describe('App', () => {
       expect(trackEvent).toHaveBeenCalledWith('FlashCardImageAdded')
     })
 
+    // A PNG file of the same bytes as the generated picture.
+    const pngFile = new File(
+      [Uint8Array.from(atob(picture.data), (char) => char.charCodeAt(0))],
+      'cat.png',
+      { type: 'image/png' },
+    )
+
+    it("puts an uploaded picture on the card when it's saved", async () => {
+      const user = userEvent.setup()
+      const calls = mockPictures()
+      renderAt('/')
+      await screen.findByText('No flash cards yet.')
+
+      await user.upload(screen.getByLabelText('Upload picture'), pngFile)
+
+      expect(
+        await screen.findByRole('img', { name: 'Uploaded picture' }),
+      ).toHaveAttribute('src', 'data:image/png;base64,iVBORw0KGgo=')
+      expect(trackEvent).toHaveBeenCalledWith('FlashCardImageUploaded')
+      expect(calls.some((call) => call.url === generateUrl)).toBe(false)
+
+      await user.type(
+        screen.getByLabelText('Spanish', { exact: false }),
+        'el gato',
+      )
+      await user.type(
+        screen.getByLabelText('English', { exact: false }),
+        'the cat',
+      )
+      await user.click(screen.getByRole('button', { name: 'Add flash card' }))
+
+      expect(
+        await screen.findByRole('img', { name: 'Picture for "el gato"' }),
+      ).toHaveAttribute('src', imageUrl)
+      const put = calls.find((call) => call.init?.method === 'PUT')
+      expect(put?.url).toBe('http://localhost:5269/api/flashcards/7/image')
+      expect(put?.init?.body).toBe(JSON.stringify(picture))
+    })
+
+    it.each([
+      [
+        'bigger than 5 MB',
+        new File([new Uint8Array(5 * 1024 * 1024 + 1)], 'big.png', {
+          type: 'image/png',
+        }),
+        'The picture can be at most 5 MB.',
+      ],
+      [
+        'not a picture',
+        new File(['hola'], 'notes.txt', { type: 'text/plain' }),
+        'The picture must be a JPEG, PNG or WebP.',
+      ],
+    ])('turns away an uploaded file %s', async (_, file, message) => {
+      // The file picker only offers pictures, but the user can pick any file anyway.
+      const user = userEvent.setup({ applyAccept: false })
+      const calls = mockPictures()
+      renderAt('/')
+      await screen.findByText('No flash cards yet.')
+
+      await user.upload(screen.getByLabelText('Upload picture'), file)
+
+      expect(await screen.findByText(message)).toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: 'Uploaded picture' }),
+      ).not.toBeInTheDocument()
+
+      // A picture within the limit is still taken afterwards.
+      await user.upload(screen.getByLabelText('Upload picture'), pngFile)
+      expect(
+        await screen.findByRole('img', { name: 'Uploaded picture' }),
+      ).toBeInTheDocument()
+      expect(screen.queryByText(message)).not.toBeInTheDocument()
+      expect(calls.some((call) => call.url.endsWith('/image'))).toBe(false)
+    })
+
+    it('can upload a picture in place of a generated one', async () => {
+      const user = userEvent.setup()
+      mockPictures()
+      renderAt('/')
+      await screen.findByText('No flash cards yet.')
+      await generatePicture(user)
+
+      await user.upload(screen.getByLabelText('Upload picture'), pngFile)
+
+      expect(
+        await screen.findByRole('img', { name: 'Uploaded picture' }),
+      ).toBeInTheDocument()
+      expect(
+        screen.queryByRole('img', { name: 'Generated picture' }),
+      ).not.toBeInTheDocument()
+    })
+
     it('can discard the picture and ask for another', async () => {
       const user = userEvent.setup()
       const calls = mockPictures()

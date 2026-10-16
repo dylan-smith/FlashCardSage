@@ -3,6 +3,7 @@ import {
   deleteCardImage,
   generateCardImage,
   putCardImage,
+  readCardImageFile,
 } from '../api/cardImages'
 import type { CardImage } from '../api/cardImages'
 import { ApiError, describeFetchError } from '../api/flashCards'
@@ -10,14 +11,15 @@ import type { FlashCard } from '../api/flashCards'
 import type { CardText } from '../api/translations'
 import { trackEvent, trackException } from '../telemetry'
 
-// The picture a card form offers: the card's own, if it has one, and one the API makes on request. A generated
-// picture goes on the card when it's saved, unless the user discards it first (or the form is cleared).
-// Saving the card itself is the form's job; apply puts the user's choice on the saved card.
+// The picture a card form offers: the card's own, if it has one, and a new one the API makes on request or the user
+// uploads. A new picture goes on the card when it's saved, unless the user discards it first (or the form is
+// cleared). Saving the card itself is the form's job; apply puts the user's choice on the saved card.
 //
 // current is the picture the card has now (null for a new card), so the form can show it and take it off.
 export function useCardPicture(current: string | null) {
-  // The picture the API made, until it's put on the card or discarded.
-  const [generated, setGenerated] = useState<CardImage | null>(null)
+  // The new picture, until it's put on the card or discarded, and whether the user uploaded it (or the API made it).
+  const [chosen, setChosen] = useState<CardImage | null>(null)
+  const [uploaded, setUploaded] = useState(false)
   // Whether the user asked for the card's own picture to be taken off.
   const [removed, setRemoved] = useState(false)
   const [generating, setGenerating] = useState(false)
@@ -52,7 +54,8 @@ export function useCardPicture(current: string | null) {
         controller.signal,
       )
       if (!controller.signal.aborted) {
-        setGenerated(image)
+        setChosen(image)
+        setUploaded(false)
         trackEvent('FlashCardImageGenerated')
       }
     } catch (error) {
@@ -71,14 +74,32 @@ export function useCardPicture(current: string | null) {
     }
   }
 
-  // Throws the generated picture away.
+  // Takes a picture the user picked from their device, in place of one that's on its way. A file the API wouldn't
+  // take (too big, or not a JPEG, PNG or WebP) is turned away with a message saying why.
+  async function upload(file: File) {
+    cancel()
+    setErrorMessage('')
+    try {
+      const image = await readCardImageFile(file)
+      setChosen(image)
+      setUploaded(true)
+      trackEvent('FlashCardImageUploaded')
+    } catch (error) {
+      setErrorMessage(
+        error instanceof Error ? error.message : 'Unable to read the picture.',
+      )
+    }
+  }
+
+  // Throws the new picture away.
   function discard() {
     cancel()
-    setGenerated(null)
+    setChosen(null)
+    setUploaded(false)
     setErrorMessage('')
   }
 
-  // Takes the card's own picture off (when the card is saved), along with any generated one.
+  // Takes the card's own picture off (when the card is saved), along with any new one.
   function remove() {
     discard()
     setRemoved(true)
@@ -90,11 +111,11 @@ export function useCardPicture(current: string | null) {
     setRemoved(false)
   }
 
-  // Puts the user's choice on the saved card: the generated picture unless they discarded it, or none when they took
-  // the card's off. Returns the card as the API returns it, or null when there was nothing to do.
+  // Puts the user's choice on the saved card: the new picture unless they discarded it, or none when they took the
+  // card's off. Returns the card as the API returns it, or null when there was nothing to do.
   async function apply(id: number): Promise<FlashCard | null> {
-    if (generated !== null) {
-      const card = await putCardImage(id, generated)
+    if (chosen !== null) {
+      const card = await putCardImage(id, chosen)
       trackEvent('FlashCardImageAdded')
       return card
     }
@@ -109,10 +130,12 @@ export function useCardPicture(current: string | null) {
   return {
     // The card's own picture, as the form should show it: none once the user has taken it off.
     current: removed ? null : current,
-    generated,
+    chosen,
+    uploaded,
     generating,
     errorMessage,
     generate,
+    upload,
     discard,
     remove,
     reset,

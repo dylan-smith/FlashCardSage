@@ -52,6 +52,33 @@ export async function generateCardImage(
   return { contentType, data }
 }
 
+// The kinds of picture the API keeps, and the biggest it takes (CardImage.cs), so a file it would refuse is turned
+// away before it's sent.
+export const cardImageTypes = ['image/jpeg', 'image/png', 'image/webp']
+export const maxCardImageBytes = 5 * 1024 * 1024
+export const wrongImageTypeMessage = 'The picture must be a JPEG, PNG or WebP.'
+export const imageTooBigMessage = 'The picture can be at most 5 MB.'
+
+// Reads a picture the user picked from their device. Throws an Error to show as it is when the API wouldn't take it.
+export async function readCardImageFile(file: File): Promise<CardImage> {
+  if (!cardImageTypes.includes(file.type)) {
+    throw new Error(wrongImageTypeMessage)
+  }
+  if (file.size > maxCardImageBytes) {
+    throw new Error(imageTooBigMessage)
+  }
+  const dataUrl = await new Promise<string>((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => resolve(reader.result as string)
+    reader.onerror = () => reject(new Error('Unable to read the picture.'))
+    reader.readAsDataURL(file)
+  })
+  return {
+    contentType: file.type,
+    data: dataUrl.slice(dataUrl.indexOf(',') + 1),
+  }
+}
+
 // The picture as a URL an img can show before it's on the card.
 export function cardImageDataUrl(image: CardImage) {
   return `data:${image.contentType};base64,${image.data}`

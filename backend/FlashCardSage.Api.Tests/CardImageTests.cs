@@ -89,7 +89,7 @@ public class CardImageTests
         var decoded = CardImage.TryDecode("image/png", Convert.ToBase64String(bytes), out _, out _, out var error);
 
         Assert.False(decoded);
-        Assert.Equal(CardImage.TooBigMessage, error);
+        Assert.Equal("The picture can be at most 5 MB.", error);
     }
 
     [Fact]
