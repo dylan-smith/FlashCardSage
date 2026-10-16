@@ -1,6 +1,6 @@
 using System.Net.Http.Headers;
-using System.Text.Json;
 using System.Text.Json.Serialization;
+using FlashCardSage.Api.Suggestions.Foundry;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Images;
@@ -24,21 +24,17 @@ public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerati
 
     private readonly ImageGenerationOptions options = options.Value;
 
-    public bool IsAvailable => !string.IsNullOrWhiteSpace(options.Endpoint) && !string.IsNullOrWhiteSpace(options.Key);
+    public bool IsAvailable => options.IsAvailable;
 
     public async Task<GeneratedImage> GenerateAsync(string spanish, string english, CancellationToken cancellationToken)
     {
         // The deployment is named after its model, which is also the model's path in the API.
         var url = $"{options.Endpoint.TrimEnd('/')}/providers/blackforestlabs/v1/{options.Deployment}"
             + $"?api-version={options.ApiVersion}";
-        // The service refuses a request without a Content-Length, so the body is serialized up front rather than
-        // streamed (which JsonContent would send chunked).
-        var body = JsonSerializer.SerializeToUtf8Bytes(new GenerationRequest(options.Deployment, Prompt(spanish, english)));
         using var request = new HttpRequestMessage(HttpMethod.Post, url)
         {
-            Content = new ByteArrayContent(body)
+            Content = JsonBody.Create(new GenerationRequest(options.Deployment, Prompt(spanish, english)))
         };
-        request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/json");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", options.Key);
 
         using var response = await httpClient.SendAsync(request, cancellationToken);
@@ -51,7 +47,7 @@ public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerati
             }
 
             // The service's error code says what went wrong (its message might echo the words, so it's left out).
-            var code = ErrorCode(error) is { } errorCode ? $" ({errorCode})" : string.Empty;
+            var code = FoundryErrors.Code(error) is { } errorCode ? $" ({errorCode})" : string.Empty;
             throw new HttpRequestException(
                 $"The image generator answered {(int)response.StatusCode}{code}.", null, response.StatusCode);
         }
@@ -79,34 +75,7 @@ public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerati
     // Whether an error response is a safety system's, by its code.
     private static bool IsContentFiltered(string body)
     {
-        return ErrorCode(body) is { } code && ContentFilterCodes.Contains(code, StringComparer.OrdinalIgnoreCase);
-    }
-
-    // The code of an error response: the one on the error inside the error when there is one, else the error's.
-    private static string? ErrorCode(string body)
-    {
-        try
-        {
-            using var document = JsonDocument.Parse(body);
-            return document.RootElement.ValueKind == JsonValueKind.Object
-                && document.RootElement.TryGetProperty("error", out var error)
-                && error.ValueKind == JsonValueKind.Object
-                ? (error.TryGetProperty("inner_error", out var innerError) ? CodeOf(innerError) : null) ?? CodeOf(error)
-                : null;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static string? CodeOf(JsonElement error)
-    {
-        return error.ValueKind == JsonValueKind.Object
-            && error.TryGetProperty("code", out var code)
-            && code.ValueKind == JsonValueKind.String
-            ? code.GetString()
-            : null;
+        return FoundryErrors.Code(body) is { } code && ContentFilterCodes.Contains(code, StringComparer.OrdinalIgnoreCase);
     }
 
     private sealed record GenerationRequest(
