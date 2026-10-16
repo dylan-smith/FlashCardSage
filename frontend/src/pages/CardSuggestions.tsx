@@ -5,17 +5,18 @@ import CircularProgress from '@mui/material/CircularProgress'
 import Collapse from '@mui/material/Collapse'
 import List from '@mui/material/List'
 import Paper from '@mui/material/Paper'
-import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import { listCardSuggestions } from '../api/cardSuggestions'
 import { formatWords } from '../api/flashCards'
 import type { FlashCardWords, Tag } from '../api/flashCards'
+import { useCollapsed } from '../hooks/useCollapsed'
 import { trackException } from '../telemetry'
 import { CardActionButton } from './CardActionButton'
 import { asCard, useCandidateEditing } from './candidates'
 import type { Candidate } from './candidates'
 import { FlashCardEditForm } from './FlashCardForm'
 import { FlashCardRow } from './FlashCardRow'
+import { SuggestionsHeading } from './SuggestionsHeading'
 
 type SuggestionsState =
   | { status: 'loading' }
@@ -43,26 +44,6 @@ function describe(relatedTo?: FlashCardWords, tag?: Tag) {
 // Kept in localStorage so the section stays collapsed across reloads once the user collapses it.
 export const suggestionsCollapsedKey = 'flashcardsage.suggestionsCollapsed'
 
-function readCollapsed() {
-  try {
-    return localStorage.getItem(suggestionsCollapsedKey) === 'true'
-  } catch {
-    return false
-  }
-}
-
-function storeCollapsed(collapsed: boolean) {
-  try {
-    if (collapsed) {
-      localStorage.setItem(suggestionsCollapsedKey, 'true')
-    } else {
-      localStorage.removeItem(suggestionsCollapsedKey)
-    }
-  } catch {
-    // Storage can be unavailable, for example in a private window. The choice still lasts until the page reloads.
-  }
-}
-
 // A handful of new cards suggested from the user's cards, each with a button that adds it and one that changes it
 // first, with the same form as the cards page. The section isn't shown when suggestions aren't available, and a
 // suggestion the user has since added a card for is left out. With relatedTo (e.g. a card just added), the suggestions
@@ -89,7 +70,7 @@ export function CardSuggestions({
   const [request, setRequest] = useState(0)
   // The key of the suggestion being added, so its button can wait for the API.
   const [adding, setAdding] = useState<number | null>(null)
-  const [collapsed, setCollapsed] = useState(readCollapsed)
+  const [collapsed, toggle] = useCollapsed(suggestionsCollapsedKey)
   // Each suggestion gets a key of its own, since the user can change its words.
   const nextKey = useRef(0)
 
@@ -154,11 +135,6 @@ export function CardSuggestions({
     setRequest((current) => current + 1)
   }
 
-  function toggle() {
-    storeCollapsed(!collapsed)
-    setCollapsed(!collapsed)
-  }
-
   async function add(suggestion: Candidate) {
     setAdding(suggestion.key)
     try {
@@ -191,34 +167,12 @@ export function CardSuggestions({
 
   return (
     <Paper component="section" elevation={2} sx={{ p: 3 }}>
-      <Typography variant="h5" component="h2">
-        <Button
-          type="button"
-          color="inherit"
-          aria-expanded={!collapsed}
-          aria-controls="suggested-cards-content"
-          onClick={toggle}
-          endIcon={
-            <SvgIcon
-              sx={{
-                transform: collapsed ? 'rotate(-90deg)' : 'none',
-                transition: 'transform 150ms',
-              }}
-            >
-              <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-            </SvgIcon>
-          }
-          sx={{
-            font: 'inherit',
-            textTransform: 'none',
-            ml: -1,
-            px: 1,
-            '& .MuiButton-endIcon > svg': { fontSize: 28 },
-          }}
-        >
-          Suggested cards
-        </Button>
-      </Typography>
+      <SuggestionsHeading
+        title="Suggested cards"
+        collapsed={collapsed}
+        controls="suggested-cards-content"
+        onToggle={toggle}
+      />
       <Collapse in={!collapsed} id="suggested-cards-content" unmountOnExit>
         <Typography color="text.secondary" sx={{ mb: 1 }}>
           {describe(relatedTo, tag)}

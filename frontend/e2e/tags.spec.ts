@@ -116,8 +116,30 @@ test.describe('Tags', () => {
       .getByRole('navigation', { name: 'Manage cards' })
       .getByRole('link', { name: 'Tags' })
       .click()
-    await expect(page.getByRole('heading', { name: 'Tags' })).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: 'Tags', exact: true }),
+    ).toBeVisible()
   }
+
+  test('adds a suggested tag', async ({ page }) => {
+    // The E2E backend has no Foundry endpoint or key, so stand in for the model.
+    await page.route('**/api/tag-suggestions/new', async (route) => {
+      await route.fulfill({ json: ['Animals', 'Colors'] })
+    })
+    await goToTags(page)
+
+    await page.getByRole('button', { name: 'Add tag "Animals"' }).click()
+
+    await expect(page.getByRole('link', { name: 'Animals' })).toBeVisible()
+    const suggested = page.getByRole('list', { name: 'Suggested tags' })
+    await expect(suggested.getByRole('listitem')).toHaveCount(1)
+    await expect(suggested).toContainText('Colors')
+    await page.unroute('**/api/tag-suggestions/new')
+    await page.reload()
+    await expect(
+      page.getByRole('listitem').filter({ hasText: 'Animals' }),
+    ).toContainText('0 cards')
+  })
 
   test('creates a tag with no cards', async ({ page }) => {
     await goToTags(page)

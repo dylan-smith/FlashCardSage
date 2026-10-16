@@ -8,8 +8,7 @@ function normalize(text: string) {
     .toLowerCase()
 }
 
-// Whether a card's Spanish or English has the search in it, whatever their accents and case. An empty search matches
-// every card.
+// Whether a card has the search on either side, whatever their accents and case. An empty search matches every card.
 export function matchesSearch(card: FlashCardWords, search: string) {
   const query = normalize(search.trim())
   return (

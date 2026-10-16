@@ -15,4 +15,13 @@ public interface ITagSuggester
         IReadOnlyList<string> english,
         IReadOnlyList<Tag> tags,
         CancellationToken cancellationToken);
+
+    // The names of about count new tags the user is likely to want, going by their tags, each with some of its cards,
+    // and some of their cards that have no tag. As the service answers, they can include names the user already has.
+    // Throws HttpRequestException if the service fails.
+    Task<IReadOnlyList<string>> SuggestNewAsync(
+        IReadOnlyList<Tag> tags,
+        IReadOnlyList<FlashCard> untagged,
+        int count,
+        CancellationToken cancellationToken);
 }
