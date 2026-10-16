@@ -186,6 +186,59 @@ test.describe('Import cards', () => {
     await expect(page.getByText('palabra 3', { exact: true })).toBeVisible()
   })
 
+  test('searches the cards scanned from a document and adds just the ones that match', async ({
+    page,
+  }) => {
+    // The E2E backend has no Foundry endpoint or key, so stand in for the scan.
+    await page.route('**/api/document-scans', async (route) => {
+      await route.fulfill({
+        json: {
+          candidates: [
+            { spanish: 'canción', english: 'song' },
+            { spanish: 'cantar', english: 'to sing' },
+            { spanish: 'bailar', english: 'to dance' },
+          ],
+          truncated: false,
+        },
+      })
+    })
+    await page.goto('/import?from=document')
+    await page.getByLabel('Choose a document').setInputFiles({
+      name: 'cuento.txt',
+      mimeType: 'text/plain',
+      buffer: Buffer.from('Cantar y bailar.'),
+    })
+    const cards = page.getByRole('list', { name: 'Cards from the document' })
+    await expect(cards.getByRole('listitem')).toHaveCount(3)
+
+    // Without its accent, as the other card lists' search finds it.
+    const search = page.getByRole('searchbox', { name: 'Search' })
+    await search.fill('cancion')
+    await expect(cards.getByRole('listitem')).toHaveCount(1)
+    await search.fill('xyz')
+    await expect(page.getByText('No cards match.')).toBeVisible()
+
+    // Add all adds just the cards that match, and the rest stay to look over.
+    await search.fill('can')
+    await expect(cards.getByRole('listitem')).toHaveCount(2)
+    await page.getByRole('button', { name: 'Add all 2 cards' }).last().click()
+    await expect(
+      page.getByText('Added 2 cards from “cuento.txt”.'),
+    ).toBeVisible()
+    await expect(
+      page.getByRole('heading', { name: '1 card from “cuento.txt”' }),
+    ).toBeVisible()
+    await search.fill('')
+    await expect(cards.getByRole('listitem')).toHaveCount(1)
+    await expect(cards.getByText('bailar', { exact: true })).toBeVisible()
+
+    // The last one finishes the scan, counting the ones added before.
+    await page.getByRole('button', { name: 'Add "bailar"' }).click()
+    await expect(
+      page.getByText('Added 3 cards from “cuento.txt”.'),
+    ).toBeVisible()
+  })
+
   test('puts the picture made for a scanned card on it once it’s added', async ({
     page,
   }) => {
