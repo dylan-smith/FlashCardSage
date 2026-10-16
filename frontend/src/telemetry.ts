@@ -44,6 +44,17 @@ export function initTelemetry() {
       item.tags = { ...item.tags, 'ai.cloud.role': 'FlashCardSage.Web' }
     })
     sdk.loadAppInsights()
+    // A fetch the app aborts itself, e.g. when a page unmounts or a newer request replaces it, fails with no status.
+    // Nothing went wrong, so it isn't reported as a failed dependency. The SDK's own aborted flag only covers XHR, so
+    // the request's signal is kept to check once it's done. The getter returns a new object when there's no context,
+    // so it's assigned rather than changed in place.
+    sdk.addDependencyListener((details) => {
+      details.context = { ...details.context, signal: details.init?.signal }
+    })
+    sdk.addDependencyInitializer(({ item, context }) => {
+      const signal = context?.signal as AbortSignal | null | undefined
+      return !(item.responseCode === 0 && signal?.aborted)
+    })
     appInsights = sdk
     window.addEventListener('pagehide', () => {
       leavingPage = true
