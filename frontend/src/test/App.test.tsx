@@ -5095,6 +5095,52 @@ describe('App', () => {
       expect(items[2]).toHaveStyle({ backgroundColor: 'hsl(120, 70%, 90%)' })
     })
 
+    it('finds cards by either side, whatever their accents and case, keeping the total', async () => {
+      const user = userEvent.setup()
+      mockFetch(async () =>
+        jsonResponse({
+          total: 130,
+          maximum: 300,
+          cards: [
+            { id: 3, spanish: ['la canción'], english: ['the song'], score: 0 },
+            { id: 2, spanish: ['el perro'], english: ['the dog'], score: 50 },
+            { id: 1, spanish: ['el gato'], english: ['the cat'], score: 80 },
+          ],
+        }),
+      )
+      renderAt('/scores')
+      await screen.findByText('Total score 130 / 300 (43%)')
+
+      await user.type(
+        screen.getByRole('searchbox', { name: 'Search' }),
+        'CANCION',
+      )
+
+      const items = () =>
+        within(screen.getByRole('list', { name: 'Card scores' }))
+          .getAllByRole('listitem')
+          .map((item) => item.textContent)
+      expect(items()).toEqual(['la canciónthe song0 / 100'])
+      expect(
+        screen.getByText('Total score 130 / 300 (43%)'),
+      ).toBeInTheDocument()
+
+      await user.clear(screen.getByRole('searchbox', { name: 'Search' }))
+      await user.type(
+        screen.getByRole('searchbox', { name: 'Search' }),
+        'the dog',
+      )
+
+      expect(items()).toEqual(['el perrothe dog50 / 100'])
+
+      await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'x')
+
+      expect(screen.getByText('No cards match.')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('list', { name: 'Card scores' }),
+      ).not.toBeInTheDocument()
+    })
+
     it('links to adding cards when there are none', async () => {
       mockFetch(async () => jsonResponse({ total: 0, maximum: 0, cards: [] }))
       renderAt('/scores')
