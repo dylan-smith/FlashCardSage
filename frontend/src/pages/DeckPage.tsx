@@ -40,7 +40,8 @@ type DeckTab = 'deck' | 'add'
 // The toast for the last change to the deck's cards, so a new one replaces it.
 const deckToast = 'deck-cards'
 
-// One deck: its cards, which can be edited, taken out or deleted, and the user's other cards, which can be put in.
+// One deck: its cards, which can be edited, taken out or deleted, and the user's other cards, which can be edited,
+// deleted or put in.
 // Each change is saved as it's made.
 function DeckPage() {
   const { id } = useParams()
@@ -239,6 +240,57 @@ function DeckPage() {
     setConfirmingDelete(null)
   }
 
+  // The card being edited is in one tab's list or the other, which shows its form in its place.
+  const edit =
+    editor.edit === null
+      ? undefined
+      : {
+          id: editor.edit.id,
+          form: (
+            <FlashCardEditForm
+              edit={editor.edit}
+              tags={tags}
+              picture={editor.picture}
+              busy={editor.saving}
+              onChange={editor.change}
+              onCancel={editor.cancel}
+              onSave={(event) => void editor.save(event)}
+            />
+          ),
+        }
+
+  // Every card can be edited or deleted, and the deck's own cards can be taken out of it.
+  function rowActions(card: FlashCard) {
+    const spanish = formatWords(card.spanish)
+    return (
+      <>
+        <CardActionButton
+          icon="edit"
+          text="Edit"
+          label={`Edit "${spanish}"`}
+          disabled={busy}
+          onClick={() => editor.start(card)}
+        />
+        {inDeck.has(card.id) && (
+          <CardActionButton
+            icon="remove"
+            text="Remove from deck"
+            label={`Remove "${spanish}" from deck`}
+            disabled={busy}
+            onClick={() => void handleChange([], [card.id])}
+          />
+        )}
+        <CardActionButton
+          icon="delete"
+          text="Delete"
+          label={`Delete "${spanish}"`}
+          disabled={busy}
+          onClick={() => setConfirmingDelete(card)}
+        />
+      </>
+    )
+  }
+
   return (
     <Stack spacing={2}>
       <Box>
@@ -348,52 +400,8 @@ function DeckPage() {
                 onDelete={() => handleDeleteCards(ids)}
               />
             )}
-            edit={
-              editor.edit === null
-                ? undefined
-                : {
-                    id: editor.edit.id,
-                    form: (
-                      <FlashCardEditForm
-                        edit={editor.edit}
-                        tags={tags}
-                        picture={editor.picture}
-                        busy={editor.saving}
-                        onChange={editor.change}
-                        onCancel={editor.cancel}
-                        onSave={(event) => void editor.save(event)}
-                      />
-                    ),
-                  }
-            }
-            rowActions={(card) => {
-              const spanish = formatWords(card.spanish)
-              return (
-                <>
-                  <CardActionButton
-                    icon="edit"
-                    text="Edit"
-                    label={`Edit "${spanish}"`}
-                    disabled={busy}
-                    onClick={() => editor.start(card)}
-                  />
-                  <CardActionButton
-                    icon="remove"
-                    text="Remove from deck"
-                    label={`Remove "${spanish}" from deck`}
-                    disabled={busy}
-                    onClick={() => void handleChange([], [card.id])}
-                  />
-                  <CardActionButton
-                    icon="delete"
-                    text="Delete"
-                    label={`Delete "${spanish}"`}
-                    disabled={busy}
-                    onClick={() => setConfirmingDelete(card)}
-                  />
-                </>
-              )
-            }}
+            edit={edit}
+            rowActions={rowActions}
           />
         </Box>
         <Box
@@ -412,6 +420,8 @@ function DeckPage() {
             actionLabel={(cards) => `Add ${cards}`}
             busy={busy}
             onApply={(ids) => handleChange(ids, [])}
+            edit={edit}
+            rowActions={rowActions}
           />
         </Box>
       </Paper>

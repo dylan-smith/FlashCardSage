@@ -362,7 +362,7 @@ function ImportCardsPage() {
         aria-labelledby="import-tab-preply"
         hidden={tab !== 'preply'}
       >
-        <PreplyImport />
+        <PreplyImport active={tab === 'preply'} />
       </Box>
     </Paper>
   )

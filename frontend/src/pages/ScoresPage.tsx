@@ -8,6 +8,7 @@ import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import {
@@ -17,6 +18,7 @@ import {
 } from '../api/flashCards'
 import type { FlashCardScores } from '../api/flashCards'
 import { trackException } from '../telemetry'
+import { matchesSearch } from './cardSearch'
 
 // A light shade from red at 0 to green at 100, pale enough that the text on it stays readable.
 function scoreColor(score: number) {
@@ -28,6 +30,7 @@ function ScoresPage() {
   const [scores, setScores] = useState<FlashCardScores | null>(null)
   const [loading, setLoading] = useState(true)
   const [errorMessage, setErrorMessage] = useState('')
+  const [search, setSearch] = useState('')
 
   // Loaded each time the page is opened, so it includes the latest practice.
   useEffect(() => {
@@ -54,6 +57,10 @@ function ScoresPage() {
     }
   }, [])
 
+  // The total stays the score of every card, whatever the search shows.
+  const matching =
+    scores?.cards.filter((card) => matchesSearch(card, search)) ?? []
+
   return (
     <Stack spacing={2}>
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
@@ -77,26 +84,39 @@ function ScoresPage() {
             <Typography variant="h6" component="p" sx={{ mb: 1 }}>
               {`Total score ${scores.total} / ${scores.maximum} (${Math.round((scores.total / scores.maximum) * 100)}%)`}
             </Typography>
-            <List disablePadding aria-label="Card scores">
-              {scores.cards.map((card) => (
-                <ListItem
-                  key={card.id}
-                  divider
-                  disablePadding
-                  sx={{ py: 1, px: 2, bgcolor: scoreColor(card.score) }}
-                >
-                  <ListItemText
-                    primary={formatWords(card.spanish)}
-                    secondary={formatWords(card.english)}
-                    slotProps={{ primary: { lang: 'es' } }}
-                    sx={{ overflowWrap: 'anywhere' }}
-                  />
-                  <Typography sx={{ flexShrink: 0, ml: 2 }}>
-                    {card.score} / 100
-                  </Typography>
-                </ListItem>
-              ))}
-            </List>
+            <TextField
+              label="Search"
+              type="search"
+              size="small"
+              fullWidth
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              sx={{ mb: 2 }}
+            />
+            {matching.length === 0 ? (
+              <Typography color="text.secondary">No cards match.</Typography>
+            ) : (
+              <List disablePadding aria-label="Card scores">
+                {matching.map((card) => (
+                  <ListItem
+                    key={card.id}
+                    divider
+                    disablePadding
+                    sx={{ py: 1, px: 2, bgcolor: scoreColor(card.score) }}
+                  >
+                    <ListItemText
+                      primary={formatWords(card.spanish)}
+                      secondary={formatWords(card.english)}
+                      slotProps={{ primary: { lang: 'es' } }}
+                      sx={{ overflowWrap: 'anywhere' }}
+                    />
+                    <Typography sx={{ flexShrink: 0, ml: 2 }}>
+                      {card.score} / 100
+                    </Typography>
+                  </ListItem>
+                ))}
+              </List>
+            )}
           </>
         )}
       </Paper>

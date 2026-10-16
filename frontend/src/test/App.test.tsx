@@ -3546,6 +3546,60 @@ describe('App', () => {
         ).toBeInTheDocument()
       })
 
+      it('edits a card that is not in the deck yet', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(animals, async () =>
+          jsonResponse({ ...house, spanish: ['la casita'] }),
+        )
+        await showPage('/decks/7')
+        await user.click(screen.getByRole('tab', { name: 'Add cards (2)' }))
+
+        await user.click(screen.getByRole('button', { name: 'Edit "la casa"' }))
+        const spanish = screen.getByLabelText('Spanish')
+        expect(spanish).toHaveValue('la casa')
+        await user.clear(spanish)
+        await user.type(spanish, 'la casita')
+        await user.click(screen.getByRole('button', { name: 'Save' }))
+
+        expect(await screen.findByText('la casita')).toBeInTheDocument()
+        const put = calls.find((call) => call.init?.method === 'PUT')
+        expect(put?.url).toBe('http://localhost:5269/api/flashcards/3')
+        // Editing it doesn't put it in the deck.
+        expect(calls.some((call) => call.init?.method === 'PATCH')).toBe(false)
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (2)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.queryByRole('button', {
+            name: 'Remove "la casita" from deck',
+          }),
+        ).not.toBeInTheDocument()
+      })
+
+      it('deletes a card that is not in the deck', async () => {
+        const user = userEvent.setup()
+        const calls = mockDeckApi(
+          animals,
+          async () => new Response(null, { status: 204 }),
+        )
+        await showPage('/decks/7')
+        await user.click(screen.getByRole('tab', { name: 'Add cards (2)' }))
+
+        await clickDelete(user, 'Delete "la casa"', 'Delete "la casa"?')
+
+        expect(await screen.findByRole('status')).toHaveTextContent(
+          'Deleted 1 card.',
+        )
+        const post = calls.find((call) => call.init?.method === 'POST')
+        expect(post?.init?.body).toBe(JSON.stringify({ flashCardIds: [3] }))
+        expect(
+          screen.getByRole('tab', { name: 'Add cards (1)' }),
+        ).toBeInTheDocument()
+        expect(
+          screen.getByRole('tab', { name: 'In this deck (2)' }),
+        ).toBeInTheDocument()
+      })
+
       it('keeps the card and says why when deleting it fails', async () => {
         const user = userEvent.setup()
         mockDeckApi(animals, async () => new Response(null, { status: 500 }))
@@ -4300,6 +4354,65 @@ describe('App', () => {
         addAll[1].compareDocumentPosition(list) &
           Node.DOCUMENT_POSITION_PRECEDING,
       ).toBeTruthy()
+    })
+
+    // The words are kept until they're all added or removed, but what was left out is only said the first time.
+    it("doesn't say again which words are left out after coming back", async () => {
+      const user = userEvent.setup()
+      mockFetch(
+        async (url) => jsonResponse(url === flashCardsUrl ? ownCards : []),
+        [],
+        [],
+      )
+      const { unmount } = renderAt('/import?from=preply')
+      await receiveWords()
+      unmount()
+
+      renderAt('/import')
+      expect(
+        await screen.findByText("There aren't any built-in decks yet."),
+      ).toBeVisible()
+      await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+
+      expect(
+        await screen.findByRole('heading', {
+          level: 2,
+          name: '3 cards from Preply',
+        }),
+      ).toBeVisible()
+      expect(screen.queryByText(/ left out because /)).not.toBeInTheDocument()
+    })
+
+    it('waits for the Preply tab to say which words are left out', async () => {
+      mockFetch(
+        async (url) => jsonResponse(url === flashCardsUrl ? ownCards : []),
+        [],
+        [],
+      )
+      sendFromPreply({ type: 'flashcardsage:preply-words', words })
+      const user = userEvent.setup()
+      renderAt('/import')
+      expect(
+        await screen.findByRole('heading', {
+          level: 2,
+          name: '3 cards from Preply',
+          hidden: true,
+        }),
+      ).not.toBeVisible()
+      expect(screen.queryByText(/ left out because /)).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+
+      expect(
+        await screen.findByText(
+          '1 word is left out because you already have a card for it.',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          '1 word is left out because Preply has no English for it.',
+        ),
+      ).toBeInTheDocument()
     })
 
     it('adds one card to a new Preply deck', async () => {
@@ -5151,6 +5264,52 @@ describe('App', () => {
       expect(items[0]).toHaveStyle({ backgroundColor: 'hsl(0, 70%, 90%)' })
       expect(items[1]).toHaveStyle({ backgroundColor: 'hsl(60, 70%, 90%)' })
       expect(items[2]).toHaveStyle({ backgroundColor: 'hsl(120, 70%, 90%)' })
+    })
+
+    it('finds cards by either side, whatever their accents and case, keeping the total', async () => {
+      const user = userEvent.setup()
+      mockFetch(async () =>
+        jsonResponse({
+          total: 130,
+          maximum: 300,
+          cards: [
+            { id: 3, spanish: ['la canción'], english: ['the song'], score: 0 },
+            { id: 2, spanish: ['el perro'], english: ['the dog'], score: 50 },
+            { id: 1, spanish: ['el gato'], english: ['the cat'], score: 80 },
+          ],
+        }),
+      )
+      renderAt('/scores')
+      await screen.findByText('Total score 130 / 300 (43%)')
+
+      await user.type(
+        screen.getByRole('searchbox', { name: 'Search' }),
+        'CANCION',
+      )
+
+      const items = () =>
+        within(screen.getByRole('list', { name: 'Card scores' }))
+          .getAllByRole('listitem')
+          .map((item) => item.textContent)
+      expect(items()).toEqual(['la canciónthe song0 / 100'])
+      expect(
+        screen.getByText('Total score 130 / 300 (43%)'),
+      ).toBeInTheDocument()
+
+      await user.clear(screen.getByRole('searchbox', { name: 'Search' }))
+      await user.type(
+        screen.getByRole('searchbox', { name: 'Search' }),
+        'the dog',
+      )
+
+      expect(items()).toEqual(['el perrothe dog50 / 100'])
+
+      await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'x')
+
+      expect(screen.getByText('No cards match.')).toBeInTheDocument()
+      expect(
+        screen.queryByRole('list', { name: 'Card scores' }),
+      ).not.toBeInTheDocument()
     })
 
     it('links to adding cards when there are none', async () => {
