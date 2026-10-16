@@ -14,12 +14,18 @@ import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
 import { useSearchParams } from 'react-router'
-import { ApiError, describeFetchError } from '../api/flashCards'
-import { importSystemDeck, listSystemDecks } from '../api/systemDecks'
+import { ApiError, describeFetchError, formatWords } from '../api/flashCards'
+import type { FlashCard } from '../api/flashCards'
+import {
+  importSystemDeck,
+  importSystemDeckCard,
+  listSystemDecks,
+} from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
+import { CardActionButton } from './CardActionButton'
 import { cardCount } from './cardCount'
 import { DocumentScan } from './DocumentScan'
 import { FlashCardRow } from './FlashCardRow'
@@ -61,7 +67,12 @@ function ImportCardsPage() {
   const [shownIds, setShownIds] = useState<number[]>([])
   // The deck being added, so its button can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
+  // The built-in card being added on its own, and the ones added since the decks were loaded, which the user has now
+  // like the decks' owned cards.
+  const [busyCardId, setBusyCardId] = useState<number | null>(null)
+  const [addedCardIds, setAddedCardIds] = useState<number[]>([])
   const [errorMessage, setErrorMessage] = useState('')
+  const busy = busyId !== null || busyCardId !== null
 
   useEffect(() => {
     let cancelled = false
@@ -90,6 +101,16 @@ function ImportCardsPage() {
     }
   }, [])
 
+  // Loads the decks again after cards are added, so every card the user now has a word of says so, such as all of a
+  // deck's after adding the deck. The page already shows the decks, so a failure only leaves them as they were.
+  function refreshDecks() {
+    listSystemDecks()
+      .then(setDecks)
+      .catch((error: unknown) => {
+        trackException(error, { operation: 'refresh' })
+      })
+  }
+
   function toggleShown(id: number) {
     setShownIds((current) =>
       current.includes(id)
@@ -105,6 +126,7 @@ function ImportCardsPage() {
     try {
       const result = await importSystemDeck(deck.id)
       trackEvent('SystemDeckImported')
+      refreshDecks()
       showToast({
         key: 'system-deck-imported',
         severity: 'success',
@@ -119,6 +141,33 @@ function ImportCardsPage() {
       setErrorMessage(describeFetchError(error, 'Unable to add the deck.'))
     } finally {
       setBusyId(null)
+    }
+  }
+
+  // Adds just this card, to the user's deck with the built-in deck's name, which the API makes if they haven't got it.
+  async function handleImportCard(deck: SystemDeck, card: FlashCard) {
+    setBusyCardId(card.id)
+    setErrorMessage('')
+
+    try {
+      const result = await importSystemDeckCard(deck.id, card.id)
+      trackEvent('SystemDeckCardImported')
+      setAddedCardIds((current) => [...current, card.id])
+      refreshDecks()
+      showToast({
+        key: 'system-deck-card-imported',
+        severity: 'success',
+        message: `Added "${formatWords(card.spanish)}" to ${result.deckCreated ? 'a new deck, ' : ''}${result.deck.name}.`,
+        action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
+      })
+    } catch (error) {
+      // Such as a 409 for a card the user already has.
+      if (!(error instanceof ApiError)) {
+        trackException(error, { operation: 'import card' })
+      }
+      setErrorMessage(describeFetchError(error, 'Unable to add the card.'))
+    } finally {
+      setBusyCardId(null)
     }
   }
 
@@ -173,8 +222,9 @@ function ImportCardsPage() {
 
           <Box>
             <Typography color="text.secondary" sx={{ mb: 2 }}>
-              Add a deck to get its cards and tags. They&apos;re then yours to
-              change. Cards you already have are left out.
+              Add a deck to get its cards and tags, or open it to add just some
+              of its cards. They&apos;re then yours to change. Cards you already
+              have are left out.
             </Typography>
             {loading ? (
               <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
@@ -238,7 +288,7 @@ function ImportCardsPage() {
                         <Button
                           variant="contained"
                           aria-label={`Add deck "${deck.name}"`}
-                          disabled={busyId !== null}
+                          disabled={busy}
                           onClick={() => void handleImport(deck)}
                           sx={{ flexShrink: 0 }}
                         >
@@ -256,9 +306,38 @@ function ImportCardsPage() {
                             '& > li:last-of-type': { borderBottom: 'none' },
                           }}
                         >
-                          {deck.cards.map((card) => (
-                            <FlashCardRow key={card.id} card={card} />
-                          ))}
+                          {deck.cards.map((card) => {
+                            const added =
+                              deck.ownedCardIds.includes(card.id) ||
+                              addedCardIds.includes(card.id)
+                            return (
+                              <FlashCardRow
+                                key={card.id}
+                                card={card}
+                                actions={
+                                  <CardActionButton
+                                    icon="add"
+                                    text={added ? 'Added' : 'Add'}
+                                    label={`${added ? 'Added' : 'Add'} "${formatWords(card.spanish)}"`}
+                                    disabled={busy || added}
+                                    busyText={
+                                      busyCardId === card.id
+                                        ? 'Adding…'
+                                        : undefined
+                                    }
+                                    tooltip={
+                                      added
+                                        ? 'This card is already in your collection.'
+                                        : undefined
+                                    }
+                                    onClick={() =>
+                                      void handleImportCard(deck, card)
+                                    }
+                                  />
+                                }
+                              />
+                            )
+                          })}
                         </List>
                       </Collapse>
                     </ListItem>

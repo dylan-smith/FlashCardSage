@@ -27,7 +27,8 @@ import type { Adding, Candidate } from './CardCandidates'
 import { cardCount } from './cardCount'
 
 // limitReached is whether the scan made as many cards as it can, so the document may have more, foundAny whether it made
-// any, before the user removed or added some, and addedCount how many the user has added one at a time.
+// any, before the user removed or added some, addedCount how many the user has added so far, and skippedCount how
+// many were left out of those added because the user already had them.
 type ScanState =
   | { status: 'idle' }
   | { status: 'scanning' }
@@ -38,6 +39,7 @@ type ScanState =
       limitReached: boolean
       foundAny: boolean
       addedCount: number
+      skippedCount: number
     }
 
 // The toast for the cards just added, one at a time or all at once, so each replaces the last.
@@ -122,6 +124,7 @@ export function DocumentScan() {
         limitReached: result.candidates.length >= maxDocumentCandidates,
         foundAny: result.candidates.length > 0,
         addedCount: 0,
+        skippedCount: 0,
       })
     } catch (error) {
       reportFailure(error, 'scan')
@@ -161,12 +164,12 @@ export function DocumentScan() {
     if (state.status !== 'ready') {
       return
     }
-    const { candidates, addedCount, limitReached } = state
+    const { candidates, addedCount, skippedCount, limitReached } = state
     trackEvent('DocumentCardAdded')
     const remaining = candidates.filter((item) => item.key !== candidate.key)
     if (remaining.length === 0) {
       // The last one, so the scan's done, as if they'd all been added at once.
-      showAdded({ count: addedCount + 1, skippedCount: 0, limitReached })
+      showAdded({ count: addedCount + 1, skippedCount, limitReached })
       setState({ status: 'idle' })
     } else {
       showToast({
@@ -178,18 +181,40 @@ export function DocumentScan() {
     }
   }
 
-  function handleAddedAll(result: FlashCardBatch) {
+  // All the cards, or just the ones that match a search, so the scan's only done once none are left.
+  function handleAddedAll(result: FlashCardBatch, added: Candidate[]) {
     if (state.status !== 'ready') {
       return
     }
     trackEvent('DocumentCardsAdded')
-    showAdded({
-      // With the ones the user added one at a time before.
-      count: result.cards.length + state.addedCount,
-      skippedCount: result.skippedCount,
-      limitReached: state.limitReached,
-    })
-    setState({ status: 'idle' })
+    // With the ones the user added before.
+    const addedCount = result.cards.length + state.addedCount
+    const skippedCount = result.skippedCount + state.skippedCount
+    const remaining = state.candidates.filter(
+      (candidate) => !added.some((item) => item.key === candidate.key),
+    )
+    if (remaining.length === 0) {
+      showAdded({
+        count: addedCount,
+        skippedCount,
+        limitReached: state.limitReached,
+      })
+      setState({ status: 'idle' })
+    } else {
+      showToast({
+        key: documentAddedToast,
+        severity: 'success',
+        message: describeAdded(
+          {
+            count: result.cards.length,
+            skippedCount: result.skippedCount,
+            limitReached: false,
+          },
+          file?.name ?? '',
+        ),
+      })
+      setState({ ...state, candidates: remaining, addedCount, skippedCount })
+    }
   }
 
   const busy = state.status === 'scanning' || adding !== null
@@ -254,6 +279,7 @@ export function DocumentScan() {
             ) : (
               <CardCandidates
                 label="Cards from the document"
+                searchable
                 candidates={state.candidates}
                 onCandidatesChange={updateCandidates}
                 tags={tags}
