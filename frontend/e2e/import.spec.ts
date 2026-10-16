@@ -88,6 +88,59 @@ test.describe('Import cards', () => {
     )
   })
 
+  test("adds a built-in deck's cards one at a time, making the deck for the first", async ({
+    page,
+  }) => {
+    await page.goto('/import')
+    await page
+      .getByRole('button', { name: 'Days of the week', exact: true })
+      .click()
+    const cards = page.getByRole('list', {
+      name: 'Cards in "Days of the week"',
+    })
+    // The user already has lunes.
+    await expect(
+      cards.getByRole('button', { name: 'Added "lunes"' }),
+    ).toBeDisabled()
+
+    await cards.getByRole('button', { name: 'Add "martes"' }).click()
+    await expect(
+      page.getByText('Added "martes" to a new deck, Days of the week.'),
+    ).toBeVisible()
+    await expect(
+      cards.getByRole('button', { name: 'Added "martes"' }),
+    ).toBeDisabled()
+
+    await cards.getByRole('button', { name: 'Add "miércoles"' }).click()
+    await expect(
+      page.getByText('Added "miércoles" to Days of the week.'),
+    ).toBeVisible()
+
+    // The added cards still say so when the page is opened again.
+    await page.reload()
+    await page
+      .getByRole('button', { name: 'Days of the week', exact: true })
+      .click()
+    for (const spanish of ['lunes', 'martes', 'miércoles']) {
+      await expect(
+        cards.getByRole('button', { name: `Added "${spanish}"` }),
+      ).toBeDisabled()
+    }
+    await expect(
+      cards.getByRole('button', { name: 'Add "jueves"' }),
+    ).toBeEnabled()
+
+    await page.goto('/decks')
+    // Both cards went on the one deck.
+    await expect(page.getByRole('link', { name: 'Decks 1' })).toBeVisible()
+    await page
+      .getByRole('link', { name: 'Days of the week', exact: true })
+      .click()
+    await expect(
+      page.getByRole('tab', { name: 'In this deck (2)' }),
+    ).toBeVisible()
+  })
+
   test('adds the cards scanned from a document, one and then the rest, after changing and removing some', async ({
     page,
   }) => {
