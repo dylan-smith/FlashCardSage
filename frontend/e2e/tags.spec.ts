@@ -190,4 +190,24 @@ test.describe('Tags', () => {
     await expect(page.getByText('el pan', { exact: true })).toBeVisible()
     await expect(page.getByText('Food', { exact: true })).toBeHidden()
   })
+
+  test('replaces a deleted tag with another', async ({ page }) => {
+    await createFlashCard(page, 'el gato', 'the cat', ['Animal'])
+    await createFlashCard(page, 'el perro', 'the dog', ['Animals'])
+    await goToTags(page)
+
+    await page.getByRole('button', { name: 'Delete tag "Animal"' }).click()
+    const dialog = page.getByRole('dialog', { name: 'Delete tag "Animal"?' })
+    await dialog.getByRole('combobox', { name: 'Replace with' }).click()
+    await page.getByRole('option', { name: 'Animals' }).click()
+    await dialog.getByRole('button', { name: 'Delete' }).click()
+
+    await expect(
+      page.getByRole('link', { name: 'Animal', exact: true }),
+    ).toBeHidden()
+    const item = page.getByRole('listitem').filter({ hasText: 'Animals' })
+    await expect(item).toContainText('2 cards')
+    await page.reload()
+    await expect(item).toContainText('2 cards')
+  })
 })
