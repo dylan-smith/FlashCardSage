@@ -38,4 +38,4 @@ jobs:
         if: steps.try.outputs.needed == 'false'
         env:
           GH_TOKEN: ${{ secrets.TS_COMPAT_PR_TOKEN }}
-        run: bash .github/scripts/pkcs-pin-open-pr.sh
+        run: bash .github/scripts/open-cleanup-pr.sh pkcs-pin

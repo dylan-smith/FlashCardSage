@@ -12,6 +12,7 @@
 # Requires PREVIEW_RESOURCE_GROUP, PR_NUMBER, PREVIEW_PR_NUMBER (read by infra/preview.bicepparam) and BASE_DIR,
 # and runs from the repository root.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 outputs="${RUNNER_TEMP}/preview-outputs.json"
 
@@ -26,45 +27,42 @@ explain_database_failure() {
     --query "[?properties.provisioningState == 'Failed' && properties.targetResource.resourceType == 'Microsoft.Sql/servers/databases'] | [0].properties.targetResource.resourceName" \
     --output tsv)"
   [ -n "${failed}" ] || return 1
-  existing="$(az resource list \
-    --resource-group "${PREVIEW_RESOURCE_GROUP}" \
+  existing="$(preview_resources "[?tags.\"pr-number\" == '${PR_NUMBER}'] | length(@)" \
     --resource-type Microsoft.Sql/servers/databases \
-    --query "[?tags.\"pr-number\" == '${PR_NUMBER}'] | length(@)" \
     --output tsv)"
   [ "${existing}" = "0" ] || return 1
-  holders="$(az resource list \
-    --resource-group "${PREVIEW_RESOURCE_GROUP}" \
+  holders="$(preview_resources "sort([?tags.\"pr-number\"].tags.\"pr-number\")" \
     --resource-type Microsoft.Sql/servers/databases \
-    --query "sort([?tags.\"pr-number\"].tags.\"pr-number\")" \
     --output tsv | sed 's/^/#/' | paste -sd ' ')"
   echo "::error::Couldn't create the preview database (${failed}). Azure SQL fails this way when the subscription's free offer databases (10, production's included) are all in use, and these previews hold one: ${holders:-none}. Close or merge the PRs whose previews you don't need (preview-cleanup.yml deletes their databases), then re-run this job."
+}
+
+# One attempt at deploy's deployment.
+try_deploy() {
+  if az deployment group create \
+    --resource-group "${PREVIEW_RESOURCE_GROUP}" \
+    --name "$1" \
+    --template-file "$2" \
+    --parameters "$3" \
+    --only-show-errors \
+    --query properties.outputs \
+    --output json >"${outputs}"; then
+    return 0
+  fi
+  # Retrying won't free a database, so this stops at once.
+  if explain_database_failure "$1"; then
+    exit 1
+  fi
+  return 1
 }
 
 # Usage: deploy <deployment name> <template> <parameters file>; the outputs go to $outputs.
 deploy() {
   bash .github/scripts/wait-for-deployment.sh "${PREVIEW_RESOURCE_GROUP}" "$1"
-  for attempt in 1 2 3; do
-    if az deployment group create \
-      --resource-group "${PREVIEW_RESOURCE_GROUP}" \
-      --name "$1" \
-      --template-file "$2" \
-      --parameters "$3" \
-      --only-show-errors \
-      --query properties.outputs \
-      --output json >"${outputs}"; then
-      return 0
-    fi
-    # Retrying won't free a database, so this stops at once.
-    if explain_database_failure "$1"; then
-      exit 1
-    fi
-    if [ "${attempt}" -eq 3 ]; then
-      echo "::error::Deploying $2 failed"
-      exit 1
-    fi
-    echo "Deployment attempt ${attempt} failed; retrying in 30 seconds"
-    sleep 30
-  done
+  if ! retry 3 30 "Deployment attempt" -- try_deploy "$1" "$2" "$3"; then
+    echo "::error::Deploying $2 failed"
+    exit 1
+  fi
 }
 
 shared_dir="${BASE_DIR}/infra"
@@ -90,9 +88,8 @@ PREVIEW_FOUNDRY_NAME="$(az cognitiveservices account list \
 export PREVIEW_FOUNDRY_NAME
 
 # Read just before the deployment, after the migrations check, which may have deleted the database.
-PREVIEW_DATABASE_TAGS="$(az resource list \
-  --resource-group "${PREVIEW_RESOURCE_GROUP}" \
-  --query "[?tags.\"pr-number\" == '${PR_NUMBER}' && type == 'Microsoft.Sql/servers/databases'] | [0].tags" \
+PREVIEW_DATABASE_TAGS="$(preview_resources \
+  "[?tags.\"pr-number\" == '${PR_NUMBER}' && type == 'Microsoft.Sql/servers/databases'] | [0].tags" \
   --output json)"
 if [ -z "${PREVIEW_DATABASE_TAGS}" ] || [ "${PREVIEW_DATABASE_TAGS}" = "null" ]; then
   PREVIEW_DATABASE_TAGS='{}'

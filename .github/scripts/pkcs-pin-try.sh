@@ -2,7 +2,7 @@
 # Removes the System.Security.Cryptography.Pkcs pin (its PackageReference and the comment above it) from every
 # backend project, for the Pkcs pin check workflow, then restores and builds. Warnings are errors, so NuGet's
 # vulnerability warnings (NU1902/NU1903) fail the restore while SqlClient still brings in a vulnerable version,
-# and the check also lists vulnerable packages to be sure. Writes needed=true or false to $GITHUB_OUTPUT, and leaves the projects edited for pkcs-pin-open-pr.sh. Fails
+# and the check also lists vulnerable packages to be sure. Writes needed=true or false to $GITHUB_OUTPUT, and leaves the projects edited for open-cleanup-pr.sh. Fails
 # if no project has the pin, so the check doesn't report it as removable before it's there. Runs from the
 # repository root.
 set -euo pipefail
