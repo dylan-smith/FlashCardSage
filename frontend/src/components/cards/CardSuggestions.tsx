@@ -2,6 +2,7 @@ import { useRef, useState } from 'react'
 import { listCardSuggestions } from '../../api/cardSuggestions'
 import { formatWords } from '../../api/flashCards'
 import type { FlashCardWords, Tag } from '../../api/flashCards'
+import { storageKeys } from '../../lib/storageKeys'
 import { sameText } from '../../lib/text'
 import { useCandidateEditing } from '../../hooks/useCandidateEditing'
 import { useSuggestions } from '../../hooks/useSuggestions'
@@ -21,9 +22,6 @@ function describe(relatedTo?: FlashCardWords, tag?: Tag) {
     ? `New words and phrases for your “${tag.name}” cards.`
     : 'New words and phrases that go with your cards.'
 }
-
-// Kept in localStorage so the section stays collapsed across reloads once the user collapses it.
-export const suggestionsCollapsedKey = 'flashcardsage.suggestionsCollapsed'
 
 // A handful of new cards suggested from the user's cards, each with a button that adds it and one that changes it
 // first, with the same form as the cards page. The section isn't shown when suggestions aren't available, and a
@@ -107,7 +105,7 @@ export function CardSuggestions({
     <SuggestionsPanel
       title="Suggested cards"
       contentId="suggested-cards-content"
-      collapsedKey={suggestionsCollapsedKey}
+      collapsedKey={storageKeys.suggestionsCollapsed}
       description={describe(relatedTo, tag)}
       state={state}
       failedText="Unable to suggest cards right now."

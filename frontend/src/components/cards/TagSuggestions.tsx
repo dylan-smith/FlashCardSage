@@ -2,16 +2,13 @@ import { useState } from 'react'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import type { Tag } from '../../api/flashCards'
+import { storageKeys } from '../../lib/storageKeys'
 import { sameText } from '../../lib/text'
 import { listNewTagSuggestions } from '../../api/tagSuggestions'
 import { useSuggestions } from '../../hooks/useSuggestions'
 import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { SuggestionsPanel } from './SuggestionsPanel'
-
-// Kept in localStorage so the section stays collapsed across reloads once the user collapses it.
-export const tagSuggestionsCollapsedKey =
-  'flashcardsage.tagSuggestionsCollapsed'
 
 // A handful of new tags suggested from the user's tags and cards, each with a button that adds it, like the suggested
 // cards on the cards page. A different name is typed in the New tag section instead. The section isn't shown when
@@ -54,7 +51,7 @@ export function TagSuggestions({
     <SuggestionsPanel
       title="Suggested tags"
       contentId="suggested-tags-content"
-      collapsedKey={tagSuggestionsCollapsedKey}
+      collapsedKey={storageKeys.tagSuggestionsCollapsed}
       description="New tags that go with your cards."
       state={state}
       failedText="Unable to suggest tags right now."

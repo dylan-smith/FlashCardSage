@@ -2,7 +2,8 @@ import { act, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter } from 'react-router'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import App, { tagline } from '../App'
+import App from '../App'
+import { tagline } from '../components/layout/Brand'
 import type { Counts } from '../api/counts'
 import type { Deck } from '../api/decks'
 import { unreachableMessage } from '../api/client'
@@ -13,9 +14,8 @@ import type { SystemDeck } from '../api/systemDecks'
 import { setSession } from '../auth/session'
 import { translateDelayMs } from '../hooks/useAutoTranslate'
 import { tagSuggestDelayMs } from '../hooks/useTagSuggestions'
-import { suggestionsCollapsedKey } from '../components/cards/CardSuggestions'
 import { documentDeckName } from '../lib/documentDeckName'
-import { tagSuggestionsCollapsedKey } from '../components/cards/TagSuggestions'
+import { storageKeys } from '../lib/storageKeys'
 import { clearPreplyHandoff, startPreplyHandoff } from '../preply/preplyHandoff'
 import { touchOnlyQuery } from '../components/import/PreplyBookmarklet'
 import { trackEvent, trackException } from '../telemetry'
@@ -1079,7 +1079,7 @@ describe('App', () => {
 
     describe('collapsing', () => {
       afterEach(() => {
-        localStorage.removeItem(suggestionsCollapsedKey)
+        localStorage.removeItem(storageKeys.suggestionsCollapsed)
       })
 
       it('collapses and expands the suggestions, remembering the choice', async () => {
@@ -1099,7 +1099,9 @@ describe('App', () => {
             screen.queryByRole('list', { name: 'Suggested cards' }),
           ).not.toBeInTheDocument()
         })
-        expect(localStorage.getItem(suggestionsCollapsedKey)).toBe('true')
+        expect(localStorage.getItem(storageKeys.suggestionsCollapsed)).toBe(
+          'true',
+        )
 
         await user.click(toggle)
 
@@ -1107,11 +1109,13 @@ describe('App', () => {
         expect(
           await screen.findByRole('list', { name: 'Suggested cards' }),
         ).toHaveTextContent('el perro')
-        expect(localStorage.getItem(suggestionsCollapsedKey)).toBeNull()
+        expect(
+          localStorage.getItem(storageKeys.suggestionsCollapsed),
+        ).toBeNull()
       })
 
       it('starts collapsed when the user collapsed it before', async () => {
-        localStorage.setItem(suggestionsCollapsedKey, 'true')
+        localStorage.setItem(storageKeys.suggestionsCollapsed, 'true')
         await showSuggestions(async () =>
           jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
         )
@@ -2657,7 +2661,7 @@ describe('App', () => {
 
       describe('suggested tags', () => {
         beforeEach(() => {
-          localStorage.removeItem(tagSuggestionsCollapsedKey)
+          localStorage.removeItem(storageKeys.tagSuggestionsCollapsed)
         })
 
         function suggestedTags() {
@@ -2808,7 +2812,9 @@ describe('App', () => {
               screen.queryByRole('list', { name: 'Suggested tags' }),
             ).not.toBeInTheDocument()
           })
-          expect(localStorage.getItem(tagSuggestionsCollapsedKey)).toBe('true')
+          expect(
+            localStorage.getItem(storageKeys.tagSuggestionsCollapsed),
+          ).toBe('true')
         })
       })
 
