@@ -1,32 +1,12 @@
-import { act, render, screen, waitFor } from '@testing-library/react'
+import { act, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import App from '../App'
 import { sessionFromGoogleCredential } from '../auth/google'
 import { getSession, setSession } from '../auth/session'
 import { storageKeys } from '../lib/storageKeys'
-
-vi.mock('../telemetry', () => ({
-  trackEvent: vi.fn(),
-  trackException: vi.fn(),
-  trackPageView: vi.fn(),
-}))
-
-function jsonResponse(body: unknown, status = 200): Response {
-  return new Response(JSON.stringify(body), {
-    status,
-    headers: { 'Content-Type': 'application/json' },
-  })
-}
-
-function renderAt(path: string) {
-  return render(
-    <MemoryRouter initialEntries={[path]}>
-      <App />
-    </MemoryRouter>,
-  )
-}
+import { card } from './support/factories'
+import { emptyResponse, mockApi } from './support/mockApi'
+import { renderAt, waitForLoaded } from './support/render'
 
 function authorizationOf(call: unknown[]) {
   return new Headers((call[1] as RequestInit | undefined)?.headers).get(
@@ -54,24 +34,9 @@ describe('signing in', () => {
 
   it('signs in as a test user and sends their token with each request', async () => {
     const user = userEvent.setup()
-    const fetchMock = vi
-      .spyOn(globalThis, 'fetch')
-      .mockImplementation(async (input) =>
-        jsonResponse(
-          (input instanceof Request ? input.url : input.toString()).endsWith(
-            '/api/tags',
-          )
-            ? []
-            : [
-                {
-                  id: 1,
-                  spanish: ['buenos días'],
-                  english: ['good morning'],
-                  tags: [],
-                },
-              ],
-        ),
-      )
+    mockApi({
+      'GET /flashcards': [card(1, 'buenos días', 'good morning')],
+    })
     renderAt('/')
 
     await user.clear(screen.getByLabelText('Name'))
@@ -81,11 +46,11 @@ describe('signing in', () => {
     )
 
     expect(await screen.findByText('buenos días')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
-    })
+    await waitForLoaded()
     expect(screen.getByText('Alice')).toBeInTheDocument()
-    expect(authorizationOf(fetchMock.mock.calls[0])).toBe('Bearer test:Alice')
+    expect(authorizationOf(vi.mocked(fetch).mock.calls[0])).toBe(
+      'Bearer test:Alice',
+    )
     expect(
       JSON.parse(localStorage.getItem(storageKeys.session) ?? '{}'),
     ).toMatchObject({ token: 'test:Alice', name: 'Alice' })
@@ -106,9 +71,7 @@ describe('signing in', () => {
 describe('signed in', () => {
   it('signs out', async () => {
     const user = userEvent.setup()
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      jsonResponse([]),
-    )
+    mockApi()
     setSession({ token: 'test:Bob', name: 'Bob', provider: 'test' })
     renderAt('/')
     await screen.findByText('No flash cards yet.')
@@ -122,9 +85,7 @@ describe('signed in', () => {
   })
 
   it('signs out when the API no longer accepts the token', async () => {
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue(
-      new Response(null, { status: 401 }),
-    )
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(emptyResponse(401))
     setSession({ token: 'expired', name: 'Carol', provider: 'google' })
 
     renderAt('/')
@@ -136,17 +97,13 @@ describe('signed in', () => {
   })
 
   it('keeps a sign-in from an earlier visit', async () => {
-    vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
-      jsonResponse([]),
-    )
+    mockApi()
     setSession({ token: 'test:Dana', name: 'Dana', provider: 'test' })
 
     renderAt('/')
 
     expect(screen.getByText('Dana')).toBeInTheDocument()
-    await waitFor(() => {
-      expect(screen.queryByLabelText('Loading')).not.toBeInTheDocument()
-    })
+    await waitForLoaded()
   })
 })
 
