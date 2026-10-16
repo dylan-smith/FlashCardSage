@@ -1,4 +1,4 @@
-import type { FlashCardFields } from '../api/flashCards'
+import type { FlashCardWords } from '../api/flashCards'
 
 // Lower case and without accents, so "como" finds "¿cómo estás?".
 function normalize(text: string) {
@@ -11,7 +11,7 @@ function normalize(text: string) {
 // Whether a card has the search on either side, whatever their accents and case. An empty search matches every card.
 // A card to add, such as one scanned from a document, is searched the same way.
 export function matchesSearch(
-  card: Pick<FlashCardFields, 'spanish' | 'english'>,
+  card: Pick<FlashCardWords, 'spanish' | 'english'>,
   search: string,
 ) {
   const query = normalize(search.trim())
