@@ -15,6 +15,7 @@
 #   record  (after the migrations) sets the tag for the current scripts.
 # Requires PREVIEW_RESOURCE_GROUP and PR_NUMBER, and runs from the repository root.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 scripts_dir=backend/FlashCardSage.Database/Scripts
 # DbUp applies the scripts in name order.
@@ -27,10 +28,9 @@ fingerprint() {
   done | sha256sum | cut -c1-16
 }
 
-# az won't combine --tag with --resource-group, so the tag and type are filtered in the query.
-database="$(az resource list \
-  --resource-group "${PREVIEW_RESOURCE_GROUP}" \
-  --query "[?tags.\"pr-number\" == '${PR_NUMBER}' && type == 'Microsoft.Sql/servers/databases'] | [0].{id: id, migrations: tags.migrations}" \
+# The type is filtered in the query too, alongside the tag.
+database="$(preview_resources \
+  "[?tags.\"pr-number\" == '${PR_NUMBER}' && type == 'Microsoft.Sql/servers/databases'] | [0].{id: id, migrations: tags.migrations}" \
   --output tsv)"
 read -r database_id applied <<<"${database}" || true
 if [ "${1:-}" != check ] && [ -z "${database_id}" ]; then
