@@ -1,7 +1,6 @@
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Documents;
-using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
