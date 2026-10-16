@@ -3,6 +3,7 @@ using Azure.Monitor.OpenTelemetry.AspNetCore;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
 using FlashCardSage.Api.SystemDecks;
@@ -53,6 +54,9 @@ if (!string.IsNullOrWhiteSpace(azureMonitorConnectionString))
 
 builder.Services.AddFlashCardSageAuthentication(builder.Configuration);
 builder.Services.AddControllers();
+// The card and built-in deck logic the controllers use.
+builder.Services.AddScoped<FlashCardService>();
+builder.Services.AddScoped<SystemDeckImporter>();
 // No database check: the availability test pings /health, and touching SQL would stop the serverless database
 // from auto-pausing.
 builder.Services.AddHealthChecks();
