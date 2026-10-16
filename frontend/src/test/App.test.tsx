@@ -3816,6 +3816,7 @@ describe('App', () => {
           imageUrl: null,
         },
       ],
+      ownedCardIds: [],
     }
     const months: SystemDeck = {
       id: 4,
@@ -3829,6 +3830,7 @@ describe('App', () => {
           imageUrl: null,
         },
       ],
+      ownedCardIds: [],
     }
 
     // Shows the Import cards page with these built-in decks, answering anything else with the handler.
@@ -4020,6 +4022,61 @@ describe('App', () => {
         screen.getByRole('button', { name: 'Added "martes"' }),
       ).toBeDisabled()
       expect(screen.getByRole('button', { name: 'Add "lunes"' })).toBeEnabled()
+    })
+
+    it('shows the cards the user already has as added', async () => {
+      const user = userEvent.setup()
+      await showImport(undefined, [{ ...days, ownedCardIds: [31] }, months])
+      await user.click(screen.getByRole('button', { name: 'Days of the week' }))
+
+      const added = screen.getByRole('button', { name: 'Added "lunes"' })
+      expect(added).toBeDisabled()
+      expect(screen.getByRole('button', { name: 'Add "martes"' })).toBeEnabled()
+      // A disabled button gets no mouse events, so the tooltip is on what's around it, which has it as its title.
+      await user.hover(
+        screen.getByTitle('This card is already in your collection.'),
+      )
+      expect(await screen.findByRole('tooltip')).toHaveTextContent(
+        'This card is already in your collection.',
+      )
+    })
+
+    it('marks the cards of an added deck as added', async () => {
+      const user = userEvent.setup()
+      let added = false
+      mockFetch(async (_url, init) => {
+        if (init?.method === 'POST') {
+          added = true
+          return jsonResponse(
+            {
+              deck: { id: 21, name: 'Days of the week', flashCardIds: [5, 6] },
+              importedCount: 2,
+              skippedCount: 0,
+            },
+            201,
+          )
+        }
+        return jsonResponse(
+          added
+            ? [{ ...days, ownedCardIds: [31, 32] }, months]
+            : [days, months],
+        )
+      })
+      renderAt('/import')
+      await user.click(
+        await screen.findByRole('button', { name: 'Days of the week' }),
+      )
+
+      await user.click(
+        screen.getByRole('button', { name: 'Add deck "Days of the week"' }),
+      )
+
+      expect(
+        await screen.findByRole('button', { name: 'Added "lunes"' }),
+      ).toBeDisabled()
+      expect(
+        screen.getByRole('button', { name: 'Added "martes"' }),
+      ).toBeDisabled()
     })
 
     it("says when the user already has a deck's card", async () => {

@@ -98,6 +98,10 @@ test.describe('Import cards', () => {
     const cards = page.getByRole('list', {
       name: 'Cards in "Days of the week"',
     })
+    // The user already has lunes.
+    await expect(
+      cards.getByRole('button', { name: 'Added "lunes"' }),
+    ).toBeDisabled()
 
     await cards.getByRole('button', { name: 'Add "martes"' }).click()
     await expect(
@@ -112,11 +116,19 @@ test.describe('Import cards', () => {
       page.getByText('Added "miércoles" to Days of the week.'),
     ).toBeVisible()
 
-    // The user already has lunes.
-    await cards.getByRole('button', { name: 'Add "lunes"' }).click()
-    await expect(page.getByRole('alert')).toHaveText(
-      'You already have this card.',
-    )
+    // The added cards still say so when the page is opened again.
+    await page.reload()
+    await page
+      .getByRole('button', { name: 'Days of the week', exact: true })
+      .click()
+    for (const spanish of ['lunes', 'martes', 'miércoles']) {
+      await expect(
+        cards.getByRole('button', { name: `Added "${spanish}"` }),
+      ).toBeDisabled()
+    }
+    await expect(
+      cards.getByRole('button', { name: 'Add "jueves"' }),
+    ).toBeEnabled()
 
     await page.goto('/decks')
     // Both cards went on the one deck.

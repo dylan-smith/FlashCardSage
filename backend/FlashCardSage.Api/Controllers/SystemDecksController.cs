@@ -43,7 +43,8 @@ public class SystemDecksController(
 
         logger.LogInformation("Retrieved {Count} system decks", decks.Count);
 
-        return Ok(decks.Select(SystemDeckResponse.From).ToList());
+        var taken = await TakenWordsAsync(CancellationToken.None);
+        return Ok(decks.Select(deck => SystemDeckResponse.From(deck, card => HasAnyWord(taken, card))).ToList());
     }
 
     // Copies the deck into the user's decks, leaving out any card whose Spanish or English is already on one of their

@@ -6,11 +6,12 @@ import { throwIfNotSaved } from './flashCards'
 import type { FlashCard } from './flashCards'
 
 // A built-in deck any user can import, with its cards in order. The user doesn't have them, so they're sent in full,
-// like the user's own cards.
+// like the user's own cards. The owned ids are the cards the user already has a word of, which importing leaves out.
 export type SystemDeck = {
   id: number
   name: string
   cards: FlashCard[]
+  ownedCardIds: number[]
 }
 
 // The user's new deck, made from a built-in one, and how many of its cards were left out because the user already

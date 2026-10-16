@@ -26,13 +26,15 @@ const iconColors = {
 // A button for one card in a list of cards. On a wide screen it's a text button, and on a phone, where the card's
 // words need the room, it's an icon (a plus to add, a pencil to edit, a trash can to delete, a circle with a minus to
 // remove) with the text as its tooltip. The label names the card, for screen readers. While it's busy, such as while
-// the card is being added, the text button shows busyText ("Adding…") and the icon a spinner.
+// the card is being added, the text button shows busyText ("Adding…") and the icon a spinner. A tooltip, such as why
+// the button is disabled, shows on the text button too, and on the icon in place of the text.
 export function CardActionButton({
   icon,
   text,
   label,
   disabled,
   busyText,
+  tooltip,
   onClick,
 }: {
   icon: keyof typeof icons
@@ -40,6 +42,7 @@ export function CardActionButton({
   label: string
   disabled: boolean
   busyText?: string
+  tooltip?: string
   onClick: () => void
 }) {
   const busy = busyText !== undefined
@@ -47,7 +50,7 @@ export function CardActionButton({
   const wide = useMediaQuery(useTheme().breakpoints.up('sm'), { noSsr: true })
 
   if (wide) {
-    return (
+    const button = (
       <Button
         type="button"
         size="small"
@@ -60,10 +63,19 @@ export function CardActionButton({
         {busyText ?? text}
       </Button>
     )
+    if (tooltip === undefined) {
+      return button
+    }
+    return (
+      <Tooltip title={tooltip} describeChild>
+        {/* A disabled button gets no mouse events, so the tooltip listens on this instead. */}
+        <span style={{ flexShrink: 0 }}>{button}</span>
+      </Tooltip>
+    )
   }
 
   return (
-    <Tooltip title={text} describeChild>
+    <Tooltip title={tooltip ?? text} describeChild>
       {/* A disabled button gets no mouse events, so the tooltip listens on this instead. */}
       <span style={{ flexShrink: 0 }}>
         <IconButton

@@ -67,7 +67,8 @@ function ImportCardsPage() {
   const [shownIds, setShownIds] = useState<number[]>([])
   // The deck being added, so its button can wait for the API.
   const [busyId, setBusyId] = useState<number | null>(null)
-  // The built-in card being added on its own, and the ones added so far, whose buttons say so.
+  // The built-in card being added on its own, and the ones added since the decks were loaded, which the user has now
+  // like the decks' owned cards.
   const [busyCardId, setBusyCardId] = useState<number | null>(null)
   const [addedCardIds, setAddedCardIds] = useState<number[]>([])
   const [errorMessage, setErrorMessage] = useState('')
@@ -100,6 +101,16 @@ function ImportCardsPage() {
     }
   }, [])
 
+  // Loads the decks again after cards are added, so every card the user now has a word of says so, such as all of a
+  // deck's after adding the deck. The page already shows the decks, so a failure only leaves them as they were.
+  function refreshDecks() {
+    listSystemDecks()
+      .then(setDecks)
+      .catch((error: unknown) => {
+        trackException(error, { operation: 'refresh' })
+      })
+  }
+
   function toggleShown(id: number) {
     setShownIds((current) =>
       current.includes(id)
@@ -115,6 +126,7 @@ function ImportCardsPage() {
     try {
       const result = await importSystemDeck(deck.id)
       trackEvent('SystemDeckImported')
+      refreshDecks()
       showToast({
         key: 'system-deck-imported',
         severity: 'success',
@@ -141,6 +153,7 @@ function ImportCardsPage() {
       const result = await importSystemDeckCard(deck.id, card.id)
       trackEvent('SystemDeckCardImported')
       setAddedCardIds((current) => [...current, card.id])
+      refreshDecks()
       showToast({
         key: 'system-deck-card-imported',
         severity: 'success',
@@ -294,7 +307,9 @@ function ImportCardsPage() {
                           }}
                         >
                           {deck.cards.map((card) => {
-                            const added = addedCardIds.includes(card.id)
+                            const added =
+                              deck.ownedCardIds.includes(card.id) ||
+                              addedCardIds.includes(card.id)
                             return (
                               <FlashCardRow
                                 key={card.id}
@@ -308,6 +323,11 @@ function ImportCardsPage() {
                                     busyText={
                                       busyCardId === card.id
                                         ? 'Adding…'
+                                        : undefined
+                                    }
+                                    tooltip={
+                                      added
+                                        ? 'This card is already in your collection.'
                                         : undefined
                                     }
                                     onClick={() =>

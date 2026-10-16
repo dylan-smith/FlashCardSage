@@ -57,6 +57,31 @@ public class SystemDecksControllerTests
                 string.Join(", ", card.Tags.Select(tag => tag.Name)))));
     }
 
+    // A card is the user's when any of its words is on one of their cards, whatever its case, as importing judges it.
+    // Another user's cards don't count.
+    [Fact]
+    public async Task GetAll_ListsTheCardsTheUserAlreadyHas()
+    {
+        var databaseName = await SeedAsync();
+        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        {
+            otherContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("lunes", "Monday") });
+            await otherContext.SaveChangesAsync();
+        }
+
+        await using var dbContext = TestDb.Create(databaseName);
+        dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words("el martes", "TUES") });
+        await dbContext.SaveChangesAsync();
+        var martes = await SystemCardAsync(dbContext, "martes");
+
+        var result = await CreateController(dbContext).GetAll();
+
+        var decks = Assert.IsAssignableFrom<IEnumerable<SystemDeckResponse>>(
+            Assert.IsType<OkObjectResult>(result.Result).Value).ToList();
+        Assert.Equal([martes.Id], decks.Single(deck => deck.Name == "Days").OwnedCardIds);
+        Assert.Empty(decks.Single(deck => deck.Name == "Months").OwnedCardIds);
+    }
+
     [Fact]
     public async Task Import_CopiesTheDeckCardsAndTagsIntoTheUsersOwn()
     {
