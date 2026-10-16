@@ -4,6 +4,7 @@ using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Suggestions;
+using FlashCardSage.Api.Suggestions.Foundry;
 using FlashCardSage.Api.SystemDecks;
 using FlashCardSage.Api.Translation;
 using FlashCardSage.Api.Usage;
@@ -63,7 +64,7 @@ builder.Services.AddHostedService(services => services.GetRequiredService<UsageS
 builder.Services.Configure<TranslatorOptions>(builder.Configuration.GetSection(TranslatorOptions.SectionName));
 // Translation fills in a field while the user types, so a slow answer is no better than none.
 builder.Services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
-builder.Services.Configure<CardSuggesterOptions>(builder.Configuration.GetSection(CardSuggesterOptions.SectionName));
+builder.Services.Configure<FoundryChatOptions>(builder.Configuration.GetSection(FoundryChatOptions.SectionName));
 // The page shows suggestions as soon as they come, and they're only a nicety, so a slow answer isn't waited out.
 builder.Services.AddHttpClient<ICardSuggester, FoundryCardSuggester>(client => client.Timeout = TimeSpan.FromSeconds(45));
 // Tag suggestions come while the user is filling in a card, so like translation, a slow answer is no better than none.
