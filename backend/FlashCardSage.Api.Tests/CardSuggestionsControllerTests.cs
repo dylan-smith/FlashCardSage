@@ -1,9 +1,8 @@
 using System.Net;
-using System.Net.Http.Headers;
 using FlashCardSage.Api.Controllers;
+using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -14,17 +13,21 @@ namespace FlashCardSage.Api.Tests;
 public class CardSuggestionsControllerTests(WebApplicationFactory<Program> factory)
     : IClassFixture<WebApplicationFactory<Program>>
 {
+    // The app with no key for the service, so it's off.
+    private static readonly Dictionary<string, string> Settings = new() { ["CardSuggestions:Key"] = "" };
+
     [Fact]
     public async Task Suggest_SendsTheUsersCards_AndReturnsTheSuggestions()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"), ("el perro", "the dog"));
-        await SeedAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, ("el gato", "the cat"), ("el perro", "the dog"));
+        await TestDb.SeedCardsAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
         var suggester = new FakeSuggester { Result = [new("  el pájaro ", " the bird"), new("el pez", "the fish")] };
+        await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(databaseName, suggester).Suggest(null, null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, CancellationToken.None);
 
-        var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pájaro", "the bird"), new("el pez", "the fish")], suggestions);
         Assert.Equal(["el gato", "el perro"], suggester.Cards!.Select(card => card.Spanish.Single()));
         Assert.Null(suggester.RelatedTo);
@@ -35,13 +38,14 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Suggest_RelatesTheSuggestionsToTheGivenCard()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var ids = await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"), ("el perro", "the dog"));
+        var databaseName = TestDb.NewDatabaseName();
+        var ids = await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, ("el gato", "the cat"), ("el perro", "the dog"));
         var suggester = new FakeSuggester { Result = [new("el collar", "the collar")] };
+        await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(databaseName, suggester).Suggest(ids[1], null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(ids[1], null, CancellationToken.None);
 
-        var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el collar", "the collar")], suggestions);
         Assert.Equal(["el perro"], suggester.RelatedTo!.Spanish);
         Assert.Equal(2, suggester.Cards!.Count);
@@ -50,12 +54,13 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Suggest_ReturnsNotFound_ForAnotherUsersCard()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
-        var others = await SeedAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
+        var others = await TestDb.SeedCardsAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
         var suggester = new FakeSuggester();
+        await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(databaseName, suggester).Suggest(others[0], null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(others[0], null, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result.Result);
         Assert.Null(suggester.Cards);
@@ -64,17 +69,18 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Suggest_SuggestsCardsForTheGivenTag_DescribingAllItsCards()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         var many = Enumerable.Range(1, CardSuggestionsController.MaxCardsDescribed + 10)
             .Select(i => ($"es {i}", $"en {i}"))
             .ToArray();
-        var ids = await SeedAsync(databaseName, TestDb.UserId, many);
-        var tagId = await SeedTagAsync(databaseName, TestDb.UserId, "food", ids[0], ids[^1]);
+        var ids = await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, many);
+        var tagId = await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "food", ids[0], ids[^1]);
         var suggester = new FakeSuggester { Result = [new("el pan", "the bread")] };
+        await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(databaseName, suggester).Suggest(null, tagId, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, tagId, CancellationToken.None);
 
-        var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pan", "the bread")], suggestions);
         Assert.Equal("food", suggester.Tag?.Name);
         // The tag's oldest card is kept in place of the oldest of the rest, and the cards stay in order.
@@ -86,13 +92,14 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Suggest_ReturnsNotFound_ForAnotherUsersTag()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
-        var others = await SeedAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
-        var otherTagId = await SeedTagAsync(databaseName, TestDb.OtherUserId, "home", others[0]);
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
+        var others = await TestDb.SeedCardsAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
+        var otherTagId = await TestDb.SeedTagAsync(databaseName, TestDb.OtherUserId, "home", others[0]);
         var suggester = new FakeSuggester();
+        await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(databaseName, suggester).Suggest(null, otherTagId, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, otherTagId, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result.Result);
         Assert.Null(suggester.Cards);
@@ -101,8 +108,8 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Suggest_LeavesOutCardsTheUserHas_RepeatsAndBlanks()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
         var suggester = new FakeSuggester
         {
             Result =
@@ -117,31 +124,29 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
                 new("el ratón", "the mouse")
             ]
         };
+        await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(databaseName, suggester).Suggest(null, null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, CancellationToken.None);
 
-        var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pez", "the fish"), new("el ratón", "the mouse")], suggestions);
     }
 
     [Fact]
     public async Task Suggest_LeavesOutCardsWithAnyOfACardsTranslations()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await using (var dbContext = TestDb.Create(databaseName))
-        {
-            dbContext.FlashCards.Add(new FlashCard { Words = TestDb.Words(["solo", "únicamente"], ["only", "just"]) });
-            await dbContext.SaveChangesAsync();
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardAsync(databaseName, new FlashCard { Words = TestDb.Words(["solo", "únicamente"], ["only", "just"]) });
 
         var suggester = new FakeSuggester
         {
             Result = [new("Únicamente", "solely"), new("justo", "Just"), new("el pez", "the fish")]
         };
+        await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(databaseName, suggester).Suggest(null, null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, CancellationToken.None);
 
-        var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pez", "the fish")], suggestions);
     }
 
@@ -152,24 +157,26 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         {
             Result = Enumerable.Range(1, 8).Select(i => new CardSuggestion($"es {i}", $"en {i}")).ToList()
         };
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(null, null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, CancellationToken.None);
 
-        var suggestions = Assert.IsType<List<CardSuggestion>>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal(CardSuggestionsController.SuggestionCount, suggestions.Count);
     }
 
     [Fact]
     public async Task Suggest_DescribesOnlyTheNewestCards()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         var many = Enumerable.Range(1, CardSuggestionsController.MaxCardsDescribed + 10)
             .Select(i => ($"es {i}", $"en {i}"))
             .ToArray();
-        await SeedAsync(databaseName, TestDb.UserId, many);
+        await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, many);
         var suggester = new FakeSuggester();
+        await using var dbContext = TestDb.Create(databaseName);
 
-        await CreateController(databaseName, suggester).Suggest(null, null, CancellationToken.None);
+        await CreateController(dbContext, suggester).Suggest(null, null, CancellationToken.None);
 
         Assert.Equal(CardSuggestionsController.MaxCardsDescribed, suggester.Cards!.Count);
         Assert.Equal("es 11", suggester.Cards[0].Spanish.Single());
@@ -179,10 +186,11 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     public async Task Suggest_ReturnsServiceUnavailable_WhenSuggestionsAreOff()
     {
         var suggester = new FakeSuggester { IsAvailable = false };
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(null, null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
         Assert.Null(suggester.Cards);
     }
 
@@ -190,26 +198,28 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     public async Task Suggest_ReturnsBadGateway_WhenTheSuggesterFails()
     {
         var suggester = new FakeSuggester { Failure = new HttpRequestException("boom") };
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(null, null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
 
     [Fact]
     public async Task Suggest_ReturnsBadGateway_WhenTheSuggesterTimesOut()
     {
         var suggester = new FakeSuggester { Failure = new TaskCanceledException("timed out") };
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), suggester).Suggest(null, null, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
 
     [Fact]
     public async Task Suggest_RequiresSignIn()
     {
-        using var client = CreateClient(signedIn: false);
+        using var client = TestApp.CreateSignedOutClient(factory, Settings);
 
         var response = await client.GetAsync("/api/card-suggestions");
 
@@ -219,59 +229,17 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Suggest_IsUnavailable_WithoutAnApiKey()
     {
-        using var client = CreateClient(signedIn: true);
+        using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
 
         var response = await client.GetAsync("/api/card-suggestions");
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
     }
 
-    // Adds the cards for the user, returning their IDs.
-    private static async Task<List<int>> SeedAsync(
-        string databaseName, int userId, params (string Spanish, string English)[] cards)
-    {
-        await using var dbContext = TestDb.Create(databaseName, userId);
-        var added = cards.Select(card => new FlashCard { Words = TestDb.Words(card.Spanish, card.English) }).ToList();
-        dbContext.FlashCards.AddRange(added);
-        await dbContext.SaveChangesAsync();
-        return added.Select(card => card.Id).ToList();
-    }
-
-    // Puts a new tag of the user's on their cards, returning its ID.
-    private static async Task<int> SeedTagAsync(string databaseName, int userId, string name, params int[] cardIds)
-    {
-        await using var dbContext = TestDb.Create(databaseName, userId);
-        var tag = new Tag { Name = name };
-        foreach (var card in dbContext.FlashCards.Where(card => cardIds.Contains(card.Id)))
-        {
-            card.Tags.Add(tag);
-        }
-        await dbContext.SaveChangesAsync();
-        return tag.Id;
-    }
-
-    private static CardSuggestionsController CreateController(string databaseName, ICardSuggester suggester)
+    private static CardSuggestionsController CreateController(FlashCardDbContext dbContext, ICardSuggester suggester)
     {
         return new CardSuggestionsController(
-            TestDb.Create(databaseName), suggester, NullLogger<CardSuggestionsController>.Instance);
-    }
-
-    private HttpClient CreateClient(bool signedIn)
-    {
-        // Development uses the in-memory database and allows test sign-in, so the app starts without SQL Server.
-        var client = factory
-            .WithWebHostBuilder(builder => builder
-                .UseEnvironment("Development")
-                .UseSetting("Authentication:AllowTestSignIn", "true")
-                .UseSetting("CardSuggestions:Key", ""))
-            .CreateClient();
-        if (signedIn)
-        {
-            client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", $"test:Suggestions {Guid.NewGuid()}");
-        }
-
-        return client;
+            dbContext, suggester, NullLogger<CardSuggestionsController>.Instance);
     }
 
     private sealed class FakeSuggester : ICardSuggester

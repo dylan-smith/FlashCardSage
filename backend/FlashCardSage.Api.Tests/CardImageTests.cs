@@ -1,19 +1,15 @@
 using FlashCardSage.Api.Images;
+using FlashCardSage.Api.Tests.TestData;
 
 namespace FlashCardSage.Api.Tests;
 
 public class CardImageTests
 {
-    // The start of each kind of file, followed by a few bytes of nothing in particular.
-    public static readonly byte[] Jpeg = [0xFF, 0xD8, 0xFF, 0xE0, 0x00, 0x10, 0x4A, 0x46];
-    public static readonly byte[] Png = [0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00];
-    public static readonly byte[] Webp = [.. "RIFF"u8.ToArray(), 0x24, 0x00, 0x00, 0x00, .. "WEBP"u8.ToArray(), 0x56, 0x50];
-
     public static TheoryData<string, byte[]> Kinds => new()
     {
-        { "image/jpeg", Jpeg },
-        { "image/png", Png },
-        { "image/webp", Webp }
+        { "image/jpeg", SampleImages.Jpeg },
+        { "image/png", SampleImages.Png },
+        { "image/webp", SampleImages.Webp }
     };
 
     [Theory]
@@ -32,7 +28,7 @@ public class CardImageTests
     [Fact]
     public void TryDecode_TidiesTheContentType()
     {
-        var decoded = CardImage.TryDecode(" Image/PNG ", Convert.ToBase64String(Png), out _, out var normalized, out _);
+        var decoded = CardImage.TryDecode(" Image/PNG ", Convert.ToBase64String(SampleImages.Png), out _, out var normalized, out _);
 
         Assert.True(decoded);
         Assert.Equal("image/png", normalized);
@@ -45,7 +41,7 @@ public class CardImageTests
     [InlineData(null)]
     public void TryDecode_RefusesOtherKindsOfFile(string? contentType)
     {
-        var decoded = CardImage.TryDecode(contentType, Convert.ToBase64String(Png), out _, out _, out var error);
+        var decoded = CardImage.TryDecode(contentType, Convert.ToBase64String(SampleImages.Png), out _, out _, out var error);
 
         Assert.False(decoded);
         Assert.Equal("The picture must be a JPEG, PNG or WebP.", error);
@@ -54,7 +50,7 @@ public class CardImageTests
     [Fact]
     public void TryDecode_RefusesAPictureThatIsNotWhatItsContentTypeSays()
     {
-        var decoded = CardImage.TryDecode("image/jpeg", Convert.ToBase64String(Png), out _, out _, out var error);
+        var decoded = CardImage.TryDecode("image/jpeg", Convert.ToBase64String(SampleImages.Png), out _, out _, out var error);
 
         Assert.False(decoded);
         Assert.Equal("The picture isn't the kind of image its content type says.", error);
@@ -84,7 +80,7 @@ public class CardImageTests
     public void TryDecode_RefusesAPictureOverTheLimit()
     {
         var bytes = new byte[CardImage.MaxBytes + 1];
-        Png.CopyTo(bytes, 0);
+        SampleImages.Png.CopyTo(bytes, 0);
 
         var decoded = CardImage.TryDecode("image/png", Convert.ToBase64String(bytes), out _, out _, out var error);
 
@@ -96,7 +92,7 @@ public class CardImageTests
     public void TryDecode_AcceptsAPictureAtTheLimit()
     {
         var bytes = new byte[CardImage.MaxBytes];
-        Png.CopyTo(bytes, 0);
+        SampleImages.Png.CopyTo(bytes, 0);
 
         var decoded = CardImage.TryDecode("image/png", Convert.ToBase64String(bytes), out var data, out _, out var error);
 
