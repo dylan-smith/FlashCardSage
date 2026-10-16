@@ -20,8 +20,6 @@ import type { Adding, Candidate } from '../../lib/candidates'
 import { matchesSearch } from '../../lib/cardSearch'
 import { CandidateList } from './CandidateList'
 
-export type { Adding, Candidate } from '../../lib/candidates'
-
 function picturesFailedMessage(failed: number) {
   return failed === 1
     ? "A card was added, but its picture couldn't be."

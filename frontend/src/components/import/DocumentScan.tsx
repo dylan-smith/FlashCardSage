@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import type { ChangeEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -6,65 +6,31 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { addToNamedDeck } from '../../api/decks'
 import {
   documentTypes,
   maxDocumentCandidates,
   scanDocument,
 } from '../../api/documentScans'
-import {
-  createFlashCard,
-  createFlashCards,
-  formatWords,
-} from '../../api/flashCards'
 import { describeFetchError } from '../../api/client'
 import { reportFailure } from '../../lib/reportFailure'
-import type { FlashCardBatch, FlashCardFields } from '../../api/flashCards'
-import { useUserTags } from '../../hooks/useUserTags'
-import { trackEvent, trackException } from '../../telemetry'
+import { useCandidateImport } from '../../hooks/useCandidateImport'
+import { trackEvent } from '../../telemetry'
 import { showToast } from '../../toasts'
 import { CardCandidates } from '../cards/CardCandidates'
-import type { Adding, Candidate } from '../cards/CardCandidates'
 import { cardCount } from '../../lib/cardCount'
 import { documentDeckName } from '../../lib/documentDeckName'
 
-// limitReached is whether the scan made as many cards as it can, so the document may have more, foundAny whether it made
-// any, before the user removed or added some, addedCount how many the user has added so far, and skippedCount how
-// many were left out of those added because the user already had them.
+// limitReached is whether the scan made as many cards as it can, so the document may have more, and foundAny whether
+// it made any, before the user removed or added some. The cards themselves are the import's.
 type ScanState =
   | { status: 'idle' }
   | { status: 'scanning' }
   | {
       status: 'ready'
-      candidates: Candidate[]
       truncated: boolean
       limitReached: boolean
       foundAny: boolean
-      addedCount: number
-      skippedCount: number
     }
-
-// The toast for the cards just added, one at a time or all at once, so each replaces the last.
-const documentAddedToast = 'document-added'
-
-// What adding the cards did, and whether the document may have more.
-type Added = { count: number; skippedCount: number; limitReached: boolean }
-
-// What adding the cards did, naming the document they're from and the deck they went in.
-function describeAdded(
-  { count, skippedCount, limitReached }: Added,
-  fileName: string,
-) {
-  let text = `Added ${cardCount(count)} from “${fileName}” to your ${documentDeckName(fileName)} deck.`
-  if (skippedCount > 0) {
-    text += ` ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
-  }
-  if (limitReached) {
-    text +=
-      ' The document may have more words and phrases, so scan it again to find them.'
-  }
-  return text
-}
 
 // Scans a document the user picks for words and phrases to make cards for. They're listed for the user to look over,
 // change (with the same form as the cards page) or remove, and then added one at a time or all at once to a deck named
@@ -74,19 +40,27 @@ export function DocumentScan() {
   const [state, setState] = useState<ScanState>({ status: 'idle' })
   // The document last scanned, so it can be scanned again.
   const [file, setFile] = useState<File | null>(null)
-  const [adding, setAdding] = useState<Adding>(null)
-  // The deck the cards went in, for the toast's link once they're all added.
-  const deckId = useRef<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
-  const [deckError, setDeckError] = useState('')
-  const [tags, addNewTags] = useUserTags()
+  const fileName = file?.name ?? ''
+  const cards = useCandidateImport({
+    deckName: documentDeckName(fileName),
+    source: fileName,
+    toastKey: 'document-added',
+    events: { addedOne: 'DocumentCardAdded', addedAll: 'DocumentCardsAdded' },
+    deckOperation: 'documentDeck',
+    finishedNote:
+      state.status === 'ready' && state.limitReached
+        ? 'The document may have more words and phrases, so scan it again to find them.'
+        : undefined,
+    noDeckAction: { label: 'View cards', to: '/' },
+    onFinish: () => setState({ status: 'idle' }),
+  })
 
   async function scan(document: File) {
     setFile(document)
     setState({ status: 'scanning' })
     setErrorMessage('')
-    setDeckError('')
-    deckId.current = null
+    cards.reset()
 
     try {
       const result = await scanDocument(document)
@@ -110,20 +84,20 @@ export function DocumentScan() {
           message: 'This document is long, so only its start was scanned.',
         })
       }
-      setState({
-        status: 'ready',
-        candidates: result.candidates.map(({ spanish, english }, key) => ({
+      cards.setCandidates(
+        result.candidates.map(({ spanish, english }, key) => ({
           spanish: [spanish],
           english: [english],
           tags: [],
           key,
           picture: null,
         })),
+      )
+      setState({
+        status: 'ready',
         truncated: result.truncated,
         limitReached: result.candidates.length >= maxDocumentCandidates,
         foundAny: result.candidates.length > 0,
-        addedCount: 0,
-        skippedCount: 0,
       })
     } catch (error) {
       reportFailure(error, 'scan')
@@ -141,122 +115,7 @@ export function DocumentScan() {
     }
   }
 
-  function updateCandidates(update: (candidates: Candidate[]) => Candidate[]) {
-    setState((current) =>
-      current.status === 'ready'
-        ? { ...current, candidates: update(current.candidates) }
-        : current,
-    )
-  }
-
-  // Puts the cards in the document's deck, making it the first time. The cards are added whatever happens to the deck,
-  // so a failure is only said.
-  async function putInDeck(ids: number[]) {
-    if (ids.length === 0 || file === null) {
-      return
-    }
-    const name = documentDeckName(file.name)
-    try {
-      const deck = await addToNamedDeck(name, ids)
-      deckId.current = deck.id
-    } catch (error) {
-      trackException(error, { operation: 'documentDeck' })
-      setDeckError(
-        `The cards were added, but couldn't be put in your ${name} deck.`,
-      )
-    }
-  }
-
-  async function addOne(fields: FlashCardFields) {
-    const card = await createFlashCard(fields)
-    await putInDeck([card.id])
-    return card
-  }
-
-  async function addAll(fields: FlashCardFields[]) {
-    const result = await createFlashCards(fields)
-    await putInDeck(result.cards.map((card) => card.id))
-    return result
-  }
-
-  function handleAdding(value: Adding) {
-    setAdding(value)
-    if (value !== null) {
-      setDeckError('')
-    }
-  }
-
-  // What adding the cards did, with a link to their deck, or to the cards if they couldn't be put in it.
-  function showAdded(added: Added) {
-    showToast({
-      key: documentAddedToast,
-      severity: 'success',
-      message: describeAdded(added, file?.name ?? ''),
-      action:
-        deckId.current === null
-          ? { label: 'View cards', to: '/' }
-          : { label: 'Open deck', to: `/decks/${deckId.current}` },
-    })
-  }
-
-  function handleAddedOne(candidate: Candidate) {
-    if (state.status !== 'ready') {
-      return
-    }
-    const { candidates, addedCount, skippedCount, limitReached } = state
-    trackEvent('DocumentCardAdded')
-    const remaining = candidates.filter((item) => item.key !== candidate.key)
-    if (remaining.length === 0) {
-      // The last one, so the scan's done, as if they'd all been added at once.
-      showAdded({ count: addedCount + 1, skippedCount, limitReached })
-      setState({ status: 'idle' })
-    } else {
-      showToast({
-        key: documentAddedToast,
-        severity: 'success',
-        message: `Added “${formatWords(candidate.spanish)}” to your ${documentDeckName(file?.name ?? '')} deck.`,
-      })
-      setState({ ...state, candidates: remaining, addedCount: addedCount + 1 })
-    }
-  }
-
-  // All the cards, or just the ones that match a search, so the scan's only done once none are left.
-  function handleAddedAll(result: FlashCardBatch, added: Candidate[]) {
-    if (state.status !== 'ready') {
-      return
-    }
-    trackEvent('DocumentCardsAdded')
-    // With the ones the user added before.
-    const addedCount = result.cards.length + state.addedCount
-    const skippedCount = result.skippedCount + state.skippedCount
-    const remaining = state.candidates.filter(
-      (candidate) => !added.some((item) => item.key === candidate.key),
-    )
-    if (remaining.length === 0) {
-      showAdded({
-        count: addedCount,
-        skippedCount,
-        limitReached: state.limitReached,
-      })
-      setState({ status: 'idle' })
-    } else {
-      showToast({
-        key: documentAddedToast,
-        severity: 'success',
-        message: describeAdded(
-          {
-            count: result.cards.length,
-            skippedCount: result.skippedCount,
-            limitReached: false,
-          },
-          file?.name ?? '',
-        ),
-      })
-      setState({ ...state, candidates: remaining, addedCount, skippedCount })
-    }
-  }
-
-  const busy = state.status === 'scanning' || adding !== null
+  const busy = state.status === 'scanning' || cards.adding !== null
 
   return (
     <Box>
@@ -269,7 +128,7 @@ export function DocumentScan() {
       </Typography>
       <Stack spacing={2}>
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
-        {deckError && <Alert severity="error">{deckError}</Alert>}
+        {cards.deckError && <Alert severity="error">{cards.deckError}</Alert>}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           <Button variant="outlined" component="label" disabled={busy}>
             Choose a document
@@ -294,7 +153,7 @@ export function DocumentScan() {
           >
             <CircularProgress aria-hidden size={32} />
             <Typography sx={{ overflowWrap: 'anywhere' }}>
-              {`Scanning “${file?.name ?? ''}”. This can take a minute or two…`}
+              {`Scanning “${fileName}”. This can take a minute or two…`}
             </Typography>
           </Box>
         )}
@@ -306,31 +165,22 @@ export function DocumentScan() {
               component="h2"
               sx={{ overflowWrap: 'anywhere' }}
             >
-              {`${cardCount(state.candidates.length)} from “${file?.name ?? ''}”`}
+              {`${cardCount(cards.candidates.length)} from “${fileName}”`}
             </Typography>
-            {state.candidates.length === 0 ? (
+            {cards.candidates.length === 0 ? (
               <Typography color="text.secondary">
                 {!state.foundAny
                   ? 'No new words or phrases were found in this document.'
-                  : state.addedCount > 0
-                    ? `You added ${cardCount(state.addedCount)} and removed the rest.`
+                  : cards.addedCount > 0
+                    ? `You added ${cardCount(cards.addedCount)} and removed the rest.`
                     : 'You removed all the cards.'}
               </Typography>
             ) : (
               <CardCandidates
                 label="Cards from the document"
                 searchable
-                candidates={state.candidates}
-                onCandidatesChange={updateCandidates}
-                tags={tags}
-                onTagsAdded={addNewTags}
-                adding={adding}
-                onAddingChange={handleAdding}
+                {...cards.listProps}
                 onError={setErrorMessage}
-                addOne={addOne}
-                addAll={addAll}
-                onAddedOne={handleAddedOne}
-                onAddedAll={handleAddedAll}
               />
             )}
           </>
