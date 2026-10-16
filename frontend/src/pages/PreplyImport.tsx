@@ -24,6 +24,7 @@ import type { PreplyHandoff } from '../preply/preplyHandoff'
 import type { PreplyWord } from '../preply/sendToFlashCardSage'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
+import type { Toast } from '../toasts'
 import { CardCandidates } from './CardCandidates'
 import type { Adding, Candidate } from './CardCandidates'
 import { cardCount } from './cardCount'
@@ -41,6 +42,19 @@ type Known = { spanish: Set<string>; english: Set<string> }
 
 // The toast for the cards just added, one at a time or all at once, so each replaces the last.
 const preplyAddedToast = 'preply-added'
+
+// The notices already shown for each lot of words, so coming back to the page doesn't show them again.
+const announced = new WeakMap<PreplyHandoff, Set<string>>()
+
+function announceOnce(handoff: PreplyHandoff, toast: Toast) {
+  const keys = announced.get(handoff) ?? new Set<string>()
+  if (keys.has(toast.key)) {
+    return
+  }
+  keys.add(toast.key)
+  announced.set(handoff, keys)
+  showToast(toast)
+}
 
 // What adding the cards did: how many went in, one at a time or all at once, and how many were left out.
 type Added = { count: number; skippedCount: number }
@@ -77,8 +91,8 @@ function describeAdded({ count, skippedCount }: Added) {
 // The Import cards page's Preply tab, where the "Send to FlashCardSage" bookmarklet brings the user's Preply
 // vocabulary. The words are listed like the cards from a document, to look over, change or remove, and then add one at
 // a time or all at once to the user's Preply deck. Words the user already has cards for are left out. Until the
-// bookmarklet sends words, it says how to use it.
-export function PreplyImport() {
+// bookmarklet sends words, it says how to use it. Its notices wait until its tab is showing.
+export function PreplyImport({ active }: { active: boolean }) {
   const handoff = useSyncExternalStore(subscribePreplyHandoff, getPreplyHandoff)
   // The words as cards, which the user changes and removes, made again whenever the bookmarklet sends words.
   const [source, setSource] = useState<PreplyHandoff>(handoff)
@@ -122,22 +136,22 @@ export function PreplyImport() {
 
   // Says which words are left out, once, when they come.
   useEffect(() => {
-    if (handoff.status !== 'received') {
+    if (!active || handoff.status !== 'received') {
       return
     }
     const noEnglish = handoff.words.filter(
       (word) => word.english === null,
     ).length
     if (noEnglish > 0) {
-      showToast({
+      announceOnce(handoff, {
         key: 'preply-no-english',
         severity: 'info',
         message: `${noEnglish === 1 ? '1 word is' : `${noEnglish} words are`} left out because Preply has no English for ${noEnglish === 1 ? 'it' : 'them'}.`,
       })
     }
-  }, [handoff])
+  }, [active, handoff])
   useEffect(() => {
-    if (handoff.status !== 'received' || known === null) {
+    if (!active || handoff.status !== 'received' || known === null) {
       return
     }
     // Counted in Preply's words, though they're left out a card at a time.
@@ -145,26 +159,25 @@ export function PreplyImport() {
       .filter((group) => isKnown(known, group))
       .reduce((total, group) => total + group.wordCount, 0)
     if (alreadyHave > 0) {
-      showToast({
+      announceOnce(handoff, {
         key: 'preply-already-have',
         severity: 'info',
         message: `${alreadyHave === 1 ? '1 word is' : `${alreadyHave} words are`} left out because you already have ${alreadyHave === 1 ? 'a card' : 'cards'} for ${alreadyHave === 1 ? 'it' : 'them'}.`,
       })
     }
-  }, [handoff, known])
+  }, [active, handoff, known])
 
   // Says how to try again when no words came.
-  const timedOut = handoff.status === 'timedOut'
   useEffect(() => {
-    if (timedOut) {
-      showToast({
+    if (active && handoff.status === 'timedOut') {
+      announceOnce(handoff, {
         key: 'preply-timed-out',
         severity: 'info',
         message:
           "No words came from Preply. To bring them in, click the bookmarklet on your Preply vocabulary page again. If you don't have it any more, drag it to your bookmarks bar from step 1 below.",
       })
     }
-  }, [timedOut])
+  }, [active, handoff])
 
   // The user's cards, once there are words to check against them. If they don't load, every word is listed, and the
   // API leaves out the ones the user has when they're added.

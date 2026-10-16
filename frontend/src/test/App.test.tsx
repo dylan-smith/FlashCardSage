@@ -4239,6 +4239,65 @@ describe('App', () => {
       ).toBeTruthy()
     })
 
+    // The words are kept until they're all added or removed, but what was left out is only said the first time.
+    it("doesn't say again which words are left out after coming back", async () => {
+      const user = userEvent.setup()
+      mockFetch(
+        async (url) => jsonResponse(url === flashCardsUrl ? ownCards : []),
+        [],
+        [],
+      )
+      const { unmount } = renderAt('/import?from=preply')
+      await receiveWords()
+      unmount()
+
+      renderAt('/import')
+      expect(
+        await screen.findByText("There aren't any built-in decks yet."),
+      ).toBeVisible()
+      await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+
+      expect(
+        await screen.findByRole('heading', {
+          level: 2,
+          name: '3 cards from Preply',
+        }),
+      ).toBeVisible()
+      expect(screen.queryByText(/ left out because /)).not.toBeInTheDocument()
+    })
+
+    it('waits for the Preply tab to say which words are left out', async () => {
+      mockFetch(
+        async (url) => jsonResponse(url === flashCardsUrl ? ownCards : []),
+        [],
+        [],
+      )
+      sendFromPreply({ type: 'flashcardsage:preply-words', words })
+      const user = userEvent.setup()
+      renderAt('/import')
+      expect(
+        await screen.findByRole('heading', {
+          level: 2,
+          name: '3 cards from Preply',
+          hidden: true,
+        }),
+      ).not.toBeVisible()
+      expect(screen.queryByText(/ left out because /)).not.toBeInTheDocument()
+
+      await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+
+      expect(
+        await screen.findByText(
+          '1 word is left out because you already have a card for it.',
+        ),
+      ).toBeInTheDocument()
+      expect(
+        screen.getByText(
+          '1 word is left out because Preply has no English for it.',
+        ),
+      ).toBeInTheDocument()
+    })
+
     it('adds one card to a new Preply deck', async () => {
       const user = userEvent.setup()
       const calls = await showPreply(async (url) =>
