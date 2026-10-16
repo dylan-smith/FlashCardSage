@@ -1,5 +1,3 @@
-using FlashCardSage.Api.Translation;
-
 namespace FlashCardSage.Api.Models;
 
 // One of a card's Spanish or English words. A card has at least one in each language, in the order the user typed

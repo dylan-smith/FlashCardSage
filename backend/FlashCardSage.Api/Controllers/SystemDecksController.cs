@@ -2,7 +2,6 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
-using FlashCardSage.Api.Translation;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 
