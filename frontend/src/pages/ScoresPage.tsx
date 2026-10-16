@@ -1,29 +1,21 @@
 import { useState } from 'react'
 import Alert from '@mui/material/Alert'
-import Button from '@mui/material/Button'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { Link } from 'react-router'
 import { formatWords, listFlashCardScores } from '../api/flashCards'
 import type { FlashCardScores } from '../api/flashCards'
-import { useCardSelection } from '../hooks/useCardSelection'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { useLoad } from '../hooks/useLoad'
 import { EmptyText } from '../components/common/EmptyText'
 import { Loading } from '../components/common/Loading'
 import { Section } from '../components/common/Section'
-import { CardSelectionPicker } from '../components/cards/CardSelectionPicker'
+import { CardSelectionPage } from '../components/cards/CardSelectionPage'
+import { EmptySelection } from '../components/cards/EmptySelection'
 import { matchesSearch } from '../lib/cardSearch'
-
-const emptyMessages: Record<CardSelectionKind, string> = {
-  all: 'There are no flash cards to score yet.',
-  deck: 'There are no cards in this deck.',
-  tag: 'There are no cards with this tag.',
-}
 
 // A light shade from red at 0 to green at 100, pale enough that the text on it stays readable.
 function scoreColor(score: number) {
@@ -32,35 +24,20 @@ function scoreColor(score: number) {
 }
 
 function ScoresPage() {
-  const { choices, deck, tag, kind, value, waiting, select } =
-    useCardSelection()
   // Kept here, so it still applies when another deck or tag is picked.
   const [search, setSearch] = useState('')
 
   return (
-    <Stack spacing={2}>
-      <CardSelectionPicker
-        label="Cards"
-        choices={choices}
-        value={value}
-        onSelect={select}
-      />
-      {waiting ? (
-        <Section>
-          <Loading />
-        </Section>
-      ) : (
-        // Loaded again for each choice.
+    // Loaded again for each choice.
+    <CardSelectionPage label="Cards">
+      {(selection) => (
         <SelectionScores
-          key={value}
-          kind={kind}
-          deckId={deck?.id}
-          tagId={tag?.id}
+          {...selection}
           search={search}
           onSearchChange={setSearch}
         />
       )}
-    </Stack>
+    </CardSelectionPage>
   )
 }
 
@@ -103,18 +80,10 @@ function SelectionScores({
         {loading ? (
           <Loading />
         ) : scores === null ? null : scores.cards.length === 0 ? (
-          <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <EmptyText>{emptyMessages[kind]}</EmptyText>
-            {kind === 'deck' ? (
-              <Button component={Link} to="/decks" variant="contained">
-                Edit decks
-              </Button>
-            ) : (
-              <Button component={Link} to="/" variant="contained">
-                {kind === 'tag' ? 'Manage cards' : 'Add flash cards'}
-              </Button>
-            )}
-          </Stack>
+          <EmptySelection
+            kind={kind}
+            noCardsMessage="There are no flash cards to score yet."
+          />
         ) : (
           <>
             <Typography variant="h6" component="p" sx={{ mb: 1 }}>

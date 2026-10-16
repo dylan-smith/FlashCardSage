@@ -6,7 +6,6 @@ import Divider from '@mui/material/Divider'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
-import { Link } from 'react-router'
 import {
   formatWords,
   getNextPracticeCard,
@@ -17,16 +16,14 @@ import type {
   PracticeOutcome,
   PracticeSide,
 } from '../api/flashCards'
-import { useCardSelection } from '../hooks/useCardSelection'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { usePreferences } from '../hooks/usePreferences'
 import { trackEvent } from '../telemetry'
 import { useAction } from '../hooks/useAction'
 import { useLoad } from '../hooks/useLoad'
-import { EmptyText } from '../components/common/EmptyText'
 import { Loading } from '../components/common/Loading'
-import { Section } from '../components/common/Section'
-import { CardSelectionPicker } from '../components/cards/CardSelectionPicker'
+import { CardSelectionPage } from '../components/cards/CardSelectionPage'
+import { EmptySelection } from '../components/cards/EmptySelection'
 
 // Which field of a card holds each side, and its language.
 const sides: Record<
@@ -70,38 +67,12 @@ function CardSide({ side, text }: { side: PracticeSide; text: string }) {
   )
 }
 
-const emptyMessages: Record<CardSelectionKind, string> = {
-  all: 'There are no flash cards to practice yet.',
-  deck: 'There are no cards in this deck.',
-  tag: 'There are no cards with this tag.',
-}
-
 function PracticePage() {
-  const { choices, deck, tag, kind, value, waiting, select } =
-    useCardSelection()
-
   return (
-    <Stack spacing={2}>
-      <CardSelectionPicker
-        label="Practice"
-        choices={choices}
-        value={value}
-        onSelect={select}
-      />
-      {waiting ? (
-        <Section>
-          <Loading />
-        </Section>
-      ) : (
-        // A new session for each choice, so the session score starts again.
-        <PracticeSession
-          key={value}
-          kind={kind}
-          deckId={deck?.id}
-          tagId={tag?.id}
-        />
-      )}
-    </Stack>
+    // A new session for each choice, so the session score starts again.
+    <CardSelectionPage label="Practice">
+      {(selection) => <PracticeSession {...selection} />}
+    </CardSelectionPage>
   )
 }
 
@@ -224,18 +195,10 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
           <Loading />
         ) : prompt === null ? (
           errorMessage ? null : (
-            <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
-              <EmptyText>{emptyMessages[kind]}</EmptyText>
-              {kind === 'deck' ? (
-                <Button component={Link} to="/decks" variant="contained">
-                  Edit decks
-                </Button>
-              ) : (
-                <Button component={Link} to="/" variant="contained">
-                  {kind === 'tag' ? 'Manage cards' : 'Add flash cards'}
-                </Button>
-              )}
-            </Stack>
+            <EmptySelection
+              kind={kind}
+              noCardsMessage="There are no flash cards to practice yet."
+            />
           )
         ) : (
           <Stack spacing={{ xs: 2, sm: 3 }} sx={{ minHeight: 0 }}>
