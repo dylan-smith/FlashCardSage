@@ -8,12 +8,27 @@ import {
 } from '../telemetry'
 
 type TelemetryItem = { tags?: Record<string, string> }
+type DependencyContext = Record<string, unknown> | undefined
+type DependencyListenerDetails = {
+  init?: RequestInit
+  context?: DependencyContext
+}
+type DependencyInitializerDetails = {
+  item: { responseCode: number }
+  context?: DependencyContext
+}
 
 const sdk = vi.hoisted(() => ({
   constructor: vi.fn<(options: { config: Record<string, unknown> }) => void>(),
   addTelemetryInitializer:
     vi.fn<(initializer: (item: TelemetryItem) => void) => void>(),
   loadAppInsights: vi.fn(),
+  addDependencyListener:
+    vi.fn<(listener: (details: DependencyListenerDetails) => void) => void>(),
+  addDependencyInitializer:
+    vi.fn<
+      (initializer: (details: DependencyInitializerDetails) => boolean) => void
+    >(),
   trackPageView: vi.fn(),
   trackException: vi.fn(),
   trackEvent: vi.fn(),
@@ -35,6 +50,8 @@ vi.mock('@microsoft/applicationinsights-web', () => ({
     }
     addTelemetryInitializer = sdk.addTelemetryInitializer
     loadAppInsights = sdk.loadAppInsights
+    addDependencyListener = sdk.addDependencyListener
+    addDependencyInitializer = sdk.addDependencyInitializer
     trackPageView = sdk.trackPageView
     trackException = sdk.trackException
     trackEvent = sdk.trackEvent
@@ -44,6 +61,16 @@ vi.mock('@microsoft/applicationinsights-web', () => ({
 // The config the SDK was created with.
 function sdkConfig() {
   return sdk.constructor.mock.calls[0][0].config
+}
+
+// Runs a fetch with the given init and status through the dependency listener and initializer, and returns whether
+// the dependency is reported.
+function reportsDependency(init: RequestInit, responseCode: number) {
+  const listener = sdk.addDependencyListener.mock.calls[0][0]
+  const initializer = sdk.addDependencyInitializer.mock.calls[0][0]
+  const details: DependencyListenerDetails = { init }
+  listener(details)
+  return initializer({ item: { responseCode }, context: details.context })
 }
 
 beforeEach(() => {
@@ -155,6 +182,31 @@ describe('telemetry', () => {
         existing: 'tag',
         'ai.cloud.role': 'FlashCardSage.Web',
       })
+    })
+
+    it('does not report a fetch the app aborted', () => {
+      initTelemetry()
+      const controller = new AbortController()
+      controller.abort()
+
+      expect(reportsDependency({ signal: controller.signal }, 0)).toBe(false)
+    })
+
+    it('still reports a fetch that failed without being aborted', () => {
+      initTelemetry()
+
+      expect(
+        reportsDependency({ signal: new AbortController().signal }, 0),
+      ).toBe(true)
+      expect(reportsDependency({}, 0)).toBe(true)
+    })
+
+    it('still reports a response that came back before the fetch was aborted', () => {
+      initTelemetry()
+      const controller = new AbortController()
+      controller.abort()
+
+      expect(reportsDependency({ signal: controller.signal }, 500)).toBe(true)
     })
 
     it('only initializes once', () => {
