@@ -311,6 +311,23 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         Assert.Empty(Directory.GetFiles(pictures));
     }
 
+    [Fact]
+    public async Task Put_TakesAnUploadedPictureAsBigAsTheLimit()
+    {
+        using var client = CreateClient(signedIn: true);
+        var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("nadar", "to swim"));
+        var card = (await created.Content.ReadFromJsonAsync<FlashCard>())!;
+        var bytes = new byte[CardImage.MaxBytes];
+        CardImageTests.Jpeg.CopyTo(bytes, 0);
+
+        var put = await client.PutAsJsonAsync(
+            $"/api/flashcards/{card.Id}/image",
+            new { contentType = "image/jpeg", data = Convert.ToBase64String(bytes) });
+
+        Assert.Equal(HttpStatusCode.OK, put.StatusCode);
+        Assert.Equal(5 * 1024 * 1024, new FileInfo(Assert.Single(Directory.GetFiles(pictures))).Length);
+    }
+
     private static async Task<FlashCard> AddCardAsync(
         FlashCardDbContext dbContext, string? imageUrl = null, params string[] tags)
     {

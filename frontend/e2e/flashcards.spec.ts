@@ -405,6 +405,33 @@ test.describe('Flash card management', () => {
       ).toHaveAttribute('src', src!)
     })
 
+    test("puts an uploaded picture on the card when it's saved", async ({
+      page,
+      request,
+    }) => {
+      await page.getByLabel('Spanish').fill('nadar')
+      await page.getByLabel('English').fill('to swim')
+      await page.getByLabel('Upload picture').setInputFiles({
+        name: 'swim.png',
+        mimeType: 'image/png',
+        buffer: Buffer.from(onePixelPng.data, 'base64'),
+      })
+      await expect(
+        page.getByRole('img', { name: 'Uploaded picture' }),
+      ).toBeVisible()
+
+      await page.getByRole('button', { name: 'Add flash card' }).click()
+
+      const picture = page.getByRole('img', { name: 'Picture for "nadar"' })
+      await expect(picture).toBeVisible()
+      const src = await picture.getAttribute('src')
+      expect(src).toMatch(new RegExp(`^${pictureUrlPrefix}[0-9a-f]{32}\\.png$`))
+      const served = await request.get(src!, { headers: { Authorization: '' } })
+      expect(Buffer.from(await served.body()).toString('base64')).toBe(
+        onePixelPng.data,
+      )
+    })
+
     test('takes the picture off the card when the user removes it', async ({
       page,
       request,
