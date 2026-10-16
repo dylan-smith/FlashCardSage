@@ -7,7 +7,6 @@ import Checkbox from '@mui/material/Checkbox'
 import CircularProgress from '@mui/material/CircularProgress'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import Link from '@mui/material/Link'
-import List from '@mui/material/List'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
@@ -32,6 +31,7 @@ import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
 import { usePreferences } from '../hooks/usePreferences'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
+import { AnimatedList, AnimatedListItem } from './AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
@@ -639,28 +639,37 @@ function FlashCardsPage() {
                     />
                   </Box>
                 </Box>
-                <List disablePadding>
-                  {visibleCards.map((card) => (
-                    <FlashCardItem
-                      key={card.id}
-                      card={card}
-                      edit={editor.edit?.id === card.id ? editor.edit : null}
-                      tags={tags}
-                      picture={editor.picture}
-                      busy={
-                        busyId === card.id ||
-                        (editor.saving && editor.edit?.id === card.id)
-                      }
-                      picked={picked.has(card.id)}
-                      onPick={() => togglePicked(card.id)}
-                      onEdit={() => editor.start(card)}
-                      onEditChange={editor.change}
-                      onEditCancel={editor.cancel}
-                      onEditSave={(event) => void editor.save(event)}
-                      onDelete={() => setConfirmingDelete(card)}
-                    />
-                  ))}
-                </List>
+                {/* Keyed on the filters, so changing them swaps the cards at once. */}
+                <AnimatedList
+                  key={`${selectedTag?.id ?? 'all'}|${search}`}
+                  disablePadding
+                >
+                  {visibleCards.map((card) => {
+                    const editing = editor.edit?.id === card.id
+                    return (
+                      <AnimatedListItem
+                        key={editing ? `${card.id}-edit` : card.id}
+                      >
+                        <FlashCardItem
+                          card={card}
+                          edit={editing ? editor.edit : null}
+                          tags={tags}
+                          picture={editor.picture}
+                          busy={
+                            busyId === card.id || (editor.saving && editing)
+                          }
+                          picked={picked.has(card.id)}
+                          onPick={() => togglePicked(card.id)}
+                          onEdit={() => editor.start(card)}
+                          onEditChange={editor.change}
+                          onEditCancel={editor.cancel}
+                          onEditSave={(event) => void editor.save(event)}
+                          onDelete={() => setConfirmingDelete(card)}
+                        />
+                      </AnimatedListItem>
+                    )
+                  })}
+                </AnimatedList>
               </>
             )}
           </>

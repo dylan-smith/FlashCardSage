@@ -3,7 +3,6 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Collapse from '@mui/material/Collapse'
-import List from '@mui/material/List'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import { listCardSuggestions } from '../api/cardSuggestions'
@@ -11,6 +10,7 @@ import { formatWords } from '../api/flashCards'
 import type { FlashCardWords, Tag } from '../api/flashCards'
 import { useCollapsed } from '../hooks/useCollapsed'
 import { trackException } from '../telemetry'
+import { AnimatedList, AnimatedListItem } from './AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { asCard, useCandidateEditing } from './candidates'
 import type { Candidate } from './candidates'
@@ -190,52 +190,54 @@ export function CardSuggestions({
             No suggestions right now.
           </Typography>
         ) : (
-          <List disablePadding aria-label="Suggested cards">
+          <AnimatedList disablePadding aria-label="Suggested cards">
             {visible.map((suggestion) => {
               if (editing?.key === suggestion.key) {
                 return (
-                  <FlashCardEditForm
-                    key={suggestion.key}
-                    edit={editing}
-                    tags={tags}
-                    picture={editPicture}
-                    busy={adding !== null}
-                    onChange={changeEdit}
-                    onCancel={cancelEdit}
-                    onSave={saveEdit}
-                  />
+                  <AnimatedListItem key={`${suggestion.key}-edit`}>
+                    <FlashCardEditForm
+                      edit={editing}
+                      tags={tags}
+                      picture={editPicture}
+                      busy={adding !== null}
+                      onChange={changeEdit}
+                      onCancel={cancelEdit}
+                      onSave={saveEdit}
+                    />
+                  </AnimatedListItem>
                 )
               }
               const spanish = formatWords(suggestion.spanish)
               return (
-                <FlashCardRow
-                  key={suggestion.key}
-                  card={asCard(suggestion)}
-                  actions={
-                    <>
-                      <CardActionButton
-                        icon="add"
-                        text="Add"
-                        label={`Add "${spanish}"`}
-                        disabled={adding !== null || editing !== null}
-                        busyText={
-                          adding === suggestion.key ? 'Adding…' : undefined
-                        }
-                        onClick={() => void add(suggestion)}
-                      />
-                      <CardActionButton
-                        icon="edit"
-                        text="Edit"
-                        label={`Edit "${spanish}"`}
-                        disabled={adding !== null}
-                        onClick={() => startEditing(suggestion)}
-                      />
-                    </>
-                  }
-                />
+                <AnimatedListItem key={suggestion.key}>
+                  <FlashCardRow
+                    card={asCard(suggestion)}
+                    actions={
+                      <>
+                        <CardActionButton
+                          icon="add"
+                          text="Add"
+                          label={`Add "${spanish}"`}
+                          disabled={adding !== null || editing !== null}
+                          busyText={
+                            adding === suggestion.key ? 'Adding…' : undefined
+                          }
+                          onClick={() => void add(suggestion)}
+                        />
+                        <CardActionButton
+                          icon="edit"
+                          text="Edit"
+                          label={`Edit "${spanish}"`}
+                          disabled={adding !== null}
+                          onClick={() => startEditing(suggestion)}
+                        />
+                      </>
+                    }
+                  />
+                </AnimatedListItem>
               )
             })}
-          </List>
+          </AnimatedList>
         )}
         <Button
           type="button"

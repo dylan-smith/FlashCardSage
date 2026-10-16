@@ -104,6 +104,8 @@ test.describe('Tags', () => {
     await item.getByRole('combobox', { name: 'Tags' }).fill('Fruit')
     await item.getByRole('button', { name: 'Save' }).click()
 
+    // The form shrinks away as the saved card takes its place, and shows the tag too until it has gone.
+    await expect(item.getByRole('combobox', { name: 'Tags' })).toHaveCount(0)
     await expect(item.getByText('Fruit', { exact: true })).toBeVisible()
     await page.reload()
     await expect(item.getByText('Food', { exact: true })).toBeVisible()

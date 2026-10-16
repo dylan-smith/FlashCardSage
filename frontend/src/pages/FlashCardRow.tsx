@@ -12,7 +12,7 @@ import { thumbnailSize } from './FlashCardPicture'
 
 // One card in a list of cards, laid out the same wherever one is shown: a box to pick it (when it can be picked), its
 // picture if it has one and the user has pictures turned on, its Spanish and English and its tags, and any buttons
-// for it at the end.
+// for it at the end. It goes inside an AnimatedListItem, which is the list's <li>.
 export function FlashCardRow({
   card,
   picked = false,
@@ -29,7 +29,7 @@ export function FlashCardRow({
   const spanish = formatWords(card.spanish)
 
   return (
-    <ListItem divider disablePadding sx={{ py: 1, gap: 1 }}>
+    <ListItem component="div" divider disablePadding sx={{ py: 1, gap: 1 }}>
       {onPick && (
         <Checkbox
           id={checkboxId}

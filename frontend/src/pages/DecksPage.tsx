@@ -5,7 +5,6 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Link from '@mui/material/Link'
-import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
@@ -17,6 +16,7 @@ import { createDeck, deleteDeck, listDecks } from '../api/decks'
 import type { Deck } from '../api/decks'
 import { ApiError, describeFetchError } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
+import { AnimatedList, AnimatedListItem } from './AnimatedList'
 import { cardCount } from './cardCount'
 import { ConfirmDelete } from './ConfirmDelete'
 
@@ -158,44 +158,46 @@ function DecksPage() {
             You haven&apos;t made any decks yet.
           </Typography>
         ) : (
-          <List disablePadding>
+          <AnimatedList disablePadding>
             {decks.map((deck) => (
-              <ListItem
-                key={deck.id}
-                divider
-                disablePadding
-                sx={{ py: 1, gap: 1 }}
-              >
-                {/* The name wraps rather than the buttons, so they stay together on a phone. */}
-                <ListItemText
-                  primary={
-                    <Link component={RouterLink} to={`/decks/${deck.id}`}>
-                      {deck.name}
-                    </Link>
-                  }
-                  secondary={cardCount(deck.flashCardIds.length)}
-                  sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                />
-                <Box sx={{ display: 'flex', flexShrink: 0 }}>
-                  <Button
-                    component={RouterLink}
-                    to={`/practice?deck=${deck.id}`}
-                    aria-label={`Practice deck "${deck.name}"`}
-                  >
-                    Practice
-                  </Button>
-                  <Button
-                    color="error"
-                    aria-label={`Delete deck "${deck.name}"`}
-                    disabled={busyId === deck.id}
-                    onClick={() => setConfirmingDelete(deck)}
-                  >
-                    Delete
-                  </Button>
-                </Box>
-              </ListItem>
+              <AnimatedListItem key={deck.id}>
+                <ListItem
+                  component="div"
+                  divider
+                  disablePadding
+                  sx={{ py: 1, gap: 1 }}
+                >
+                  {/* The name wraps rather than the buttons, so they stay together on a phone. */}
+                  <ListItemText
+                    primary={
+                      <Link component={RouterLink} to={`/decks/${deck.id}`}>
+                        {deck.name}
+                      </Link>
+                    }
+                    secondary={cardCount(deck.flashCardIds.length)}
+                    sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
+                  />
+                  <Box sx={{ display: 'flex', flexShrink: 0 }}>
+                    <Button
+                      component={RouterLink}
+                      to={`/practice?deck=${deck.id}`}
+                      aria-label={`Practice deck "${deck.name}"`}
+                    >
+                      Practice
+                    </Button>
+                    <Button
+                      color="error"
+                      aria-label={`Delete deck "${deck.name}"`}
+                      disabled={busyId === deck.id}
+                      onClick={() => setConfirmingDelete(deck)}
+                    >
+                      Delete
+                    </Button>
+                  </Box>
+                </ListItem>
+              </AnimatedListItem>
             ))}
-          </List>
+          </AnimatedList>
         )}
         {confirmingDelete !== null && (
           <ConfirmDelete

@@ -1,16 +1,16 @@
-import { Fragment, useState } from 'react'
+import { useState } from 'react'
 import type { ReactNode } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import FormControlLabel from '@mui/material/FormControlLabel'
-import List from '@mui/material/List'
 import Pagination from '@mui/material/Pagination'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import type { FlashCard, Tag } from '../api/flashCards'
+import { AnimatedList, AnimatedListItem } from './AnimatedList'
 import { cardCount } from './cardCount'
 import { matchesSearch } from './cardSearch'
 import { FlashCardRow } from './FlashCardRow'
@@ -191,21 +191,28 @@ export function CardPicker({
       {matching.length === 0 ? (
         <Typography color="text.secondary">No cards match.</Typography>
       ) : (
-        <List disablePadding>
+        <AnimatedList
+          // Keyed on the page and filters, so changing them swaps the cards at once.
+          key={`${currentPage}|${activeTagId ?? 'all'}|${search}`}
+          disablePadding
+        >
           {shown.map((card) =>
             edit?.id === card.id ? (
-              <Fragment key={card.id}>{edit.form}</Fragment>
+              <AnimatedListItem key={`${card.id}-edit`}>
+                {edit.form}
+              </AnimatedListItem>
             ) : (
-              <FlashCardRow
-                key={card.id}
-                card={card}
-                picked={selected.has(card.id)}
-                onPick={() => toggle(card.id)}
-                actions={rowActions?.(card)}
-              />
+              <AnimatedListItem key={card.id}>
+                <FlashCardRow
+                  card={card}
+                  picked={selected.has(card.id)}
+                  onPick={() => toggle(card.id)}
+                  actions={rowActions?.(card)}
+                />
+              </AnimatedListItem>
             ),
           )}
-        </List>
+        </AnimatedList>
       )}
       {pageCount > 1 && (
         <Box

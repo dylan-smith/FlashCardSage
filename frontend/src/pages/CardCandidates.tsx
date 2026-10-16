@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import List from '@mui/material/List'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { putCardImage } from '../api/cardImages'
@@ -14,6 +13,7 @@ import type {
   Tag,
 } from '../api/flashCards'
 import { trackEvent, trackException } from '../telemetry'
+import { AnimatedList, AnimatedListItem } from './AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { asCard, useCandidateEditing } from './candidates'
 import type { Candidate } from './candidates'
@@ -214,59 +214,62 @@ export function CardCandidates({
       ) : (
         <>
           {addAllButton}
-          <List disablePadding aria-label={label}>
+          {/* Keyed on the search, so changing it swaps the cards at once. */}
+          <AnimatedList key={search} disablePadding aria-label={label}>
             {shown.map((candidate) => {
               if (editing?.key === candidate.key) {
                 return (
-                  <FlashCardEditForm
-                    key={candidate.key}
-                    edit={editing}
-                    tags={tags}
-                    picture={editPicture}
-                    busy={adding !== null}
-                    onChange={changeEdit}
-                    onCancel={cancelEdit}
-                    onSave={saveEdit}
-                  />
+                  <AnimatedListItem key={`${candidate.key}-edit`}>
+                    <FlashCardEditForm
+                      edit={editing}
+                      tags={tags}
+                      picture={editPicture}
+                      busy={adding !== null}
+                      onChange={changeEdit}
+                      onCancel={cancelEdit}
+                      onSave={saveEdit}
+                    />
+                  </AnimatedListItem>
                 )
               }
               const spanish = formatWords(candidate.spanish)
               return (
-                <FlashCardRow
-                  key={candidate.key}
-                  card={asCard(candidate)}
-                  actions={
-                    <>
-                      <CardActionButton
-                        icon="add"
-                        text="Add"
-                        label={`Add "${spanish}"`}
-                        disabled={adding !== null || editing !== null}
-                        busyText={
-                          adding === candidate.key ? 'Adding…' : undefined
-                        }
-                        onClick={() => void handleAddOne(candidate)}
-                      />
-                      <CardActionButton
-                        icon="edit"
-                        text="Edit"
-                        label={`Edit "${spanish}"`}
-                        disabled={adding !== null}
-                        onClick={() => startEditing(candidate)}
-                      />
-                      <CardActionButton
-                        icon="remove"
-                        text="Remove"
-                        label={`Remove "${spanish}"`}
-                        disabled={adding !== null}
-                        onClick={() => remove(candidate.key)}
-                      />
-                    </>
-                  }
-                />
+                <AnimatedListItem key={candidate.key}>
+                  <FlashCardRow
+                    card={asCard(candidate)}
+                    actions={
+                      <>
+                        <CardActionButton
+                          icon="add"
+                          text="Add"
+                          label={`Add "${spanish}"`}
+                          disabled={adding !== null || editing !== null}
+                          busyText={
+                            adding === candidate.key ? 'Adding…' : undefined
+                          }
+                          onClick={() => void handleAddOne(candidate)}
+                        />
+                        <CardActionButton
+                          icon="edit"
+                          text="Edit"
+                          label={`Edit "${spanish}"`}
+                          disabled={adding !== null}
+                          onClick={() => startEditing(candidate)}
+                        />
+                        <CardActionButton
+                          icon="remove"
+                          text="Remove"
+                          label={`Remove "${spanish}"`}
+                          disabled={adding !== null}
+                          onClick={() => remove(candidate.key)}
+                        />
+                      </>
+                    }
+                  />
+                </AnimatedListItem>
               )
             })}
-          </List>
+          </AnimatedList>
           {addAllButton}
         </>
       )}

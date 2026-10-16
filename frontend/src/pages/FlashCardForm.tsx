@@ -213,8 +213,8 @@ export function WordFields({
   )
 }
 
-// The form that replaces a card in the list while it's being changed. The Spanish field gets focus when the
-// form appears, since the user just asked to edit it.
+// The form that replaces a card in the list while it's being changed, inside an AnimatedListItem of its own. The
+// Spanish field gets focus when the form appears, since the user just asked to edit it.
 export function FlashCardEditForm({
   edit,
   tags,
@@ -244,7 +244,7 @@ export function FlashCardEditForm({
   }, [])
 
   return (
-    <ListItem divider disablePadding sx={{ py: 1 }}>
+    <ListItem component="div" divider disablePadding sx={{ py: 1 }}>
       <Box
         component="form"
         onSubmit={(event) => {

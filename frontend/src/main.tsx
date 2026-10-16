@@ -32,6 +32,8 @@ const theme = createTheme({
   typography: {
     fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
   },
+  // Lists and dialogs animate, except for a user whose system asks for less motion.
+  motion: { reducedMotion: 'system' },
 })
 
 // Setting these replaces React's default console logging, so keep logging as well as reporting.

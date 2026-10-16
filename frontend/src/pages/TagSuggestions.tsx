@@ -3,7 +3,6 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Collapse from '@mui/material/Collapse'
-import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
@@ -12,6 +11,7 @@ import type { Tag } from '../api/flashCards'
 import { listNewTagSuggestions } from '../api/tagSuggestions'
 import { useCollapsed } from '../hooks/useCollapsed'
 import { trackException } from '../telemetry'
+import { AnimatedList, AnimatedListItem } from './AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { SuggestionsHeading } from './SuggestionsHeading'
 
@@ -129,29 +129,31 @@ export function TagSuggestions({
             No suggestions right now.
           </Typography>
         ) : (
-          <List disablePadding aria-label="Suggested tags">
+          <AnimatedList disablePadding aria-label="Suggested tags">
             {visible.map((name) => (
-              <ListItem
-                key={name}
-                divider
-                disablePadding
-                sx={{ py: 1, gap: 1 }}
-              >
-                <ListItemText
-                  primary={name}
-                  sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                />
-                <CardActionButton
-                  icon="add"
-                  text="Add"
-                  label={`Add tag "${name}"`}
-                  disabled={adding !== null}
-                  busyText={adding === name ? 'Adding…' : undefined}
-                  onClick={() => void add(name)}
-                />
-              </ListItem>
+              <AnimatedListItem key={name}>
+                <ListItem
+                  component="div"
+                  divider
+                  disablePadding
+                  sx={{ py: 1, gap: 1 }}
+                >
+                  <ListItemText
+                    primary={name}
+                    sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
+                  />
+                  <CardActionButton
+                    icon="add"
+                    text="Add"
+                    label={`Add tag "${name}"`}
+                    disabled={adding !== null}
+                    busyText={adding === name ? 'Adding…' : undefined}
+                    onClick={() => void add(name)}
+                  />
+                </ListItem>
+              </AnimatedListItem>
             ))}
-          </List>
+          </AnimatedList>
         )}
         <Button
           type="button"
