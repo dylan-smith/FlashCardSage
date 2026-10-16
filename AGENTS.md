@@ -104,7 +104,7 @@ npm run test:e2e
   loaded through the API by `.github/scripts/seed-preview.sh`) and update it if needed, so new
   previews show the new data (e.g. a new field on cards).
 - Production is an Azure SQL Basic database, but PR previews are serverless and auto-pause. Keep the
-  transient-error retry handling in `Program.cs` and `DbUpRunner.cs` intact.
+  transient-error retry handling in `Startup/DatabaseSetup.cs` and `DbUpRunner.cs` intact.
 
 ### Infrastructure
 
