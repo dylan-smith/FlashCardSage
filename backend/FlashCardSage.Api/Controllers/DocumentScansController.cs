@@ -24,7 +24,7 @@ public class DocumentScansController(
 {
     // The most cards a scan makes. A document with more can be scanned again once they're added, since a scan leaves
     // out the user's cards.
-    public const int MaxCandidates = 100;
+    public const int MaxCandidates = FlashCardBatchRequest.MaxCards;
 
     // The most of a document's text that's scanned, from its start, which keeps the request under the model
     // deployment's tokens a minute.
