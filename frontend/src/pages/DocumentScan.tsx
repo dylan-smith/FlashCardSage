@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import type { ChangeEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
@@ -6,6 +6,7 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
+import { addToNamedDeck } from '../api/decks'
 import {
   documentTypes,
   maxDocumentCandidates,
@@ -18,13 +19,14 @@ import {
   describeFetchError,
   formatWords,
 } from '../api/flashCards'
-import type { FlashCardBatch } from '../api/flashCards'
+import type { FlashCardBatch, FlashCardFields } from '../api/flashCards'
 import { useUserTags } from '../hooks/useUserTags'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
 import { CardCandidates } from './CardCandidates'
 import type { Adding, Candidate } from './CardCandidates'
 import { cardCount } from './cardCount'
+import { documentDeckName } from './documentDeckName'
 
 // limitReached is whether the scan made as many cards as it can, so the document may have more, foundAny whether it made
 // any, before the user removed or added some, addedCount how many the user has added so far, and skippedCount how
@@ -56,12 +58,12 @@ function reportFailure(error: unknown, operation: string) {
   }
 }
 
-// What adding the cards did, naming the document they're from.
+// What adding the cards did, naming the document they're from and the deck they went in.
 function describeAdded(
   { count, skippedCount, limitReached }: Added,
   fileName: string,
 ) {
-  let text = `Added ${cardCount(count)} from “${fileName}”.`
+  let text = `Added ${cardCount(count)} from “${fileName}” to your ${documentDeckName(fileName)} deck.`
   if (skippedCount > 0) {
     text += ` ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
   }
@@ -73,21 +75,26 @@ function describeAdded(
 }
 
 // Scans a document the user picks for words and phrases to make cards for. They're listed for the user to look over,
-// change (with the same form as the cards page) or remove, and then added one at a time or all at once. A scan makes
-// at most maxDocumentCandidates cards and leaves out the user's cards, so a document with more can be scanned again
-// once they're added.
+// change (with the same form as the cards page) or remove, and then added one at a time or all at once to a deck named
+// after the document, made the first time and added to after. A scan makes at most maxDocumentCandidates cards and
+// leaves out the user's cards, so a document with more can be scanned again once they're added.
 export function DocumentScan() {
   const [state, setState] = useState<ScanState>({ status: 'idle' })
   // The document last scanned, so it can be scanned again.
   const [file, setFile] = useState<File | null>(null)
   const [adding, setAdding] = useState<Adding>(null)
+  // The deck the cards went in, for the toast's link once they're all added.
+  const deckId = useRef<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
+  const [deckError, setDeckError] = useState('')
   const [tags, addNewTags] = useUserTags()
 
   async function scan(document: File) {
     setFile(document)
     setState({ status: 'scanning' })
     setErrorMessage('')
+    setDeckError('')
+    deckId.current = null
 
     try {
       const result = await scanDocument(document)
@@ -150,13 +157,53 @@ export function DocumentScan() {
     )
   }
 
-  // What adding the cards did, with a link to them.
+  // Puts the cards in the document's deck, making it the first time. The cards are added whatever happens to the deck,
+  // so a failure is only said.
+  async function putInDeck(ids: number[]) {
+    if (ids.length === 0 || file === null) {
+      return
+    }
+    const name = documentDeckName(file.name)
+    try {
+      const deck = await addToNamedDeck(name, ids)
+      deckId.current = deck.id
+    } catch (error) {
+      trackException(error, { operation: 'documentDeck' })
+      setDeckError(
+        `The cards were added, but couldn't be put in your ${name} deck.`,
+      )
+    }
+  }
+
+  async function addOne(fields: FlashCardFields) {
+    const card = await createFlashCard(fields)
+    await putInDeck([card.id])
+    return card
+  }
+
+  async function addAll(fields: FlashCardFields[]) {
+    const result = await createFlashCards(fields)
+    await putInDeck(result.cards.map((card) => card.id))
+    return result
+  }
+
+  function handleAdding(value: Adding) {
+    setAdding(value)
+    if (value !== null) {
+      setDeckError('')
+    }
+  }
+
+  // What adding the cards did, with a link to their deck, or to the cards if they couldn't be put in it.
   function showAdded(added: Added) {
     showToast({
       key: documentAddedToast,
       severity: 'success',
       message: describeAdded(added, file?.name ?? ''),
-      action: { label: 'View cards', to: '/' },
+      action:
+        deckId.current === null
+          ? { label: 'View cards', to: '/' }
+          : { label: 'Open deck', to: `/decks/${deckId.current}` },
     })
   }
 
@@ -175,7 +222,7 @@ export function DocumentScan() {
       showToast({
         key: documentAddedToast,
         severity: 'success',
-        message: `Added “${formatWords(candidate.spanish)}”.`,
+        message: `Added “${formatWords(candidate.spanish)}” to your ${documentDeckName(file?.name ?? '')} deck.`,
       })
       setState({ ...state, candidates: remaining, addedCount: addedCount + 1 })
     }
@@ -225,11 +272,12 @@ export function DocumentScan() {
         Choose a document, such as a lesson plan from your Spanish class, an
         article or a story (.txt, .md, .srt, .vtt, .docx or .pdf), to find the
         Spanish words and phrases in it to make cards for. You can change or
-        remove them before you add them, one at a time or all at once. Words you
-        already have cards for are left out.
+        remove them before you add them, one at a time or all at once, to a deck
+        named after the document. Words you already have cards for are left out.
       </Typography>
       <Stack spacing={2}>
         {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
+        {deckError && <Alert severity="error">{deckError}</Alert>}
         <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
           <Button variant="outlined" component="label" disabled={busy}>
             Choose a document
@@ -285,10 +333,10 @@ export function DocumentScan() {
                 tags={tags}
                 onTagsAdded={addNewTags}
                 adding={adding}
-                onAddingChange={setAdding}
+                onAddingChange={handleAdding}
                 onError={setErrorMessage}
-                addOne={createFlashCard}
-                addAll={createFlashCards}
+                addOne={addOne}
+                addAll={addAll}
                 onAddedOne={handleAddedOne}
                 onAddedAll={handleAddedAll}
               />
