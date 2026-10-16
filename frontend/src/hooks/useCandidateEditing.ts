@@ -94,3 +94,5 @@ export function useCandidateEditing(
     saveEdit,
   }
 }
+
+export type CandidateEditor = ReturnType<typeof useCandidateEditing>

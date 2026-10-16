@@ -7,7 +7,6 @@ import { putCardImage } from '../../api/cardImages'
 import type { CardImage } from '../../api/cardImages'
 import { describeFetchError } from '../../api/client'
 import { reportFailure } from '../../lib/reportFailure'
-import { formatWords } from '../../api/flashCards'
 import type {
   FlashCard,
   FlashCardBatch,
@@ -16,19 +15,12 @@ import type {
 } from '../../api/flashCards'
 import { sameText } from '../../lib/text'
 import { trackEvent } from '../../telemetry'
-import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
-import { CardActionButton } from './CardActionButton'
 import { useCandidateEditing } from '../../hooks/useCandidateEditing'
-import { asCard } from '../../lib/candidates'
-import type { Candidate } from '../../lib/candidates'
+import type { Adding, Candidate } from '../../lib/candidates'
 import { matchesSearch } from '../../lib/cardSearch'
-import { FlashCardEditForm } from './FlashCardForm'
-import { FlashCardRow } from './FlashCardRow'
+import { CandidateList } from './CandidateList'
 
-export type { Candidate } from '../../lib/candidates'
-
-// What's being added: all the cards, or the one with this key.
-export type Adding = 'all' | number | null
+export type { Adding, Candidate } from '../../lib/candidates'
 
 function picturesFailedMessage(failed: number) {
   return failed === 1
@@ -72,14 +64,8 @@ export function CardCandidates({
   onAddedAll: (result: FlashCardBatch, added: Candidate[]) => void
 }) {
   const [search, setSearch] = useState('')
-  const {
-    editing,
-    editPicture,
-    startEditing,
-    changeEdit,
-    cancelEdit,
-    saveEdit,
-  } = useCandidateEditing(candidates, onCandidatesChange, onError)
+  const editor = useCandidateEditing(candidates, onCandidatesChange, onError)
+  const { editing } = editor
   // The card being changed stays in the list whatever the search, so its form doesn't vanish.
   const shown = candidates.filter(
     (candidate) =>
@@ -207,61 +193,16 @@ export function CardCandidates({
         <>
           {addAllButton}
           {/* Keyed on the search, so changing it swaps the cards at once. */}
-          <AnimatedList key={search} disablePadding aria-label={label}>
-            {shown.map((candidate) => {
-              if (editing?.key === candidate.key) {
-                return (
-                  <AnimatedListItem key={`${candidate.key}-edit`}>
-                    <FlashCardEditForm
-                      edit={editing}
-                      tags={tags}
-                      picture={editPicture}
-                      busy={adding !== null}
-                      onChange={changeEdit}
-                      onCancel={cancelEdit}
-                      onSave={saveEdit}
-                    />
-                  </AnimatedListItem>
-                )
-              }
-              const spanish = formatWords(candidate.spanish)
-              return (
-                <AnimatedListItem key={candidate.key}>
-                  <FlashCardRow
-                    card={asCard(candidate)}
-                    actions={
-                      <>
-                        <CardActionButton
-                          icon="add"
-                          text="Add"
-                          label={`Add "${spanish}"`}
-                          disabled={adding !== null || editing !== null}
-                          busyText={
-                            adding === candidate.key ? 'Adding…' : undefined
-                          }
-                          onClick={() => void handleAddOne(candidate)}
-                        />
-                        <CardActionButton
-                          icon="edit"
-                          text="Edit"
-                          label={`Edit "${spanish}"`}
-                          disabled={adding !== null}
-                          onClick={() => startEditing(candidate)}
-                        />
-                        <CardActionButton
-                          icon="remove"
-                          text="Remove"
-                          label={`Remove "${spanish}"`}
-                          disabled={adding !== null}
-                          onClick={() => remove(candidate.key)}
-                        />
-                      </>
-                    }
-                  />
-                </AnimatedListItem>
-              )
-            })}
-          </AnimatedList>
+          <CandidateList
+            label={label}
+            listKey={search}
+            candidates={shown}
+            editor={editor}
+            tags={tags}
+            adding={adding}
+            onAdd={(candidate) => void handleAddOne(candidate)}
+            onRemove={(candidate) => remove(candidate.key)}
+          />
           {addAllButton}
         </>
       )}
