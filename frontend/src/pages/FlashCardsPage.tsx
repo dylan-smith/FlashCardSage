@@ -10,6 +10,7 @@ import Link from '@mui/material/Link'
 import List from '@mui/material/List'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useSearchParams } from 'react-router'
 import { changeDeckCards, createDeck, listDecks } from '../api/decks'
@@ -39,6 +40,7 @@ import { FlashCardRow } from './FlashCardRow'
 import { AddToDeck } from './AddToDeck'
 import type { Candidate } from './candidates'
 import { CardSuggestions } from './CardSuggestions'
+import { matchesSearch } from './cardSearch'
 import { ConfirmDelete } from './ConfirmDelete'
 import { cardDeleteWarning } from './cardDeleteWarning'
 import { DeleteCards } from './DeleteCards'
@@ -181,18 +183,21 @@ function FlashCardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const selectedTag =
     tags.find((tag) => String(tag.id) === searchParams.get('tag')) ?? null
-  const visibleCards =
+  const tagCards =
     selectedTag === null
       ? cards
       : cards.filter((card) =>
           card.tags.some((tag) => tag.id === selectedTag.id),
         )
+  // The search narrows the list as it's typed, like the deck page's.
+  const [search, setSearch] = useState('')
+  const visibleCards = tagCards.filter((card) => matchesSearch(card, search))
   const tagCounts = new Map<number, number>()
   for (const tag of cards.flatMap((card) => card.tags)) {
     tagCounts.set(tag.id, (tagCounts.get(tag.id) ?? 0) + 1)
   }
-  // Only the picked cards that are shown count, so a card hidden by the tag filter is never added to a deck or
-  // deleted.
+  // Only the picked cards that are shown count, so a card hidden by the tag filter or the search is never added to a
+  // deck or deleted.
   const pickedIds = visibleCards
     .filter((card) => picked.has(card.id))
     .map((card) => card.id)
@@ -557,6 +562,20 @@ function FlashCardsPage() {
           </Box>
         ) : loadFailed ? null : (
           <>
+            {cards.length > 0 && (
+              <TextField
+                label="Search"
+                type="search"
+                size="small"
+                fullWidth
+                value={search}
+                onChange={(event) => {
+                  setSearch(event.target.value)
+                  setPicked(new Set())
+                }}
+                sx={{ mb: 2 }}
+              />
+            )}
             {tags.length > 0 && (
               <TagFilter
                 tags={tags}
@@ -570,10 +589,12 @@ function FlashCardsPage() {
               <Typography color="text.secondary">
                 No flash cards yet.
               </Typography>
-            ) : visibleCards.length === 0 ? (
+            ) : tagCards.length === 0 ? (
               <Typography color="text.secondary">
                 No flash cards with this tag.
               </Typography>
+            ) : visibleCards.length === 0 ? (
+              <Typography color="text.secondary">No cards match.</Typography>
             ) : (
               <>
                 <Box

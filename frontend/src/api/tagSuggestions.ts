@@ -25,3 +25,20 @@ export async function suggestTags(
   }
   return (await response.json()) as Tag[]
 }
+
+// The names of a handful of new tags that go with the user's tags and cards, or null when suggestions aren't available
+// (a 503). Throws when they fail.
+export async function listNewTagSuggestions(
+  signal?: AbortSignal,
+): Promise<string[] | null> {
+  const response = await apiFetch(`${apiBaseUrl}/api/tag-suggestions/new`, {
+    signal,
+  })
+  if (response.status === 503) {
+    return null
+  }
+  if (!response.ok) {
+    throw new Error('Unable to suggest tags.')
+  }
+  return (await response.json()) as string[]
+}

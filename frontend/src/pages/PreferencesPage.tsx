@@ -32,7 +32,7 @@ const options: {
     key: 'showSuggestions',
     label: 'Suggest cards',
     description:
-      'Suggest new cards that go with yours on the Cards page, and tags for a card you add or edit.',
+      'Suggest new cards that go with yours on the Cards page, tags for a card you add or edit, and new tags on the Tags page.',
   },
   {
     key: 'autoTranslate',
