@@ -8,7 +8,8 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// Suggests which of the user's tags a card they're adding or changing goes under, for them to add with a click.
+/// Suggests which of the user's tags a card they're adding or changing goes under, and new tags they might want, for
+/// them to add with a click.
 /// </summary>
 /// <remarks>
 /// The card and tags are user-provided, so they're never logged (log-forging).
@@ -25,6 +26,15 @@ public class TagSuggestionsController(
 
     // How many of a tag's cards, the newest, show the model what goes under it.
     public const int CardsPerTag = 5;
+
+    // How many new tags the Tags page shows.
+    public const int NewSuggestionCount = 5;
+
+    // How many of the user's untagged cards, the newest, show the model what still needs a tag.
+    public const int MaxUntaggedCards = 50;
+
+    // Asked for on top, since some can be tags the user already has.
+    private const int ExtraRequested = 3;
 
     [HttpPost]
     [ProducesResponseType<IEnumerable<Tag>>(StatusCodes.Status200OK)]
@@ -87,6 +97,64 @@ public class TagSuggestionsController(
             .ToList();
         logger.LogInformation(
             "Suggested {Count} of {TagCount} tags", suggestions.Count, tags.Count);
+
+        return Ok(suggestions);
+    }
+
+    /// <summary>
+    /// Suggests new tags the user is likely to want, going by their tags and cards, for them to add on the Tags page.
+    /// </summary>
+    [HttpGet("new")]
+    [ProducesResponseType<IEnumerable<string>>(StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status502BadGateway)]
+    [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
+    public async Task<ActionResult<IEnumerable<string>>> SuggestNewTags(CancellationToken cancellationToken)
+    {
+        if (!suggester.IsAvailable)
+        {
+            return Problem("Tag suggestions aren't available.", statusCode: StatusCodes.Status503ServiceUnavailable);
+        }
+
+        var tags = await dbContext.Tags
+            .AsNoTracking()
+            .Include(tag => tag.FlashCards.OrderByDescending(card => card.Id).Take(CardsPerTag))
+            .ThenInclude(card => card.Words)
+            .OrderBy(tag => tag.Name)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+        var untagged = await dbContext.FlashCards
+            .AsNoTracking()
+            .Where(card => card.Tags.Count == 0)
+            .OrderByDescending(card => card.Id)
+            .Take(MaxUntaggedCards)
+            .Include(card => card.Words)
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+
+        IReadOnlyList<string> suggested;
+        try
+        {
+            suggested = await suggester.SuggestNewAsync(
+                tags, untagged, NewSuggestionCount + ExtraRequested, cancellationToken);
+        }
+        // A timeout surfaces as a cancellation the caller didn't ask for.
+        catch (Exception ex) when (ex is HttpRequestException
+            || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        {
+            logger.LogError(ex, "Suggesting new tags failed");
+            return Problem("Tag suggestions failed.", statusCode: StatusCodes.Status502BadGateway);
+        }
+
+        // Each name once, and none the user already has or that's too long to save.
+        var seen = new HashSet<string>(tags.Select(tag => tag.Name), StringComparer.OrdinalIgnoreCase);
+        var suggestions = suggested
+            .Select(name => name?.Trim() ?? string.Empty)
+            .Where(name => name.Length is > 0 and <= Tag.MaxNameLength && seen.Add(name))
+            .Take(NewSuggestionCount)
+            .ToList();
+        logger.LogInformation(
+            "Suggested {Count} new tags from {TagCount} tags and {UntaggedCount} untagged cards",
+            suggestions.Count, tags.Count, untagged.Count);
 
         return Ok(suggestions);
     }
