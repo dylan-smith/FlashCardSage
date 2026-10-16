@@ -9,11 +9,11 @@ import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import {
-  describeFetchError,
   formatWords,
   getNextPracticeCard,
   recordPracticeResult,
 } from '../api/flashCards'
+import { describeFetchError } from '../api/client'
 import type {
   PracticeCard,
   PracticeOutcome,

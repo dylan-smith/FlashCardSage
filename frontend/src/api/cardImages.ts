@@ -1,6 +1,5 @@
-import { apiBaseUrl } from '../config'
-import { apiFetch } from './client'
-import { ApiError, throwIfNotSaved } from './flashCards'
+import { ApiError, apiFetch, jsonRequest, sendJson } from './client'
+import { flashCardsUrl } from './flashCards'
 import type { FlashCard } from './flashCards'
 
 // A picture the API made for a card, as base64. The browser holds it until the user puts it on the card, so one
@@ -15,10 +14,6 @@ export const cannotIllustrateMessage =
   "That card can't be illustrated. Try other words."
 const generateFailedMessage = 'Unable to make a picture.'
 
-const flashCardsUrl = `${apiBaseUrl}/api/flashcards`
-
-const jsonHeaders = { 'Content-Type': 'application/json' }
-
 // Asks the API for a picture of what the card means, from whichever sides are filled in. Throws an ApiError to
 // show as it is when pictures aren't available (a 503, e.g. locally, where there's no image generator) or the
 // words can't be illustrated (a 422).
@@ -27,12 +22,10 @@ export async function generateCardImage(
   english: string,
   signal?: AbortSignal,
 ): Promise<CardImage> {
-  const response = await apiFetch(`${flashCardsUrl}/images/generate`, {
-    method: 'POST',
-    headers: jsonHeaders,
-    body: JSON.stringify({ spanish, english }),
-    signal,
-  })
+  const response = await apiFetch(
+    `${flashCardsUrl}/images/generate`,
+    jsonRequest('POST', { spanish, english }, signal),
+  )
   if (response.status === 503) {
     throw new ApiError(503, picturesUnavailableMessage)
   }
@@ -85,24 +78,21 @@ export function cardImageDataUrl(image: CardImage) {
 }
 
 // Puts the picture on the card, replacing any it had, and returns the card with its new picture's URL.
-export async function putCardImage(
-  id: number,
-  image: CardImage,
-): Promise<FlashCard> {
-  const response = await apiFetch(`${flashCardsUrl}/${id}/image`, {
-    method: 'PUT',
-    headers: jsonHeaders,
-    body: JSON.stringify(image),
-  })
-  await throwIfNotSaved(response, 'Unable to add the picture.')
-  return (await response.json()) as FlashCard
+export function putCardImage(id: number, image: CardImage) {
+  return sendJson<FlashCard>(
+    'PUT',
+    `${flashCardsUrl}/${id}/image`,
+    image,
+    'Unable to add the picture.',
+  )
 }
 
 // Takes the card's picture off, and returns the card without it.
-export async function deleteCardImage(id: number): Promise<FlashCard> {
-  const response = await apiFetch(`${flashCardsUrl}/${id}/image`, {
-    method: 'DELETE',
-  })
-  await throwIfNotSaved(response, 'Unable to remove the picture.')
-  return (await response.json()) as FlashCard
+export function deleteCardImage(id: number) {
+  return sendJson<FlashCard>(
+    'DELETE',
+    `${flashCardsUrl}/${id}/image`,
+    undefined,
+    'Unable to remove the picture.',
+  )
 }

@@ -1,7 +1,13 @@
 import { apiBaseUrl } from '../config'
-import { refreshCounts } from '../hooks/useCounts'
-import { apiFetch } from './client'
-import { throwIfNotSaved } from './flashCards'
+import { sameText } from '../lib/text'
+import { refreshCounts } from '../state/counts'
+import {
+  ResponseError,
+  apiFetch,
+  deleteGone,
+  getJson,
+  sendJson,
+} from './client'
 
 export const deckNameRequiredMessage = 'Deck name is required.'
 
@@ -30,12 +36,8 @@ export type DeckCardsChange = {
 export const decksUrl = `${apiBaseUrl}/api/decks`
 
 // The user's decks in name order.
-export async function listDecks(): Promise<Deck[]> {
-  const response = await apiFetch(decksUrl)
-  if (!response.ok) {
-    throw new Error('Unable to load decks.')
-  }
-  return (await response.json()) as Deck[]
+export function listDecks() {
+  return getJson<Deck[]>(decksUrl, 'Unable to load decks.')
 }
 
 // The deck, or null when the user has no deck with that id (any more).
@@ -45,39 +47,27 @@ export async function getDeck(id: number): Promise<Deck | null> {
     return null
   }
   if (!response.ok) {
-    throw new Error('Unable to load the deck.')
+    throw new ResponseError(response.status, 'Unable to load the deck.')
   }
   return (await response.json()) as Deck
 }
 
-async function sendDeck(
-  url: string,
-  method: 'POST' | 'PUT' | 'PATCH',
-  body: unknown,
-  fallback: string,
-) {
-  const response = await apiFetch(url, {
-    method,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(body),
-  })
-  await throwIfNotSaved(response, fallback)
-  return (await response.json()) as Deck
-}
-
 export async function createDeck(fields: DeckFields) {
-  const deck = await sendDeck(decksUrl, 'POST', fields, 'Unable to save deck.')
+  const deck = await sendJson<Deck>(
+    'POST',
+    decksUrl,
+    fields,
+    'Unable to save deck.',
+  )
   refreshCounts()
   return deck
 }
 
 // Renames the deck, leaving its cards as they are.
 export function renameDeck(id: number, name: string) {
-  return sendDeck(
-    `${decksUrl}/${id}`,
+  return sendJson<Deck>(
     'PUT',
+    `${decksUrl}/${id}`,
     { name },
     'Unable to rename deck.',
   )
@@ -85,9 +75,9 @@ export function renameDeck(id: number, name: string) {
 
 // Returns the deck with all its cards after the change.
 export function changeDeckCards(id: number, change: DeckCardsChange) {
-  return sendDeck(
-    `${decksUrl}/${id}/cards`,
+  return sendJson<Deck>(
     'PATCH',
+    `${decksUrl}/${id}/cards`,
     { add: change.add ?? [], remove: change.remove ?? [] },
     'Unable to change the deck.',
   )
@@ -96,22 +86,14 @@ export function changeDeckCards(id: number, change: DeckCardsChange) {
 // Puts the cards in the user's deck with this name, whatever its case (as the API matches names), making the deck if
 // they don't have one. Returns the deck with all its cards.
 export async function addToNamedDeck(name: string, ids: number[]) {
-  const existing = (await listDecks()).find(
-    (deck) =>
-      deck.name.localeCompare(name, undefined, { sensitivity: 'accent' }) === 0,
-  )
+  const existing = (await listDecks()).find((deck) => sameText(deck.name, name))
   return existing
     ? changeDeckCards(existing.id, { add: ids })
     : createDeck({ name, flashCardIds: ids })
 }
 
-// Leaves the deck's cards as they are. A 404 means the deck is already gone, which is what the caller wanted.
+// Leaves the deck's cards as they are.
 export async function deleteDeck(id: number) {
-  const response = await apiFetch(`${decksUrl}/${id}`, {
-    method: 'DELETE',
-  })
-  if (!response.ok && response.status !== 404) {
-    throw new Error('Unable to delete deck.')
-  }
+  await deleteGone(`${decksUrl}/${id}`, 'Unable to delete deck.')
   refreshCounts()
 }

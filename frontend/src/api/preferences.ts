@@ -1,5 +1,5 @@
 import { apiBaseUrl } from '../config'
-import { apiFetch } from './client'
+import { getJson, jsonRequest } from './client'
 
 // What the user has chosen on the preferences page. showPictures: whether cards' pictures are shown, in practice and
 // where cards are managed. showSuggestions: whether the cards page suggests new cards, tags for a card being added or
@@ -20,28 +20,16 @@ export const defaultPreferences: Preferences = {
 
 const preferencesUrl = `${apiBaseUrl}/api/preferences`
 
-export async function getPreferences(
-  signal?: AbortSignal,
-): Promise<Preferences> {
-  const response = await apiFetch(preferencesUrl, { signal })
-  if (!response.ok) {
-    throw new Error('Unable to load preferences.')
-  }
-  return (await response.json()) as Preferences
+export function getPreferences(signal?: AbortSignal) {
+  return getJson<Preferences>(preferencesUrl, 'Unable to load preferences.', {
+    signal,
+  })
 }
 
-export async function savePreferences(
-  preferences: Preferences,
-): Promise<Preferences> {
-  const response = await apiFetch(preferencesUrl, {
-    method: 'PUT',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(preferences),
-  })
-  if (!response.ok) {
-    throw new Error('Unable to save preferences.')
-  }
-  return (await response.json()) as Preferences
+export function savePreferences(preferences: Preferences) {
+  return getJson<Preferences>(
+    preferencesUrl,
+    'Unable to save preferences.',
+    jsonRequest('PUT', preferences),
+  )
 }

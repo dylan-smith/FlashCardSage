@@ -20,12 +20,11 @@ import {
 } from '../api/decks'
 import type { Deck } from '../api/decks'
 import {
-  ApiError,
   deleteFlashCards,
-  describeFetchError,
   formatWords,
   listFlashCards,
 } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/client'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { listTags } from '../api/tags'
 import { trackEvent, trackException } from '../telemetry'

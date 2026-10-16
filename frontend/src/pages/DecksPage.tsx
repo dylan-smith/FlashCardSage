@@ -20,7 +20,7 @@ import {
   listDecks,
 } from '../api/decks'
 import type { Deck } from '../api/decks'
-import { ApiError, describeFetchError } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/client'
 import { trackEvent, trackException } from '../telemetry'
 import {
   AnimatedList,

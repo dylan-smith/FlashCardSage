@@ -13,8 +13,10 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink } from 'react-router'
-import { ApiError, describeFetchError, listFlashCards } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/client'
+import { listFlashCards } from '../api/flashCards'
 import type { Tag } from '../api/flashCards'
+import { byName } from '../lib/text'
 import {
   createTag,
   deleteTag,
@@ -36,9 +38,7 @@ import { TagSuggestions } from '../components/cards/TagSuggestions'
 
 // Tags in name order whatever their case, as the API sends them.
 function sortTags(tags: Tag[]) {
-  return [...tags].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-  )
+  return [...tags].sort(byName)
 }
 
 // The user's tags, with how many cards have each. Tags are made here, from a suggestion here, or by naming them on a

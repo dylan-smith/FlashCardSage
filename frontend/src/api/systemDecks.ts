@@ -1,8 +1,7 @@
 import { apiBaseUrl } from '../config'
-import { refreshCounts } from '../hooks/useCounts'
-import { apiFetch } from './client'
+import { refreshCounts } from '../state/counts'
+import { getJson, sendJson } from './client'
 import type { Deck } from './decks'
-import { throwIfNotSaved } from './flashCards'
 import type { FlashCard } from './flashCards'
 
 // A built-in deck any user can import, with its cards in order. The user doesn't have them, so they're sent in full,
@@ -25,22 +24,23 @@ export type SystemDeckImport = {
 export const systemDecksUrl = `${apiBaseUrl}/api/system-decks`
 
 // The built-in decks in name order.
-export async function listSystemDecks(): Promise<SystemDeck[]> {
-  const response = await apiFetch(systemDecksUrl)
-  if (!response.ok) {
-    throw new Error('Unable to load the built-in decks.')
-  }
-  return (await response.json()) as SystemDeck[]
+export function listSystemDecks() {
+  return getJson<SystemDeck[]>(
+    systemDecksUrl,
+    'Unable to load the built-in decks.',
+  )
 }
 
 // Copies the built-in deck, its cards and their tags into the user's own, so it's then like a deck they made.
-export async function importSystemDeck(id: number): Promise<SystemDeckImport> {
-  const response = await apiFetch(`${systemDecksUrl}/${id}/import`, {
-    method: 'POST',
-  })
-  await throwIfNotSaved(response, 'Unable to add the deck.')
+export async function importSystemDeck(id: number) {
+  const imported = await sendJson<SystemDeckImport>(
+    'POST',
+    `${systemDecksUrl}/${id}/import`,
+    undefined,
+    'Unable to add the deck.',
+  )
   refreshCounts()
-  return (await response.json()) as SystemDeckImport
+  return imported
 }
 
 // The user's deck a built-in card was copied into, which is new unless they already had a deck with the built-in
@@ -52,15 +52,13 @@ export type SystemDeckCardImport = {
 }
 
 // Copies one of the built-in deck's cards into the user's deck with its name, making that deck if they haven't got it.
-export async function importSystemDeckCard(
-  deckId: number,
-  cardId: number,
-): Promise<SystemDeckCardImport> {
-  const response = await apiFetch(
+export async function importSystemDeckCard(deckId: number, cardId: number) {
+  const imported = await sendJson<SystemDeckCardImport>(
+    'POST',
     `${systemDecksUrl}/${deckId}/cards/${cardId}/import`,
-    { method: 'POST' },
+    undefined,
+    'Unable to add the card.',
   )
-  await throwIfNotSaved(response, 'Unable to add the card.')
   refreshCounts()
-  return (await response.json()) as SystemDeckCardImport
+  return imported
 }

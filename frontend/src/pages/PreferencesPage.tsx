@@ -7,7 +7,7 @@ import FormGroup from '@mui/material/FormGroup'
 import Paper from '@mui/material/Paper'
 import Switch from '@mui/material/Switch'
 import Typography from '@mui/material/Typography'
-import { describeFetchError } from '../api/flashCards'
+import { describeFetchError } from '../api/client'
 import { savePreferences } from '../api/preferences'
 import type { Preferences } from '../api/preferences'
 import {
