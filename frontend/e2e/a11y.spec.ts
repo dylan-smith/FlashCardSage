@@ -54,6 +54,8 @@ test.describe('Accessibility', () => {
         .getByRole('button', { name: 'Edit "Another a11y card"' })
         .click()
       await expect(page.getByRole('button', { name: 'Save' })).toBeVisible()
+      // Once the row has finished shrinking away under the form, so nothing part way through is checked.
+      await page.waitForFunction(() => document.getAnimations().length === 0)
 
       const results = await new AxeBuilder({ page }).analyze()
 

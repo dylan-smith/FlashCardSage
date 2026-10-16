@@ -254,6 +254,38 @@ describe('App', () => {
       ).toBe('Bearer test:Tester')
     })
 
+    it('collapses each card open and shut as the list changes, keeping it a list of items', async () => {
+      const user = userEvent.setup()
+      mockFetch(async () =>
+        jsonResponse([
+          {
+            id: 1,
+            spanish: ['el gato'],
+            english: ['the cat'],
+            tags: [],
+            imageUrl: null,
+          },
+        ]),
+      )
+      renderAt('/')
+
+      // The item that collapses is the list's own <li>, with the card inside it, so a screen reader still sees a
+      // list of one item per card.
+      const [item] = await screen.findAllByRole('listitem')
+      expect(item.tagName).toBe('LI')
+      expect(item).toHaveClass('MuiCollapse-root')
+      expect(item.parentElement?.tagName).toBe('UL')
+      expect(within(item).queryByRole('listitem')).not.toBeInTheDocument()
+
+      // The form takes the row's place as an item of its own, so the row shrinks away as the form grows.
+      await user.click(screen.getByRole('button', { name: 'Edit "el gato"' }))
+      const [form] = screen.getAllByRole('listitem')
+      expect(form).not.toBe(item)
+      expect(within(form).getByLabelText('Spanish')).toHaveValue('el gato')
+      await waitFor(() => expect(item).not.toBeInTheDocument())
+      expect(screen.getAllByRole('listitem')).toEqual([form])
+    })
+
     it("shows each card's buttons as text on a wide screen", async () => {
       // A screen at least as wide as the sm breakpoint. jsdom has no matchMedia of its own, so it's taken as a phone
       // everywhere else.
@@ -3757,7 +3789,8 @@ describe('App', () => {
         expect(
           screen.getByRole('button', { name: 'Remove 120 cards from deck' }),
         ).toBeEnabled()
-      })
+        // Drawing 120 cards, each in its own collapse, takes about as long as the usual time allowed.
+      }, 10000)
 
       it('renames the deck', async () => {
         const user = userEvent.setup()

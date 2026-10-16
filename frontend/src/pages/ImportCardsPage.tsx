@@ -25,6 +25,7 @@ import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
+import { AnimatedList, AnimatedListItem } from './AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { cardCount } from './cardCount'
 import { DocumentScan } from './DocumentScan'
@@ -297,13 +298,15 @@ function ImportCardsPage() {
                       </Box>
                       <Collapse in={shown} id={cardsId} unmountOnExit>
                         {/* Laid out like the user's own cards, set in a little under the deck. */}
-                        <List
+                        <AnimatedList
                           disablePadding
                           aria-label={`Cards in "${deck.name}"`}
                           // The deck's own divider is under the last card.
                           sx={{
                             pl: 2,
-                            '& > li:last-of-type': { borderBottom: 'none' },
+                            '& > li:last-of-type .MuiListItem-root': {
+                              borderBottom: 'none',
+                            },
                           }}
                         >
                           {deck.cards.map((card) => {
@@ -311,34 +314,35 @@ function ImportCardsPage() {
                               deck.ownedCardIds.includes(card.id) ||
                               addedCardIds.includes(card.id)
                             return (
-                              <FlashCardRow
-                                key={card.id}
-                                card={card}
-                                actions={
-                                  <CardActionButton
-                                    icon="add"
-                                    text={added ? 'Added' : 'Add'}
-                                    label={`${added ? 'Added' : 'Add'} "${formatWords(card.spanish)}"`}
-                                    disabled={busy || added}
-                                    busyText={
-                                      busyCardId === card.id
-                                        ? 'Adding…'
-                                        : undefined
-                                    }
-                                    tooltip={
-                                      added
-                                        ? 'This card is already in your collection.'
-                                        : undefined
-                                    }
-                                    onClick={() =>
-                                      void handleImportCard(deck, card)
-                                    }
-                                  />
-                                }
-                              />
+                              <AnimatedListItem key={card.id}>
+                                <FlashCardRow
+                                  card={card}
+                                  actions={
+                                    <CardActionButton
+                                      icon="add"
+                                      text={added ? 'Added' : 'Add'}
+                                      label={`${added ? 'Added' : 'Add'} "${formatWords(card.spanish)}"`}
+                                      disabled={busy || added}
+                                      busyText={
+                                        busyCardId === card.id
+                                          ? 'Adding…'
+                                          : undefined
+                                      }
+                                      tooltip={
+                                        added
+                                          ? 'This card is already in your collection.'
+                                          : undefined
+                                      }
+                                      onClick={() =>
+                                        void handleImportCard(deck, card)
+                                      }
+                                    />
+                                  }
+                                />
+                              </AnimatedListItem>
                             )
                           })}
-                        </List>
+                        </AnimatedList>
                       </Collapse>
                     </ListItem>
                   )

@@ -5,7 +5,6 @@ import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Link from '@mui/material/Link'
-import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
@@ -18,6 +17,7 @@ import type { Tag } from '../api/flashCards'
 import { createTag, deleteTag, listTags, renameTag } from '../api/tags'
 import { usePreferences } from '../hooks/usePreferences'
 import { trackEvent, trackException } from '../telemetry'
+import { AnimatedList, AnimatedListItem } from './AnimatedList'
 import { cardCount } from './cardCount'
 import { ConfirmDelete } from './ConfirmDelete'
 import { TagRenameForm, tagMaxLength } from './FlashCardTags'
@@ -230,64 +230,73 @@ function TagsPage() {
             a card on the Cards page.
           </Typography>
         ) : (
-          <List disablePadding>
+          <AnimatedList disablePadding>
             {tags.map((tag) =>
               rename?.id === tag.id ? (
-                <ListItem key={tag.id} divider disablePadding sx={{ pb: 1 }}>
-                  <TagRenameForm
-                    name={rename.name}
-                    busy={busyId === tag.id}
-                    onChange={(name) => setRename({ id: tag.id, name })}
-                    onCancel={() => {
-                      setErrorMessage('')
-                      setRename(null)
-                    }}
-                    onSave={(event) => void handleRename(event)}
-                  />
-                </ListItem>
-              ) : (
-                <ListItem
-                  key={tag.id}
-                  divider
-                  disablePadding
-                  sx={{ py: 1, gap: 1 }}
-                >
-                  {/* The name wraps rather than the buttons, so they stay together on a phone. */}
-                  <ListItemText
-                    primary={
-                      <Link component={RouterLink} to={`/?tag=${tag.id}`}>
-                        {tag.name}
-                      </Link>
-                    }
-                    secondary={cardCount(counts.get(tag.id) ?? 0)}
-                    sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                  />
-                  <Box sx={{ display: 'flex', flexShrink: 0 }}>
-                    <Button
-                      type="button"
-                      aria-label={`Rename tag "${tag.name}"`}
-                      disabled={busyId === tag.id}
-                      onClick={() => {
+                <AnimatedListItem key={`${tag.id}-rename`}>
+                  <ListItem
+                    component="div"
+                    divider
+                    disablePadding
+                    sx={{ pb: 1 }}
+                  >
+                    <TagRenameForm
+                      name={rename.name}
+                      busy={busyId === tag.id}
+                      onChange={(name) => setRename({ id: tag.id, name })}
+                      onCancel={() => {
                         setErrorMessage('')
-                        setRename({ id: tag.id, name: tag.name })
+                        setRename(null)
                       }}
-                    >
-                      Rename
-                    </Button>
-                    <Button
-                      type="button"
-                      color="error"
-                      aria-label={`Delete tag "${tag.name}"`}
-                      disabled={busyId === tag.id}
-                      onClick={() => setConfirmingDelete(tag)}
-                    >
-                      Delete
-                    </Button>
-                  </Box>
-                </ListItem>
+                      onSave={(event) => void handleRename(event)}
+                    />
+                  </ListItem>
+                </AnimatedListItem>
+              ) : (
+                <AnimatedListItem key={tag.id}>
+                  <ListItem
+                    component="div"
+                    divider
+                    disablePadding
+                    sx={{ py: 1, gap: 1 }}
+                  >
+                    {/* The name wraps rather than the buttons, so they stay together on a phone. */}
+                    <ListItemText
+                      primary={
+                        <Link component={RouterLink} to={`/?tag=${tag.id}`}>
+                          {tag.name}
+                        </Link>
+                      }
+                      secondary={cardCount(counts.get(tag.id) ?? 0)}
+                      sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
+                    />
+                    <Box sx={{ display: 'flex', flexShrink: 0 }}>
+                      <Button
+                        type="button"
+                        aria-label={`Rename tag "${tag.name}"`}
+                        disabled={busyId === tag.id}
+                        onClick={() => {
+                          setErrorMessage('')
+                          setRename({ id: tag.id, name: tag.name })
+                        }}
+                      >
+                        Rename
+                      </Button>
+                      <Button
+                        type="button"
+                        color="error"
+                        aria-label={`Delete tag "${tag.name}"`}
+                        disabled={busyId === tag.id}
+                        onClick={() => setConfirmingDelete(tag)}
+                      >
+                        Delete
+                      </Button>
+                    </Box>
+                  </ListItem>
+                </AnimatedListItem>
               ),
             )}
-          </List>
+          </AnimatedList>
         )}
         {confirmingDelete !== null && (
           <ConfirmDelete
