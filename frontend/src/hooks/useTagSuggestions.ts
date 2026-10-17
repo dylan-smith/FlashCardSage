@@ -1,15 +1,12 @@
 import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { FlashCardFields, Tag } from '../api/flashCards'
+import { trimWords } from '../lib/text'
 import { suggestTags } from '../api/tagSuggestions'
 import { usePreferences } from './usePreferences'
 
 // How long the user has to stop typing before tags are suggested for the card, so each keystroke doesn't ask the
 // model.
 export const tagSuggestDelayMs = 1000
-
-function trimWords(words: string[]) {
-  return words.map((word) => word.trim()).filter((word) => word !== '')
-}
 
 // The names of the user's tags that the card being added or changed goes under, for the user to add with a click.
 // They're asked for once the card has words and the user has stopped typing, and only when the user has tags and

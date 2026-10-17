@@ -1,7 +1,6 @@
 import { apiBaseUrl } from '../config'
-import { apiFetch } from './client'
 import type { CardSuggestion } from './cardSuggestions'
-import { ApiError, throwIfNotSaved } from './flashCards'
+import { ApiError, apiFetch, throwIfNotSaved } from './client'
 
 // The most cards a scan makes, the same as the API's limit. A document with more can be scanned again once they're
 // added, since a scan leaves out the user's cards.

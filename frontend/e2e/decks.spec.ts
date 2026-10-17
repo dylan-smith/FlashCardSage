@@ -1,8 +1,5 @@
 import type { Page } from '@playwright/test'
-import { test, expect, cardData } from './fixtures'
-
-// The backend started by playwright.config.ts.
-const apiUrl = 'http://localhost:5269/api'
+import { test, expect, confirmDelete, openSection } from './fixtures'
 
 const cards = [
   { spanish: 'el gato', english: 'the cat', tags: ['Animals'] },
@@ -29,25 +26,11 @@ async function practiceOnly(page: Page, allowed: string[]) {
 }
 
 test.describe('Decks', () => {
-  test.beforeEach(async ({ request }) => {
-    // Start from just these cards, with no decks or tags, deleted through the API like tags.spec.ts does.
-    for (const resource of ['decks', 'flashcards', 'tags']) {
-      const response = await request.get(`${apiUrl}/${resource}`)
-      expect(response.ok()).toBe(true)
-      for (const { id } of (await response.json()) as { id: number }[]) {
-        expect((await request.delete(`${apiUrl}/${resource}/${id}`)).ok()).toBe(
-          true,
-        )
-      }
-    }
+  test.beforeEach(async ({ api }) => {
+    // Start from just these cards, with no decks or tags.
+    await api.reset('decks', 'flashcards', 'tags')
     for (const card of cards) {
-      expect(
-        (
-          await request.post(`${apiUrl}/flashcards`, {
-            data: cardData(card.spanish, card.english, card.tags),
-          })
-        ).ok(),
-      ).toBe(true)
+      await api.createCard(card.spanish, card.english, card.tags)
     }
   })
 
@@ -55,10 +38,7 @@ test.describe('Decks', () => {
     page,
   }) => {
     await page.goto('/')
-    await page
-      .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: 'Decks' })
-      .click()
+    await openSection(page, 'Decks')
     await expect(
       page.getByText("You haven't made any decks yet."),
     ).toBeVisible()
@@ -151,10 +131,7 @@ test.describe('Decks', () => {
 
     // Deleting takes the card away altogether.
     await page.getByRole('button', { name: 'Delete "la casa"' }).click()
-    await page
-      .getByRole('dialog', { name: 'Delete "la casa"?' })
-      .getByRole('button', { name: 'Delete' })
-      .click()
+    await confirmDelete(page, 'Delete "la casa"?')
     await expect(page.getByRole('status')).toHaveText('Deleted 1 card.')
     await expect(
       page.getByRole('tab', { name: 'In this deck (2)' }),
@@ -163,19 +140,13 @@ test.describe('Decks', () => {
 
     await page.getByRole('checkbox', { name: 'Pick all 2' }).check()
     await page.getByRole('button', { name: 'Delete 2 cards…' }).click()
-    await page
-      .getByRole('dialog', { name: 'Delete 2 cards?' })
-      .getByRole('button', { name: 'Delete' })
-      .click()
+    await confirmDelete(page, 'Delete 2 cards?')
     await expect(page.getByRole('status')).toHaveText('Deleted 2 cards.')
     await expect(
       page.getByRole('tab', { name: 'In this deck (0)' }),
     ).toBeVisible()
 
-    await page
-      .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: /^Cards( \d+)?$/ })
-      .click()
+    await openSection(page, /^Cards( \d+)?$/)
     await expect(page.getByText('el libro', { exact: true })).toBeVisible()
     for (const spanish of ['la casa', 'el gato', 'el perro']) {
       await expect(page.getByText(spanish, { exact: true })).toBeHidden()
@@ -209,10 +180,7 @@ test.describe('Decks', () => {
     await expect(page.getByText('la casa', { exact: true })).toBeVisible()
 
     // The change is to the card itself, so the cards page shows it too.
-    await page
-      .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: /^Cards( \d+)?$/ })
-      .click()
+    await openSection(page, /^Cards( \d+)?$/)
     await expect(page.getByText('el gatito', { exact: true })).toBeVisible()
     await expect(page.getByText('el gato', { exact: true })).toBeHidden()
   })
