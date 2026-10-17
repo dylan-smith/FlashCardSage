@@ -12,7 +12,12 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useSearchParams } from 'react-router'
-import { changeDeckCards, createDeck, listDecks } from '../api/decks'
+import {
+  changeDeckCards,
+  createDeck,
+  deckNameRequiredMessage,
+  listDecks,
+} from '../api/decks'
 import type { Deck } from '../api/decks'
 import {
   ApiError,
@@ -31,33 +36,38 @@ import { useCardPicture } from '../hooks/useCardPicture'
 import type { CardPicture } from '../hooks/useCardPicture'
 import { usePreferences } from '../hooks/usePreferences'
 import { useTagSuggestions } from '../hooks/useTagSuggestions'
-import { AnimatedList, AnimatedListItem } from './AnimatedList'
-import { CardActionButton } from './CardActionButton'
+import {
+  AnimatedList,
+  AnimatedListItem,
+} from '../components/common/AnimatedList'
+import { CardActionButton } from '../components/cards/CardActionButton'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
-import { PictureField } from './FlashCardPicture'
-import { FlashCardRow } from './FlashCardRow'
-import { AddToDeck } from './AddToDeck'
-import type { Candidate } from './candidates'
-import { CardSuggestions } from './CardSuggestions'
-import { matchesSearch } from './cardSearch'
-import { ConfirmDelete } from './ConfirmDelete'
-import { cardDeleteWarning } from './cardDeleteWarning'
-import { DeleteCards } from './DeleteCards'
-import { cardCount } from './cardCount'
-import { deckNameRequiredMessage } from './DecksPage'
+import { PictureField } from '../components/cards/FlashCardPicture'
+import { FlashCardRow } from '../components/cards/FlashCardRow'
+import { AddToDeck } from '../components/cards/AddToDeck'
+import type { Candidate } from '../lib/candidates'
+import { CardSuggestions } from '../components/cards/CardSuggestions'
+import { matchesSearch } from '../lib/cardSearch'
+import { ConfirmDelete } from '../components/common/ConfirmDelete'
+import { cardDeleteWarning } from '../lib/cardDeleteWarning'
+import { DeleteCards } from '../components/cards/DeleteCards'
+import { cardCount } from '../lib/cardCount'
 import {
   firstWords,
   pictureWords,
   setFirstWords,
   trimFields,
   updateWords,
-} from './cardFields'
-import type { FieldsUpdate } from './cardFields'
-import { FlashCardEditForm, WordFields } from './FlashCardForm'
-import { TagFilter, TagsInput } from './FlashCardTags'
-import { useCardEditor, withNewTags, withPicture } from './useCardEditor'
-import type { EditedFlashCard } from './useCardEditor'
+} from '../lib/cardFields'
+import type { FieldsUpdate } from '../lib/cardFields'
+import {
+  FlashCardEditForm,
+  WordFields,
+} from '../components/cards/FlashCardForm'
+import { TagFilter, TagsInput } from '../components/cards/FlashCardTags'
+import { useCardEditor, withNewTags, withPicture } from '../hooks/useCardEditor'
+import type { EditedFlashCard } from '../hooks/useCardEditor'
 
 // The toast for what was just done to the picked cards, so a new one replaces the last.
 const cardsPageToast = 'picked-cards'

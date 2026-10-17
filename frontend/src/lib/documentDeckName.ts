@@ -1,4 +1,4 @@
-import { deckNameMaxLength } from './DecksPage'
+import { deckNameMaxLength } from '../api/decks'
 
 // The deck a document's cards go in: its name without the extension, such as "Lección 3" for "Lección 3.docx", cut to
 // the longest a deck name can be.

@@ -1,6 +1,6 @@
 import MenuItem from '@mui/material/MenuItem'
 import TextField from '@mui/material/TextField'
-import type { CardSelectionChoices } from '../hooks/useCardSelection'
+import type { CardSelectionChoices } from '../../hooks/useCardSelection'
 
 type CardSelectionPickerProps = {
   label: string
@@ -10,7 +10,7 @@ type CardSelectionPickerProps = {
 }
 
 // Picks every card, a deck or a tag. Left out until the decks and tags have loaded, and when there are none.
-function CardSelectionPicker({
+export function CardSelectionPicker({
   label,
   choices,
   value,
@@ -48,5 +48,3 @@ function CardSelectionPicker({
     </TextField>
   )
 }
-
-export default CardSelectionPicker

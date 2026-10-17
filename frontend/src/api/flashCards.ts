@@ -19,6 +19,9 @@ export type FlashCardWords = {
 // The most words a side of a card can have, the same as the API's limit.
 export const maxWordsPerSide = 10
 
+// The most a word can be, the same as the API's limit.
+export const maxWordLength = 200
+
 // A side's words as one line, the way a card shows them, such as "solo / únicamente".
 export function formatWords(words: string[]) {
   return words.join(' / ')

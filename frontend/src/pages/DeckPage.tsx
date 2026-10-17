@@ -10,7 +10,14 @@ import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
 import { Link, useNavigate, useParams } from 'react-router'
-import { changeDeckCards, deleteDeck, getDeck, renameDeck } from '../api/decks'
+import {
+  changeDeckCards,
+  deckNameMaxLength,
+  deckNameRequiredMessage,
+  deleteDeck,
+  getDeck,
+  renameDeck,
+} from '../api/decks'
 import type { Deck } from '../api/decks'
 import {
   ApiError,
@@ -23,16 +30,15 @@ import type { FlashCard, Tag } from '../api/flashCards'
 import { listTags } from '../api/tags'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
-import { CardActionButton } from './CardActionButton'
-import { CardPicker } from './CardPicker'
-import { ConfirmDelete } from './ConfirmDelete'
-import { cardDeleteWarning } from './cardDeleteWarning'
-import { DeleteCards } from './DeleteCards'
-import { cardCount } from './cardCount'
-import { deckNameMaxLength, deckNameRequiredMessage } from './DecksPage'
-import { FlashCardEditForm } from './FlashCardForm'
-import { TagRenameForm } from './FlashCardTags'
-import { useCardEditor, withNewTags } from './useCardEditor'
+import { CardActionButton } from '../components/cards/CardActionButton'
+import { CardPicker } from '../components/cards/CardPicker'
+import { ConfirmDelete } from '../components/common/ConfirmDelete'
+import { cardDeleteWarning } from '../lib/cardDeleteWarning'
+import { DeleteCards } from '../components/cards/DeleteCards'
+import { cardCount } from '../lib/cardCount'
+import { FlashCardEditForm } from '../components/cards/FlashCardForm'
+import { RenameForm } from '../components/cards/FlashCardTags'
+import { useCardEditor, withNewTags } from '../hooks/useCardEditor'
 
 // The deck's own cards, or the user's other cards to add to it.
 type DeckTab = 'deck' | 'add'
@@ -342,7 +348,7 @@ function DeckPage() {
             </Button>
           </Box>
         ) : (
-          <TagRenameForm
+          <RenameForm
             name={name}
             busy={busy}
             label="Deck name"

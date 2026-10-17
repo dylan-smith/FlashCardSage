@@ -5,9 +5,9 @@ import Checkbox from '@mui/material/Checkbox'
 import Chip from '@mui/material/Chip'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
-import { formatWords } from '../api/flashCards'
-import type { FlashCard } from '../api/flashCards'
-import { usePreferences } from '../hooks/usePreferences'
+import { formatWords } from '../../api/flashCards'
+import type { FlashCard } from '../../api/flashCards'
+import { usePreferences } from '../../hooks/usePreferences'
 import { thumbnailSize } from './FlashCardPicture'
 
 // One card in a list of cards, laid out the same wherever one is shown: a box to pick it (when it can be picked), its

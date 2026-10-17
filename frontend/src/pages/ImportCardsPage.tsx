@@ -25,12 +25,15 @@ import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
 import { showToast } from '../toasts'
-import { AnimatedList, AnimatedListItem } from './AnimatedList'
-import { CardActionButton } from './CardActionButton'
-import { cardCount } from './cardCount'
-import { DocumentScan } from './DocumentScan'
-import { FlashCardRow } from './FlashCardRow'
-import { PreplyImport } from './PreplyImport'
+import {
+  AnimatedList,
+  AnimatedListItem,
+} from '../components/common/AnimatedList'
+import { CardActionButton } from '../components/cards/CardActionButton'
+import { cardCount } from '../lib/cardCount'
+import { DocumentScan } from '../components/import/DocumentScan'
+import { FlashCardRow } from '../components/cards/FlashCardRow'
+import { PreplyImport } from '../components/import/PreplyImport'
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
 function describeImport({ deck, skippedCount }: SystemDeckImport) {

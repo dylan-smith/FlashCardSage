@@ -3,6 +3,11 @@ import { refreshCounts } from '../hooks/useCounts'
 import { apiFetch } from './client'
 import { throwIfNotSaved } from './flashCards'
 
+export const deckNameRequiredMessage = 'Deck name is required.'
+
+// The most a deck name can be, as the API allows.
+export const deckNameMaxLength = 50
+
 // A named set of the user's cards to practice, such as Food or Week 1. The API sends its card ids in card order.
 export type Deck = {
   id: number

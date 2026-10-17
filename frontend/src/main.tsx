@@ -4,10 +4,10 @@ import { ThemeProvider, createTheme } from '@mui/material/styles'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import './index.css'
-import App from './App.tsx'
-import ErrorBoundary from './ErrorBoundary.tsx'
-import { initTelemetry, trackException } from './telemetry.ts'
-import { startPreplyHandoff } from './preply/preplyHandoff.ts'
+import App from './App'
+import ErrorBoundary from './components/common/ErrorBoundary'
+import { initTelemetry, trackException } from './telemetry'
+import { startPreplyHandoff } from './preply/preplyHandoff'
 
 initTelemetry()
 // Before rendering, since the user may need to sign in before they see the words the bookmarklet sends.

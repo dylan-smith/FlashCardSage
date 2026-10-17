@@ -3,9 +3,9 @@ import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import Typography from '@mui/material/Typography'
 import { useRef } from 'react'
-import { cardImageDataUrl, cardImageTypes } from '../api/cardImages'
-import type { CardText } from '../api/translations'
-import type { CardPicture } from '../hooks/useCardPicture'
+import { cardImageDataUrl, cardImageTypes } from '../../api/cardImages'
+import type { CardText } from '../../api/translations'
+import type { CardPicture } from '../../hooks/useCardPicture'
 
 // How big a picture is shown in a form and the list.
 export const thumbnailSize = 96

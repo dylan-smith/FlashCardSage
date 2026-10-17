@@ -9,8 +9,8 @@ import Stack from '@mui/material/Stack'
 import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
-import { bookmarkletHref } from '../preply/sendToFlashCardSage'
-import { showToast } from '../toasts'
+import { bookmarkletHref } from '../../preply/sendToFlashCardSage'
+import { showToast } from '../../toasts'
 
 export const preplyVocabularyUrl =
   'https://preply.com/en/practice/vocab-bank?subject=spanish'

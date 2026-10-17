@@ -1,13 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
+import { maxWordLength } from '../api/flashCards'
 import { translate } from '../api/translations'
 import type { CardSide, CardText } from '../api/translations'
 import { usePreferences } from './usePreferences'
 
 // How long the user has to stop typing before their side is translated, so each keystroke doesn't send a request.
 export const translateDelayMs = 1000
-
-// The most a side of a card can hold, the same as the API's limit.
-const maxLength = 200
 
 function otherSide(side: CardSide): CardSide {
   return side === 'spanish' ? 'english' : 'spanish'
@@ -93,7 +91,7 @@ export function useAutoTranslate(
         .then(({ translation, alternatives }) => {
           // Any change to the fields aborts the request, so the user hasn't typed since it was sent.
           if (!controller.signal.aborted) {
-            onChange({ [target]: translation.slice(0, maxLength) })
+            onChange({ [target]: translation.slice(0, maxWordLength) })
             setAuto(target)
             setMeaningsOf(
               alternatives.length > 0
@@ -163,7 +161,7 @@ export function useAutoTranslate(
   // over.
   function choose(side: CardSide, meaning: string) {
     cancel()
-    onChange({ [side]: meaning.slice(0, maxLength) })
+    onChange({ [side]: meaning.slice(0, maxWordLength) })
     typed.current[side] = true
     setAuto(null)
     setEdited(true)
