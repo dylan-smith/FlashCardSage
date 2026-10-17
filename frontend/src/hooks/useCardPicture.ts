@@ -6,7 +6,7 @@ import {
   readCardImageFile,
 } from '../api/cardImages'
 import type { CardImage } from '../api/cardImages'
-import { ApiError, describeFetchError } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/client'
 import type { FlashCard } from '../api/flashCards'
 import type { CardText } from '../api/translations'
 import { trackEvent, trackException } from '../telemetry'

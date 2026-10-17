@@ -20,15 +20,15 @@ import {
 } from '../api/decks'
 import type { Deck } from '../api/decks'
 import {
-  ApiError,
   createFlashCard,
   deleteFlashCard,
   deleteFlashCards,
-  describeFetchError,
   formatWords,
   listFlashCards,
 } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/client'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
+import { byName } from '../lib/text'
 import { putCardImage } from '../api/cardImages'
 import { listTags } from '../api/tags'
 import { useAutoTranslate } from '../hooks/useAutoTranslate'
@@ -338,11 +338,7 @@ function FlashCardsPage() {
         flashCardIds: pickedIds,
       })
       trackEvent('DeckCreated')
-      setDecks((current) =>
-        [...current, created].sort((a, b) =>
-          a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-        ),
-      )
+      setDecks((current) => [...current, created].sort(byName))
       showDeckNotice(created, pickedIds.length)
       setPicked(new Set())
       return null

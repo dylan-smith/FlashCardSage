@@ -13,12 +13,11 @@ import {
   scanDocument,
 } from '../../api/documentScans'
 import {
-  ApiError,
   createFlashCard,
   createFlashCards,
-  describeFetchError,
   formatWords,
 } from '../../api/flashCards'
+import { ApiError, describeFetchError } from '../../api/client'
 import type { FlashCardBatch, FlashCardFields } from '../../api/flashCards'
 import { useUserTags } from '../../hooks/useUserTags'
 import { trackEvent, trackException } from '../../telemetry'

@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react'
+import { createStore } from '../lib/store'
 import { googleSubject } from './google'
 
 // The signed-in user. token is sent to the API as a bearer token: a Google ID token, a "test:<name>" token where
@@ -15,11 +15,7 @@ export type Session = {
 // directly to start signed in.
 export const sessionStorageKey = 'flashcardsage.session'
 
-type Listener = () => void
-
-const listeners = new Set<Listener>()
-
-let current: Session | null = readStoredSession()
+const store = createStore<Session | null>(readStoredSession())
 
 function readStoredSession(): Session | null {
   try {
@@ -36,15 +32,12 @@ function readStoredSession(): Session | null {
   }
 }
 
-export function getSession() {
-  return current
-}
+export const getSession = store.get
 
 export function setSession(session: Session | null) {
-  if (session === current) {
+  if (session === store.get()) {
     return
   }
-  current = session
   try {
     if (session === null) {
       localStorage.removeItem(sessionStorageKey)
@@ -54,15 +47,10 @@ export function setSession(session: Session | null) {
   } catch {
     // Storage can be unavailable, for example in a private window. The sign-in still lasts until the page reloads.
   }
-  listeners.forEach((listener) => listener())
+  store.set(session)
 }
 
-export function subscribeSession(listener: Listener) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
+export const subscribeSession = store.subscribe
 
 // The identity the API files the user's data under (see the API's authentication handlers), so what the app
 // keeps on the device is kept apart per user too. Test sign-in lowercases the name like the API does.
@@ -81,12 +69,11 @@ export function sessionSubject(session: Session): string {
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
     if (event.key === sessionStorageKey) {
-      current = readStoredSession()
-      listeners.forEach((listener) => listener())
+      store.set(readStoredSession())
     }
   })
 }
 
 export function useSession() {
-  return useSyncExternalStore(subscribeSession, getSession)
+  return store.use()
 }

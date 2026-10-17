@@ -5,13 +5,15 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { putCardImage } from '../../api/cardImages'
 import type { CardImage } from '../../api/cardImages'
-import { ApiError, describeFetchError, formatWords } from '../../api/flashCards'
+import { ApiError, describeFetchError } from '../../api/client'
+import { formatWords } from '../../api/flashCards'
 import type {
   FlashCard,
   FlashCardBatch,
   FlashCardFields,
   Tag,
 } from '../../api/flashCards'
+import { sameText } from '../../lib/text'
 import { trackEvent, trackException } from '../../telemetry'
 import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
 import { CardActionButton } from './CardActionButton'
@@ -33,10 +35,6 @@ function reportFailure(error: unknown, operation: string) {
   if (!(error instanceof ApiError)) {
     trackException(error, { operation })
   }
-}
-
-function sameText(a: string, b: string) {
-  return a.localeCompare(b, undefined, { sensitivity: 'accent' }) === 0
 }
 
 function picturesFailedMessage(failed: number) {

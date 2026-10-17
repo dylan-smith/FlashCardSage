@@ -1,5 +1,6 @@
 import { formatWords } from '../api/flashCards'
 import type { FlashCardFields } from '../api/flashCards'
+import { trimWords } from './text'
 import type { CardSide, CardText } from '../api/translations'
 
 export const spanishRequiredMessage = 'Spanish is required.'
@@ -8,11 +9,6 @@ export const englishRequiredMessage = 'English is required.'
 // A change to a form's fields, made from the fields as they are when it's applied, so a translation that arrives
 // late doesn't undo what the user typed in the meantime.
 export type FieldsUpdate = (fields: FlashCardFields) => FlashCardFields
-
-// A side's words, trimmed, leaving out blanks.
-function trimWords(words: string[]) {
-  return words.map((word) => word.trim()).filter((word) => word !== '')
-}
 
 // Trims the words on both sides of a card, leaving out blank ones, or returns the message for the first side left
 // with none. The API tidies up the tags.

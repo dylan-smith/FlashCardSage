@@ -8,6 +8,7 @@ import ListItemText from '@mui/material/ListItemText'
 import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import type { Tag } from '../../api/flashCards'
+import { sameText } from '../../lib/text'
 import { listNewTagSuggestions } from '../../api/tagSuggestions'
 import { useCollapsed } from '../../hooks/useCollapsed'
 import { trackException } from '../../telemetry'
@@ -94,13 +95,7 @@ export function TagSuggestions({
   const visible =
     state.status === 'ready'
       ? state.names.filter(
-          (name) =>
-            !tags.some(
-              (tag) =>
-                tag.name.localeCompare(name, undefined, {
-                  sensitivity: 'accent',
-                }) === 0,
-            ),
+          (name) => !tags.some((tag) => sameText(tag.name, name)),
         )
       : []
 

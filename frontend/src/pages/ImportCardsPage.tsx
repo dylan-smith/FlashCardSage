@@ -14,7 +14,8 @@ import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
 import { useSearchParams } from 'react-router'
-import { ApiError, describeFetchError, formatWords } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/client'
+import { formatWords } from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
 import {
   importSystemDeck,

@@ -1,11 +1,9 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
-import {
-  ApiError,
-  describeFetchError,
-  updateFlashCard,
-} from '../api/flashCards'
+import { updateFlashCard } from '../api/flashCards'
+import { ApiError, describeFetchError } from '../api/client'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
+import { byName } from '../lib/text'
 import { useCardPicture } from './useCardPicture'
 import type { CardPicture } from './useCardPicture'
 import { trackEvent, trackException } from '../telemetry'
@@ -20,9 +18,7 @@ export type EditedFlashCard = FlashCardFields & {
 
 // Tags in name order whatever their case, as the API sends them.
 export function sortTags(tags: Tag[]) {
-  return [...tags].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-  )
+  return [...tags].sort(byName)
 }
 
 // The user's tags with any a saved card has that they don't, since the API makes tags for new names.

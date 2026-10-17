@@ -11,11 +11,8 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
-import {
-  describeFetchError,
-  formatWords,
-  listFlashCardScores,
-} from '../api/flashCards'
+import { formatWords, listFlashCardScores } from '../api/flashCards'
+import { describeFetchError } from '../api/client'
 import type { FlashCardScores } from '../api/flashCards'
 import { useCardSelection } from '../hooks/useCardSelection'
 import type { CardSelectionKind } from '../hooks/useCardSelection'

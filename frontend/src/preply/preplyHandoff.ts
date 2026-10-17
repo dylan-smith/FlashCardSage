@@ -1,3 +1,4 @@
+import { createStore } from '../lib/store'
 import type { PreplyWord } from './sendToFlashCardSage'
 
 // The "Send to FlashCardSage" bookmarklet opens FlashCardSage on the Import cards page's Preply tab
@@ -20,8 +21,7 @@ export const preplyWaitMs = 30_000
 // Kept for the tab, so the words are still here after the user signs in or reloads the page.
 export const preplyHandoffKey = 'flashcardsage.preplyHandoff'
 
-const listeners = new Set<() => void>()
-let current: PreplyHandoff = loadStored()
+const store = createStore<PreplyHandoff>(loadStored())
 
 // The words or error in a message from the bookmarklet, or null for anything else.
 function parseMessage(data: unknown): PreplyHandoff | null {
@@ -73,7 +73,6 @@ function loadStored(): PreplyHandoff {
 }
 
 function update(next: PreplyHandoff) {
-  current = next
   try {
     if (next.status === 'received') {
       sessionStorage.setItem(preplyHandoffKey, JSON.stringify(next.words))
@@ -83,19 +82,12 @@ function update(next: PreplyHandoff) {
   } catch {
     // The words are still kept for as long as the page is open.
   }
-  listeners.forEach((listener) => listener())
+  store.set(next)
 }
 
-export function getPreplyHandoff() {
-  return current
-}
+export const getPreplyHandoff = store.get
 
-export function subscribePreplyHandoff(listener: () => void) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
+export const subscribePreplyHandoff = store.subscribe
 
 // Forgets the words, such as once they've been imported, so the page doesn't offer them again, or stops waiting for
 // them when the user gives up.
@@ -115,11 +107,11 @@ export function startPreplyHandoff(target: Window = window) {
     return
   }
 
-  if (current.status !== 'received') {
+  if (store.get().status !== 'received') {
     update({ status: 'waiting' })
     // The bookmarklet only sends the words once, so a page reloaded or come back to later would wait forever.
     target.setTimeout(() => {
-      if (current.status === 'waiting') {
+      if (store.get().status === 'waiting') {
         update({ status: 'timedOut' })
       }
     }, preplyWaitMs)
