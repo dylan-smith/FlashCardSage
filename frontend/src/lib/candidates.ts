@@ -10,6 +10,9 @@ export type Candidate = FlashCardFields & {
   picture: CardImage | null
 }
 
+// What's being added: all the cards, or the one with this key.
+export type Adding = 'all' | number | null
+
 // A candidate as a card, so it's shown like the user's cards are, with its picture if it has one.
 export function asCard(candidate: Candidate): FlashCard {
   return {

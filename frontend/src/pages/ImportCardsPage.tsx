@@ -1,11 +1,6 @@
 import { useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import Collapse from '@mui/material/Collapse'
-import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
 import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
@@ -23,21 +18,15 @@ import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
 import { useAction } from '../hooks/useAction'
 import { useLoad } from '../hooks/useLoad'
-import { ChevronIcon } from '../components/common/ChevronIcon'
 import { EmptyText } from '../components/common/EmptyText'
 import { Loading } from '../components/common/Loading'
 import { Section } from '../components/common/Section'
 import { TabPanel } from '../components/common/TabPanel'
 import { showToast } from '../toasts'
-import {
-  AnimatedList,
-  AnimatedListItem,
-} from '../components/common/AnimatedList'
-import { CardActionButton } from '../components/cards/CardActionButton'
-import { cardCount } from '../lib/cardCount'
+import { cardCount, skippedSentence } from '../lib/cardCount'
 import { DocumentScan } from '../components/import/DocumentScan'
-import { FlashCardRow } from '../components/cards/FlashCardRow'
 import { PreplyImport } from '../components/import/PreplyImport'
+import { SystemDeckList } from '../components/import/SystemDeckList'
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
 function describeImport({ deck, skippedCount }: SystemDeckImport) {
@@ -45,7 +34,7 @@ function describeImport({ deck, skippedCount }: SystemDeckImport) {
   if (skippedCount === 0) {
     return added
   }
-  return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
+  return `${added} ${skippedSentence(skippedCount)}`
 }
 
 // Where the cards come from: a built-in deck, a document the user picks, or their Preply vocabulary.
@@ -80,15 +69,11 @@ function ImportCardsPage() {
     onError: setErrorMessage,
     initial: [] as SystemDeck[],
   })
-  // The decks whose cards are showing.
-  const [shownIds, setShownIds] = useState<number[]>([])
   // The deck being added, so its button can wait for the API.
   const importingDeck = useAction<number>(setErrorMessage)
-  const busyId = importingDeck.busyKey
   // The built-in card being added on its own, and the ones added since the decks were loaded, which the user has now
   // like the decks' owned cards.
   const importingCard = useAction<number>(setErrorMessage)
-  const busyCardId = importingCard.busyKey
   const [addedCardIds, setAddedCardIds] = useState<number[]>([])
   const busy = importingDeck.busy || importingCard.busy
 
@@ -100,14 +85,6 @@ function ImportCardsPage() {
       .catch((error: unknown) => {
         trackException(error, { operation: 'refresh' })
       })
-  }
-
-  function toggleShown(id: number) {
-    setShownIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
-    )
   }
 
   // A 409 for a deck the user already has all the cards of is theirs to see, not a failure.
@@ -210,107 +187,15 @@ function ImportCardsPage() {
             ) : loadFailed ? null : decks.length === 0 ? (
               <EmptyText>There aren&apos;t any built-in decks yet.</EmptyText>
             ) : (
-              <List disablePadding>
-                {decks.map((deck) => {
-                  const shown = shownIds.includes(deck.id)
-                  const cardsId = `system-deck-${deck.id}-cards`
-                  return (
-                    <ListItem
-                      key={deck.id}
-                      divider
-                      disablePadding
-                      sx={{ py: 1, display: 'block' }}
-                    >
-                      <Box
-                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                      >
-                        {/* The name shows and hides the deck's cards, with an arrow like the suggested cards' heading. */}
-                        <ListItemText
-                          primary={
-                            <Button
-                              type="button"
-                              color="inherit"
-                              aria-expanded={shown}
-                              aria-controls={cardsId}
-                              onClick={() => toggleShown(deck.id)}
-                              endIcon={<ChevronIcon expanded={shown} />}
-                              sx={{
-                                font: 'inherit',
-                                textTransform: 'none',
-                                textAlign: 'left',
-                                ml: -1,
-                                px: 1,
-                                py: 0,
-                              }}
-                            >
-                              {deck.name}
-                            </Button>
-                          }
-                          secondary={cardCount(deck.cards.length)}
-                          sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                        />
-                        <Button
-                          variant="contained"
-                          aria-label={`Add deck "${deck.name}"`}
-                          disabled={busy}
-                          onClick={() => void handleImport(deck)}
-                          sx={{ flexShrink: 0 }}
-                        >
-                          {busyId === deck.id ? 'Adding…' : 'Add'}
-                        </Button>
-                      </Box>
-                      <Collapse in={shown} id={cardsId} unmountOnExit>
-                        {/* Laid out like the user's own cards, set in a little under the deck. */}
-                        <AnimatedList
-                          disablePadding
-                          aria-label={`Cards in "${deck.name}"`}
-                          // The deck's own divider is under the last card.
-                          sx={{
-                            pl: 2,
-                            '& > li:last-of-type .MuiListItem-root': {
-                              borderBottom: 'none',
-                            },
-                          }}
-                        >
-                          {deck.cards.map((card) => {
-                            const added =
-                              deck.ownedCardIds.includes(card.id) ||
-                              addedCardIds.includes(card.id)
-                            return (
-                              <AnimatedListItem key={card.id}>
-                                <FlashCardRow
-                                  card={card}
-                                  actions={
-                                    <CardActionButton
-                                      icon="add"
-                                      text={added ? 'Added' : 'Add'}
-                                      label={`${added ? 'Added' : 'Add'} "${formatWords(card.spanish)}"`}
-                                      disabled={busy || added}
-                                      busyText={
-                                        busyCardId === card.id
-                                          ? 'Adding…'
-                                          : undefined
-                                      }
-                                      tooltip={
-                                        added
-                                          ? 'This card is already in your collection.'
-                                          : undefined
-                                      }
-                                      onClick={() =>
-                                        void handleImportCard(deck, card)
-                                      }
-                                    />
-                                  }
-                                />
-                              </AnimatedListItem>
-                            )
-                          })}
-                        </AnimatedList>
-                      </Collapse>
-                    </ListItem>
-                  )
-                })}
-              </List>
+              <SystemDeckList
+                decks={decks}
+                addedCardIds={addedCardIds}
+                busy={busy}
+                busyDeckId={importingDeck.busyKey}
+                busyCardId={importingCard.busyKey}
+                onImport={(deck) => void handleImport(deck)}
+                onImportCard={(deck, card) => void handleImportCard(deck, card)}
+              />
             )}
           </Box>
         </Stack>

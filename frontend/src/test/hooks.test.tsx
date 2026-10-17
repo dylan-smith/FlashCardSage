@@ -4,6 +4,7 @@ import { ApiError, unreachableMessage } from '../api/client'
 import { useAction } from '../hooks/useAction'
 import { useConfirm } from '../hooks/useConfirm'
 import { useLoad } from '../hooks/useLoad'
+import { useSuggestions } from '../hooks/useSuggestions'
 import { trackException } from '../telemetry'
 
 vi.mock('../telemetry', () => ({
@@ -232,5 +233,98 @@ describe('useConfirm', () => {
 
     expect(result.current.dialogProps.open).toBe(false)
     expect(result.current.target).toBe('el gato')
+  })
+})
+
+describe('useSuggestions', () => {
+  it('loads the suggestions, starting out loading', async () => {
+    const { result } = renderHook(() =>
+      useSuggestions(() => Promise.resolve(['gato']), [], 'suggest'),
+    )
+
+    expect(result.current.state).toEqual({ status: 'loading' })
+    await waitFor(() =>
+      expect(result.current.state).toEqual({
+        status: 'ready',
+        suggestions: ['gato'],
+      }),
+    )
+  })
+
+  it("says when suggestions aren't available", async () => {
+    const { result } = renderHook(() =>
+      useSuggestions(() => Promise.resolve(null), [], 'suggest'),
+    )
+
+    await waitFor(() =>
+      expect(result.current.state).toEqual({ status: 'unavailable' }),
+    )
+    expect(trackException).not.toHaveBeenCalled()
+  })
+
+  it('reports a failure with the operation', async () => {
+    const error = new Error('broken')
+    const { result } = renderHook(() =>
+      useSuggestions(() => Promise.reject(error), [], 'suggestTags'),
+    )
+
+    await waitFor(() =>
+      expect(result.current.state).toEqual({ status: 'failed' }),
+    )
+    expect(trackException).toHaveBeenCalledWith(error, {
+      operation: 'suggestTags',
+    })
+  })
+
+  it('asks for more on refresh, ignoring the earlier request', async () => {
+    const pending: ((value: string[]) => void)[] = []
+    const signals: AbortSignal[] = []
+    const { result } = renderHook(() =>
+      useSuggestions(
+        (signal) => {
+          signals.push(signal)
+          return new Promise<string[]>((resolve) => pending.push(resolve))
+        },
+        [],
+        'suggest',
+      ),
+    )
+    await waitFor(() => expect(pending).toHaveLength(1))
+
+    act(() => result.current.refresh())
+
+    expect(result.current.state).toEqual({ status: 'loading' })
+    await waitFor(() => expect(pending).toHaveLength(2))
+    expect(signals[0].aborted).toBe(true)
+    await act(async () => {
+      pending[0](['viejo'])
+      await Promise.resolve()
+    })
+    expect(result.current.state).toEqual({ status: 'loading' })
+    act(() => pending[1](['nuevo']))
+    await waitFor(() =>
+      expect(result.current.state).toEqual({
+        status: 'ready',
+        suggestions: ['nuevo'],
+      }),
+    )
+  })
+
+  it('changes the suggestions once they are ready', async () => {
+    const { result } = renderHook(() =>
+      useSuggestions(() => Promise.resolve(['gato', 'perro']), [], 'suggest'),
+    )
+    await waitFor(() => expect(result.current.state.status).toBe('ready'))
+
+    act(() =>
+      result.current.update((current) =>
+        current.filter((name) => name !== 'gato'),
+      ),
+    )
+
+    expect(result.current.state).toEqual({
+      status: 'ready',
+      suggestions: ['perro'],
+    })
   })
 })

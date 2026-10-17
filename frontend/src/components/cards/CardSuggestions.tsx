@@ -1,30 +1,13 @@
-import { useEffect, useRef, useState } from 'react'
-import Button from '@mui/material/Button'
-import Collapse from '@mui/material/Collapse'
-import Typography from '@mui/material/Typography'
+import { useRef, useState } from 'react'
 import { listCardSuggestions } from '../../api/cardSuggestions'
 import { formatWords } from '../../api/flashCards'
 import type { FlashCardWords, Tag } from '../../api/flashCards'
 import { sameText } from '../../lib/text'
-import { useCollapsed } from '../../hooks/useCollapsed'
-import { trackException } from '../../telemetry'
-import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
-import { CardActionButton } from './CardActionButton'
 import { useCandidateEditing } from '../../hooks/useCandidateEditing'
-import { asCard } from '../../lib/candidates'
+import { useSuggestions } from '../../hooks/useSuggestions'
 import type { Candidate } from '../../lib/candidates'
-import { FlashCardEditForm } from './FlashCardForm'
-import { FlashCardRow } from './FlashCardRow'
-import { SuggestionsHeading } from './SuggestionsHeading'
-import { EmptyText } from '../common/EmptyText'
-import { Loading } from '../common/Loading'
-import { Section } from '../common/Section'
-
-type SuggestionsState =
-  | { status: 'loading' }
-  | { status: 'unavailable' }
-  | { status: 'failed' }
-  | { status: 'ready'; suggestions: Candidate[] }
+import { CandidateList } from './CandidateList'
+import { SuggestionsPanel } from './SuggestionsPanel'
 
 // What the suggestions are for, under the heading.
 function describe(relatedTo?: FlashCardWords, tag?: Tag) {
@@ -63,12 +46,8 @@ export function CardSuggestions({
   onAdd: (suggestion: Candidate) => Promise<boolean>
   onError: (message: string) => void
 }) {
-  const [state, setState] = useState<SuggestionsState>({ status: 'loading' })
-  // Bumped to ask for a fresh handful.
-  const [request, setRequest] = useState(0)
   // The key of the suggestion being added, so its button can wait for the API.
   const [adding, setAdding] = useState<number | null>(null)
-  const [collapsed, toggle] = useCollapsed(suggestionsCollapsedKey)
   // Each suggestion gets a key of its own, since the user can change its words.
   const nextKey = useRef(0)
 
@@ -76,78 +55,39 @@ export function CardSuggestions({
   const tagName = tag?.name
   const tagId = tag?.id
 
-  useEffect(() => {
-    const controller = new AbortController()
-    listCardSuggestions(
-      { relatedTo: relatedToId, tag: tagId },
-      controller.signal,
-    )
-      .then((suggestions) => {
-        setState(
-          suggestions === null
-            ? { status: 'unavailable' }
-            : {
-                status: 'ready',
-                suggestions: suggestions.map(({ spanish, english }) => ({
-                  key: nextKey.current++,
-                  spanish: [spanish],
-                  english: [english],
-                  tags: tagName === undefined ? [] : [tagName],
-                  picture: null,
-                })),
-              },
-        )
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          trackException(error, { operation: 'suggest' })
-          setState({ status: 'failed' })
-        }
-      })
-    return () => {
-      controller.abort()
-    }
-  }, [request, relatedToId, tagId, tagName])
-
+  const { state, refresh, update } = useSuggestions(
+    async (signal): Promise<Candidate[] | null> => {
+      const suggestions = await listCardSuggestions(
+        { relatedTo: relatedToId, tag: tagId },
+        signal,
+      )
+      return suggestions === null
+        ? null
+        : suggestions.map(({ spanish, english }) => ({
+            key: nextKey.current++,
+            spanish: [spanish],
+            english: [english],
+            tags: tagName === undefined ? [] : [tagName],
+            picture: null,
+          }))
+    },
+    [relatedToId, tagId, tagName],
+    'suggest',
+  )
   const suggestions = state.status === 'ready' ? state.suggestions : []
-
-  function changeSuggestions(update: (current: Candidate[]) => Candidate[]) {
-    setState((current) =>
-      current.status === 'ready'
-        ? { status: 'ready', suggestions: update(current.suggestions) }
-        : current,
-    )
-  }
-
-  const {
-    editing,
-    editPicture,
-    startEditing,
-    changeEdit,
-    cancelEdit,
-    saveEdit,
-  } = useCandidateEditing(suggestions, changeSuggestions, onError)
-
-  function refresh() {
-    setState({ status: 'loading' })
-    setRequest((current) => current + 1)
-  }
+  const editor = useCandidateEditing(suggestions, update, onError)
 
   async function add(suggestion: Candidate) {
     setAdding(suggestion.key)
     try {
       if (await onAdd(suggestion)) {
-        changeSuggestions((current) =>
+        update((current) =>
           current.filter((item) => item.key !== suggestion.key),
         )
       }
     } finally {
       setAdding(null)
     }
-  }
-
-  if (state.status === 'unavailable') {
-    return null
   }
 
   const visible = suggestions.filter(
@@ -164,85 +104,25 @@ export function CardSuggestions({
   )
 
   return (
-    <Section>
-      <SuggestionsHeading
-        title="Suggested cards"
-        collapsed={collapsed}
-        controls="suggested-cards-content"
-        onToggle={toggle}
+    <SuggestionsPanel
+      title="Suggested cards"
+      contentId="suggested-cards-content"
+      collapsedKey={suggestionsCollapsedKey}
+      description={describe(relatedTo, tag)}
+      state={state}
+      failedText="Unable to suggest cards right now."
+      empty={visible.length === 0}
+      busy={adding !== null || editor.editing !== null}
+      onRefresh={refresh}
+    >
+      <CandidateList
+        label="Suggested cards"
+        candidates={visible}
+        editor={editor}
+        tags={tags}
+        adding={adding}
+        onAdd={(suggestion) => void add(suggestion)}
       />
-      <Collapse in={!collapsed} id="suggested-cards-content" unmountOnExit>
-        <Typography color="text.secondary" sx={{ mb: 1 }}>
-          {describe(relatedTo, tag)}
-        </Typography>
-        {state.status === 'loading' ? (
-          <Loading label="Loading suggestions" />
-        ) : state.status === 'failed' ? (
-          <EmptyText>Unable to suggest cards right now.</EmptyText>
-        ) : visible.length === 0 ? (
-          <EmptyText>No suggestions right now.</EmptyText>
-        ) : (
-          <AnimatedList disablePadding aria-label="Suggested cards">
-            {visible.map((suggestion) => {
-              if (editing?.key === suggestion.key) {
-                return (
-                  <AnimatedListItem key={`${suggestion.key}-edit`}>
-                    <FlashCardEditForm
-                      edit={editing}
-                      tags={tags}
-                      picture={editPicture}
-                      busy={adding !== null}
-                      onChange={changeEdit}
-                      onCancel={cancelEdit}
-                      onSave={saveEdit}
-                    />
-                  </AnimatedListItem>
-                )
-              }
-              const spanish = formatWords(suggestion.spanish)
-              return (
-                <AnimatedListItem key={suggestion.key}>
-                  <FlashCardRow
-                    card={asCard(suggestion)}
-                    actions={
-                      <>
-                        <CardActionButton
-                          icon="add"
-                          text="Add"
-                          label={`Add "${spanish}"`}
-                          disabled={adding !== null || editing !== null}
-                          busyText={
-                            adding === suggestion.key ? 'Adding…' : undefined
-                          }
-                          onClick={() => void add(suggestion)}
-                        />
-                        <CardActionButton
-                          icon="edit"
-                          text="Edit"
-                          label={`Edit "${spanish}"`}
-                          disabled={adding !== null}
-                          onClick={() => startEditing(suggestion)}
-                        />
-                      </>
-                    }
-                  />
-                </AnimatedListItem>
-              )
-            })}
-          </AnimatedList>
-        )}
-        <Button
-          type="button"
-          size="small"
-          disabled={
-            state.status === 'loading' || adding !== null || editing !== null
-          }
-          onClick={refresh}
-          sx={{ mt: 1 }}
-        >
-          {state.status === 'failed' ? 'Try again' : 'More suggestions'}
-        </Button>
-      </Collapse>
-    </Section>
+    </SuggestionsPanel>
   )
 }
