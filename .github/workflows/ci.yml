@@ -341,6 +341,18 @@ jobs:
           FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
           AZURE_CORE_NO_COLOR: 'true'
 
+      # A deployment doesn't delete resources removed from the template, so the comment also lists what's in the
+      # resource group but not in the template (an alert rule left behind keeps firing).
+      - name: Find resources the template doesn't define
+        shell: bash
+        run: bash .github/scripts/orphaned-resources.sh | tee "${RUNNER_TEMP}/orphaned-resources.txt"
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          WHAT_IF_VALIDATION_LEVEL: ProviderNoRbac
+          AZURE_SQL_CONNECTION_STRING: what-if-placeholder
+          GOOGLE_CLIENT_ID: what-if-placeholder
+          FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
+
       # If this fails (say main's templates are broken), the comment shows every change instead of failing the PR.
       - name: Preview main's infrastructure changes
         id: baseline
@@ -367,6 +379,7 @@ jobs:
           WHAT_IF_OUTPUT: ${{ runner.temp }}/what-if.txt
           BASELINE_WHAT_IF_OUTPUT: ${{ runner.temp }}/baseline-what-if.txt
           BASELINE_OK: ${{ steps.baseline.outcome == 'success' }}
+          ORPHANED_RESOURCES: ${{ runner.temp }}/orphaned-resources.txt
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         with:
           script: |
@@ -662,6 +675,22 @@ jobs:
             --parameters infra/main.bicepparam \
             --only-show-errors \
             --output none
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ALERT_INVESTIGATION_TOKEN: ${{ secrets.ALERT_INVESTIGATION_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          FLASHCARDSAGE_SERVICE_TOKEN: ${{ secrets.FLASHCARDSAGE_SERVICE_TOKEN }}
+
+      # The deployment doesn't delete resources removed from the template. Delete the alert rules it left behind,
+      # which would otherwise keep firing, and warn about anything else. Never holds up the deployment.
+      - name: Delete alert rules the template no longer defines
+        continue-on-error: true
+        shell: bash
+        run: |
+          bash .github/scripts/orphaned-resources.sh > "${RUNNER_TEMP}/orphaned-resources.txt"
+          bash .github/scripts/delete-orphaned-alerts.sh "${RUNNER_TEMP}/orphaned-resources.txt"
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}

@@ -1,10 +1,13 @@
 // Posts the resource changes the PR's Bicep what-if previews beyond those main's own what-if previews, as a PR
 // comment. What-if reports the same false positives (noise) for both, so comparing them leaves only the changes
-// the PR makes. When there are none, no comment is created, and an earlier one (from a push that did have
-// changes) is updated to say so, so it doesn't describe changes the PR no longer makes.
+// the PR makes. The comment also lists the resources in the resource group that the template doesn't define
+// (orphaned-resources.sh), which a deployment leaves behind. When there are neither, no comment is created, and
+// an earlier one (from a push that did have changes) is updated to say so, so it doesn't describe changes the PR
+// no longer makes.
 // Run from actions/github-script, which passes in `github` and `context`. WHAT_IF_OUTPUT and
-// BASELINE_WHAT_IF_OUTPUT are the paths of the saved what-if output for the PR and for main, and BASELINE_OK is
-// 'true' if main's what-if succeeded (if not, every change is shown). AZURE_SUBSCRIPTION_ID is redacted.
+// BASELINE_WHAT_IF_OUTPUT are the paths of the saved what-if output for the PR and for main, BASELINE_OK is
+// 'true' if main's what-if succeeded (if not, every change is shown), and ORPHANED_RESOURCES is the path of the
+// saved resource IDs the template doesn't define. AZURE_SUBSCRIPTION_ID is redacted.
 const fs = require('fs');
 
 // GitHub rejects comment bodies over 65,536 characters; leave room for the rest of the comment.
@@ -18,6 +21,10 @@ module.exports = async ({ github, context }) => {
     baselineOk ? parseResourceChanges(readOutput(process.env.BASELINE_WHAT_IF_OUTPUT)).map((c) => c.key) : [],
   );
   const prChanges = changes.filter((c) => !baseline.has(c.key));
+  const orphans = readOutput(process.env.ORPHANED_RESOURCES)
+    .split('\n')
+    .filter((line) => line.trim() !== '')
+    .map((id) => id.replace(/^.*\/providers\//, ''));
 
   const { owner, repo } = context.repo;
   const issue_number = context.issue.number;
@@ -26,7 +33,7 @@ module.exports = async ({ github, context }) => {
   const sha = context.payload.pull_request.head.sha;
   const runUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${context.runId}`;
 
-  if (prChanges.length === 0) {
+  if (prChanges.length === 0 && orphans.length === 0) {
     if (existing) {
       const body = [marker, '# Infrastructure What-If', `No infrastructure changes as of ${sha}.`].join('\n\n');
       await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
@@ -34,7 +41,30 @@ module.exports = async ({ github, context }) => {
     return;
   }
 
-  // List the changes under their scope (and section, for potential changes), as what-if does.
+  const body = [marker, '# Infrastructure What-If', describeChanges(prChanges, baselineOk, sha, runUrl)];
+  if (orphans.length > 0) {
+    body.push(
+      '## Not in the template',
+      `These resources are in the production resource group, but \`infra/main.bicep\` doesn't define them, so a ` +
+        `deployment leaves them as they are. The \`deploy-infrastructure\` job deletes the alert rules among them ` +
+        `after merging; anything else should be deleted by hand if it's no longer needed, or added to the template.`,
+      '',
+      ...orphans.map((resource) => `- \`${resource}\``),
+    );
+  }
+
+  if (existing) {
+    await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body: body.join('\n') });
+  } else {
+    await github.rest.issues.createComment({ owner, repo, issue_number, body: body.join('\n') });
+  }
+};
+
+// The PR's changes under their scope (and section, for potential changes), as what-if lists them.
+function describeChanges(prChanges, baselineOk, sha, runUrl) {
+  if (prChanges.length === 0) {
+    return `No infrastructure changes as of ${sha}.`;
+  }
   const lines = [];
   let heading;
   for (const change of prChanges) {
@@ -53,21 +83,8 @@ module.exports = async ({ github, context }) => {
       `reports for main (mostly false positives)`
     : `Merging ${sha} would make these changes to the production infrastructure. What-if failed for main, so ` +
       `this also includes the false positives it reports for every PR`;
-  const body = [
-    marker,
-    '# Infrastructure What-If',
-    `${intro} ([workflow run](${runUrl})):`,
-    '```diff',
-    toDiffHighlighting(shown),
-    '```',
-  ].join('\n');
-
-  if (existing) {
-    await github.rest.issues.updateComment({ owner, repo, comment_id: existing.id, body });
-  } else {
-    await github.rest.issues.createComment({ owner, repo, issue_number, body });
-  }
-};
+  return [`${intro} ([workflow run](${runUrl})):`, '```diff', toDiffHighlighting(shown), '```'].join('\n');
+}
 
 function readOutput(path) {
   let output = fs.readFileSync(path, 'utf8').replace(/\x1b\[[0-9;]*m/g, '');
