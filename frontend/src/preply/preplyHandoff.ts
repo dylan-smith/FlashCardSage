@@ -1,3 +1,4 @@
+import { storageKeys } from '../lib/storageKeys'
 import { createStore } from '../lib/store'
 import type { PreplyWord } from './sendToFlashCardSage'
 
@@ -17,9 +18,6 @@ export type PreplyHandoff =
 
 // How long to wait for the words. Reading them from Preply takes a few seconds, even for a long vocabulary.
 export const preplyWaitMs = 30_000
-
-// Kept for the tab, so the words are still here after the user signs in or reloads the page.
-export const preplyHandoffKey = 'flashcardsage.preplyHandoff'
 
 const store = createStore<PreplyHandoff>(loadStored())
 
@@ -59,7 +57,7 @@ function isWord(value: unknown): value is PreplyWord {
 
 function loadStored(): PreplyHandoff {
   try {
-    const stored = sessionStorage.getItem(preplyHandoffKey)
+    const stored = sessionStorage.getItem(storageKeys.preplyHandoff)
     if (stored !== null) {
       const words: unknown = JSON.parse(stored)
       if (Array.isArray(words) && words.every(isWord)) {
@@ -75,9 +73,12 @@ function loadStored(): PreplyHandoff {
 function update(next: PreplyHandoff) {
   try {
     if (next.status === 'received') {
-      sessionStorage.setItem(preplyHandoffKey, JSON.stringify(next.words))
+      sessionStorage.setItem(
+        storageKeys.preplyHandoff,
+        JSON.stringify(next.words),
+      )
     } else {
-      sessionStorage.removeItem(preplyHandoffKey)
+      sessionStorage.removeItem(storageKeys.preplyHandoff)
     }
   } catch {
     // The words are still kept for as long as the page is open.

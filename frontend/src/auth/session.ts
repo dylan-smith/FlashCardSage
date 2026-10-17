@@ -1,3 +1,4 @@
+import { storageKeys } from '../lib/storageKeys'
 import { createStore } from '../lib/store'
 import { googleSubject } from './google'
 
@@ -11,15 +12,11 @@ export type Session = {
   provider: 'google' | 'test' | 'service'
 }
 
-// Kept in localStorage so a sign-in lasts across reloads and tabs. The E2E, smoke and load tests write it
-// directly to start signed in.
-export const sessionStorageKey = 'flashcardsage.session'
-
 const store = createStore<Session | null>(readStoredSession())
 
 function readStoredSession(): Session | null {
   try {
-    const stored = localStorage.getItem(sessionStorageKey)
+    const stored = localStorage.getItem(storageKeys.session)
     if (stored === null) {
       return null
     }
@@ -40,9 +37,9 @@ export function setSession(session: Session | null) {
   }
   try {
     if (session === null) {
-      localStorage.removeItem(sessionStorageKey)
+      localStorage.removeItem(storageKeys.session)
     } else {
-      localStorage.setItem(sessionStorageKey, JSON.stringify(session))
+      localStorage.setItem(storageKeys.session, JSON.stringify(session))
     }
   } catch {
     // Storage can be unavailable, for example in a private window. The sign-in still lasts until the page reloads.
@@ -68,7 +65,7 @@ export function sessionSubject(session: Session): string {
 // Signing in or out in another tab applies here too.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
-    if (event.key === sessionStorageKey) {
+    if (event.key === storageKeys.session) {
       store.set(readStoredSession())
     }
   })

@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { MockInstance } from 'vitest'
 import { maxWordsPerSide } from '../api/flashCards'
+import { storageKeys } from '../lib/storageKeys'
 import { groupWords } from '../preply/groupWords'
 import {
   bookmarkletHref,
@@ -337,7 +338,7 @@ describe('receiving the words from Preply', () => {
     handoff.clearPreplyHandoff()
 
     expect(handoff.getPreplyHandoff()).toEqual({ status: 'none' })
-    expect(sessionStorage.getItem(handoff.preplyHandoffKey)).toBeNull()
+    expect(sessionStorage.getItem(storageKeys.preplyHandoff)).toBeNull()
   })
 })
 

@@ -31,10 +31,10 @@ export function withNewTags(tags: Tag[], card: FlashCard) {
   return added.length === 0 ? tags : sortTags([...tags, ...added])
 }
 
-// Puts the picture the user chose on a card that's just been saved. The card is saved whatever happens to the
-// picture, so a failure is reported and the card kept as it is.
+// Puts the picture the user chose on a card that's just been saved, such as a CardPicture's choice. The card is saved
+// whatever happens to the picture, so a failure is reported and the card kept as it is.
 export async function withPicture(
-  picture: CardPicture,
+  picture: Pick<CardPicture, 'apply'>,
   card: FlashCard,
   failureMessage: string,
   onError: (message: string) => void,

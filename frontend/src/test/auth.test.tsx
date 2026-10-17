@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
 import App from '../App'
 import { sessionFromGoogleCredential } from '../auth/google'
-import { getSession, sessionStorageKey, setSession } from '../auth/session'
+import { getSession, setSession } from '../auth/session'
+import { storageKeys } from '../lib/storageKeys'
 
 vi.mock('../telemetry', () => ({
   trackEvent: vi.fn(),
@@ -86,7 +87,7 @@ describe('signing in', () => {
     expect(screen.getByText('Alice')).toBeInTheDocument()
     expect(authorizationOf(fetchMock.mock.calls[0])).toBe('Bearer test:Alice')
     expect(
-      JSON.parse(localStorage.getItem(sessionStorageKey) ?? '{}'),
+      JSON.parse(localStorage.getItem(storageKeys.session) ?? '{}'),
     ).toMatchObject({ token: 'test:Alice', name: 'Alice' })
   })
 
@@ -117,7 +118,7 @@ describe('signed in', () => {
     expect(
       screen.getByRole('heading', { level: 2, name: 'Sign in' }),
     ).toBeInTheDocument()
-    expect(localStorage.getItem(sessionStorageKey)).toBeNull()
+    expect(localStorage.getItem(storageKeys.session)).toBeNull()
   })
 
   it('signs out when the API no longer accepts the token', async () => {
