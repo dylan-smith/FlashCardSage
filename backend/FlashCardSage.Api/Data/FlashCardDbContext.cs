@@ -10,7 +10,8 @@ namespace FlashCardSage.Api.Data;
 /// Practice results and a card's words are filtered through their card, so they're only the current user's too, and
 /// a card's tags are only reached through the card. A deck only gets cards that were found through the filter. The
 /// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDecksController reads them past
-/// the filter.
+/// the filter. Cached translations are the exception: they're shared by every user, so they have no owner and no
+/// filter.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {
@@ -28,6 +29,8 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<Tag> Tags => Set<Tag>();
 
     public DbSet<Deck> Decks => Set<Deck>();
+
+    public DbSet<CachedTranslation> Translations => Set<CachedTranslation>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -215,5 +218,26 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
                     link.HasKey("DeckId", "FlashCardId");
                     link.HasIndex("FlashCardId");
                 });
+
+        // A text is translated the same way for everyone, so there's one row for it, shared by every user. The
+        // translation's case follows the text's, so the text is compared case-sensitively (0011-*.sql).
+        modelBuilder.Entity<CachedTranslation>()
+            .HasIndex(translation => new { translation.FromLanguage, translation.Text })
+            .IsUnique();
+
+        modelBuilder.Entity<CachedTranslation>()
+            .Property(translation => translation.FromLanguage)
+            .HasConversion<string>()
+            .HasMaxLength(10);
+
+        modelBuilder.Entity<CachedTranslation>()
+            .Property(translation => translation.Text)
+            .HasMaxLength(FlashCard.MaxWordLength)
+            .UseCollation("Latin1_General_CS_AS")
+            .IsRequired();
+
+        modelBuilder.Entity<CachedTranslation>()
+            .Property(translation => translation.Translation)
+            .IsRequired();
     }
 }
