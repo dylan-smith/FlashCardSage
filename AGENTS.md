@@ -115,6 +115,9 @@ npm run test:e2e
   up by `infra/Setup-Environment.ps1` (see README), so a new identity, role or GitHub variable
   belongs there too. Preview web apps' database users are created by the `deploy-preview` job
   (`.github/scripts/preview-db-user.sql`), so don't add manual steps for them.
+- A deployment doesn't delete resources removed from the template. After deploying, `deploy-infrastructure` deletes any
+  alert rules the template no longer defines (`.github/scripts/orphaned-resources.sh` and `delete-orphaned-alerts.sh`)
+  and warns about anything else, and the PR what-if comment lists the same resources.
 - Pushes to `main` deploy to production, so treat changes to `ci.yml` and `infra/` with care.
 
 ## Pull requests
