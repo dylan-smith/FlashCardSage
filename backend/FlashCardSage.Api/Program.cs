@@ -62,7 +62,12 @@ builder.Services.AddSingleton<UsageSnapshotService>();
 builder.Services.AddHostedService(services => services.GetRequiredService<UsageSnapshotService>());
 builder.Services.Configure<TranslatorOptions>(builder.Configuration.GetSection(TranslatorOptions.SectionName));
 // Translation fills in a field while the user types, so a slow answer is no better than none.
-builder.Services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+builder.Services.AddHttpClient<AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+// Every translation is kept in the database, so a text is only paid for the first time anyone types it.
+builder.Services.AddScoped<ITranslator>(services => new CachedTranslator(
+    services.GetRequiredService<AzureTranslator>(),
+    services.GetRequiredService<FlashCardDbContext>(),
+    services.GetRequiredService<ILogger<CachedTranslator>>()));
 builder.Services.Configure<CardSuggesterOptions>(builder.Configuration.GetSection(CardSuggesterOptions.SectionName));
 // The page shows suggestions as soon as they come, and they're only a nicety, so a slow answer isn't waited out.
 builder.Services.AddHttpClient<ICardSuggester, FoundryCardSuggester>(client => client.Timeout = TimeSpan.FromSeconds(45));

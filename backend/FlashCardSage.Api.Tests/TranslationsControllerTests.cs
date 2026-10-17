@@ -8,6 +8,7 @@ using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
@@ -110,6 +111,17 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
         var response = await client.PostAsJsonAsync("/api/translations", new { text = "el gato", from = "French" });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    [Fact]
+    public void TheTranslatorIsCached()
+    {
+        using var scope = factory
+            .WithWebHostBuilder(builder => builder.UseEnvironment("Development"))
+            .Services
+            .CreateScope();
+
+        Assert.IsType<CachedTranslator>(scope.ServiceProvider.GetRequiredService<ITranslator>());
     }
 
     private static TranslationsController CreateController(ITranslator translator)
