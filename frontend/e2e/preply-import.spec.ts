@@ -1,8 +1,5 @@
-import AxeBuilder from '@axe-core/playwright'
 import type { Route } from '@playwright/test'
-import { cardData, test, expect } from './fixtures'
-
-const apiUrl = 'http://localhost:5269/api'
+import { expectNoA11yViolations, test, expect } from './fixtures'
 
 const preplyVocabularyUrl =
   'https://preply.com/en/practice/vocab-bank?subject=spanish'
@@ -62,24 +59,10 @@ async function fakePreply(route: Route) {
 }
 
 test.describe('Import from Preply', () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ api }) => {
     // Start from one card the Preply vocabulary has too, with no decks or tags, as import.spec.ts does.
-    for (const resource of ['decks', 'flashcards', 'tags']) {
-      const response = await request.get(`${apiUrl}/${resource}`)
-      expect(response.ok()).toBe(true)
-      for (const { id } of (await response.json()) as { id: number }[]) {
-        expect((await request.delete(`${apiUrl}/${resource}/${id}`)).ok()).toBe(
-          true,
-        )
-      }
-    }
-    expect(
-      (
-        await request.post(`${apiUrl}/flashcards`, {
-          data: cardData('lunes', 'Monday'),
-        })
-      ).ok(),
-    ).toBe(true)
+    await api.reset('decks', 'flashcards', 'tags')
+    await api.createCard('lunes', 'Monday')
   })
 
   test('the steps have no detectable accessibility violations', async ({
@@ -90,9 +73,7 @@ test.describe('Import from Preply', () => {
       page.getByRole('link', { name: 'Send to FlashCardSage' }),
     ).toHaveAttribute('href', /^javascript:/)
 
-    const results = await new AxeBuilder({ page }).analyze()
-
-    expect(results.violations).toEqual([])
+    await expectNoA11yViolations(page)
   })
 
   test('the bookmarklet brings the Preply words into a new deck', async ({

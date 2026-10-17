@@ -10,12 +10,6 @@ import { useSuggestions } from '../hooks/useSuggestions'
 import { trackEvent, trackException } from '../telemetry'
 import { clearToasts, getToasts } from '../toasts'
 
-vi.mock('../telemetry', () => ({
-  trackEvent: vi.fn(),
-  trackException: vi.fn(),
-  trackPageView: vi.fn(),
-}))
-
 vi.mock('../api/flashCards', async (importOriginal) => ({
   ...(await importOriginal<typeof import('../api/flashCards')>()),
   deleteFlashCards: vi.fn(),
