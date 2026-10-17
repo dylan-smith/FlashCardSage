@@ -23,6 +23,7 @@ import { groupWords } from '../../preply/groupWords'
 import type { PreplyHandoff } from '../../preply/preplyHandoff'
 import type { PreplyWord } from '../../preply/sendToFlashCardSage'
 import { trackEvent, trackException } from '../../telemetry'
+import { useLoad } from '../../hooks/useLoad'
 import { showToast } from '../../toasts'
 import type { Toast } from '../../toasts'
 import { CardCandidates } from '../cards/CardCandidates'
@@ -105,7 +106,6 @@ export function PreplyImport({ active }: { active: boolean }) {
       setCandidates(toCandidates(handoff.words))
     }
   }
-  const [known, setKnown] = useState<Known | null>(null)
   const [adding, setAdding] = useState<Adding>(null)
   // How many the user has added one at a time.
   const [addedCount, setAddedCount] = useState(0)
@@ -116,6 +116,20 @@ export function PreplyImport({ active }: { active: boolean }) {
   const [tags, addNewTags] = useUserTags()
 
   const received = handoff.status === 'received'
+  // The user's cards, once there are words to check against them. If they don't load, every word is listed, and the
+  // API leaves out the ones the user has when they're added. They're kept when the words are cleared.
+  const { data: known } = useLoad(
+    async (): Promise<Known | null> => {
+      const cards = await listFlashCards()
+      const lower = (words: string[]) => words.map((word) => word.toLowerCase())
+      return {
+        spanish: new Set(cards.flatMap((card) => lower(card.spanish))),
+        english: new Set(cards.flatMap((card) => lower(card.english))),
+      }
+    },
+    [received],
+    { operation: 'loadCards', initial: null, enabled: received },
+  )
   const words = received ? handoff.words : []
   const shown =
     known === null
@@ -178,34 +192,6 @@ export function PreplyImport({ active }: { active: boolean }) {
       })
     }
   }, [active, handoff])
-
-  // The user's cards, once there are words to check against them. If they don't load, every word is listed, and the
-  // API leaves out the ones the user has when they're added.
-  useEffect(() => {
-    if (!received) {
-      return
-    }
-    let cancelled = false
-    listFlashCards()
-      .then((cards) => {
-        if (!cancelled) {
-          const lower = (words: string[]) =>
-            words.map((word) => word.toLowerCase())
-          setKnown({
-            spanish: new Set(cards.flatMap((card) => lower(card.spanish))),
-            english: new Set(cards.flatMap((card) => lower(card.english))),
-          })
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'loadCards' })
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [received])
 
   // Puts the cards in the user's Preply deck, making it the first time. The cards are added whatever happens to the
   // deck, so a failure is only said.

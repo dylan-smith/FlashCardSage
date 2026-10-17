@@ -5,7 +5,8 @@ import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { putCardImage } from '../../api/cardImages'
 import type { CardImage } from '../../api/cardImages'
-import { ApiError, describeFetchError } from '../../api/client'
+import { describeFetchError } from '../../api/client'
+import { reportFailure } from '../../lib/reportFailure'
 import { formatWords } from '../../api/flashCards'
 import type {
   FlashCard,
@@ -14,7 +15,7 @@ import type {
   Tag,
 } from '../../api/flashCards'
 import { sameText } from '../../lib/text'
-import { trackEvent, trackException } from '../../telemetry'
+import { trackEvent } from '../../telemetry'
 import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { useCandidateEditing } from '../../hooks/useCandidateEditing'
@@ -28,14 +29,6 @@ export type { Candidate } from '../../lib/candidates'
 
 // What's being added: all the cards, or the one with this key.
 export type Adding = 'all' | number | null
-
-// Reports a failure, unless it's an error the API sent for the user to see, such as a 409 for a card the user already
-// has, which is theirs to fix, not a failure.
-function reportFailure(error: unknown, operation: string) {
-  if (!(error instanceof ApiError)) {
-    trackException(error, { operation })
-  }
-}
 
 function picturesFailedMessage(failed: number) {
   return failed === 1

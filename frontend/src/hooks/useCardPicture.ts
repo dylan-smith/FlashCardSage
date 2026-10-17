@@ -6,10 +6,11 @@ import {
   readCardImageFile,
 } from '../api/cardImages'
 import type { CardImage } from '../api/cardImages'
-import { ApiError, describeFetchError } from '../api/client'
+import { describeFetchError } from '../api/client'
 import type { FlashCard } from '../api/flashCards'
 import type { CardText } from '../api/translations'
-import { trackEvent, trackException } from '../telemetry'
+import { trackEvent } from '../telemetry'
+import { reportFailure } from '../lib/reportFailure'
 
 // The picture a card form offers: the card's own, if it has one, and a new one the API makes on request or the user
 // uploads. A new picture goes on the card when it's saved, unless the user discards it first (or the form is
@@ -61,9 +62,7 @@ export function useCardPicture(current: string | null) {
     } catch (error) {
       if (!controller.signal.aborted) {
         // A 503 or 422 is the API saying why, not a failure to report.
-        if (!(error instanceof ApiError)) {
-          trackException(error, { operation: 'generateImage' })
-        }
+        reportFailure(error, 'generateImage')
         setErrorMessage(describeFetchError(error, 'Unable to make a picture.'))
       }
     } finally {

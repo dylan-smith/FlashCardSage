@@ -1,12 +1,14 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import { updateFlashCard } from '../api/flashCards'
-import { ApiError, describeFetchError } from '../api/client'
+import { describeFetchError } from '../api/client'
 import type { FlashCard, FlashCardFields, Tag } from '../api/flashCards'
 import { byName } from '../lib/text'
 import { useCardPicture } from './useCardPicture'
 import type { CardPicture } from './useCardPicture'
-import { trackEvent, trackException } from '../telemetry'
+import { trackEvent } from '../telemetry'
+import { reportFailure } from '../lib/reportFailure'
+import { useAction } from './useAction'
 import { trimFields } from '../lib/cardFields'
 import type { FieldsUpdate } from '../lib/cardFields'
 
@@ -40,9 +42,7 @@ export async function withPicture(
   try {
     return (await picture.apply(card.id)) ?? card
   } catch (error) {
-    if (!(error instanceof ApiError)) {
-      trackException(error, { operation: 'picture' })
-    }
+    reportFailure(error, 'picture')
     onError(describeFetchError(error, failureMessage))
     return card
   }
@@ -59,7 +59,7 @@ export function useCardEditor({
 }) {
   // The card being edited, as typed so far.
   const [edit, setEdit] = useState<EditedFlashCard | null>(null)
-  const [saving, setSaving] = useState(false)
+  const saving = useAction(setErrorMessage)
   const picture = useCardPicture(edit?.imageUrl ?? null)
 
   function start(card: FlashCard) {
@@ -98,30 +98,23 @@ export function useCardEditor({
       return
     }
 
-    setSaving(true)
-    setErrorMessage('')
-
-    try {
-      const updated = await updateFlashCard(edit.id, trimmed)
-      trackEvent('FlashCardUpdated')
-      const card = await withPicture(
-        picture,
-        updated,
-        "Flash card saved, but its picture couldn't be changed.",
-        setErrorMessage,
-      )
-      picture.reset()
-      onSaved(card)
-      setEdit(null)
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'update' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to save flash card.'))
-    } finally {
-      setSaving(false)
-    }
+    await saving.run(
+      { operation: 'update', fallback: 'Unable to save flash card.' },
+      async () => {
+        const updated = await updateFlashCard(edit.id, trimmed)
+        trackEvent('FlashCardUpdated')
+        const card = await withPicture(
+          picture,
+          updated,
+          "Flash card saved, but its picture couldn't be changed.",
+          setErrorMessage,
+        )
+        picture.reset()
+        onSaved(card)
+        setEdit(null)
+      },
+    )
   }
 
-  return { edit, saving, picture, start, change, cancel, save }
+  return { edit, saving: saving.busy, picture, start, change, cancel, save }
 }

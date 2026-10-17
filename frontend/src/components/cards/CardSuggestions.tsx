@@ -1,9 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
 import Collapse from '@mui/material/Collapse'
-import Paper from '@mui/material/Paper'
 import Typography from '@mui/material/Typography'
 import { listCardSuggestions } from '../../api/cardSuggestions'
 import { formatWords } from '../../api/flashCards'
@@ -19,6 +16,9 @@ import type { Candidate } from '../../lib/candidates'
 import { FlashCardEditForm } from './FlashCardForm'
 import { FlashCardRow } from './FlashCardRow'
 import { SuggestionsHeading } from './SuggestionsHeading'
+import { EmptyText } from '../common/EmptyText'
+import { Loading } from '../common/Loading'
+import { Section } from '../common/Section'
 
 type SuggestionsState =
   | { status: 'loading' }
@@ -164,7 +164,7 @@ export function CardSuggestions({
   )
 
   return (
-    <Paper component="section" elevation={2} sx={{ p: 3 }}>
+    <Section>
       <SuggestionsHeading
         title="Suggested cards"
         collapsed={collapsed}
@@ -176,17 +176,11 @@ export function CardSuggestions({
           {describe(relatedTo, tag)}
         </Typography>
         {state.status === 'loading' ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-            <CircularProgress aria-label="Loading suggestions" />
-          </Box>
+          <Loading label="Loading suggestions" />
         ) : state.status === 'failed' ? (
-          <Typography color="text.secondary">
-            Unable to suggest cards right now.
-          </Typography>
+          <EmptyText>Unable to suggest cards right now.</EmptyText>
         ) : visible.length === 0 ? (
-          <Typography color="text.secondary">
-            No suggestions right now.
-          </Typography>
+          <EmptyText>No suggestions right now.</EmptyText>
         ) : (
           <AnimatedList disablePadding aria-label="Suggested cards">
             {visible.map((suggestion) => {
@@ -249,6 +243,6 @@ export function CardSuggestions({
           {state.status === 'failed' ? 'Try again' : 'More suggestions'}
         </Button>
       </Collapse>
-    </Paper>
+    </Section>
   )
 }

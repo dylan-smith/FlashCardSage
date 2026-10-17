@@ -2,7 +2,6 @@ import { useEffect, useRef, useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
@@ -13,7 +12,6 @@ import {
   getNextPracticeCard,
   recordPracticeResult,
 } from '../api/flashCards'
-import { describeFetchError } from '../api/client'
 import type {
   PracticeCard,
   PracticeOutcome,
@@ -22,7 +20,12 @@ import type {
 import { useCardSelection } from '../hooks/useCardSelection'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { usePreferences } from '../hooks/usePreferences'
-import { trackEvent, trackException } from '../telemetry'
+import { trackEvent } from '../telemetry'
+import { useAction } from '../hooks/useAction'
+import { useLoad } from '../hooks/useLoad'
+import { EmptyText } from '../components/common/EmptyText'
+import { Loading } from '../components/common/Loading'
+import { Section } from '../components/common/Section'
 import { CardSelectionPicker } from '../components/cards/CardSelectionPicker'
 
 // Which field of a card holds each side, and its language.
@@ -86,11 +89,9 @@ function PracticePage() {
         onSelect={select}
       />
       {waiting ? (
-        <Paper component="section" elevation={2} sx={{ p: 3 }}>
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-            <CircularProgress aria-label="Loading" />
-          </Box>
-        </Paper>
+        <Section>
+          <Loading />
+        </Section>
       ) : (
         // A new session for each choice, so the session score starts again.
         <PracticeSession
@@ -111,47 +112,33 @@ type PracticeSessionProps = {
 }
 
 function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
-  // The card being practiced, as the API picked it.
-  const [prompt, setPrompt] = useState<PracticeCard | null>(null)
+  const [errorMessage, setErrorMessage] = useState('')
+  // The card being practiced, as the API picked it. The API picks the first card here, and each one after that when
+  // an answer is saved.
+  const {
+    data: prompt,
+    setData: setPrompt,
+    loading,
+  } = useLoad(
+    (): Promise<PracticeCard | null> => getNextPracticeCard({ deckId, tagId }),
+    [deckId, tagId],
+    {
+      operation: 'load',
+      fallback: 'Unable to load flash cards.',
+      onError: setErrorMessage,
+      initial: null,
+    },
+  )
   const [revealed, setRevealed] = useState(false)
-  const [loading, setLoading] = useState(true)
-  const [saving, setSaving] = useState(false)
+  const saving = useAction(setErrorMessage)
   // How much the answers given since the page was opened have raised or lowered the total score.
   const [sessionScore, setSessionScore] = useState(0)
-  const [errorMessage, setErrorMessage] = useState('')
   // The button that replaces the one just pressed gets focus, so keyboard users can carry on from where they were.
   const revealRef = useRef<HTMLButtonElement>(null)
   const firstOutcomeRef = useRef<HTMLButtonElement>(null)
   const answeredRef = useRef(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const showPictures = usePreferences()?.showPictures === true
-
-  // The API picks the first card here, and each one after that when an answer is saved.
-  useEffect(() => {
-    let cancelled = false
-    getNextPracticeCard({ deckId, tagId })
-      .then((next) => {
-        if (!cancelled) {
-          setPrompt(next)
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'load' })
-          setErrorMessage(
-            describeFetchError(error, 'Unable to load flash cards.'),
-          )
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [deckId, tagId])
 
   useEffect(() => {
     if (revealed) {
@@ -169,26 +156,25 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
       return
     }
 
-    setSaving(true)
-    setErrorMessage('')
-
-    try {
-      const { next, scoreChange } = await recordPracticeResult(
-        prompt.id,
-        outcome,
-        { deckId, tagId },
-      )
-      trackEvent('PracticeResultRecorded', { outcome })
-      answeredRef.current = true
-      setSessionScore((score) => score + scoreChange)
-      setPrompt(next)
-      setRevealed(false)
-    } catch (error) {
-      trackException(error, { operation: 'practice' })
-      setErrorMessage(describeFetchError(error, 'Unable to save your answer.'))
-    } finally {
-      setSaving(false)
-    }
+    await saving.run(
+      {
+        operation: 'practice',
+        fallback: 'Unable to save your answer.',
+        reportAll: true,
+      },
+      async () => {
+        const { next, scoreChange } = await recordPracticeResult(
+          prompt.id,
+          outcome,
+          { deckId, tagId },
+        )
+        trackEvent('PracticeResultRecorded', { outcome })
+        answeredRef.current = true
+        setSessionScore((score) => score + scoreChange)
+        setPrompt(next)
+        setRevealed(false)
+      },
+    )
   }
 
   const otherSide: PracticeSide =
@@ -235,15 +221,11 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
         }}
       >
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-            <CircularProgress aria-label="Loading" />
-          </Box>
+          <Loading />
         ) : prompt === null ? (
           errorMessage ? null : (
             <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
-              <Typography color="text.secondary">
-                {emptyMessages[kind]}
-              </Typography>
+              <EmptyText>{emptyMessages[kind]}</EmptyText>
               {kind === 'deck' ? (
                 <Button component={Link} to="/decks" variant="contained">
                   Edit decks
@@ -323,7 +305,7 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
                     type="button"
                     variant="contained"
                     color={color}
-                    disabled={saving}
+                    disabled={saving.busy}
                     onClick={() => void handleAnswer(outcome)}
                     sx={{ flex: { xs: 1, sm: 'none' } }}
                   >

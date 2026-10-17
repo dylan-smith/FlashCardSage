@@ -1,10 +1,9 @@
-import { useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router'
 import { listDecks } from '../api/decks'
 import type { Deck } from '../api/decks'
 import type { Tag } from '../api/flashCards'
 import { listTags } from '../api/tags'
-import { trackException } from '../telemetry'
+import { useLoad } from './useLoad'
 
 // Which cards a page is about: every card, a deck's or a tag's.
 export type CardSelectionKind = 'all' | 'deck' | 'tag'
@@ -19,27 +18,14 @@ export function useCardSelection() {
   const deckParam = searchParams.get('deck')
   const tagParam = searchParams.get('tag')
   // Null until they've loaded.
-  const [choices, setChoices] = useState<CardSelectionChoices | null>(null)
-  const [choicesFailed, setChoicesFailed] = useState(false)
-
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([listDecks(), listTags()])
-      .then(([decks, tags]) => {
-        if (!cancelled) {
-          setChoices({ decks, tags })
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'loadChoices' })
-          setChoicesFailed(true)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const { data: choices, failed: choicesFailed } = useLoad(
+    async (): Promise<CardSelectionChoices | null> => {
+      const [decks, tags] = await Promise.all([listDecks(), listTags()])
+      return { decks, tags }
+    },
+    [],
+    { operation: 'loadChoices', initial: null },
+  )
 
   const deck =
     choices?.decks.find((item) => String(item.id) === deckParam) ?? null

@@ -1,22 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import { formatWords, listFlashCardScores } from '../api/flashCards'
-import { describeFetchError } from '../api/client'
 import type { FlashCardScores } from '../api/flashCards'
 import { useCardSelection } from '../hooks/useCardSelection'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
-import { trackException } from '../telemetry'
+import { useLoad } from '../hooks/useLoad'
+import { EmptyText } from '../components/common/EmptyText'
+import { Loading } from '../components/common/Loading'
+import { Section } from '../components/common/Section'
 import { CardSelectionPicker } from '../components/cards/CardSelectionPicker'
 import { matchesSearch } from '../lib/cardSearch'
 
@@ -30,14 +29,6 @@ const emptyMessages: Record<CardSelectionKind, string> = {
 function scoreColor(score: number) {
   const hue = (Math.min(Math.max(score, 0), 100) / 100) * 120
   return `hsl(${hue}, 70%, 90%)`
-}
-
-function Loading() {
-  return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-      <CircularProgress aria-label="Loading" />
-    </Box>
-  )
 }
 
 function ScoresPage() {
@@ -55,9 +46,9 @@ function ScoresPage() {
         onSelect={select}
       />
       {waiting ? (
-        <Paper component="section" elevation={2} sx={{ p: 3 }}>
+        <Section>
           <Loading />
-        </Paper>
+        </Section>
       ) : (
         // Loaded again for each choice.
         <SelectionScores
@@ -88,34 +79,17 @@ function SelectionScores({
   search,
   onSearchChange,
 }: SelectionScoresProps) {
-  const [scores, setScores] = useState<FlashCardScores | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [errorMessage, setErrorMessage] = useState('')
-
   // Loaded each time the page is opened, so it includes the latest practice.
-  useEffect(() => {
-    let cancelled = false
-    listFlashCardScores({ deckId, tagId })
-      .then((loaded) => {
-        if (!cancelled) {
-          setScores(loaded)
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'scores' })
-          setErrorMessage(describeFetchError(error, 'Unable to load scores.'))
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [deckId, tagId])
+  const {
+    data: scores,
+    loading,
+    error: errorMessage,
+  } = useLoad(
+    (): Promise<FlashCardScores | null> =>
+      listFlashCardScores({ deckId, tagId }),
+    [deckId, tagId],
+    { operation: 'scores', fallback: 'Unable to load scores.', initial: null },
+  )
 
   // The total stays the score of every card picked, whatever the search shows.
   const matching =
@@ -125,14 +99,12 @@ function SelectionScores({
     <Stack spacing={2}>
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
+      <Section>
         {loading ? (
           <Loading />
         ) : scores === null ? null : scores.cards.length === 0 ? (
           <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Typography color="text.secondary">
-              {emptyMessages[kind]}
-            </Typography>
+            <EmptyText>{emptyMessages[kind]}</EmptyText>
             {kind === 'deck' ? (
               <Button component={Link} to="/decks" variant="contained">
                 Edit decks
@@ -158,7 +130,7 @@ function SelectionScores({
               sx={{ mb: 2 }}
             />
             {matching.length === 0 ? (
-              <Typography color="text.secondary">No cards match.</Typography>
+              <EmptyText>No cards match.</EmptyText>
             ) : (
               <List disablePadding aria-label="Card scores">
                 {matching.map((card) => (
@@ -183,7 +155,7 @@ function SelectionScores({
             )}
           </>
         )}
-      </Paper>
+      </Section>
     </Stack>
   )
 }

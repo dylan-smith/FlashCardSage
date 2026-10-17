@@ -1,10 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
@@ -24,10 +22,9 @@ import {
   formatWords,
   listFlashCards,
 } from '../api/flashCards'
-import { ApiError, describeFetchError } from '../api/client'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { listTags } from '../api/tags'
-import { trackEvent, trackException } from '../telemetry'
+import { trackEvent } from '../telemetry'
 import { showToast } from '../toasts'
 import { CardActionButton } from '../components/cards/CardActionButton'
 import { CardPicker } from '../components/cards/CardPicker'
@@ -38,9 +35,24 @@ import { cardCount } from '../lib/cardCount'
 import { FlashCardEditForm } from '../components/cards/FlashCardForm'
 import { RenameForm } from '../components/cards/FlashCardTags'
 import { useCardEditor, withNewTags } from '../hooks/useCardEditor'
+import { useAction } from '../hooks/useAction'
+import { useConfirm } from '../hooks/useConfirm'
+import { useLoad } from '../hooks/useLoad'
+import { EmptyText } from '../components/common/EmptyText'
+import { Loading } from '../components/common/Loading'
+import { Section } from '../components/common/Section'
+import { TabPanel } from '../components/common/TabPanel'
 
 // The deck's own cards, or the user's other cards to add to it.
 type DeckTab = 'deck' | 'add'
+
+// What the page loads.
+type DeckPageData = {
+  deck: Deck | null
+  cards: FlashCard[]
+  tags: Tag[]
+  tab: DeckTab
+}
 
 // The toast for the last change to the deck's cards, so a new one replaces it.
 const deckToast = 'deck-cards'
@@ -51,93 +63,78 @@ const deckToast = 'deck-cards'
 function DeckPage() {
   const { id } = useParams()
   const navigate = useNavigate()
-  // Undefined while loading, and null when the user has no such deck.
-  const [deck, setDeck] = useState<Deck | null | undefined>(undefined)
-  const [cards, setCards] = useState<FlashCard[]>([])
-  // The user's tags, which the edit form offers.
-  const [tags, setTags] = useState<Tag[]>([])
-  const [loadFailed, setLoadFailed] = useState(false)
+  // The deck (null when the user has no such deck), the user's cards, their tags, which the edit form offers, and the
+  // tab that's showing. Undefined while loading.
+  const page = useLoad(
+    async (): Promise<DeckPageData> => {
+      const deckId = Number(id)
+      const [deck, cards, tags] = await Promise.all([
+        Number.isInteger(deckId) ? getDeck(deckId) : Promise.resolve(null),
+        listFlashCards(),
+        listTags(),
+      ])
+      // A new deck has nothing to show yet, so it opens on adding cards. It's only picked here, so adding the first
+      // cards doesn't switch tabs.
+      return {
+        deck,
+        cards,
+        tags,
+        tab: deck?.flashCardIds.length ? 'deck' : 'add',
+      }
+    },
+    [id],
+    { operation: 'load', fallback: 'Unable to load the deck.' },
+  )
   // The new name being typed, or null when the deck isn't being renamed.
   const [name, setName] = useState<string | null>(null)
-  const [busy, setBusy] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
-  const [tab, setTab] = useState<DeckTab>('deck')
+  const action = useAction(setErrorMessage)
+  const busy = action.busy
   // The card whose Delete was clicked, or the deck itself, while the user is asked whether they mean it.
-  const [confirmingDelete, setConfirmingDelete] = useState<
-    FlashCard | 'deck' | null
-  >(null)
+  const confirm = useConfirm<FlashCard | 'deck'>()
   // The card being edited, which is the same card on every deck and the cards page.
   const editor = useCardEditor({
     setErrorMessage,
     onSaved: (card) => {
-      setCards((current) =>
-        current.map((item) => (item.id === card.id ? card : item)),
-      )
-      setTags((current) => withNewTags(current, card))
+      change((data) => ({
+        cards: data.cards.map((item) => (item.id === card.id ? card : item)),
+        tags: withNewTags(data.tags, card),
+      }))
     },
   })
 
-  useEffect(() => {
-    let cancelled = false
-    const deckId = Number(id)
-    Promise.all([
-      Number.isInteger(deckId) ? getDeck(deckId) : Promise.resolve(null),
-      listFlashCards(),
-      listTags(),
-    ])
-      .then(([loadedDeck, loadedCards, loadedTags]) => {
-        if (!cancelled) {
-          setDeck(loadedDeck)
-          setCards(loadedCards)
-          setTags(loadedTags)
-          // A new deck has nothing to show yet, so it opens on adding cards. It's only picked here, so adding the
-          // first cards doesn't switch tabs.
-          setTab(loadedDeck?.flashCardIds.length ? 'deck' : 'add')
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'load' })
-          setLoadFailed(true)
-          setErrorMessage(describeFetchError(error, 'Unable to load the deck.'))
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [id])
-
-  if (loadFailed) {
-    return <Alert severity="error">{errorMessage}</Alert>
+  // Changes what was loaded.
+  function change(update: (data: DeckPageData) => Partial<DeckPageData>) {
+    page.setData((data) => data && { ...data, ...update(data) })
   }
 
-  if (deck === undefined) {
-    return (
-      <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-        <CircularProgress aria-label="Loading" />
-      </Box>
-    )
+  if (page.failed) {
+    return <Alert severity="error">{page.error}</Alert>
   }
 
-  if (deck === null) {
+  if (page.data === undefined) {
+    return <Loading />
+  }
+
+  if (page.data.deck === null) {
     return (
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
+      <Section>
         <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
           <Typography variant="h5" component="h2">
             Deck not found
           </Typography>
-          <Typography color="text.secondary">
+          <EmptyText>
             This deck doesn&apos;t exist, or it was deleted.
-          </Typography>
+          </EmptyText>
           <Button component={Link} to="/decks" variant="contained">
             Go to decks
           </Button>
         </Stack>
-      </Paper>
+      </Section>
     )
   }
 
-  const current = deck
+  const { deck: current, cards, tags, tab } = page.data
   const inDeck = new Set(current.flashCardIds)
   const deckCards = cards.filter((card) => inDeck.has(card.id))
   const otherCards = cards.filter((card) => !inDeck.has(card.id))
@@ -150,99 +147,94 @@ function DeckPage() {
       return
     }
 
-    setBusy(true)
-    setErrorMessage('')
-    try {
-      setDeck(await renameDeck(current.id, trimmed))
-      trackEvent('DeckRenamed')
-      setName(null)
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'rename' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to rename deck.'))
-    } finally {
-      setBusy(false)
-    }
+    await action.run(
+      { operation: 'rename', fallback: 'Unable to rename deck.' },
+      async () => {
+        const deck = await renameDeck(current.id, trimmed)
+        change(() => ({ deck }))
+        trackEvent('DeckRenamed')
+        setName(null)
+      },
+    )
   }
 
-  async function handleChange(add: number[], remove: number[]) {
-    setBusy(true)
-    setErrorMessage('')
-    try {
-      setDeck(await changeDeckCards(current.id, { add, remove }))
-      trackEvent(add.length > 0 ? 'DeckCardsAdded' : 'DeckCardsRemoved')
-      showToast({
-        key: deckToast,
-        severity: 'success',
-        message:
-          add.length > 0
-            ? `Added ${cardCount(add.length)} to the deck.`
-            : `Removed ${cardCount(remove.length)} from the deck.`,
-      })
-      return true
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'changeCards' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to change the deck.'))
-      return false
-    } finally {
-      setBusy(false)
-    }
+  function handleChange(add: number[], remove: number[]) {
+    return action.run(
+      { operation: 'changeCards', fallback: 'Unable to change the deck.' },
+      async () => {
+        const deck = await changeDeckCards(current.id, { add, remove })
+        change(() => ({ deck }))
+        trackEvent(add.length > 0 ? 'DeckCardsAdded' : 'DeckCardsRemoved')
+        showToast({
+          key: deckToast,
+          severity: 'success',
+          message:
+            add.length > 0
+              ? `Added ${cardCount(add.length)} to the deck.`
+              : `Removed ${cardCount(remove.length)} from the deck.`,
+        })
+      },
+    )
   }
 
   // Deletes the cards themselves, not just from this deck, so they're gone from every deck and the cards page too.
   async function handleDeleteCards(ids: number[]) {
-    setBusy(true)
-    setErrorMessage('')
-    try {
-      await deleteFlashCards(ids)
-      trackEvent('FlashCardsDeleted')
-      const deleted = new Set(ids)
-      setCards((loaded) => loaded.filter((card) => !deleted.has(card.id)))
-      if (editor.edit !== null && deleted.has(editor.edit.id)) {
-        editor.cancel()
-      }
-      setDeck({
-        ...current,
-        flashCardIds: current.flashCardIds.filter(
-          (cardId) => !deleted.has(cardId),
-        ),
-      })
-      showToast({
-        key: deckToast,
-        severity: 'success',
-        message: `Deleted ${cardCount(ids.length)}.`,
-      })
-    } catch (error) {
-      trackException(error, { operation: 'deleteCards' })
-      setErrorMessage(
-        describeFetchError(error, 'Unable to delete the flash cards.'),
-      )
-    } finally {
-      setBusy(false)
-    }
+    await action.run(
+      {
+        operation: 'deleteCards',
+        fallback: 'Unable to delete the flash cards.',
+        reportAll: true,
+      },
+      async () => {
+        await deleteFlashCards(ids)
+        trackEvent('FlashCardsDeleted')
+        const deleted = new Set(ids)
+        change((data) => ({
+          cards: data.cards.filter((card) => !deleted.has(card.id)),
+        }))
+        if (editor.edit !== null && deleted.has(editor.edit.id)) {
+          editor.cancel()
+        }
+        change(() => ({
+          deck: {
+            ...current,
+            flashCardIds: current.flashCardIds.filter(
+              (cardId) => !deleted.has(cardId),
+            ),
+          },
+        }))
+        showToast({
+          key: deckToast,
+          severity: 'success',
+          message: `Deleted ${cardCount(ids.length)}.`,
+        })
+      },
+    )
   }
 
+  // Stays busy once the deck's deleted, while the decks page opens.
   async function handleDelete() {
-    setBusy(true)
-    setErrorMessage('')
-    try {
-      await deleteDeck(current.id)
-      trackEvent('DeckDeleted')
-      await navigate('/decks')
-    } catch (error) {
-      trackException(error, { operation: 'delete' })
-      setErrorMessage(describeFetchError(error, 'Unable to delete deck.'))
-      setBusy(false)
-      setConfirmingDelete(null)
+    const deleted = await action.run(
+      {
+        operation: 'delete',
+        fallback: 'Unable to delete deck.',
+        reportAll: true,
+        keepBusy: true,
+      },
+      async () => {
+        await deleteDeck(current.id)
+        trackEvent('DeckDeleted')
+        await navigate('/decks')
+      },
+    )
+    if (!deleted) {
+      confirm.close()
     }
   }
 
   async function handleDeleteCard(card: FlashCard) {
     await handleDeleteCards([card.id])
-    setConfirmingDelete(null)
+    confirm.close()
   }
 
   // The card being edited is in one tab's list or the other, which shows its form in its place.
@@ -290,11 +282,13 @@ function DeckPage() {
           text="Delete"
           label={`Delete "${spanish}"`}
           disabled={busy}
-          onClick={() => setConfirmingDelete(card)}
+          onClick={() => confirm.ask(card)}
         />
       </>
     )
   }
+
+  const confirming = confirm.target
 
   return (
     <Stack spacing={2}>
@@ -303,7 +297,7 @@ function DeckPage() {
           ← All decks
         </Button>
       </Box>
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
+      <Section>
         <Typography
           variant="h4"
           component="h2"
@@ -341,7 +335,7 @@ function DeckPage() {
               size="small"
               color="error"
               disabled={busy}
-              onClick={() => setConfirmingDelete('deck')}
+              onClick={() => confirm.ask('deck')}
             >
               Delete deck
             </Button>
@@ -360,16 +354,16 @@ function DeckPage() {
             onSave={(event) => void handleRename(event)}
           />
         )}
-      </Paper>
+      </Section>
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
       {/* Tabs rather than one list after the other, since a deck's list can be a page of 50 cards long. Both stay
           mounted, so each keeps its search while the other is shown. */}
-      <Paper component="section" elevation={2} sx={{ p: 3, pt: 1 }}>
+      <Section sx={{ pt: 1 }}>
         <Tabs
           value={tab}
-          onChange={(_event, value: DeckTab) => setTab(value)}
+          onChange={(_event, value: DeckTab) => change(() => ({ tab: value }))}
           aria-label="Cards"
           sx={{ mb: 2 }}
         >
@@ -386,12 +380,7 @@ function DeckPage() {
             aria-controls="deck-panel-add"
           />
         </Tabs>
-        <Box
-          role="tabpanel"
-          id="deck-panel-deck"
-          aria-labelledby="deck-tab-deck"
-          hidden={tab !== 'deck'}
-        >
+        <TabPanel group="deck" value="deck" current={tab}>
           <CardPicker
             cards={deckCards}
             emptyMessage="This deck has no cards yet. Add some from the Add cards tab."
@@ -408,13 +397,8 @@ function DeckPage() {
             edit={edit}
             rowActions={rowActions}
           />
-        </Box>
-        <Box
-          role="tabpanel"
-          id="deck-panel-add"
-          aria-labelledby="deck-tab-add"
-          hidden={tab !== 'add'}
-        >
+        </TabPanel>
+        <TabPanel group="deck" value="add" current={tab}>
           <CardPicker
             cards={otherCards}
             emptyMessage={
@@ -428,28 +412,26 @@ function DeckPage() {
             edit={edit}
             rowActions={rowActions}
           />
-        </Box>
-      </Paper>
+        </TabPanel>
+      </Section>
 
-      {confirmingDelete === 'deck' ? (
+      {confirming === 'deck' ? (
         <ConfirmDelete
-          open
+          {...confirm.dialogProps}
           title={`Delete deck "${current.name}"?`}
           busy={busy}
-          onCancel={() => setConfirmingDelete(null)}
           onConfirm={() => void handleDelete()}
         >
           This can&apos;t be undone. Its cards won&apos;t be deleted, and keep
           their scores.
         </ConfirmDelete>
       ) : (
-        confirmingDelete !== null && (
+        confirming !== null && (
           <ConfirmDelete
-            open
-            title={`Delete "${formatWords(confirmingDelete.spanish)}"?`}
+            {...confirm.dialogProps}
+            title={`Delete "${formatWords(confirming.spanish)}"?`}
             busy={busy}
-            onCancel={() => setConfirmingDelete(null)}
-            onConfirm={() => void handleDeleteCard(confirmingDelete)}
+            onConfirm={() => void handleDeleteCard(confirming)}
           >
             {cardDeleteWarning(1)}
           </ConfirmDelete>
