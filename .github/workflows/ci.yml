@@ -383,12 +383,16 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
     # No environment: PR runs use the preview identity, which can only change the preview resource group, and
     # never get the production environment's credentials or secrets.
-    # A deployment still running for the PR finishes before the next one starts (a newer push waiting its turn
-    # replaces an older waiting one), since stopping it partway through migrations would break the database.
-    # Closing the PR does cancel it (preview-cleanup.yml uses the same group), since the database is deleted then.
+    # One preview deploys at a time across every PR: the previews share one App Service plan, and several apps
+    # starting on it at once starve each other's CPU until they miss App Service's startup probe. The others wait
+    # their turn in order (queue: max keeps them all rather than only the newest), and a run for a commit the PR
+    # has moved on from skips once its turn comes (see the next step). A running deployment is never cancelled,
+    # since stopping it partway through migrations would break the database. preview-cleanup.yml queues in the
+    # same group, so a closed PR's preview is deleted only after a deployment still running for it finishes.
     concurrency:
-      group: preview-${{ github.event.pull_request.number }}
+      group: preview-deploy
       cancel-in-progress: false
+      queue: max
     permissions:
       id-token: write
       contents: read

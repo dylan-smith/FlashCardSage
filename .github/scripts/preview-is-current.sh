@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Checks whether this run should still deploy the pull request's preview, and writes current=true or false to
-# $GITHUB_OUTPUT. The deploy lock (the preview-<N> concurrency group) is taken once a run's build jobs finish, so
-# runs don't take it in commit order: an older run whose builds finish late could otherwise deploy over a newer
-# commit, and a run still building when the PR closes could recreate the preview after it's been deleted. Only
-# the run for the PR's current head commit, while the PR is open, deploys.
+# $GITHUB_OUTPUT. The deploy lock (the preview-deploy concurrency group every PR queues in) is taken once a run's
+# build jobs finish, so runs don't take it in commit order: an older run whose builds finish late could otherwise
+# deploy over a newer commit, and a run still waiting when the PR closes could recreate the preview after it's
+# been deleted. Only the run for the PR's current head commit, while the PR is open, deploys.
 # Requires PR_NUMBER, HEAD_SHA (the commit this run is for), GITHUB_REPOSITORY and GH_TOKEN.
 set -euo pipefail
 
