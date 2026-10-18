@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type SubmitEvent } from 'react'
+import { useRef, useState, type SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
@@ -10,44 +10,30 @@ import Typography from '@mui/material/Typography'
 import { googleClientId, testSignInEnabled } from '../config'
 import { loadGoogleIdentity, sessionFromGoogleCredential } from './google'
 import { setSession } from './session'
+import { useLoad } from '../hooks/useLoad'
 
 function GoogleSignIn() {
   const buttonRef = useRef<HTMLDivElement>(null)
-  const [error, setError] = useState<string | null>(null)
-
-  useEffect(() => {
-    let cancelled = false
-    loadGoogleIdentity()
-      .then((google) => {
-        if (cancelled || buttonRef.current === null) {
-          return
-        }
-        google.initialize({
-          client_id: googleClientId,
-          callback: ({ credential }) =>
-            setSession(sessionFromGoogleCredential(credential)),
-          // Signs a returning user straight back in, for example when their sign-in expires mid-session.
-          auto_select: true,
-          use_fedcm_for_prompt: true,
-        })
-        google.renderButton(buttonRef.current, {
-          theme: 'outline',
-          size: 'large',
-          text: 'signin_with',
-          shape: 'pill',
-        })
-        google.prompt()
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setError(
-            "Google sign-in couldn't load. Check your connection and reload the page.",
-          )
-        }
-      })
-    return () => {
-      cancelled = true
+  const { failed } = useLoad(async (signal) => {
+    const google = await loadGoogleIdentity()
+    if (signal.aborted || buttonRef.current === null) {
+      return
     }
+    google.initialize({
+      client_id: googleClientId,
+      callback: ({ credential }) =>
+        setSession(sessionFromGoogleCredential(credential)),
+      // Signs a returning user straight back in, for example when their sign-in expires mid-session.
+      auto_select: true,
+      use_fedcm_for_prompt: true,
+    })
+    google.renderButton(buttonRef.current, {
+      theme: 'outline',
+      size: 'large',
+      text: 'signin_with',
+      shape: 'pill',
+    })
+    google.prompt()
   }, [])
 
   return (
@@ -56,9 +42,10 @@ function GoogleSignIn() {
         ref={buttonRef}
         sx={{ display: 'flex', justifyContent: 'center', minHeight: 44 }}
       />
-      {error && (
+      {failed && (
         <Alert severity="error" sx={{ mt: 2 }}>
-          {error}
+          Google sign-in couldn&apos;t load. Check your connection and reload
+          the page.
         </Alert>
       )}
     </Box>

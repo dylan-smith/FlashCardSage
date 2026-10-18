@@ -1,4 +1,5 @@
-import { useSyncExternalStore } from 'react'
+import { storageKeys } from '../lib/storageKeys'
+import { createStore } from '../lib/store'
 import { googleSubject } from './google'
 
 // The signed-in user. token is sent to the API as a bearer token: a Google ID token, a "test:<name>" token where
@@ -11,19 +12,11 @@ export type Session = {
   provider: 'google' | 'test' | 'service'
 }
 
-// Kept in localStorage so a sign-in lasts across reloads and tabs. The E2E, smoke and load tests write it
-// directly to start signed in.
-export const sessionStorageKey = 'flashcardsage.session'
-
-type Listener = () => void
-
-const listeners = new Set<Listener>()
-
-let current: Session | null = readStoredSession()
+const store = createStore<Session | null>(readStoredSession())
 
 function readStoredSession(): Session | null {
   try {
-    const stored = localStorage.getItem(sessionStorageKey)
+    const stored = localStorage.getItem(storageKeys.session)
     if (stored === null) {
       return null
     }
@@ -36,33 +29,25 @@ function readStoredSession(): Session | null {
   }
 }
 
-export function getSession() {
-  return current
-}
+export const getSession = store.get
 
 export function setSession(session: Session | null) {
-  if (session === current) {
+  if (session === store.get()) {
     return
   }
-  current = session
   try {
     if (session === null) {
-      localStorage.removeItem(sessionStorageKey)
+      localStorage.removeItem(storageKeys.session)
     } else {
-      localStorage.setItem(sessionStorageKey, JSON.stringify(session))
+      localStorage.setItem(storageKeys.session, JSON.stringify(session))
     }
   } catch {
     // Storage can be unavailable, for example in a private window. The sign-in still lasts until the page reloads.
   }
-  listeners.forEach((listener) => listener())
+  store.set(session)
 }
 
-export function subscribeSession(listener: Listener) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
+export const subscribeSession = store.subscribe
 
 // The identity the API files the user's data under (see the API's authentication handlers), so what the app
 // keeps on the device is kept apart per user too. Test sign-in lowercases the name like the API does.
@@ -80,13 +65,12 @@ export function sessionSubject(session: Session): string {
 // Signing in or out in another tab applies here too.
 if (typeof window !== 'undefined') {
   window.addEventListener('storage', (event) => {
-    if (event.key === sessionStorageKey) {
-      current = readStoredSession()
-      listeners.forEach((listener) => listener())
+    if (event.key === storageKeys.session) {
+      store.set(readStoredSession())
     }
   })
 }
 
 export function useSession() {
-  return useSyncExternalStore(subscribeSession, getSession)
+  return store.use()
 }

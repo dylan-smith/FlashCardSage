@@ -1,6 +1,13 @@
 import { apiBaseUrl } from '../config'
-import { refreshCounts } from '../hooks/useCounts'
-import { apiFetch } from './client'
+import { refreshCounts } from '../state/counts'
+import {
+  deleteGone,
+  fetchOk,
+  getJson,
+  jsonRequest,
+  sendJson,
+  withQuery,
+} from './client'
 
 // A name the user puts on cards to organize them, such as Food or Travel.
 export type Tag = {
@@ -18,6 +25,9 @@ export type FlashCardWords = {
 
 // The most words a side of a card can have, the same as the API's limit.
 export const maxWordsPerSide = 10
+
+// The most a word can be, the same as the API's limit.
+export const maxWordLength = 200
 
 // A side's words as one line, the way a card shows them, such as "solo / únicamente".
 export function formatWords(words: string[]) {
@@ -38,50 +48,10 @@ export type FlashCardFields = {
   tags: string[]
 }
 
-// The body of a 400 from the API, with the messages for each invalid field.
-type ValidationErrorResponse = {
-  errors?: Record<string, string[]>
-}
+export const flashCardsUrl = `${apiBaseUrl}/api/flashcards`
 
-// The body of another error from the API, such as a 409 for a card the user already has.
-type ProblemResponse = {
-  detail?: string
-}
-
-const duplicateMessage =
-  'You already have a flash card with this Spanish or English.'
-
-// Thrown for a response the caller should show to the user as is, such as a 400 for a blank translation.
-export class ApiError extends Error {
-  readonly status: number
-
-  constructor(status: number, message: string) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-  }
-}
-
-// fetch rejects with a TypeError when the API can't be reached at all, including while a deployment has
-// it paused (see the deploy-backend job in ci.yml), so tell the user to retry rather than show a generic error.
-export const unreachableMessage =
-  "Can't reach FlashCardSage right now. It may be updating, so try again in a minute."
-
-export function describeFetchError(error: unknown, fallback: string) {
-  if (error instanceof TypeError) {
-    return unreachableMessage
-  }
-  return error instanceof ApiError ? error.message : fallback
-}
-
-const flashCardsUrl = `${apiBaseUrl}/api/flashcards`
-
-export async function listFlashCards(): Promise<FlashCard[]> {
-  const response = await apiFetch(flashCardsUrl)
-  if (!response.ok) {
-    throw new Error('Unable to load flash cards.')
-  }
-  return (await response.json()) as FlashCard[]
+export function listFlashCards() {
+  return getJson<FlashCard[]>(flashCardsUrl, 'Unable to load flash cards.')
 }
 
 async function saveFlashCard(
@@ -89,35 +59,15 @@ async function saveFlashCard(
   method: 'POST' | 'PUT',
   fields: FlashCardFields,
 ) {
-  const response = await apiFetch(url, {
+  const card = await sendJson<FlashCard>(
     method,
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify(fields),
-  })
-
-  await throwIfNotSaved(response, 'Unable to save flash card.')
+    url,
+    fields,
+    'Unable to save flash card.',
+  )
   // A new card, or a new name on a card, adds to the counts.
   refreshCounts()
-  return (await response.json()) as FlashCard
-}
-
-// Throws for a save that didn't go through. A 400 says what's wrong with what was sent, so that's passed on.
-export async function throwIfNotSaved(response: Response, fallback: string) {
-  if (response.status === 400) {
-    const error = (await response.json()) as ValidationErrorResponse
-    const message = Object.values(error.errors ?? {}).flat()[0]
-    throw new ApiError(400, message ?? fallback)
-  }
-  // A 409 means the user already has this card.
-  if (response.status === 409) {
-    const problem = (await response.json()) as ProblemResponse
-    throw new ApiError(409, problem.detail ?? duplicateMessage)
-  }
-  if (!response.ok) {
-    throw new Error(fallback)
-  }
+  return card
 }
 
 export function createFlashCard(fields: FlashCardFields) {
@@ -136,44 +86,27 @@ export type FlashCardBatch = {
 }
 
 // Adds the cards, such as the ones scanned from a document, in one request.
-export async function createFlashCards(
-  cards: FlashCardFields[],
-): Promise<FlashCardBatch> {
-  const response = await apiFetch(`${flashCardsUrl}/batch`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ cards }),
-  })
-
-  await throwIfNotSaved(response, 'Unable to add the cards.')
-  return (await response.json()) as FlashCardBatch
+export function createFlashCards(cards: FlashCardFields[]) {
+  return sendJson<FlashCardBatch>(
+    'POST',
+    `${flashCardsUrl}/batch`,
+    { cards },
+    'Unable to add the cards.',
+  )
 }
 
-// A 404 means the card is already gone, which is what the caller wanted.
 export async function deleteFlashCard(id: number) {
-  const response = await apiFetch(`${flashCardsUrl}/${id}`, {
-    method: 'DELETE',
-  })
-  if (!response.ok && response.status !== 404) {
-    throw new Error('Unable to delete flash card.')
-  }
+  await deleteGone(`${flashCardsUrl}/${id}`, 'Unable to delete flash card.')
   refreshCounts()
 }
 
 // Deletes many cards at once. The API skips any that are already gone, which is what the caller wanted.
 export async function deleteFlashCards(ids: number[]) {
-  const response = await apiFetch(`${flashCardsUrl}/delete`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ flashCardIds: ids }),
-  })
-  if (!response.ok) {
-    throw new Error('Unable to delete the flash cards.')
-  }
+  await fetchOk(
+    `${flashCardsUrl}/delete`,
+    'Unable to delete the flash cards.',
+    jsonRequest('POST', { flashCardIds: ids }),
+  )
   refreshCounts()
 }
 
@@ -193,29 +126,19 @@ export type PracticeCard = FlashCardWords & {
 // Which cards to practice or score: a deck's, a tag's, or all of them when it's empty.
 export type PracticeSelection = { deckId?: number; tagId?: number }
 
-// The selection as a query string, starting with ? unless it's empty.
-function practiceQuery({ deckId, tagId }: PracticeSelection) {
-  const params = new URLSearchParams()
-  if (deckId !== undefined) {
-    params.set('deckId', String(deckId))
-  }
-  if (tagId !== undefined) {
-    params.set('tagId', String(tagId))
-  }
-  const query = params.toString()
-  return query ? `?${query}` : ''
+// The URL for the selection's cards.
+function practiceUrl(path: string, { deckId, tagId }: PracticeSelection) {
+  return withQuery(`${flashCardsUrl}/${path}`, { deckId, tagId })
 }
 
 // The card to start practicing with, or null when there are no cards in the selection.
 export async function getNextPracticeCard(
   selection: PracticeSelection = {},
 ): Promise<PracticeCard | null> {
-  const response = await apiFetch(
-    `${flashCardsUrl}/practice/next${practiceQuery(selection)}`,
+  const response = await fetchOk(
+    practiceUrl('practice/next', selection),
+    'Unable to load flash cards.',
   )
-  if (!response.ok) {
-    throw new Error('Unable to load flash cards.')
-  }
   return response.status === 204
     ? null
     : ((await response.json()) as PracticeCard)
@@ -229,23 +152,16 @@ export type PracticeResult = {
 }
 
 // Records the answer, and picks the next card from the same selection.
-export async function recordPracticeResult(
+export function recordPracticeResult(
   id: number,
   outcome: PracticeOutcome,
   selection: PracticeSelection = {},
-): Promise<PracticeResult> {
-  const url = `${flashCardsUrl}/${id}/practice-results${practiceQuery(selection)}`
-  const response = await apiFetch(url, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ outcome }),
-  })
-  if (!response.ok) {
-    throw new Error('Unable to save your answer.')
-  }
-  return (await response.json()) as PracticeResult
+) {
+  return getJson<PracticeResult>(
+    practiceUrl(`${id}/practice-results`, selection),
+    'Unable to save your answer.',
+    jsonRequest('POST', { outcome }),
+  )
 }
 
 // A card's score out of 100, from how many times in a row it was last answered with Got it! in practice.
@@ -260,14 +176,9 @@ export type FlashCardScores = {
   cards: FlashCardScore[]
 }
 
-export async function listFlashCardScores(
-  selection: PracticeSelection = {},
-): Promise<FlashCardScores> {
-  const response = await apiFetch(
-    `${flashCardsUrl}/scores${practiceQuery(selection)}`,
+export function listFlashCardScores(selection: PracticeSelection = {}) {
+  return getJson<FlashCardScores>(
+    practiceUrl('scores', selection),
+    'Unable to load scores.',
   )
-  if (!response.ok) {
-    throw new Error('Unable to load scores.')
-  }
-  return (await response.json()) as FlashCardScores
 }
