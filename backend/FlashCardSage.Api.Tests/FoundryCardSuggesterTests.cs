@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
+using FlashCardSage.Api.Suggestions.Foundry;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Tests;
@@ -155,14 +156,14 @@ public class FoundryCardSuggesterTests
     {
         using var httpClient = new HttpClient();
         var suggester = new FoundryCardSuggester(
-            httpClient, Options.Create(new CardSuggesterOptions { Endpoint = endpoint, Key = key }));
+            httpClient, Options.Create(new FoundryChatOptions { Endpoint = endpoint, Key = key }));
 
         Assert.Equal(expected, suggester.IsAvailable);
     }
 
     private static FoundryCardSuggester CreateSuggester(HttpClient httpClient)
     {
-        var options = new CardSuggesterOptions
+        var options = new FoundryChatOptions
         {
             Endpoint = "https://foundry.example/",
             Key = "secret-key",

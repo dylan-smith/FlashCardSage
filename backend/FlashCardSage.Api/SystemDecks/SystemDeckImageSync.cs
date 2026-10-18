@@ -27,12 +27,14 @@ public static class SystemDeckImageSync
         CurrentUser currentUser,
         IImageStore imageStore,
         IReadOnlyList<SystemCardImage> images,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(currentUser);
         ArgumentNullException.ThrowIfNull(imageStore);
         ArgumentNullException.ThrowIfNull(images);
+        ArgumentNullException.ThrowIfNull(logger);
 
         if (images.Count == 0)
         {
@@ -79,10 +81,7 @@ public static class SystemDeckImageSync
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Only once the cards point at their new pictures, so a card never points at one that's gone.
-        foreach (var url in replaced)
-        {
-            await imageStore.DeleteAsync(url, cancellationToken);
-        }
+        await imageStore.TryDeleteAllAsync(replaced, logger, cancellationToken);
 
         return updated;
     }
@@ -109,6 +108,7 @@ public sealed class SystemDeckImageSyncService(
                 scope.ServiceProvider.GetRequiredService<CurrentUser>(),
                 scope.ServiceProvider.GetRequiredService<IImageStore>(),
                 SystemDeckImages.Load(SystemDeckImages.Directory),
+                logger,
                 stoppingToken);
             logger.LogInformation("Gave {Count} built-in cards their pictures", updated);
         }

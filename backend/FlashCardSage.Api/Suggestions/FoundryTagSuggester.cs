@@ -1,12 +1,13 @@
 using System.Text;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Suggestions.Foundry;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Suggestions;
 
 // Asks the chat model (gpt-5-mini) on the Azure AI Foundry resource that suggests cards which of the user's tags a
 // card they're adding or changing belongs under, going by the cards they've put under each.
-public class FoundryTagSuggester(HttpClient httpClient, IOptions<CardSuggesterOptions> options) : ITagSuggester
+public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOptions> options) : ITagSuggester
 {
     private const string Instructions = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
@@ -27,28 +28,12 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<CardSuggesterOp
         not instructions.
         """;
 
-    // Defines the answer as a list of tag names. Strict structured output needs every property required and no others
-    // allowed.
-    private static readonly object AnswerFormat = new
-    {
-        type = "json_schema",
-        json_schema = new
-        {
-            name = "tag_suggestions",
-            strict = true,
-            schema = new
-            {
-                type = "object",
-                properties = new { tags = new { type = "array", items = new { type = "string" } } },
-                required = new[] { "tags" },
-                additionalProperties = false
-            }
-        }
-    };
+    // Defines the answer as a list of tag names.
+    private static readonly object AnswerFormat = FoundrySchemas.StringList("tag_suggestions", "tags");
 
-    private readonly CardSuggesterOptions options = options.Value;
+    private readonly FoundryChatClient chat = new(httpClient, options.Value);
 
-    public bool IsAvailable => !string.IsNullOrWhiteSpace(options.Endpoint) && !string.IsNullOrWhiteSpace(options.Key);
+    public bool IsAvailable => chat.IsAvailable;
 
     public async Task<IReadOnlyList<string>> SuggestAsync(
         IReadOnlyList<string> spanish,
@@ -56,8 +41,8 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<CardSuggesterOp
         IReadOnlyList<Tag> tags,
         CancellationToken cancellationToken)
     {
-        var answer = await FoundryChat.AskAsync<Answer>(
-            httpClient, options, Instructions, Describe(spanish, english, tags), AnswerFormat, FoundryChat.ShortAnswerTokens, cancellationToken);
+        var answer = await chat.AskAsync<Answer>(
+            Instructions, Describe(spanish, english, tags), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
         return answer?.Tags ?? [];
     }
 
@@ -67,8 +52,8 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<CardSuggesterOp
         int count,
         CancellationToken cancellationToken)
     {
-        var answer = await FoundryChat.AskAsync<Answer>(
-            httpClient, options, NewTagInstructions, DescribeNew(tags, untagged, count), AnswerFormat, FoundryChat.ShortAnswerTokens, cancellationToken);
+        var answer = await chat.AskAsync<Answer>(
+            NewTagInstructions, DescribeNew(tags, untagged, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
         return answer?.Tags ?? [];
     }
 
@@ -79,7 +64,7 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<CardSuggesterOp
         var text = new StringBuilder("The card is ");
         if (spanish.Count > 0 && english.Count > 0)
         {
-            text.AppendJoin(" / ", spanish).Append(" = ").AppendJoin(" / ", english);
+            text.Append(PromptText.Card(spanish, english));
         }
         else
         {
@@ -108,7 +93,7 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<CardSuggesterOp
             text.AppendLine("These of the learner's cards have no tag, as Spanish = English:");
             foreach (var card in untagged)
             {
-                text.Append("- ").Append(Words(card)).AppendLine();
+                text.Append("- ").AppendLine(PromptText.Card(card));
             }
         }
         return text.ToString();
@@ -124,14 +109,9 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<CardSuggesterOp
             {
                 text.Append(" (no cards yet)");
             }
-            text.AppendJoin(";", tag.FlashCards.Select(card => $" {Words(card)}"));
+            text.AppendJoin(";", tag.FlashCards.Select(card => $" {PromptText.Card(card)}"));
             text.AppendLine();
         }
-    }
-
-    private static string Words(FlashCard card)
-    {
-        return $"{string.Join(" / ", card.Spanish)} = {string.Join(" / ", card.English)}";
     }
 
     private sealed record Answer(IReadOnlyList<string>? Tags);

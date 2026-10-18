@@ -236,12 +236,9 @@ public class SystemDecksController(
         }
     }
 
-    private async Task DeleteCopiedPicturesAsync(IEnumerable<FlashCard> copies)
+    private Task DeleteCopiedPicturesAsync(IEnumerable<FlashCard> copies)
     {
-        foreach (var url in copies.Select(card => card.ImageUrl).OfType<string>())
-        {
-            await imageStore.TryDeleteAsync(url, logger, CancellationToken.None);
-        }
+        return imageStore.TryDeleteAllAsync(copies.Select(card => card.ImageUrl), logger, CancellationToken.None);
     }
 
     // The system user's decks, with their cards and the cards' words and tags.
