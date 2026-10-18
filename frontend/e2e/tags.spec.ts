@@ -1,50 +1,19 @@
 import type { Page } from '@playwright/test'
-import { test, expect } from './fixtures'
-
-// The backend started by playwright.config.ts.
-const apiUrl = 'http://localhost:5269/api'
-
-// Adds a flash card with these tags from the form and waits for it to appear in the list.
-async function createFlashCard(
-  page: Page,
-  spanish: string,
-  english: string,
-  tags: string[],
-) {
-  await page.getByLabel('Spanish').fill(spanish)
-  await page.getByLabel('English').fill(english)
-  const tagsInput = page.getByRole('combobox', { name: 'Tags' })
-  for (const tag of tags) {
-    await tagsInput.fill(tag)
-    await tagsInput.press('Enter')
-  }
-  await page.getByRole('button', { name: 'Add flash card' }).click()
-  await expect(
-    page.getByRole('listitem').filter({ hasText: spanish }),
-  ).toBeVisible()
-}
+import { test, expect, addCard, confirmDelete, openSection } from './fixtures'
 
 test.describe('Tags', () => {
-  test.beforeEach(async ({ page, request }) => {
-    // Start with no cards or tags, deleted through the API like flashcards.spec.ts does.
-    for (const resource of ['flashcards', 'tags']) {
-      const response = await request.get(`${apiUrl}/${resource}`)
-      expect(response.ok()).toBe(true)
-      for (const { id } of (await response.json()) as { id: number }[]) {
-        expect((await request.delete(`${apiUrl}/${resource}/${id}`)).ok()).toBe(
-          true,
-        )
-      }
-    }
+  test.beforeEach(async ({ page, api }) => {
+    // Start with no cards or tags.
+    await api.reset('flashcards', 'tags')
 
     await page.goto('/')
     await expect(page.getByText('No flash cards yet.')).toBeVisible()
   })
 
   test('tags cards and shows only the picked tag', async ({ page }) => {
-    await createFlashCard(page, 'lunes', 'Monday', ['Weekdays'])
-    await createFlashCard(page, 'enero', 'January', ['Months'])
-    await createFlashCard(page, 'martes', 'Tuesday', ['weekdays'])
+    await addCard(page, 'lunes', 'Monday', ['Weekdays'])
+    await addCard(page, 'enero', 'January', ['Months'])
+    await addCard(page, 'martes', 'Tuesday', ['weekdays'])
 
     const filter = page.getByRole('group', { name: 'Show cards tagged' })
     await expect(filter.getByRole('button')).toHaveText([
@@ -69,13 +38,10 @@ test.describe('Tags', () => {
     await expect(items).toHaveCount(3)
   })
 
-  test('suggests a tag for a new card', async ({ page, request }) => {
-    await createFlashCard(page, 'lunes', 'Monday', ['Weekdays'])
+  test('suggests a tag for a new card', async ({ page, api }) => {
+    await addCard(page, 'lunes', 'Monday', ['Weekdays'])
     // The E2E backend has no Foundry endpoint or key, so stand in for the model, picking the user's tag.
-    const tags = (await (await request.get(`${apiUrl}/tags`)).json()) as {
-      id: number
-      name: string
-    }[]
+    const tags = await api.list<{ id: number; name: string }>('tags')
     await page.route('**/api/tag-suggestions', async (route) => {
       await route.fulfill({ json: tags })
     })
@@ -96,7 +62,7 @@ test.describe('Tags', () => {
   })
 
   test("changes a card's tags", async ({ page }) => {
-    await createFlashCard(page, 'la manzana', 'the apple', ['Food'])
+    await addCard(page, 'la manzana', 'the apple', ['Food'])
 
     await page.getByRole('button', { name: 'Edit "la manzana"' }).click()
     const item = page.getByRole('listitem')
@@ -114,10 +80,7 @@ test.describe('Tags', () => {
 
   // Tags are renamed and deleted on the Tags page, under Manage cards.
   async function goToTags(page: Page) {
-    await page
-      .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: 'Tags' })
-      .click()
+    await openSection(page, 'Tags')
     await expect(
       page.getByRole('heading', { name: 'Tags', exact: true }),
     ).toBeVisible()
@@ -156,7 +119,7 @@ test.describe('Tags', () => {
   })
 
   test('renames a tag', async ({ page }) => {
-    await createFlashCard(page, 'el tren', 'the train', ['Travl'])
+    await addCard(page, 'el tren', 'the train', ['Travl'])
     await goToTags(page)
 
     await page.getByRole('button', { name: 'Rename tag "Travl"' }).click()
@@ -175,27 +138,21 @@ test.describe('Tags', () => {
   })
 
   test('deletes a tag but keeps its cards', async ({ page }) => {
-    await createFlashCard(page, 'el pan', 'the bread', ['Food'])
+    await addCard(page, 'el pan', 'the bread', ['Food'])
     await goToTags(page)
 
     await page.getByRole('button', { name: 'Delete tag "Food"' }).click()
-    await page
-      .getByRole('dialog', { name: 'Delete tag "Food"?' })
-      .getByRole('button', { name: 'Delete' })
-      .click()
+    await confirmDelete(page, 'Delete tag "Food"?')
 
     await expect(page.getByRole('link', { name: 'Food' })).toBeHidden()
-    await page
-      .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: /^Cards( \d+)?$/ })
-      .click()
+    await openSection(page, /^Cards( \d+)?$/)
     await expect(page.getByText('el pan', { exact: true })).toBeVisible()
     await expect(page.getByText('Food', { exact: true })).toBeHidden()
   })
 
   test('replaces a deleted tag with another', async ({ page }) => {
-    await createFlashCard(page, 'el gato', 'the cat', ['Animal'])
-    await createFlashCard(page, 'el perro', 'the dog', ['Animals'])
+    await addCard(page, 'el gato', 'the cat', ['Animal'])
+    await addCard(page, 'el perro', 'the dog', ['Animals'])
     await goToTags(page)
 
     await page.getByRole('button', { name: 'Delete tag "Animal"' }).click()

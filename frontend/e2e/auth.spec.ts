@@ -1,5 +1,9 @@
-import AxeBuilder from '@axe-core/playwright'
-import { test, expect, sessionStorageEntry } from './fixtures'
+import {
+  test,
+  expect,
+  expectNoA11yViolations,
+  signedInStorage,
+} from './fixtures'
 
 // These start signed out, unlike the other specs.
 test.use({ storageState: { cookies: [], origins: [] } })
@@ -14,8 +18,7 @@ test('shows the sign-in page until the user signs in', async ({ page }) => {
     page.getByRole('button', { name: 'Add flash card' }),
   ).toBeHidden()
 
-  const results = await new AxeBuilder({ page }).analyze()
-  expect(results.violations).toEqual([])
+  await expectNoA11yViolations(page)
 })
 
 test('signs in as a test user, keeps the sign-in after a reload, and signs out', async ({
@@ -43,15 +46,7 @@ test('each user only sees their own flash cards', async ({ browser }) => {
   const stamp = Date.now()
   const signedInPage = async (name: string) => {
     const context = await browser.newContext({
-      storageState: {
-        cookies: [],
-        origins: [
-          {
-            origin: 'http://localhost:4173',
-            localStorage: [sessionStorageEntry(name)],
-          },
-        ],
-      },
+      storageState: signedInStorage(name),
     })
     return { context, page: await context.newPage() }
   }

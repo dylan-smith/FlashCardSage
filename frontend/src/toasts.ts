@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react'
+import { createStore } from './lib/store'
 
 // A short notice that slides in from the top of the page and goes again by itself, such as what was just added. Errors
 // aren't toasts: they stay on the page until the user deals with them.
@@ -22,39 +23,26 @@ export const toastWithActionMs = 10000
 // Enough to see what just happened without covering the page.
 const maxToasts = 3
 
-const listeners = new Set<() => void>()
-let toasts: ShownToast[] = []
+const store = createStore<ShownToast[]>([])
 let nextId = 1
-
-function update(next: ShownToast[]) {
-  toasts = next
-  listeners.forEach((listener) => listener())
-}
 
 export function showToast(toast: Toast) {
   const shown = { ...toast, id: nextId++ }
-  update(
-    [...toasts.filter((item) => item.key !== toast.key), shown].slice(
+  store.set(
+    [...store.get().filter((item) => item.key !== toast.key), shown].slice(
       -maxToasts,
     ),
   )
 }
 
 export function dismissToast(id: number) {
-  update(toasts.filter((item) => item.id !== id))
+  store.set(store.get().filter((item) => item.id !== id))
 }
 
 export function clearToasts() {
-  update([])
+  store.set([])
 }
 
-export function getToasts() {
-  return toasts
-}
+export const getToasts = store.get
 
-export function subscribeToasts(listener: () => void) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
+export const subscribeToasts = store.subscribe

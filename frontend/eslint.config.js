@@ -49,10 +49,10 @@ export default defineConfig([
     files: ['e2e/**/*.ts'],
     extends: [playwright.configs['flat/recommended']],
     rules: {
-      // Helpers in flashcards.spec.ts that assert what they did.
+      // Helpers in e2e/fixtures.ts that assert what they did.
       'playwright/expect-expect': [
         'error',
-        { assertFunctionNames: ['createFlashCard'] },
+        { assertFunctionNames: ['addCard', 'expectNoA11yViolations'] },
       ],
     },
   },
