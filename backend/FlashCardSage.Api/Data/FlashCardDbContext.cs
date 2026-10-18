@@ -10,7 +10,7 @@ namespace FlashCardSage.Api.Data;
 /// user when they're saved, so the controllers never handle the owner themselves. Tags and decks work the same way.
 /// Practice results and a card's words are filtered through their card, so they're only the current user's too, and
 /// a card's tags are only reached through the card. A deck only gets cards that were found through the filter. The
-/// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDecksController reads them past
+/// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDeckImporter reads them past
 /// the filter.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
