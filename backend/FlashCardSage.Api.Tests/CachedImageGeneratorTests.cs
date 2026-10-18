@@ -110,6 +110,15 @@ public class CachedImageGeneratorTests
         Assert.Equal(kept.Id, found?.Id);
     }
 
+    // scripts/Seed-PictureCache.ps1 works out the hash the same way, and checks it gets this one.
+    [Fact]
+    public void PromptHash_IsTheSha256OfTheLowercasedPrompt()
+    {
+        Assert.Equal(
+            "06dcb8eb380d7c5d28cf9059d811a2113472cf74c38972efe6ee8212c3234839",
+            CachedImageGenerator.PromptHash("el gato", "The Cat"));
+    }
+
     [Fact]
     public async Task GenerateAsync_KeepsNothing_WhenGeneratingFails()
     {
