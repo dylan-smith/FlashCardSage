@@ -103,6 +103,31 @@ public sealed class LocalFileImageStoreTests : IDisposable
         Assert.Single(Directory.GetFiles(store.Directory));
     }
 
+    [Fact]
+    public async Task LoadAsync_ReadsThePictureBack()
+    {
+        var store = CreateStore("pictures");
+        Directory.CreateDirectory(store.Directory);
+        var url = await store.SaveAsync(SampleImages.Jpeg, "image/jpeg", CancellationToken.None);
+
+        var data = await store.LoadAsync(url, CancellationToken.None);
+
+        Assert.Equal(SampleImages.Jpeg, data?.ToArray());
+    }
+
+    [Theory]
+    [InlineData("http://localhost:5269/card-images/0123456789abcdef0123456789abcdef.png")]
+    [InlineData("http://localhost:5269/card-images/keep.png")]
+    [InlineData("not a url")]
+    public async Task LoadAsync_ReturnsNull_ForAPictureThatIsGoneOrNotItsOwn(string url)
+    {
+        var store = CreateStore("pictures");
+        Directory.CreateDirectory(store.Directory);
+        await File.WriteAllBytesAsync(Path.Join(store.Directory, "keep.png"), SampleImages.Png);
+
+        Assert.Null(await store.LoadAsync(url, CancellationToken.None));
+    }
+
     [Theory]
     [InlineData("http://localhost:5269/card-images/../0123456789abcdef0123456789abcdef.png")]
     [InlineData("http://localhost:5269/card-images/keep.png")]

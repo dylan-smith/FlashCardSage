@@ -8,8 +8,10 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// Makes a picture of what a card means, and puts one on a card or takes it off. A generated picture is only
-/// handed back to the user: it goes on the card when they ask, so one they don't want is never kept.
+/// Makes a picture of what a card means, and puts one on a card or takes it off. A generated picture is handed back
+/// to the user and goes on the card only when they ask. Every one is also kept in a cache every user shares (see
+/// CachedImageGenerator), so asking again for the same words shows the next picture there is of them, and a new one
+/// is only made once the user has seen them all.
 /// </summary>
 /// <remarks>
 /// A card is always looked up first, since that's what limits it to the current user's cards. The words a
@@ -19,7 +21,7 @@ namespace FlashCardSage.Api.Controllers;
 [Route("api/flashcards")]
 public class FlashCardImagesController(
     FlashCardDbContext dbContext,
-    IImageGenerator imageGenerator,
+    CachedImageGenerator imageGenerator,
     IImageStore imageStore,
     ILogger<FlashCardImagesController> logger) : ApiControllerBase
 {
@@ -41,6 +43,11 @@ public class FlashCardImagesController(
             return ValidationProblem(ModelState);
         }
 
+        if (await imageGenerator.FindAsync(spanish, english, request.AfterId, cancellationToken) is { } cached)
+        {
+            return Ok(ToResponse(cached));
+        }
+
         if (!imageGenerator.IsAvailable)
         {
             return ServiceUnavailableProblem("Pictures aren't available.");
@@ -48,9 +55,9 @@ public class FlashCardImagesController(
 
         try
         {
-            var image = await imageGenerator.GenerateAsync(spanish, english, cancellationToken);
-            logger.LogInformation("Generated a {Length} byte picture", image.Data.Length);
-            return Ok(new CardImageResponse(image.ContentType, Convert.ToBase64String(image.Data.Span)));
+            var generated = await imageGenerator.GenerateAsync(spanish, english, cancellationToken);
+            logger.LogInformation("Generated a {Length} byte picture", generated.Image.Data.Length);
+            return Ok(ToResponse(generated));
         }
         catch (ImageContentFilteredException ex)
         {
@@ -124,6 +131,12 @@ public class FlashCardImagesController(
         }
 
         return Ok(card);
+    }
+
+    private static CardImageResponse ToResponse(CachedGeneratedImage picture)
+    {
+        return new CardImageResponse(
+            picture.Id, picture.Image.ContentType, Convert.ToBase64String(picture.Image.Data.Span));
     }
 
     // The card with its words and tags, as the other endpoints return it.

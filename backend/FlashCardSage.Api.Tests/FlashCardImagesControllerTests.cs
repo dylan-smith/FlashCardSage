@@ -97,6 +97,51 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     }
 
     [Fact]
+    public async Task Generate_ReturnsTheCachedPicturesInTurn_ThenMakesANewOne()
+    {
+        await using var dbContext = TestDb.Create();
+        var store = new FakeImageStore();
+        var generator = new FakeImageGenerator();
+        var controller = CreateController(dbContext, generator, store);
+        var first = ActionResultAssert.Ok<CardImageResponse>((await controller.Generate(
+            new ImageGenerationRequest { Spanish = "nadar" }, CancellationToken.None)).Result);
+
+        var again = ActionResultAssert.Ok<CardImageResponse>((await controller.Generate(
+            new ImageGenerationRequest { Spanish = "nadar" }, CancellationToken.None)).Result);
+        var next = ActionResultAssert.Ok<CardImageResponse>((await controller.Generate(
+            new ImageGenerationRequest { Spanish = "nadar", AfterId = first.Id }, CancellationToken.None)).Result);
+
+        Assert.Equal(first.Id, again.Id);
+        Assert.Equal(first.Data, again.Data);
+        Assert.NotEqual(first.Id, next.Id);
+        Assert.Equal(2, generator.Calls.Count);
+    }
+
+    [Fact]
+    public async Task Generate_ReturnsACachedPicture_WhenPicturesAreOff()
+    {
+        var databaseName = TestDb.NewDatabaseName();
+        var store = new FakeImageStore();
+        await using (var dbContext = TestDb.Create(databaseName))
+        {
+            await CreateController(dbContext, store: store).Generate(
+                new ImageGenerationRequest { Spanish = "nadar" }, CancellationToken.None);
+        }
+        await using var secondContext = TestDb.Create(databaseName);
+        var generator = new FakeImageGenerator { IsAvailable = false };
+        var controller = CreateController(secondContext, generator, store);
+
+        var cached = ActionResultAssert.Ok<CardImageResponse>((await controller.Generate(
+            new ImageGenerationRequest { Spanish = "nadar" }, CancellationToken.None)).Result);
+        var none = await controller.Generate(
+            new ImageGenerationRequest { Spanish = "nadar", AfterId = cached.Id }, CancellationToken.None);
+
+        Assert.Equal(SampleImages.Jpeg, Convert.FromBase64String(cached.Data));
+        ActionResultAssert.Problem(none.Result, StatusCodes.Status503ServiceUnavailable);
+        Assert.Empty(generator.Calls);
+    }
+
+    [Fact]
     public async Task Generate_ReturnsUnprocessableEntity_WhenTheContentFilterRefuses()
     {
         var generator = new FakeImageGenerator { Failure = new ImageContentFilteredException("refused") };
@@ -343,27 +388,12 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     private static FlashCardImagesController CreateController(
         FlashCardDbContext dbContext, IImageGenerator? generator = null, IImageStore? store = null)
     {
+        store ??= new FakeImageStore();
         return new FlashCardImagesController(
             dbContext,
-            generator ?? new FakeImageGenerator(),
-            store ?? new FakeImageStore(),
+            new CachedImageGenerator(
+                generator ?? new FakeImageGenerator(), store, dbContext, NullLogger<CachedImageGenerator>.Instance),
+            store,
             NullLogger<FlashCardImagesController>.Instance);
-    }
-
-    private sealed class FakeImageGenerator : IImageGenerator
-    {
-        public bool IsAvailable { get; init; } = true;
-
-        public GeneratedImage Result { get; init; } = new("image/jpeg", SampleImages.Jpeg);
-
-        public Exception? Failure { get; init; }
-
-        public (string Spanish, string English)? Words { get; private set; }
-
-        public Task<GeneratedImage> GenerateAsync(string spanish, string english, CancellationToken cancellationToken)
-        {
-            Words = (spanish, english);
-            return Failure is null ? Task.FromResult(Result) : Task.FromException<GeneratedImage>(Failure);
-        }
     }
 }

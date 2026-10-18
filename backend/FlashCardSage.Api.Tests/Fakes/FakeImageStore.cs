@@ -60,6 +60,15 @@ internal sealed class FakeImageStore : IImageStore
             : await SaveAsync(original.Data, original.ContentType, cancellationToken);
     }
 
+    // A picture this store saved and hasn't deleted.
+    public Task<ReadOnlyMemory<byte>?> LoadAsync(string url, CancellationToken cancellationToken)
+    {
+        var saved = Saved.Find(item => item.Url == url);
+        // A plain null would become an empty picture, by the conversion from an array.
+        return Task.FromResult(
+            saved.Url is null || Deleted.Contains(url) ? (ReadOnlyMemory<byte>?)null : saved.Data);
+    }
+
     public Task DeleteAsync(string url, CancellationToken cancellationToken)
     {
         Deleted.Add(url);

@@ -334,7 +334,7 @@ test.describe('Flash card management', () => {
     test.beforeEach(async ({ page }) => {
       // The E2E backend has no image generator, so stand in for Azure OpenAI.
       await page.route('**/api/flashcards/images/generate', async (route) => {
-        await route.fulfill({ json: onePixelPng })
+        await route.fulfill({ json: { id: 1, ...onePixelPng } })
       })
     })
 

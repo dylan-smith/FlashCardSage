@@ -289,7 +289,7 @@ test.describe('Import cards', () => {
       })
     })
     await page.route('**/api/flashcards/images/generate', async (route) => {
-      await route.fulfill({ json: onePixelPng })
+      await route.fulfill({ json: { id: 1, ...onePixelPng } })
     })
     await page.goto('/import?from=document')
     await page.getByLabel('Choose a document').setInputFiles({

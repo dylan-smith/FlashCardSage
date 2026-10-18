@@ -14,17 +14,25 @@ export const cannotIllustrateMessage =
   "That card can't be illustrated. Try other words."
 const generateFailedMessage = 'Unable to make a picture.'
 
-// Asks the API for a picture of what the card means, from whichever sides are filled in. Throws an ApiError to
-// show as it is when pictures aren't available (a 503, e.g. locally, where there's no image generator) or the
-// words can't be illustrated (a 422).
+// A generated picture, and its ID in the API's cache of them, which asks for the next picture of the same words.
+export type GeneratedCardImage = {
+  id: number
+  image: CardImage
+}
+
+// Asks the API for a picture of what the card means, from whichever sides are filled in. The API keeps every
+// picture it makes, so it answers with the first one it has of the words after afterId (the last one the user saw),
+// and only makes a new one when there's none left. Throws an ApiError to show as it is when pictures aren't
+// available (a 503, e.g. locally, where there's no image generator) or the words can't be illustrated (a 422).
 export async function generateCardImage(
   spanish: string,
   english: string,
+  afterId?: number,
   signal?: AbortSignal,
-): Promise<CardImage> {
+): Promise<GeneratedCardImage> {
   const response = await apiFetch(
     `${flashCardsUrl}/images/generate`,
-    jsonRequest('POST', { spanish, english }, signal),
+    jsonRequest('POST', { spanish, english, afterId }, signal),
   )
   if (response.status === 503) {
     throw new ApiError(503, picturesUnavailableMessage)
@@ -35,14 +43,19 @@ export async function generateCardImage(
   if (!response.ok) {
     throw new Error(generateFailedMessage)
   }
-  const { contentType, data } = (await response.json()) as {
+  const { id, contentType, data } = (await response.json()) as {
+    id?: unknown
     contentType?: unknown
     data?: unknown
   }
-  if (typeof contentType !== 'string' || typeof data !== 'string') {
+  if (
+    typeof id !== 'number' ||
+    typeof contentType !== 'string' ||
+    typeof data !== 'string'
+  ) {
     throw new Error(generateFailedMessage)
   }
-  return { contentType, data }
+  return { id, image: { contentType, data } }
 }
 
 // The kinds of picture the API keeps, and the biggest it takes (CardImage.cs), so a file it would refuse is turned
