@@ -209,6 +209,11 @@ describe('importing cards', () => {
   it('shows the cards the user already has as added', async () => {
     const user = userEvent.setup()
     await showImport(undefined, [{ ...days, ownedCardIds: [31] }, months])
+    // The deck's card count says how many the user has, and it can still be added for the rest.
+    expect(screen.getByText('2 cards, 1 added')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Add deck "Days of the week"' }),
+    ).toBeEnabled()
     await user.click(screen.getByRole('button', { name: 'Days of the week' }))
 
     const added = screen.getByRole('button', { name: 'Added "lunes"' })
@@ -260,6 +265,40 @@ describe('importing cards', () => {
     expect(
       screen.getByRole('button', { name: 'Added "martes"' }),
     ).toBeDisabled()
+    // So does the deck, without its cards showing.
+    expect(
+      screen.getByRole('button', { name: 'Added deck "Days of the week"' }),
+    ).toBeDisabled()
+    expect(screen.getByText('2 cards, all added')).toBeInTheDocument()
+    expect(
+      screen.getByRole('button', { name: 'Add deck "Months"' }),
+    ).toBeEnabled()
+  })
+
+  it('marks a deck as added once its last card is added on its own', async () => {
+    const user = userEvent.setup()
+    await showImport(
+      {
+        'POST /system-decks/4/cards/41/import': jsonResponse(
+          {
+            deck: deck(22, 'Months', [6]),
+            deckCreated: true,
+            card: card(6, 'enero', 'January'),
+          },
+          201,
+        ),
+      },
+      [days, months],
+    )
+    expect(screen.getByText('1 card')).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Months' }))
+
+    await user.click(screen.getByRole('button', { name: 'Add "enero"' }))
+
+    expect(
+      await screen.findByRole('button', { name: 'Added deck "Months"' }),
+    ).toBeDisabled()
+    expect(screen.getByText('1 card, all added')).toBeInTheDocument()
   })
 
   it("says when the user already has a deck's card", async () => {
