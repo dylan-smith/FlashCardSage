@@ -27,25 +27,26 @@ public static class SystemDeckImageSync
         CurrentUser currentUser,
         IImageStore imageStore,
         IReadOnlyList<SystemCardImage> images,
+        ILogger logger,
         CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
         ArgumentNullException.ThrowIfNull(currentUser);
         ArgumentNullException.ThrowIfNull(imageStore);
         ArgumentNullException.ThrowIfNull(images);
+        ArgumentNullException.ThrowIfNull(logger);
 
         if (images.Count == 0)
         {
             return 0;
         }
 
-        currentUser.UserId = await CurrentUserMiddleware.GetOrCreateUserIdAsync(
-            dbContext, User.SystemSubject, "FlashCardSage", email: null, cancellationToken);
+        await UserAccounts.BecomeSystemUserAsync(dbContext, currentUser, cancellationToken);
 
         var imagesBySpanish = images
-            .GroupBy(image => image.Spanish, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-        var cards = await dbContext.FlashCards.Include(card => card.Words).ToListAsync(cancellationToken);
+            .GroupBy(image => image.Spanish, TextRules.Comparer)
+            .ToDictionary(group => group.Key, group => group.First(), TextRules.Comparer);
+        var cards = await dbContext.FlashCards.WithWords().ToListAsync(cancellationToken);
         var replaced = new List<string>();
         var updated = 0;
 
@@ -80,10 +81,7 @@ public static class SystemDeckImageSync
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Only once the cards point at their new pictures, so a card never points at one that's gone.
-        foreach (var url in replaced)
-        {
-            await imageStore.DeleteAsync(url, cancellationToken);
-        }
+        await imageStore.TryDeleteAllAsync(replaced, logger, cancellationToken);
 
         return updated;
     }
@@ -110,6 +108,7 @@ public sealed class SystemDeckImageSyncService(
                 scope.ServiceProvider.GetRequiredService<CurrentUser>(),
                 scope.ServiceProvider.GetRequiredService<IImageStore>(),
                 SystemDeckImages.Load(SystemDeckImages.Directory),
+                logger,
                 stoppingToken);
             logger.LogInformation("Gave {Count} built-in cards their pictures", updated);
         }

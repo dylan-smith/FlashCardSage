@@ -17,19 +17,15 @@ import {
   renameDeck,
 } from '../api/decks'
 import type { Deck } from '../api/decks'
-import {
-  deleteFlashCards,
-  formatWords,
-  listFlashCards,
-} from '../api/flashCards'
+import { formatWords, listFlashCards } from '../api/flashCards'
 import type { FlashCard, Tag } from '../api/flashCards'
 import { listTags } from '../api/tags'
 import { trackEvent } from '../telemetry'
 import { showToast } from '../toasts'
 import { CardActionButton } from '../components/cards/CardActionButton'
 import { CardPicker } from '../components/cards/CardPicker'
-import { ConfirmDelete } from '../components/common/ConfirmDelete'
-import { cardDeleteWarning } from '../lib/cardDeleteWarning'
+import { ConfirmDeleteCard } from '../components/cards/ConfirmDeleteCard'
+import { ConfirmDeleteDeck } from '../components/cards/ConfirmDeleteDeck'
 import { DeleteCards } from '../components/cards/DeleteCards'
 import { cardCount } from '../lib/cardCount'
 import { FlashCardEditForm } from '../components/cards/FlashCardForm'
@@ -37,6 +33,7 @@ import { RenameForm } from '../components/cards/FlashCardTags'
 import { useCardEditor, withNewTags } from '../hooks/useCardEditor'
 import { useAction } from '../hooks/useAction'
 import { useConfirm } from '../hooks/useConfirm'
+import { useDeleteCards } from '../hooks/useDeleteCards'
 import { useLoad } from '../hooks/useLoad'
 import { EmptyText } from '../components/common/EmptyText'
 import { Loading } from '../components/common/Loading'
@@ -62,7 +59,6 @@ const deckToast = 'deck-cards'
 // Each change is saved as it's made.
 function DeckPage() {
   const { id } = useParams()
-  const navigate = useNavigate()
   // The deck (null when the user has no such deck), the user's cards, their tags, which the edit form offers, and the
   // tab that's showing. Undefined while loading.
   const page = useLoad(
@@ -85,28 +81,6 @@ function DeckPage() {
     [id],
     { operation: 'load', fallback: 'Unable to load the deck.' },
   )
-  // The new name being typed, or null when the deck isn't being renamed.
-  const [name, setName] = useState<string | null>(null)
-  const [errorMessage, setErrorMessage] = useState('')
-  const action = useAction(setErrorMessage)
-  const busy = action.busy
-  // The card whose Delete was clicked, or the deck itself, while the user is asked whether they mean it.
-  const confirm = useConfirm<FlashCard | 'deck'>()
-  // The card being edited, which is the same card on every deck and the cards page.
-  const editor = useCardEditor({
-    setErrorMessage,
-    onSaved: (card) => {
-      change((data) => ({
-        cards: data.cards.map((item) => (item.id === card.id ? card : item)),
-        tags: withNewTags(data.tags, card),
-      }))
-    },
-  })
-
-  // Changes what was loaded.
-  function change(update: (data: DeckPageData) => Partial<DeckPageData>) {
-    page.setData((data) => data && { ...data, ...update(data) })
-  }
 
   if (page.failed) {
     return <Alert severity="error">{page.error}</Alert>
@@ -134,8 +108,65 @@ function DeckPage() {
     )
   }
 
-  const { deck: current, cards, tags, tab } = page.data
-  const inDeck = new Set(current.flashCardIds)
+  return (
+    <DeckView
+      {...page.data}
+      deck={page.data.deck}
+      change={(update) =>
+        page.setData((data) => data && { ...data, ...update(data) })
+      }
+    />
+  )
+}
+
+// The deck once it's loaded. change changes what was loaded.
+function DeckView({
+  deck,
+  cards,
+  tags,
+  tab,
+  change,
+}: DeckPageData & {
+  deck: Deck
+  change: (update: (data: DeckPageData) => Partial<DeckPageData>) => void
+}) {
+  const navigate = useNavigate()
+  // The new name being typed, or null when the deck isn't being renamed.
+  const [name, setName] = useState<string | null>(null)
+  const [errorMessage, setErrorMessage] = useState('')
+  const action = useAction(setErrorMessage)
+  // The card whose Delete was clicked, or the deck itself, while the user is asked whether they mean it.
+  const confirm = useConfirm<FlashCard | 'deck'>()
+  // The card being edited, which is the same card on every deck and the cards page.
+  const editor = useCardEditor({
+    setErrorMessage,
+    onSaved: (card) => {
+      change((data) => ({
+        cards: data.cards.map((item) => (item.id === card.id ? card : item)),
+        tags: withNewTags(data.tags, card),
+      }))
+    },
+  })
+  // Deletes the cards themselves, not just from this deck, so they're gone from every deck and the cards page too.
+  const deletingCards = useDeleteCards({
+    setErrorMessage,
+    operation: 'deleteCards',
+    toastKey: deckToast,
+    editor,
+    onDeleted: (deleted) =>
+      change((data) => ({
+        cards: data.cards.filter((card) => !deleted.has(card.id)),
+        deck: {
+          ...deck,
+          flashCardIds: deck.flashCardIds.filter(
+            (cardId) => !deleted.has(cardId),
+          ),
+        },
+      })),
+  })
+  const busy = action.busy || deletingCards.busy
+
+  const inDeck = new Set(deck.flashCardIds)
   const deckCards = cards.filter((card) => inDeck.has(card.id))
   const otherCards = cards.filter((card) => !inDeck.has(card.id))
 
@@ -150,8 +181,8 @@ function DeckPage() {
     await action.run(
       { operation: 'rename', fallback: 'Unable to rename deck.' },
       async () => {
-        const deck = await renameDeck(current.id, trimmed)
-        change(() => ({ deck }))
+        const renamed = await renameDeck(deck.id, trimmed)
+        change(() => ({ deck: renamed }))
         trackEvent('DeckRenamed')
         setName(null)
       },
@@ -162,8 +193,8 @@ function DeckPage() {
     return action.run(
       { operation: 'changeCards', fallback: 'Unable to change the deck.' },
       async () => {
-        const deck = await changeDeckCards(current.id, { add, remove })
-        change(() => ({ deck }))
+        const changed = await changeDeckCards(deck.id, { add, remove })
+        change(() => ({ deck: changed }))
         trackEvent(add.length > 0 ? 'DeckCardsAdded' : 'DeckCardsRemoved')
         showToast({
           key: deckToast,
@@ -172,41 +203,6 @@ function DeckPage() {
             add.length > 0
               ? `Added ${cardCount(add.length)} to the deck.`
               : `Removed ${cardCount(remove.length)} from the deck.`,
-        })
-      },
-    )
-  }
-
-  // Deletes the cards themselves, not just from this deck, so they're gone from every deck and the cards page too.
-  async function handleDeleteCards(ids: number[]) {
-    await action.run(
-      {
-        operation: 'deleteCards',
-        fallback: 'Unable to delete the flash cards.',
-        reportAll: true,
-      },
-      async () => {
-        await deleteFlashCards(ids)
-        trackEvent('FlashCardsDeleted')
-        const deleted = new Set(ids)
-        change((data) => ({
-          cards: data.cards.filter((card) => !deleted.has(card.id)),
-        }))
-        if (editor.edit !== null && deleted.has(editor.edit.id)) {
-          editor.cancel()
-        }
-        change(() => ({
-          deck: {
-            ...current,
-            flashCardIds: current.flashCardIds.filter(
-              (cardId) => !deleted.has(cardId),
-            ),
-          },
-        }))
-        showToast({
-          key: deckToast,
-          severity: 'success',
-          message: `Deleted ${cardCount(ids.length)}.`,
         })
       },
     )
@@ -222,7 +218,7 @@ function DeckPage() {
         keepBusy: true,
       },
       async () => {
-        await deleteDeck(current.id)
+        await deleteDeck(deck.id)
         trackEvent('DeckDeleted')
         await navigate('/decks')
       },
@@ -233,7 +229,7 @@ function DeckPage() {
   }
 
   async function handleDeleteCard(card: FlashCard) {
-    await handleDeleteCards([card.id])
+    await deletingCards.deleteCards([card.id])
     confirm.close()
   }
 
@@ -303,17 +299,17 @@ function DeckPage() {
           component="h2"
           sx={{ overflowWrap: 'anywhere' }}
         >
-          {current.name}
+          {deck.name}
         </Typography>
         <Typography color="text.secondary" sx={{ mb: 1 }}>
-          {cardCount(current.flashCardIds.length)}
+          {cardCount(deck.flashCardIds.length)}
         </Typography>
         {name === null ? (
           <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
             <Button
               component={Link}
-              to={`/practice?deck=${current.id}`}
-              aria-label={`Practice deck "${current.name}"`}
+              to={`/practice?deck=${deck.id}`}
+              aria-label={`Practice deck "${deck.name}"`}
               variant="contained"
               size="small"
             >
@@ -325,7 +321,7 @@ function DeckPage() {
               disabled={busy}
               onClick={() => {
                 setErrorMessage('')
-                setName(current.name)
+                setName(deck.name)
               }}
             >
               Rename
@@ -391,7 +387,9 @@ function DeckPage() {
               <DeleteCards
                 count={ids.length}
                 busy={busy}
-                onDelete={() => handleDeleteCards(ids)}
+                onDelete={async () => {
+                  await deletingCards.deleteCards(ids)
+                }}
               />
             )}
             edit={edit}
@@ -416,25 +414,20 @@ function DeckPage() {
       </Section>
 
       {confirming === 'deck' ? (
-        <ConfirmDelete
+        <ConfirmDeleteDeck
           {...confirm.dialogProps}
-          title={`Delete deck "${current.name}"?`}
+          name={deck.name}
           busy={busy}
           onConfirm={() => void handleDelete()}
-        >
-          This can&apos;t be undone. Its cards won&apos;t be deleted, and keep
-          their scores.
-        </ConfirmDelete>
+        />
       ) : (
         confirming !== null && (
-          <ConfirmDelete
+          <ConfirmDeleteCard
             {...confirm.dialogProps}
-            title={`Delete "${formatWords(confirming.spanish)}"?`}
+            card={confirming}
             busy={busy}
             onConfirm={() => void handleDeleteCard(confirming)}
-          >
-            {cardDeleteWarning(1)}
-          </ConfirmDelete>
+          />
         )
       )}
     </Stack>

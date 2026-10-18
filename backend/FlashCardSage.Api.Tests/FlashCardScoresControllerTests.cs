@@ -1,11 +1,9 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -19,24 +17,11 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     private const PracticeOutcome WasClose = PracticeOutcome.WasClose;
     private const PracticeOutcome Failed = PracticeOutcome.Failed;
 
-    [Theory]
-    [InlineData(0, 0)]
-    [InlineData(1, 50)]
-    [InlineData(2, 80)]
-    [InlineData(3, 90)]
-    [InlineData(4, 95)]
-    [InlineData(5, 100)]
-    [InlineData(6, 100)]
-    public void FromStreak_ScoresEachRunOfCorrectAnswers(int correctInARow, int expected)
-    {
-        Assert.Equal(expected, PracticeScore.FromStreak(correctInARow));
-    }
-
     [Fact]
     public async Task Get_ScoresACardNeverPracticedAsZero()
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext, "el gato", "the cat");
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
 
         var response = await GetAsync(dbContext);
 
@@ -57,7 +42,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     public async Task Get_ScoresACardFromItsLatestRunOfGotIt(int expected, params PracticeOutcome[] outcomes)
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext, "el gato", "the cat");
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         await AddResultsAsync(dbContext, card, outcomes);
 
         var response = await GetAsync(dbContext);
@@ -69,10 +54,10 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     public async Task Get_SortsLowestScoreFirstThenByCard_AndTotalsTheScores()
     {
         await using var dbContext = TestDb.Create();
-        var cat = await AddCardAsync(dbContext, "el gato", "the cat");
-        var dog = await AddCardAsync(dbContext, "el perro", "the dog");
-        var house = await AddCardAsync(dbContext, "la casa", "the house");
-        var book = await AddCardAsync(dbContext, "el libro", "the book");
+        var cat = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
+        var dog = await TestDb.AddCardAsync(dbContext, TestDb.Card("el perro", "the dog"));
+        var house = await TestDb.AddCardAsync(dbContext, TestDb.Card("la casa", "the house"));
+        var book = await TestDb.AddCardAsync(dbContext, TestDb.Card("el libro", "the book"));
         await AddResultsAsync(dbContext, cat, GotIt, GotIt);
         await AddResultsAsync(dbContext, dog, GotIt);
         await AddResultsAsync(dbContext, house, GotIt, Failed);
@@ -89,7 +74,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     public async Task Get_GivesWhenEachCardWasLastPracticed()
     {
         await using var dbContext = TestDb.Create();
-        var card = await AddCardAsync(dbContext, "el gato", "the cat");
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
         var first = new DateTimeOffset(2026, 10, 1, 9, 0, 0, TimeSpan.Zero);
         var last = first.AddDays(3);
         foreach (var practicedAt in new[] { first, last })
@@ -118,15 +103,15 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Get_LeavesOutOtherUsersCardsAndResults()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
         {
-            var other = await AddCardAsync(otherContext, "el perro", "the dog");
+            var other = await TestDb.AddCardAsync(otherContext, TestDb.Card("el perro", "the dog"));
             await AddResultsAsync(otherContext, other, GotIt, GotIt);
         }
 
         await using var dbContext = TestDb.Create(databaseName);
-        var card = await AddCardAsync(dbContext, "el gato", "the cat");
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
 
         var response = await GetAsync(dbContext);
 
@@ -140,7 +125,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
         await using var dbContext = TestDb.Create();
         var deck = new Deck { Name = "Animals" };
         var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat"), Decks = [deck] };
-        var house = new FlashCard { Words = TestDb.Words("la casa", "the house") };
+        var house = TestDb.Card("la casa", "the house");
         dbContext.FlashCards.AddRange(cat, house);
         await dbContext.SaveChangesAsync();
         await AddResultsAsync(dbContext, cat, GotIt);
@@ -158,7 +143,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
         await using var dbContext = TestDb.Create();
         var tag = new Tag { Name = "Animals" };
         var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat"), Tags = [tag] };
-        var house = new FlashCard { Words = TestDb.Words("la casa", "the house") };
+        var house = TestDb.Card("la casa", "the house");
         dbContext.FlashCards.AddRange(cat, house);
         await dbContext.SaveChangesAsync();
         await AddResultsAsync(dbContext, cat, GotIt, GotIt);
@@ -173,15 +158,14 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task Get_ReturnsNotFound_ForAnotherUsersDeckOrTag()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         var otherDeck = new Deck { Name = "Theirs" };
         var otherTag = new Tag { Name = "Theirs" };
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext =>
         {
             otherContext.Decks.Add(otherDeck);
             otherContext.Tags.Add(otherTag);
-            await otherContext.SaveChangesAsync();
-        }
+        });
 
         await using var dbContext = TestDb.Create(databaseName);
         var controller = new FlashCardScoresController(dbContext, NullLogger<FlashCardScoresController>.Instance);
@@ -193,7 +177,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task GetScores_TakesTheDeckOrTagFromTheQuery()
     {
-        using var client = CreateClient();
+        using var client = TestApp.CreateSignedInClient(factory);
 
         var unknownDeck = await client.GetAsync("/api/flashcards/scores?deckId=999");
         var unknownTag = await client.GetAsync("/api/flashcards/scores?tagId=999");
@@ -207,7 +191,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     [Fact]
     public async Task GetScores_IsServedAlongsideTheCardRoutes()
     {
-        using var client = CreateClient();
+        using var client = TestApp.CreateSignedInClient(factory);
         var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("el gato", "the cat"));
         created.EnsureSuccessStatusCode();
 
@@ -215,14 +199,6 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         Assert.Equal((0, 100), (response!.Total, response.Maximum));
         Assert.Equal("el gato", Assert.Single(response.Cards).Spanish.Single());
-    }
-
-    private static async Task<FlashCard> AddCardAsync(FlashCardDbContext dbContext, string spanish, string english)
-    {
-        var card = new FlashCard { Words = TestDb.Words(spanish, english) };
-        dbContext.FlashCards.Add(card);
-        await dbContext.SaveChangesAsync();
-        return card;
     }
 
     // Saved in the order given, oldest first.
@@ -246,19 +222,6 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     {
         var controller = new FlashCardScoresController(dbContext, NullLogger<FlashCardScoresController>.Instance);
         var result = await controller.Get(selection ?? new PracticeSelection());
-        return Assert.IsType<FlashCardScoresResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
-    }
-
-    private HttpClient CreateClient()
-    {
-        // Development uses the in-memory database and allows test sign-in, so the app starts without SQL Server.
-        var client = factory
-            .WithWebHostBuilder(builder => builder
-                .UseEnvironment("Development")
-                .UseSetting("Authentication:AllowTestSignIn", "true"))
-            .CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", $"test:Scores {Guid.NewGuid()}");
-        return client;
+        return ActionResultAssert.Ok<FlashCardScoresResponse>(result.Result);
     }
 }

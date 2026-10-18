@@ -19,7 +19,7 @@ namespace FlashCardSage.Api.Controllers;
 public class TagSuggestionsController(
     FlashCardDbContext dbContext,
     ITagSuggester suggester,
-    ILogger<TagSuggestionsController> logger) : ControllerBase
+    ILogger<TagSuggestionsController> logger) : ApiControllerBase
 {
     // A few at most, so they fit under the field as small chips.
     public const int MaxSuggestions = 3;
@@ -45,8 +45,8 @@ public class TagSuggestionsController(
         [FromBody] TagSuggestionRequest request,
         CancellationToken cancellationToken)
     {
-        var spanish = Words(request.Spanish);
-        var english = Words(request.English);
+        var spanish = TextRules.CleanWords(request.Spanish, dedupe: false);
+        var english = TextRules.CleanWords(request.English, dedupe: false);
         if (spanish.Count == 0 && english.Count == 0)
         {
             ModelState.AddModelError(nameof(request.Spanish), "Spanish or English is required.");
@@ -55,18 +55,16 @@ public class TagSuggestionsController(
 
         if (!suggester.IsAvailable)
         {
-            return Problem("Tag suggestions aren't available.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            return ServiceUnavailableProblem("Tag suggestions aren't available.");
         }
 
         // The user's tags the card doesn't have yet, each with its newest cards. Like the cards, the tags are only ever
         // the user's own.
-        var onCard = new HashSet<string>(request.Tags.Select(name => name.Trim()), StringComparer.OrdinalIgnoreCase);
+        var onCard = new HashSet<string>(request.Tags.Select(name => name.Trim()), TextRules.Comparer);
         var tags = (await dbContext.Tags
                 .AsNoTracking()
-                .Include(tag => tag.FlashCards.OrderByDescending(card => card.Id).Take(CardsPerTag))
-                .ThenInclude(card => card.Words)
+                .WithRecentCards(CardsPerTag)
                 .OrderBy(tag => tag.Name)
-                .AsSplitQuery()
                 .ToListAsync(cancellationToken))
             .Where(tag => !onCard.Contains(tag.Name))
             .ToList();
@@ -80,17 +78,15 @@ public class TagSuggestionsController(
         {
             suggested = await suggester.SuggestAsync(spanish, english, tags, cancellationToken);
         }
-        // A timeout surfaces as a cancellation the caller didn't ask for.
-        catch (Exception ex) when (ex is HttpRequestException
-            || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
             logger.LogError(ex, "Suggesting tags failed");
-            return Problem("Tag suggestions failed.", statusCode: StatusCodes.Status502BadGateway);
+            return BadGatewayProblem("Tag suggestions failed.");
         }
 
         // Only the user's tags, each once, so a name the model made up or misspelled is left out.
         var suggestions = suggested
-            .Select(name => tags.Find(tag => string.Equals(tag.Name, name?.Trim(), StringComparison.OrdinalIgnoreCase)))
+            .Select(name => tags.Find(tag => TextRules.SameText(tag.Name, name?.Trim())))
             .OfType<Tag>()
             .Distinct()
             .Take(MaxSuggestions)
@@ -112,22 +108,20 @@ public class TagSuggestionsController(
     {
         if (!suggester.IsAvailable)
         {
-            return Problem("Tag suggestions aren't available.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            return ServiceUnavailableProblem("Tag suggestions aren't available.");
         }
 
         var tags = await dbContext.Tags
             .AsNoTracking()
-            .Include(tag => tag.FlashCards.OrderByDescending(card => card.Id).Take(CardsPerTag))
-            .ThenInclude(card => card.Words)
+            .WithRecentCards(CardsPerTag)
             .OrderBy(tag => tag.Name)
-            .AsSplitQuery()
             .ToListAsync(cancellationToken);
         var untagged = await dbContext.FlashCards
             .AsNoTracking()
             .Where(card => card.Tags.Count == 0)
             .OrderByDescending(card => card.Id)
             .Take(MaxUntaggedCards)
-            .Include(card => card.Words)
+            .WithWords()
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
@@ -137,18 +131,16 @@ public class TagSuggestionsController(
             suggested = await suggester.SuggestNewAsync(
                 tags, untagged, NewSuggestionCount + ExtraRequested, cancellationToken);
         }
-        // A timeout surfaces as a cancellation the caller didn't ask for.
-        catch (Exception ex) when (ex is HttpRequestException
-            || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
             logger.LogError(ex, "Suggesting new tags failed");
-            return Problem("Tag suggestions failed.", statusCode: StatusCodes.Status502BadGateway);
+            return BadGatewayProblem("Tag suggestions failed.");
         }
 
         // Each name once, and none the user already has or that's too long to save.
-        var seen = new HashSet<string>(tags.Select(tag => tag.Name), StringComparer.OrdinalIgnoreCase);
+        var seen = new HashSet<string>(tags.Select(tag => tag.Name), TextRules.Comparer);
         var suggestions = suggested
-            .Select(name => name?.Trim() ?? string.Empty)
+            .Select(TextRules.Clean)
             .Where(name => name.Length is > 0 and <= Tag.MaxNameLength && seen.Add(name))
             .Take(NewSuggestionCount)
             .ToList();
@@ -157,11 +149,5 @@ public class TagSuggestionsController(
             suggestions.Count, tags.Count, untagged.Count);
 
         return Ok(suggestions);
-    }
-
-    // A side's words, trimmed, leaving out blanks.
-    private static List<string> Words(List<string> words)
-    {
-        return words.Select(word => word?.Trim() ?? string.Empty).Where(word => word.Length > 0).ToList();
     }
 }

@@ -1,3 +1,4 @@
+using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 
 namespace FlashCardSage.Api.Suggestions;
@@ -10,27 +11,20 @@ public static class NewCards
     // a card is saved).
     public static IEnumerable<CardSuggestion> From(IEnumerable<CardSuggestion> suggested, IEnumerable<FlashCard> cards)
     {
-        var spanish = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var english = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        foreach (var card in cards)
-        {
-            spanish.UnionWith(card.Spanish);
-            english.UnionWith(card.English);
-        }
+        var taken = TakenWords.From(cards);
 
         foreach (var suggestion in suggested)
         {
             // The answer is read from JSON, so a side can be missing despite the type.
-            var card = new CardSuggestion(
-                (suggestion.Spanish ?? string.Empty).Trim(), (suggestion.English ?? string.Empty).Trim());
+            var card = new CardSuggestion(TextRules.Clean(suggestion.Spanish), TextRules.Clean(suggestion.English));
             if (!Fits(card.Spanish) || !Fits(card.English)
-                || spanish.Contains(card.Spanish) || english.Contains(card.English))
+                || taken.Contains(Language.Spanish, card.Spanish) || taken.Contains(Language.English, card.English))
             {
                 continue;
             }
 
-            spanish.Add(card.Spanish);
-            english.Add(card.English);
+            taken.Add(Language.Spanish, card.Spanish);
+            taken.Add(Language.English, card.English);
             yield return card;
         }
     }

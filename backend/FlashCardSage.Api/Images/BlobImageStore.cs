@@ -6,63 +6,54 @@ using Microsoft.Extensions.Options;
 namespace FlashCardSage.Api.Images;
 
 // Keeps pictures as blobs in a public container, so a browser loads them straight from storage.
-public class BlobImageStore(IOptions<ImageStoreOptions> options) : IImageStore
+public class BlobImageStore(IOptions<ImageStoreOptions> options) : ImageStoreBase
 {
     private readonly BlobContainerClient container =
         new(options.Value.StorageConnectionString, options.Value.ContainerName);
 
-    public async Task<string> SaveAsync(ReadOnlyMemory<byte> data, string contentType, CancellationToken cancellationToken)
+    public override async Task DeleteAsync(string url, CancellationToken cancellationToken)
     {
-        var blob = container.GetBlobClient(CardImage.NewName(contentType));
-        await blob.UploadAsync(BinaryData.FromBytes(data), UploadOptions(contentType), cancellationToken);
-        return blob.Uri.AbsoluteUri;
+        if (NameFromUrl(url) is { } name)
+        {
+            await container.GetBlobClient(name).DeleteIfExistsAsync(cancellationToken: cancellationToken);
+        }
     }
 
-    public async Task<string> SaveAsync(string name, ReadOnlyMemory<byte> data, CancellationToken cancellationToken)
+    protected override async Task<ReadOnlyMemory<byte>?> ReadAsync(string name, CancellationToken cancellationToken)
     {
-        var blob = container.GetBlobClient(name);
-        var upload = UploadOptions(CardImage.ContentTypeOf(name));
-        upload.Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All };
         try
         {
-            await blob.UploadAsync(BinaryData.FromBytes(data), upload, cancellationToken);
-        }
-        catch (RequestFailedException ex) when (ex.Status == StatusCodes.Status409Conflict)
-        {
-            // It's there already.
-        }
-
-        return blob.Uri.AbsoluteUri;
-    }
-
-    // Downloads the picture and saves it again, rather than copying it in storage, so the copy is saved just as a new
-    // picture is. A picture is at most a few megabytes.
-    public async Task<string?> CopyAsync(string url, CancellationToken cancellationToken)
-    {
-        if (BlobName(url) is not { } name)
-        {
-            return null;
-        }
-
-        BlobDownloadResult download;
-        try
-        {
-            download = (await container.GetBlobClient(name).DownloadContentAsync(cancellationToken)).Value;
+            var download = await container.GetBlobClient(name).DownloadContentAsync(cancellationToken);
+            return download.Value.Content.ToMemory();
         }
         catch (RequestFailedException ex) when (ex.Status == StatusCodes.Status404NotFound)
         {
             return null;
         }
-
-        return await SaveAsync(download.Content.ToMemory(), CardImage.ContentTypeOf(name), cancellationToken);
     }
 
-    public async Task DeleteAsync(string url, CancellationToken cancellationToken)
+    protected override async Task WriteAsync(
+        string name, ReadOnlyMemory<byte> data, bool overwrite, CancellationToken cancellationToken)
     {
-        if (BlobName(url) is { } name)
+        var upload = UploadOptions(CardImage.ContentTypeOf(name));
+        if (!overwrite)
         {
-            await container.GetBlobClient(name).DeleteIfExistsAsync(cancellationToken: cancellationToken);
+            upload.Conditions = new BlobRequestConditions { IfNoneMatch = ETag.All };
         }
+
+        try
+        {
+            await container.GetBlobClient(name).UploadAsync(BinaryData.FromBytes(data), upload, cancellationToken);
+        }
+        catch (RequestFailedException ex) when (!overwrite && ex.Status == StatusCodes.Status409Conflict)
+        {
+            // It's there already.
+        }
+    }
+
+    protected override string UrlFor(string name)
+    {
+        return container.GetBlobClient(name).Uri.AbsoluteUri;
     }
 
     // A picture never changes under its URL, so browsers can keep it for as long as they like.
@@ -78,8 +69,7 @@ public class BlobImageStore(IOptions<ImageStoreOptions> options) : IImageStore
         };
     }
 
-    // The name of this store's picture at the URL, or null when it isn't one.
-    private string? BlobName(string url)
+    protected override string? NameFromUrl(string url)
     {
         ArgumentNullException.ThrowIfNull(url);
         var prefix = container.Uri.AbsoluteUri.TrimEnd('/') + "/";

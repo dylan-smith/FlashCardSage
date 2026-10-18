@@ -12,7 +12,7 @@ namespace FlashCardSage.Api.Usage;
 /// telemetry is kept, so totals like these come from the database.
 /// </summary>
 /// <remarks>
-/// It reads every user's rows, so it's the one place besides SystemDecksController that reads past the query filters.
+/// It reads every user's rows, so it's the one place besides SystemDeckImporter that reads past the query filters.
 /// Users are logged by their ID, never their name or email.
 /// </remarks>
 public static class UsageSnapshot

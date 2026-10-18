@@ -1,12 +1,12 @@
 using System.ComponentModel.DataAnnotations;
-using FlashCardSage.Api.Translation;
+using FlashCardSage.Api.Models;
 
 namespace FlashCardSage.Api.Contracts;
 
 public class TranslationRequest
 {
     [Required]
-    [MaxLength(200)]
+    [MaxLength(FlashCard.MaxWordLength)]
     public string Text { get; set; } = string.Empty;
 
     // Nullable so a missing language is refused rather than read as the default.

@@ -16,7 +16,8 @@ import { FlashCardRow } from '../cards/FlashCardRow'
 
 // The built-in decks, each with a button that adds it and a name that shows and hides its cards, which can be added
 // one at a time. A card the user already has (one of the deck's ownedCardIds, or addedCardIds since the decks were
-// loaded) says so instead. busyDeckId and busyCardId are what's being added, and busy disables every button.
+// loaded) says so instead, as does a deck's button once the user has all its cards, and its card count says how many
+// they have. busyDeckId and busyCardId are what's being added, and busy disables every button.
 export function SystemDeckList({
   decks,
   addedCardIds,
@@ -50,6 +51,11 @@ export function SystemDeckList({
       {decks.map((deck) => {
         const shown = shownIds.includes(deck.id)
         const cardsId = `system-deck-${deck.id}-cards`
+        const isAdded = (card: FlashCard) =>
+          deck.ownedCardIds.includes(card.id) || addedCardIds.includes(card.id)
+        const addedCount = deck.cards.filter(isAdded).length
+        const allAdded =
+          deck.cards.length > 0 && addedCount === deck.cards.length
         return (
           <ListItem
             key={deck.id}
@@ -80,17 +86,27 @@ export function SystemDeckList({
                     {deck.name}
                   </Button>
                 }
-                secondary={cardCount(deck.cards.length)}
+                secondary={
+                  allAdded
+                    ? `${cardCount(deck.cards.length)}, all added`
+                    : addedCount > 0
+                      ? `${cardCount(deck.cards.length)}, ${addedCount} added`
+                      : cardCount(deck.cards.length)
+                }
                 sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
               />
               <Button
                 variant="contained"
-                aria-label={`Add deck "${deck.name}"`}
-                disabled={busy}
+                aria-label={`${allAdded ? 'Added' : 'Add'} deck "${deck.name}"`}
+                disabled={busy || allAdded}
                 onClick={() => onImport(deck)}
                 sx={{ flexShrink: 0 }}
               >
-                {busyDeckId === deck.id ? 'Adding…' : 'Add'}
+                {busyDeckId === deck.id
+                  ? 'Adding…'
+                  : allAdded
+                    ? 'Added'
+                    : 'Add'}
               </Button>
             </Box>
             <Collapse in={shown} id={cardsId} unmountOnExit>
@@ -107,9 +123,7 @@ export function SystemDeckList({
                 }}
               >
                 {deck.cards.map((card) => {
-                  const added =
-                    deck.ownedCardIds.includes(card.id) ||
-                    addedCardIds.includes(card.id)
+                  const added = isAdded(card)
                   return (
                     <AnimatedListItem key={card.id}>
                       <FlashCardRow

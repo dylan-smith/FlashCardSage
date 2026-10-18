@@ -1,7 +1,4 @@
-import { test, expect, cardData, onePixelPng } from './fixtures'
-
-// The backend started by playwright.config.ts.
-const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
+import { test, expect, openSection } from './fixtures'
 
 const cards = [
   { spanish: 'el gato', english: 'the cat' },
@@ -9,23 +6,11 @@ const cards = [
 ]
 
 test.describe('Practice', () => {
-  test.beforeEach(async ({ request }) => {
+  test.beforeEach(async ({ api }) => {
     // Start from just these cards, so the one shown is always one of them.
-    const response = await request.get(flashCardsApiUrl)
-    expect(response.ok()).toBe(true)
-    for (const { id } of (await response.json()) as { id: number }[]) {
-      expect((await request.delete(`${flashCardsApiUrl}/${id}`)).ok()).toBe(
-        true,
-      )
-    }
+    await api.reset('flashcards')
     for (const card of cards) {
-      expect(
-        (
-          await request.post(flashCardsApiUrl, {
-            data: cardData(card.spanish, card.english),
-          })
-        ).ok(),
-      ).toBe(true)
+      await api.createCard(card.spanish, card.english)
     }
   })
 
@@ -33,10 +18,7 @@ test.describe('Practice', () => {
     page,
   }) => {
     await page.goto('/')
-    await page
-      .getByRole('navigation', { name: 'Mode' })
-      .getByRole('link', { name: 'Practice' })
-      .click()
+    await openSection(page, 'Practice', 'Mode')
     await expect(page.getByRole('button', { name: 'Reveal' })).toBeVisible()
 
     // Either side of either card can come up, so find which one it is from the text shown. The card is on the
@@ -99,23 +81,13 @@ test.describe('Practice', () => {
     await expect(sessionScore).toHaveText(/^Session score (\+50|0)$/)
   })
 
-  test("shows the card's picture once it's revealed", async ({
-    page,
-    request,
-  }) => {
+  test("shows the card's picture once it's revealed", async ({ page, api }) => {
     // Only one card, with a picture, so it's the one that comes up.
-    const response = await request.get(flashCardsApiUrl)
-    const [first, ...rest] = (await response.json()) as {
-      id: number
-      spanish: string
-    }[]
+    const [first, ...rest] = await api.list('flashcards')
     for (const { id } of rest) {
-      await request.delete(`${flashCardsApiUrl}/${id}`)
+      await api.deleteCard(id)
     }
-    const put = await request.put(`${flashCardsApiUrl}/${first.id}/image`, {
-      data: onePixelPng,
-    })
-    expect(put.ok()).toBe(true)
+    await api.addPicture(first.id)
 
     await page.goto('/practice')
     await expect(page.getByRole('button', { name: 'Reveal' })).toBeVisible()
@@ -127,7 +99,7 @@ test.describe('Practice', () => {
     await expect(picture).toBeVisible()
 
     // To the left of the card's text on a wide screen, and below it on a phone.
-    const text = page.getByText(first.spanish, { exact: true })
+    const text = page.getByText(first.spanish[0], { exact: true })
     async function box(locator: typeof picture) {
       const found = await locator.boundingBox()
       expect(found).not.toBeNull()
@@ -150,28 +122,15 @@ test.describe('Practice', () => {
   ]) {
     test(`keeps a revealed card and its picture on a ${viewport.width}x${viewport.height} screen`, async ({
       page,
-      request,
+      api,
     }) => {
       // Only one card, with long words and a picture, so it's the one that comes up.
-      const response = await request.get(flashCardsApiUrl)
-      for (const { id } of (await response.json()) as { id: number }[]) {
-        await request.delete(`${flashCardsApiUrl}/${id}`)
-      }
-      const created = await request.post(flashCardsApiUrl, {
-        data: cardData(
-          'el perro grande y simpático',
-          'the big and friendly dog',
-        ),
-      })
-      expect(created.ok()).toBe(true)
-      const { id } = (await created.json()) as { id: number }
-      expect(
-        (
-          await request.put(`${flashCardsApiUrl}/${id}/image`, {
-            data: onePixelPng,
-          })
-        ).ok(),
-      ).toBe(true)
+      await api.reset('flashcards')
+      const { id } = await api.createCard(
+        'el perro grande y simpático',
+        'the big and friendly dog',
+      )
+      await api.addPicture(id)
 
       await page.setViewportSize(viewport)
       await page.goto('/practice')
@@ -196,14 +155,8 @@ test.describe('Practice', () => {
     })
   }
 
-  test('points to adding cards when there are none', async ({
-    page,
-    request,
-  }) => {
-    const response = await request.get(flashCardsApiUrl)
-    for (const { id } of (await response.json()) as { id: number }[]) {
-      await request.delete(`${flashCardsApiUrl}/${id}`)
-    }
+  test('points to adding cards when there are none', async ({ page, api }) => {
+    await api.reset('flashcards')
 
     await page.goto('/practice')
     await expect(

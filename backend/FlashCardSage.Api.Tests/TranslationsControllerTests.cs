@@ -1,10 +1,10 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
+using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Tests.Fakes;
 using FlashCardSage.Api.Translation;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -16,6 +16,9 @@ namespace FlashCardSage.Api.Tests;
 public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
     : IClassFixture<WebApplicationFactory<Program>>
 {
+    // The app with no key for the service, so it's off.
+    private static readonly Dictionary<string, string> Settings = new() { ["Translator:Key"] = "" };
+
     [Fact]
     public async Task Translate_ReturnsTheTranslationOfTheTrimmedText()
     {
@@ -25,10 +28,10 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
             new TranslationRequest { Text = "  el gato ", From = Language.Spanish },
             CancellationToken.None);
 
-        var response = Assert.IsType<TranslationResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<TranslationResponse>(result.Result);
         Assert.Equal("silla", response.Translation);
         Assert.Equal(["cátedra", "presidente"], response.Alternatives);
-        Assert.Equal(("el gato", Language.Spanish), (translator.Text, translator.From));
+        Assert.Equal([("el gato", Language.Spanish)], translator.Calls);
     }
 
     [Fact]
@@ -43,7 +46,7 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
         var problem = Assert.IsType<ObjectResult>(result.Result);
         var details = Assert.IsType<ValidationProblemDetails>(problem.Value);
         Assert.Equal("Text is required.", Assert.Single(details.Errors["Text"]));
-        Assert.Null(translator.Text);
+        Assert.Empty(translator.Calls);
     }
 
     [Fact]
@@ -55,8 +58,8 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
             new TranslationRequest { Text = "el gato", From = Language.Spanish },
             CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ObjectResult>(result.Result).StatusCode);
-        Assert.Null(translator.Text);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
+        Assert.Empty(translator.Calls);
     }
 
     [Fact]
@@ -68,7 +71,7 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
             new TranslationRequest { Text = "el gato", From = Language.Spanish },
             CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
 
     [Fact]
@@ -80,13 +83,13 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
             new TranslationRequest { Text = "el gato", From = Language.Spanish },
             CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
 
     [Fact]
     public async Task Translate_RequiresSignIn()
     {
-        using var client = CreateClient(signedIn: false);
+        using var client = TestApp.CreateSignedOutClient(factory, Settings);
 
         var response = await client.PostAsJsonAsync("/api/translations", new { text = "el gato", from = "Spanish" });
 
@@ -96,7 +99,7 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Translate_IsUnavailable_WithoutATranslatorKey()
     {
-        using var client = CreateClient(signedIn: true);
+        using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
 
         var response = await client.PostAsJsonAsync("/api/translations", new { text = "el gato", from = "Spanish" });
 
@@ -106,7 +109,7 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Translate_RefusesAnUnknownLanguage()
     {
-        using var client = CreateClient(signedIn: true);
+        using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
 
         var response = await client.PostAsJsonAsync("/api/translations", new { text = "el gato", from = "French" });
 
@@ -116,10 +119,8 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public void TheTranslatorIsCached()
     {
-        using var scope = factory
-            .WithWebHostBuilder(builder => builder.UseEnvironment("Development"))
-            .Services
-            .CreateScope();
+        using var app = TestApp.CreateFactory(factory);
+        using var scope = app.Services.CreateScope();
 
         Assert.IsType<CachedTranslator>(scope.ServiceProvider.GetRequiredService<ITranslator>());
     }
@@ -127,43 +128,5 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
     private static TranslationsController CreateController(ITranslator translator)
     {
         return new TranslationsController(translator, NullLogger<TranslationsController>.Instance);
-    }
-
-    private HttpClient CreateClient(bool signedIn)
-    {
-        // Development uses the in-memory database and allows test sign-in, so the app starts without SQL Server.
-        var client = factory
-            .WithWebHostBuilder(builder => builder
-                .UseEnvironment("Development")
-                .UseSetting("Authentication:AllowTestSignIn", "true")
-                .UseSetting("Translator:Key", ""))
-            .CreateClient();
-        if (signedIn)
-        {
-            client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", $"test:Translations {Guid.NewGuid()}");
-        }
-
-        return client;
-    }
-
-    private sealed class FakeTranslator : ITranslator
-    {
-        public bool IsAvailable { get; init; } = true;
-
-        public TranslationResult Result { get; init; } = new(string.Empty, []);
-
-        public Exception? Failure { get; init; }
-
-        public string? Text { get; private set; }
-
-        public Language? From { get; private set; }
-
-        public Task<TranslationResult> TranslateAsync(string text, Language from, CancellationToken cancellationToken)
-        {
-            Text = text;
-            From = from;
-            return Failure is null ? Task.FromResult(Result) : Task.FromException<TranslationResult>(Failure);
-        }
     }
 }

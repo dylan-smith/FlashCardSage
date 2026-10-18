@@ -1,15 +1,11 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Link from '@mui/material/Link'
 import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
 import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
-import { Link as RouterLink } from 'react-router'
 import { listFlashCards } from '../api/flashCards'
 import type { Tag } from '../api/flashCards'
 import { byName } from '../lib/text'
@@ -28,6 +24,8 @@ import { useConfirm } from '../hooks/useConfirm'
 import { useLoad } from '../hooks/useLoad'
 import { EmptyText } from '../components/common/EmptyText'
 import { Loading } from '../components/common/Loading'
+import { NameForm } from '../components/common/NameForm'
+import { NamedItemRow } from '../components/common/NamedItemRow'
 import { Section } from '../components/common/Section'
 import {
   AnimatedList,
@@ -198,35 +196,17 @@ function TagsPage() {
   return (
     <Stack spacing={2}>
       <Section title="New tag">
-        <Box
-          component="form"
+        <NameForm
+          id="new-tag-name"
+          label="New tag name"
+          placeholder="e.g. Food"
+          maxLength={tagMaxLength}
+          value={name}
+          busy={creating.busy}
+          submitText="Create tag"
+          onChange={setName}
           onSubmit={(event) => void handleCreate(event)}
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            alignItems: { xs: 'stretch', sm: 'flex-start' },
-            gap: 2,
-          }}
-        >
-          <TextField
-            id="new-tag-name"
-            label="New tag name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            slotProps={{ htmlInput: { maxLength: tagMaxLength } }}
-            required
-            placeholder="e.g. Food"
-            sx={{ flexGrow: 1 }}
-          />
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={creating.busy}
-            sx={{ flexShrink: 0, alignSelf: { sm: 'center' } }}
-          >
-            {creating.busy ? 'Saving…' : 'Create tag'}
-          </Button>
-        </Box>
+        />
       </Section>
 
       {showSuggestions && !page.loading && !page.failed && (
@@ -273,45 +253,32 @@ function TagsPage() {
                 </AnimatedListItem>
               ) : (
                 <AnimatedListItem key={tag.id}>
-                  <ListItem
-                    component="div"
-                    divider
-                    disablePadding
-                    sx={{ py: 1, gap: 1 }}
+                  <NamedItemRow
+                    name={tag.name}
+                    to={`/?tag=${tag.id}`}
+                    secondary={tagCardCount(tag.id)}
                   >
-                    {/* The name wraps rather than the buttons, so they stay together on a phone. */}
-                    <ListItemText
-                      primary={
-                        <Link component={RouterLink} to={`/?tag=${tag.id}`}>
-                          {tag.name}
-                        </Link>
-                      }
-                      secondary={tagCardCount(tag.id)}
-                      sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                    />
-                    <Box sx={{ display: 'flex', flexShrink: 0 }}>
-                      <Button
-                        type="button"
-                        aria-label={`Rename tag "${tag.name}"`}
-                        disabled={busyId === tag.id}
-                        onClick={() => {
-                          setErrorMessage('')
-                          setRename({ id: tag.id, name: tag.name })
-                        }}
-                      >
-                        Rename
-                      </Button>
-                      <Button
-                        type="button"
-                        color="error"
-                        aria-label={`Delete tag "${tag.name}"`}
-                        disabled={busyId === tag.id}
-                        onClick={() => confirmDelete(tag)}
-                      >
-                        Delete
-                      </Button>
-                    </Box>
-                  </ListItem>
+                    <Button
+                      type="button"
+                      aria-label={`Rename tag "${tag.name}"`}
+                      disabled={busyId === tag.id}
+                      onClick={() => {
+                        setErrorMessage('')
+                        setRename({ id: tag.id, name: tag.name })
+                      }}
+                    >
+                      Rename
+                    </Button>
+                    <Button
+                      type="button"
+                      color="error"
+                      aria-label={`Delete tag "${tag.name}"`}
+                      disabled={busyId === tag.id}
+                      onClick={() => confirmDelete(tag)}
+                    >
+                      Delete
+                    </Button>
+                  </NamedItemRow>
                 </AnimatedListItem>
               ),
             )}

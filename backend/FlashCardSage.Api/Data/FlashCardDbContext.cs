@@ -1,6 +1,7 @@
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Models;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace FlashCardSage.Api.Data;
 
@@ -9,7 +10,7 @@ namespace FlashCardSage.Api.Data;
 /// user when they're saved, so the controllers never handle the owner themselves. Tags and decks work the same way.
 /// Practice results and a card's words are filtered through their card, so they're only the current user's too, and
 /// a card's tags are only reached through the card. A deck only gets cards that were found through the filter. The
-/// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDecksController reads them past
+/// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDeckImporter reads them past
 /// the filter. Cached translations are the exception: they're shared by every user, so they have no owner and no
 /// filter.
 /// </remarks>
@@ -44,137 +45,78 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
+    // Cards, tags and decks, and words, which are only added to cards found through the filter, so the current user
+    // is the card's owner.
     private void AssignOwner()
     {
-        foreach (var entry in ChangeTracker.Entries<FlashCard>().Where(entry => entry.State == EntityState.Added))
+        foreach (var entry in ChangeTracker.Entries<IUserOwned>().Where(entry => entry.State == EntityState.Added))
         {
             entry.Entity.UserId = CurrentUserId
-                ?? throw new InvalidOperationException("Flash cards can only be saved for a signed-in user.");
-        }
-
-        // Words are only added to cards found through the filter, so the current user is the card's owner.
-        foreach (var entry in ChangeTracker.Entries<FlashCardWord>().Where(entry => entry.State == EntityState.Added))
-        {
-            entry.Entity.UserId = CurrentUserId
-                ?? throw new InvalidOperationException("Flash card words can only be saved for a signed-in user.");
-        }
-
-        foreach (var entry in ChangeTracker.Entries<Tag>().Where(entry => entry.State == EntityState.Added))
-        {
-            entry.Entity.UserId = CurrentUserId
-                ?? throw new InvalidOperationException("Tags can only be saved for a signed-in user.");
-        }
-
-        foreach (var entry in ChangeTracker.Entries<Deck>().Where(entry => entry.State == EntityState.Added))
-        {
-            entry.Entity.UserId = CurrentUserId
-                ?? throw new InvalidOperationException("Decks can only be saved for a signed-in user.");
+                ?? throw new InvalidOperationException(
+                    $"A {entry.Metadata.ClrType.Name} can only be saved for a signed-in user.");
         }
     }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
-        modelBuilder.Entity<User>()
-            .HasIndex(user => user.Subject)
+        ConfigureUser(modelBuilder.Entity<User>());
+        ConfigureFlashCard(OwnedBy<FlashCard>(modelBuilder));
+        ConfigureFlashCardWord(modelBuilder.Entity<FlashCardWord>());
+        ConfigurePracticeResult(modelBuilder.Entity<PracticeResult>());
+        ConfigureTag(OwnedBy<Tag>(modelBuilder));
+        ConfigureDeck(OwnedBy<Deck>(modelBuilder));
+        ConfigureCachedTranslation(modelBuilder.Entity<CachedTranslation>());
+    }
+
+    // Only the current user's rows are found, and deleting a user deletes theirs.
+    private EntityTypeBuilder<T> OwnedBy<T>(ModelBuilder modelBuilder)
+        where T : class, IUserOwned
+    {
+        var entity = modelBuilder.Entity<T>();
+
+        entity.HasQueryFilter(item => item.UserId == CurrentUserId);
+
+        entity.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(nameof(IUserOwned.UserId))
+            .OnDelete(DeleteBehavior.Cascade);
+
+        return entity;
+    }
+
+    private static void ConfigureUser(EntityTypeBuilder<User> user)
+    {
+        user.HasIndex(item => item.Subject)
             .IsUnique();
 
-        modelBuilder.Entity<User>()
-            .Property(user => user.Subject)
+        user.Property(item => item.Subject)
             .HasMaxLength(255)
             .IsRequired();
 
-        modelBuilder.Entity<User>()
-            .Property(user => user.Email)
+        user.Property(item => item.Email)
             .HasMaxLength(320);
 
-        modelBuilder.Entity<User>()
-            .Property(user => user.DisplayName)
+        user.Property(item => item.DisplayName)
             .HasMaxLength(200);
+    }
 
-        modelBuilder.Entity<FlashCard>()
-            .HasQueryFilter(card => card.UserId == CurrentUserId);
+    private static void ConfigureFlashCard(EntityTypeBuilder<FlashCard> card)
+    {
+        card.HasIndex(item => item.UserId);
 
-        modelBuilder.Entity<FlashCard>()
-            .HasOne<User>()
-            .WithMany()
-            .HasForeignKey(card => card.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<FlashCard>()
-            .HasIndex(card => card.UserId);
-
-        modelBuilder.Entity<FlashCard>()
-            .Property(card => card.ImageUrl)
+        card.Property(item => item.ImageUrl)
             .HasMaxLength(FlashCard.MaxImageUrlLength);
-
-        modelBuilder.Entity<FlashCardWord>()
-            .HasQueryFilter(word => word.UserId == CurrentUserId);
 
         // The database's foreign key also includes the owner, so a word's owner is always its card's
         // (0009-*.sql). EF only needs the card.
-        modelBuilder.Entity<FlashCard>()
-            .HasMany(card => card.Words)
+        card.HasMany(item => item.Words)
             .WithOne()
             .HasForeignKey(word => word.FlashCardId)
             .OnDelete(DeleteBehavior.Cascade);
 
-        modelBuilder.Entity<FlashCardWord>()
-            .HasIndex(word => word.FlashCardId);
-
-        // A user has one card for a word, so no word can be on two of their cards (0009-*.sql).
-        modelBuilder.Entity<FlashCardWord>()
-            .HasIndex(word => new { word.UserId, word.Language, word.Text })
-            .IsUnique();
-
-        modelBuilder.Entity<FlashCardWord>()
-            .Property(word => word.Language)
-            .HasConversion<string>()
-            .HasMaxLength(10);
-
-        modelBuilder.Entity<FlashCardWord>()
-            .Property(word => word.Text)
-            .HasMaxLength(FlashCard.MaxWordLength)
-            .IsRequired();
-
-        modelBuilder.Entity<PracticeResult>()
-            .HasQueryFilter(result => result.FlashCard.UserId == CurrentUserId);
-
-        modelBuilder.Entity<PracticeResult>()
-            .HasOne(result => result.FlashCard)
-            .WithMany()
-            .HasForeignKey(result => result.FlashCardId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<PracticeResult>()
-            .HasIndex(result => result.FlashCardId);
-
-        modelBuilder.Entity<PracticeResult>()
-            .Property(result => result.Outcome)
-            .HasConversion<string>()
-            .HasMaxLength(20);
-
-        modelBuilder.Entity<Tag>()
-            .HasQueryFilter(tag => tag.UserId == CurrentUserId);
-
-        modelBuilder.Entity<Tag>()
-            .HasOne<User>()
-            .WithMany()
-            .HasForeignKey(tag => tag.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
-
-        modelBuilder.Entity<Tag>()
-            .HasIndex(tag => new { tag.UserId, tag.Name })
-            .IsUnique();
-
-        modelBuilder.Entity<Tag>()
-            .Property(tag => tag.Name)
-            .HasMaxLength(Tag.MaxNameLength)
-            .IsRequired();
-
         // The database only cascades from the card (see 0005-CreateTagsTables.sql), so EF deletes a tag's links,
         // which needs the tag's cards loaded when it's removed.
-        modelBuilder.Entity<FlashCard>()
-            .HasMany(card => card.Tags)
+        card.HasMany(item => item.Tags)
             .WithMany(tag => tag.FlashCards)
             .UsingEntity<Dictionary<string, object>>(
                 "FlashCardTags",
@@ -185,29 +127,66 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
                     link.HasKey("FlashCardId", "TagId");
                     link.HasIndex("TagId");
                 });
+    }
 
-        modelBuilder.Entity<Deck>()
-            .HasQueryFilter(deck => deck.UserId == CurrentUserId);
+    private void ConfigureFlashCardWord(EntityTypeBuilder<FlashCardWord> word)
+    {
+        // Filtered by its own copy of the owner, which its card gives it (see FlashCardWord).
+        word.HasQueryFilter(item => item.UserId == CurrentUserId);
 
-        modelBuilder.Entity<Deck>()
-            .HasOne<User>()
-            .WithMany()
-            .HasForeignKey(deck => deck.UserId)
-            .OnDelete(DeleteBehavior.Cascade);
+        word.HasIndex(item => item.FlashCardId);
 
-        modelBuilder.Entity<Deck>()
-            .HasIndex(deck => new { deck.UserId, deck.Name })
+        // A user has one card for a word, so no word can be on two of their cards (0009-*.sql).
+        word.HasIndex(item => new { item.UserId, item.Language, item.Text })
             .IsUnique();
 
-        modelBuilder.Entity<Deck>()
-            .Property(deck => deck.Name)
+        word.Property(item => item.Language)
+            .HasConversion<string>()
+            .HasMaxLength(10);
+
+        word.Property(item => item.Text)
+            .HasMaxLength(FlashCard.MaxWordLength)
+            .IsRequired();
+    }
+
+    private void ConfigurePracticeResult(EntityTypeBuilder<PracticeResult> result)
+    {
+        result.HasQueryFilter(item => item.FlashCard.UserId == CurrentUserId);
+
+        result.HasOne(item => item.FlashCard)
+            .WithMany()
+            .HasForeignKey(item => item.FlashCardId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        result.HasIndex(item => item.FlashCardId);
+
+        result.Property(item => item.Outcome)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+    }
+
+    private static void ConfigureTag(EntityTypeBuilder<Tag> tag)
+    {
+        tag.HasIndex(item => new { item.UserId, item.Name })
+            .IsUnique();
+
+        tag.Property(item => item.Name)
+            .HasMaxLength(Tag.MaxNameLength)
+            .IsRequired();
+    }
+
+    private static void ConfigureDeck(EntityTypeBuilder<Deck> deck)
+    {
+        deck.HasIndex(item => new { item.UserId, item.Name })
+            .IsUnique();
+
+        deck.Property(item => item.Name)
             .HasMaxLength(Deck.MaxNameLength)
             .IsRequired();
 
         // Like a tag's links, the database only cascades from the card (see 0007-CreateDecksTables.sql), so EF
         // deletes a deck's links, which needs the deck's cards loaded when it's removed.
-        modelBuilder.Entity<Deck>()
-            .HasMany(deck => deck.FlashCards)
+        deck.HasMany(item => item.FlashCards)
             .WithMany(card => card.Decks)
             .UsingEntity<Dictionary<string, object>>(
                 "DeckFlashCards",
@@ -218,26 +197,25 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
                     link.HasKey("DeckId", "FlashCardId");
                     link.HasIndex("FlashCardId");
                 });
+    }
 
-        // A text is translated the same way for everyone, so there's one row for it, shared by every user. The
-        // translation's case follows the text's, so the text is compared case-sensitively (0011-*.sql).
-        modelBuilder.Entity<CachedTranslation>()
-            .HasIndex(translation => new { translation.FromLanguage, translation.Text })
+    // Not owned: a text is translated the same way for everyone, so there's one row for it, shared by every user.
+    private static void ConfigureCachedTranslation(EntityTypeBuilder<CachedTranslation> translation)
+    {
+        // The translation's case follows the text's, so the text is compared case-sensitively (0011-*.sql).
+        translation.HasIndex(item => new { item.FromLanguage, item.Text })
             .IsUnique();
 
-        modelBuilder.Entity<CachedTranslation>()
-            .Property(translation => translation.FromLanguage)
+        translation.Property(item => item.FromLanguage)
             .HasConversion<string>()
             .HasMaxLength(10);
 
-        modelBuilder.Entity<CachedTranslation>()
-            .Property(translation => translation.Text)
+        translation.Property(item => item.Text)
             .HasMaxLength(FlashCard.MaxWordLength)
             .UseCollation("Latin1_General_CS_AS")
             .IsRequired();
 
-        modelBuilder.Entity<CachedTranslation>()
-            .Property(translation => translation.Translation)
+        translation.Property(item => item.Translation)
             .IsRequired();
     }
 }

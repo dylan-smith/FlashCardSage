@@ -1,12 +1,13 @@
 using System.Text;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Suggestions.Foundry;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Suggestions;
 
 // Asks the chat model (gpt-5-mini) on the Azure AI Foundry resource that suggests cards to make cards for the words
 // and phrases in a document the user uploads, such as an article or a story they're reading.
-public class FoundryDocumentScanner(HttpClient httpClient, IOptions<CardSuggesterOptions> options) : IDocumentScanner
+public class FoundryDocumentScanner(HttpClient httpClient, IOptions<FoundryChatOptions> options) : IDocumentScanner
 {
     private const string Instructions = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
@@ -23,53 +24,18 @@ public class FoundryDocumentScanner(HttpClient httpClient, IOptions<CardSuggeste
     // the deployment's tokens a minute.
     private const int MaxCompletionTokens = 8192;
 
-    // The same answer as the card suggester's: a list of cards. Strict structured output needs every property required
-    // and no others allowed.
-    private static readonly object AnswerFormat = new
-    {
-        type = "json_schema",
-        json_schema = new
-        {
-            name = "document_cards",
-            strict = true,
-            schema = new
-            {
-                type = "object",
-                properties = new
-                {
-                    cards = new
-                    {
-                        type = "array",
-                        items = new
-                        {
-                            type = "object",
-                            properties = new { spanish = new { type = "string" }, english = new { type = "string" } },
-                            required = new[] { "spanish", "english" },
-                            additionalProperties = false
-                        }
-                    }
-                },
-                required = new[] { "cards" },
-                additionalProperties = false
-            }
-        }
-    };
+    // The same answer as the card suggester's: a list of cards.
+    private static readonly object AnswerFormat = FoundrySchemas.Cards("document_cards");
 
-    private readonly CardSuggesterOptions options = options.Value;
+    private readonly FoundryChatClient chat = new(httpClient, options.Value);
 
-    public bool IsAvailable => !string.IsNullOrWhiteSpace(options.Endpoint) && !string.IsNullOrWhiteSpace(options.Key);
+    public bool IsAvailable => chat.IsAvailable;
 
     public async Task<IReadOnlyList<CardSuggestion>> ScanAsync(
         string text, IReadOnlyList<FlashCard> cards, int count, CancellationToken cancellationToken)
     {
-        var answer = await FoundryChat.AskAsync<Answer>(
-            httpClient,
-            options,
-            Instructions,
-            Describe(text, cards, count),
-            AnswerFormat,
-            MaxCompletionTokens,
-            cancellationToken);
+        var answer = await chat.AskAsync<Answer>(
+            Instructions, Describe(text, cards, count), AnswerFormat, MaxCompletionTokens, cancellationToken);
         return answer?.Cards ?? [];
     }
 
@@ -85,8 +51,7 @@ public class FoundryDocumentScanner(HttpClient httpClient, IOptions<CardSuggeste
                 + "same meaning separated by /:");
             foreach (var card in cards)
             {
-                result.Append("- ").AppendJoin(" / ", card.Spanish).Append(" = ").AppendJoin(" / ", card.English)
-                    .AppendLine();
+                result.Append("- ").AppendLine(PromptText.Card(card));
             }
         }
         return result.AppendLine("<document>").AppendLine(text).AppendLine("</document>").ToString();

@@ -1,16 +1,18 @@
 import { act, renderHook, waitFor } from '@testing-library/react'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { ApiError, unreachableMessage } from '../api/client'
+import { deleteFlashCards } from '../api/flashCards'
 import { useAction } from '../hooks/useAction'
 import { useConfirm } from '../hooks/useConfirm'
+import { useDeleteCards } from '../hooks/useDeleteCards'
 import { useLoad } from '../hooks/useLoad'
 import { useSuggestions } from '../hooks/useSuggestions'
-import { trackException } from '../telemetry'
+import { trackEvent, trackException } from '../telemetry'
+import { clearToasts, getToasts } from '../toasts'
 
-vi.mock('../telemetry', () => ({
-  trackEvent: vi.fn(),
-  trackException: vi.fn(),
-  trackPageView: vi.fn(),
+vi.mock('../api/flashCards', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('../api/flashCards')>()),
+  deleteFlashCards: vi.fn(),
 }))
 
 beforeEach(() => {
@@ -326,5 +328,77 @@ describe('useSuggestions', () => {
       status: 'ready',
       suggestions: ['perro'],
     })
+  })
+})
+
+describe('useDeleteCards', () => {
+  function renderDeleteCards(editing: number | null) {
+    const options = {
+      setErrorMessage: vi.fn(),
+      operation: 'deleteMany',
+      toastKey: 'picked-cards',
+      editor: {
+        edit: editing === null ? null : { id: editing },
+        cancel: vi.fn(),
+      },
+      onDeleted: vi.fn(),
+    }
+    const { result } = renderHook(() => useDeleteCards(options))
+    return { result, ...options }
+  }
+
+  beforeEach(() => {
+    vi.mocked(deleteFlashCards).mockReset()
+    vi.mocked(trackEvent).mockClear()
+    clearToasts()
+  })
+
+  it('deletes the cards, stops editing one of them and says so', async () => {
+    vi.mocked(deleteFlashCards).mockResolvedValue(undefined)
+    const { result, editor, onDeleted } = renderDeleteCards(2)
+
+    let deleted = false
+    await act(async () => {
+      deleted = await result.current.deleteCards([1, 2])
+    })
+
+    expect(deleted).toBe(true)
+    expect(deleteFlashCards).toHaveBeenCalledWith([1, 2])
+    expect(trackEvent).toHaveBeenCalledWith('FlashCardsDeleted')
+    expect(onDeleted).toHaveBeenCalledWith(new Set([1, 2]))
+    expect(editor.cancel).toHaveBeenCalled()
+    expect(getToasts()).toMatchObject([
+      { key: 'picked-cards', severity: 'success', message: 'Deleted 2 cards.' },
+    ])
+  })
+
+  it('keeps editing a card that was not deleted', async () => {
+    vi.mocked(deleteFlashCards).mockResolvedValue(undefined)
+    const { result, editor } = renderDeleteCards(3)
+
+    await act(async () => {
+      await result.current.deleteCards([1])
+    })
+
+    expect(editor.cancel).not.toHaveBeenCalled()
+  })
+
+  it('reports a failure and says why, leaving the cards', async () => {
+    const error = new ApiError(500, 'Server error.')
+    vi.mocked(deleteFlashCards).mockRejectedValue(error)
+    const { result, setErrorMessage, onDeleted } = renderDeleteCards(null)
+
+    let deleted = true
+    await act(async () => {
+      deleted = await result.current.deleteCards([1])
+    })
+
+    expect(deleted).toBe(false)
+    expect(onDeleted).not.toHaveBeenCalled()
+    expect(setErrorMessage).toHaveBeenLastCalledWith('Server error.')
+    expect(trackException).toHaveBeenCalledWith(error, {
+      operation: 'deleteMany',
+    })
+    expect(getToasts()).toEqual([])
   })
 })

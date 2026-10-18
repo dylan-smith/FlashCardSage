@@ -1,13 +1,8 @@
 import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Link from '@mui/material/Link'
-import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
 import Stack from '@mui/material/Stack'
-import TextField from '@mui/material/TextField'
 import { Link as RouterLink, useNavigate } from 'react-router'
 import {
   createDeck,
@@ -23,13 +18,15 @@ import { useConfirm } from '../hooks/useConfirm'
 import { useLoad } from '../hooks/useLoad'
 import { EmptyText } from '../components/common/EmptyText'
 import { Loading } from '../components/common/Loading'
+import { NameForm } from '../components/common/NameForm'
+import { NamedItemRow } from '../components/common/NamedItemRow'
 import { Section } from '../components/common/Section'
 import {
   AnimatedList,
   AnimatedListItem,
 } from '../components/common/AnimatedList'
 import { cardCount } from '../lib/cardCount'
-import { ConfirmDelete } from '../components/common/ConfirmDelete'
+import { ConfirmDeleteDeck } from '../components/cards/ConfirmDeleteDeck'
 
 // The user's decks. A new deck opens on its own page, where its cards are picked.
 function DecksPage() {
@@ -94,35 +91,17 @@ function DecksPage() {
   return (
     <Stack spacing={2}>
       <Section title="New deck">
-        <Box
-          component="form"
+        <NameForm
+          id="deck-name"
+          label="Deck name"
+          placeholder="e.g. Week 1"
+          maxLength={deckNameMaxLength}
+          value={name}
+          busy={creating.busy}
+          submitText="Create deck"
+          onChange={setName}
           onSubmit={(event) => void handleCreate(event)}
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            alignItems: { xs: 'stretch', sm: 'flex-start' },
-            gap: 2,
-          }}
-        >
-          <TextField
-            id="deck-name"
-            label="Deck name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            slotProps={{ htmlInput: { maxLength: deckNameMaxLength } }}
-            required
-            placeholder="e.g. Week 1"
-            sx={{ flexGrow: 1 }}
-          />
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={creating.busy}
-            sx={{ flexShrink: 0, alignSelf: { sm: 'center' } }}
-          >
-            {creating.busy ? 'Saving…' : 'Create deck'}
-          </Button>
-        </Box>
+        />
       </Section>
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
@@ -136,54 +115,38 @@ function DecksPage() {
           <AnimatedList disablePadding>
             {decks.map((deck) => (
               <AnimatedListItem key={deck.id}>
-                <ListItem
-                  component="div"
-                  divider
-                  disablePadding
-                  sx={{ py: 1, gap: 1 }}
+                <NamedItemRow
+                  name={deck.name}
+                  to={`/decks/${deck.id}`}
+                  secondary={cardCount(deck.flashCardIds.length)}
                 >
-                  {/* The name wraps rather than the buttons, so they stay together on a phone. */}
-                  <ListItemText
-                    primary={
-                      <Link component={RouterLink} to={`/decks/${deck.id}`}>
-                        {deck.name}
-                      </Link>
-                    }
-                    secondary={cardCount(deck.flashCardIds.length)}
-                    sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                  />
-                  <Box sx={{ display: 'flex', flexShrink: 0 }}>
-                    <Button
-                      component={RouterLink}
-                      to={`/practice?deck=${deck.id}`}
-                      aria-label={`Practice deck "${deck.name}"`}
-                    >
-                      Practice
-                    </Button>
-                    <Button
-                      color="error"
-                      aria-label={`Delete deck "${deck.name}"`}
-                      disabled={deleting.busyKey === deck.id}
-                      onClick={() => confirm.ask(deck)}
-                    >
-                      Delete
-                    </Button>
-                  </Box>
-                </ListItem>
+                  <Button
+                    component={RouterLink}
+                    to={`/practice?deck=${deck.id}`}
+                    aria-label={`Practice deck "${deck.name}"`}
+                  >
+                    Practice
+                  </Button>
+                  <Button
+                    color="error"
+                    aria-label={`Delete deck "${deck.name}"`}
+                    disabled={deleting.busyKey === deck.id}
+                    onClick={() => confirm.ask(deck)}
+                  >
+                    Delete
+                  </Button>
+                </NamedItemRow>
               </AnimatedListItem>
             ))}
           </AnimatedList>
         )}
         {confirming !== null && (
-          <ConfirmDelete
+          <ConfirmDeleteDeck
             {...confirm.dialogProps}
-            title={`Delete deck "${confirming.name}"?`}
+            name={confirming.name}
             busy={deleting.busyKey === confirming.id}
             onConfirm={() => void handleDelete(confirming)}
-          >
-            This can&apos;t be undone. Its cards won&apos;t be deleted, and keep
-            their scores.
-          </ConfirmDelete>
+          />
         )}
       </Section>
     </Stack>

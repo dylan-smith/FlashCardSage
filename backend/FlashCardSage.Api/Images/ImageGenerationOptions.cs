@@ -16,4 +16,7 @@ public class ImageGenerationOptions
     public string Deployment { get; set; } = "flux-2-pro";
 
     public string ApiVersion { get; set; } = "preview";
+
+    // False when no image generation service is set up, e.g. in local development and E2E tests.
+    public bool IsAvailable => !string.IsNullOrWhiteSpace(Endpoint) && !string.IsNullOrWhiteSpace(Key);
 }

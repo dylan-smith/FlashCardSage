@@ -96,12 +96,14 @@ export function TagFilter({
   total,
   selected,
   onSelect: select,
+  size,
 }: {
   tags: Tag[]
   counts: Map<number, number>
   total: number
   selected: Tag | null
   onSelect: (tag: Tag | null) => void
+  size?: 'small'
 }) {
   return (
     <Box
@@ -111,6 +113,7 @@ export function TagFilter({
     >
       <Chip
         label={`All (${total})`}
+        size={size}
         color={selected === null ? 'primary' : 'default'}
         variant={selected === null ? 'filled' : 'outlined'}
         aria-pressed={selected === null}
@@ -120,6 +123,7 @@ export function TagFilter({
         <Chip
           key={tag.id}
           label={`${tag.name} (${counts.get(tag.id) ?? 0})`}
+          size={size}
           color={selected?.id === tag.id ? 'primary' : 'default'}
           variant={selected?.id === tag.id ? 'filled' : 'outlined'}
           aria-pressed={selected?.id === tag.id}

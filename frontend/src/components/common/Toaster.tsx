@@ -6,6 +6,7 @@ import IconButton from '@mui/material/IconButton'
 import Slide from '@mui/material/Slide'
 import SvgIcon from '@mui/material/SvgIcon'
 import { Link as RouterLink } from 'react-router'
+import { icons } from '../../lib/icons'
 import {
   clearToasts,
   dismissToast,
@@ -75,7 +76,7 @@ function ToastItem({ toast }: { toast: ShownToast }) {
                 onClick={() => setOpen(false)}
               >
                 <SvgIcon fontSize="small">
-                  <path d="M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z" />
+                  <path d={icons.close} />
                 </SvgIcon>
               </IconButton>
             </>

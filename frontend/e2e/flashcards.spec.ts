@@ -1,30 +1,16 @@
-import type { Page } from '@playwright/test'
-import { test, expect, cardData, onePixelPng } from './fixtures'
-
-// The backend started by playwright.config.ts.
-const flashCardsApiUrl = 'http://localhost:5269/api/flashcards'
-
-// Adds a flash card from the form and waits for it to appear in the list.
-async function createFlashCard(page: Page, spanish: string, english: string) {
-  await page.getByLabel('Spanish').fill(spanish)
-  await page.getByLabel('English').fill(english)
-  await page.getByRole('button', { name: 'Add flash card' }).click()
-  await expect(
-    page.getByRole('listitem').filter({ hasText: spanish }),
-  ).toBeVisible()
-}
+import {
+  test,
+  expect,
+  addCard,
+  apiOrigin,
+  confirmDelete,
+  onePixelPng,
+} from './fixtures'
 
 test.describe('Flash card management', () => {
-  test.beforeEach(async ({ page, request }) => {
-    // Delete leftover cards (including ones other spec files created) through the API, since deleting them in
-    // the UI races the page's initial load.
-    const response = await request.get(flashCardsApiUrl)
-    expect(response.ok()).toBe(true)
-    for (const { id } of (await response.json()) as { id: number }[]) {
-      expect((await request.delete(`${flashCardsApiUrl}/${id}`)).ok()).toBe(
-        true,
-      )
-    }
+  test.beforeEach(async ({ page, api }) => {
+    // Delete leftover cards, including ones other spec files created.
+    await api.reset('flashcards')
 
     // Wait for the initial load to finish, so its response can't overwrite a list the test changes.
     await page.goto('/')
@@ -33,7 +19,7 @@ test.describe('Flash card management', () => {
 
   test.describe('Add flash card', () => {
     test('adds a new card with its translation', async ({ page }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el gato', 'the cat')
 
       await expect(page.getByText('the cat', { exact: true })).toBeVisible()
     })
@@ -48,15 +34,15 @@ test.describe('Flash card management', () => {
     })
 
     test('clears the inputs after adding a card', async ({ page }) => {
-      await createFlashCard(page, 'la casa', 'the house')
+      await addCard(page, 'la casa', 'the house')
       await expect(page.getByLabel('Spanish')).toHaveValue('')
       await expect(page.getByLabel('English')).toHaveValue('')
     })
 
     test('lists cards in the order they were added', async ({ page }) => {
-      await createFlashCard(page, 'uno', 'one')
-      await createFlashCard(page, 'dos', 'two')
-      await createFlashCard(page, 'tres', 'three')
+      await addCard(page, 'uno', 'one')
+      await addCard(page, 'dos', 'two')
+      await addCard(page, 'tres', 'three')
 
       const items = page.getByRole('listitem')
       await expect(items).toHaveCount(3)
@@ -68,7 +54,7 @@ test.describe('Flash card management', () => {
     test('refuses a second card for the same Spanish or English', async ({
       page,
     }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el gato', 'the cat')
       const add = page.getByRole('button', { name: 'Add flash card' })
 
       await page.getByLabel('Spanish').fill('El Gato')
@@ -206,7 +192,7 @@ test.describe('Flash card management', () => {
       const suggestions = page.getByRole('list', { name: 'Suggested cards' })
       await expect(suggestions).toContainText('el pez')
 
-      await createFlashCard(page, 'el perro', 'the dog')
+      await addCard(page, 'el perro', 'the dog')
 
       await expect(suggestions).toContainText('el collar')
       await expect(suggestions).not.toContainText('el pez')
@@ -216,7 +202,7 @@ test.describe('Flash card management', () => {
     })
 
     test('keeps the cards after a reload', async ({ page }) => {
-      await createFlashCard(page, 'el libro', 'the book')
+      await addCard(page, 'el libro', 'the book')
 
       await page.reload()
 
@@ -227,7 +213,7 @@ test.describe('Flash card management', () => {
 
   test.describe('Edit flash card', () => {
     test('changes both sides', async ({ page }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Edit "el gato"' }).click()
       const spanish = page.getByRole('listitem').getByLabel('Spanish')
@@ -248,7 +234,7 @@ test.describe('Flash card management', () => {
     })
 
     test('saves with Enter', async ({ page }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Edit "el gato"' }).click()
       const input = page.getByRole('listitem').getByLabel('English')
@@ -259,7 +245,7 @@ test.describe('Flash card management', () => {
     })
 
     test('can be cancelled', async ({ page }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Edit "el gato"' }).click()
       await page.getByRole('listitem').getByLabel('Spanish').fill('changed')
@@ -270,7 +256,7 @@ test.describe('Flash card management', () => {
     })
 
     test('refuses a blank translation', async ({ page }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Edit "el gato"' }).click()
       await page.getByRole('listitem').getByLabel('English').fill('   ')
@@ -283,8 +269,8 @@ test.describe('Flash card management', () => {
 
   test.describe('Delete flash card', () => {
     test('removes the card', async ({ page }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
-      await createFlashCard(page, 'el perro', 'the dog')
+      await addCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el perro', 'the dog')
 
       await page.getByRole('button', { name: 'Delete "el gato"' }).click()
       const dialog = page.getByRole('dialog', { name: 'Delete "el gato"?' })
@@ -301,19 +287,16 @@ test.describe('Flash card management', () => {
     test('shows the empty message once the last card is gone', async ({
       page,
     }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Delete "el gato"' }).click()
-      await page
-        .getByRole('dialog', { name: 'Delete "el gato"?' })
-        .getByRole('button', { name: 'Delete' })
-        .click()
+      await confirmDelete(page, 'Delete "el gato"?')
 
       await expect(page.getByText('No flash cards yet.')).toBeVisible()
     })
 
     test('keeps the card when the delete is cancelled', async ({ page }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el gato', 'the cat')
 
       await page.getByRole('button', { name: 'Delete "el gato"' }).click()
       await page
@@ -327,17 +310,14 @@ test.describe('Flash card management', () => {
     })
 
     test('deletes the cards picked at once', async ({ page }) => {
-      await createFlashCard(page, 'el gato', 'the cat')
-      await createFlashCard(page, 'el perro', 'the dog')
-      await createFlashCard(page, 'la casa', 'the house')
+      await addCard(page, 'el gato', 'the cat')
+      await addCard(page, 'el perro', 'the dog')
+      await addCard(page, 'la casa', 'the house')
 
       await page.getByRole('checkbox', { name: 'Pick "el gato"' }).check()
       await page.getByRole('checkbox', { name: 'Pick "el perro"' }).check()
       await page.getByRole('button', { name: 'Delete 2 cards…' }).click()
-      await page
-        .getByRole('dialog', { name: 'Delete 2 cards?' })
-        .getByRole('button', { name: 'Delete' })
-        .click()
+      await confirmDelete(page, 'Delete 2 cards?')
 
       await expect(page.getByRole('status')).toHaveText('Deleted 2 cards.')
       await page.reload()
@@ -349,7 +329,7 @@ test.describe('Flash card management', () => {
 
   test.describe('Pictures', () => {
     // Where the E2E backend keeps the pictures it's given (see Images/LocalFileImageStore.cs).
-    const pictureUrlPrefix = 'http://localhost:5269/card-images/'
+    const pictureUrlPrefix = `${apiOrigin}/card-images/`
 
     test.beforeEach(async ({ page }) => {
       // The E2E backend has no image generator, so stand in for Azure OpenAI.
@@ -435,17 +415,10 @@ test.describe('Flash card management', () => {
     test('takes the picture off the card when the user removes it', async ({
       page,
       request,
+      api,
     }) => {
-      const created = await request.post(flashCardsApiUrl, {
-        data: cardData('nadar', 'to swim'),
-      })
-      expect(created.ok()).toBe(true)
-      const { id } = (await created.json()) as { id: number }
-      const put = await request.put(`${flashCardsApiUrl}/${id}/image`, {
-        data: onePixelPng,
-      })
-      expect(put.ok()).toBe(true)
-      const { imageUrl } = (await put.json()) as { imageUrl: string }
+      const { id } = await api.createCard('nadar', 'to swim')
+      const { imageUrl } = await api.addPicture(id)
       await page.reload()
       await expect(
         page.getByRole('img', { name: 'Picture for "nadar"' }),

@@ -1,5 +1,3 @@
-using FlashCardSage.Api.Translation;
-
 namespace FlashCardSage.Api.Models;
 
 // A translation the API got from Azure AI Translator, kept so the same text is never paid for twice. The same text

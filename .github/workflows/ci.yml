@@ -341,6 +341,18 @@ jobs:
           FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
           AZURE_CORE_NO_COLOR: 'true'
 
+      # A deployment doesn't delete resources removed from the template, so the comment also lists what's in the
+      # resource group but not in the template (an alert rule left behind keeps firing).
+      - name: Find resources the template doesn't define
+        shell: bash
+        run: bash .github/scripts/orphaned-resources.sh | tee "${RUNNER_TEMP}/orphaned-resources.txt"
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          WHAT_IF_VALIDATION_LEVEL: ProviderNoRbac
+          AZURE_SQL_CONNECTION_STRING: what-if-placeholder
+          GOOGLE_CLIENT_ID: what-if-placeholder
+          FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
+
       # If this fails (say main's templates are broken), the comment shows every change instead of failing the PR.
       - name: Preview main's infrastructure changes
         id: baseline
@@ -367,6 +379,7 @@ jobs:
           WHAT_IF_OUTPUT: ${{ runner.temp }}/what-if.txt
           BASELINE_WHAT_IF_OUTPUT: ${{ runner.temp }}/baseline-what-if.txt
           BASELINE_OK: ${{ steps.baseline.outcome == 'success' }}
+          ORPHANED_RESOURCES: ${{ runner.temp }}/orphaned-resources.txt
           AZURE_SUBSCRIPTION_ID: ${{ vars.AZURE_SUBSCRIPTION_ID }}
         with:
           script: |
@@ -383,12 +396,16 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
     # No environment: PR runs use the preview identity, which can only change the preview resource group, and
     # never get the production environment's credentials or secrets.
-    # A deployment still running for the PR finishes before the next one starts (a newer push waiting its turn
-    # replaces an older waiting one), since stopping it partway through migrations would break the database.
-    # Closing the PR does cancel it (preview-cleanup.yml uses the same group), since the database is deleted then.
+    # One preview deploys at a time across every PR: the previews share one App Service plan, and several apps
+    # starting on it at once starve each other's CPU until they miss App Service's startup probe. The others wait
+    # their turn in order (queue: max keeps them all rather than only the newest), and a run for a commit the PR
+    # has moved on from skips once its turn comes (see the next step). A running deployment is never cancelled,
+    # since stopping it partway through migrations would break the database. preview-cleanup.yml queues in the
+    # same group, so a closed PR's preview is deleted only after a deployment still running for it finishes.
     concurrency:
-      group: preview-${{ github.event.pull_request.number }}
+      group: preview-deploy
       cancel-in-progress: false
+      queue: max
     permissions:
       id-token: write
       contents: read
@@ -662,6 +679,22 @@ jobs:
             --parameters infra/main.bicepparam \
             --only-show-errors \
             --output none
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}
+          SLACK_WEBHOOK_URL: ${{ secrets.SLACK_WEBHOOK_URL }}
+          ALERT_INVESTIGATION_TOKEN: ${{ secrets.ALERT_INVESTIGATION_TOKEN }}
+          GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
+          FLASHCARDSAGE_SERVICE_TOKEN: ${{ secrets.FLASHCARDSAGE_SERVICE_TOKEN }}
+
+      # The deployment doesn't delete resources removed from the template. Delete the alert rules it left behind,
+      # which would otherwise keep firing, and warn about anything else. Never holds up the deployment.
+      - name: Delete alert rules the template no longer defines
+        continue-on-error: true
+        shell: bash
+        run: |
+          bash .github/scripts/orphaned-resources.sh > "${RUNNER_TEMP}/orphaned-resources.txt"
+          bash .github/scripts/delete-orphaned-alerts.sh "${RUNNER_TEMP}/orphaned-resources.txt"
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_SQL_CONNECTION_STRING: ${{ secrets.AZURE_SQL_CONNECTION_STRING }}

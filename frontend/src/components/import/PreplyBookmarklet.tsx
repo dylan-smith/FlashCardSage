@@ -9,6 +9,7 @@ import Stack from '@mui/material/Stack'
 import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
+import { icons } from '../../lib/icons'
 import { bookmarkletHref } from '../../preply/sendToFlashCardSage'
 import { showToast } from '../../toasts'
 
@@ -17,16 +18,6 @@ export const preplyVocabularyUrl =
 
 // A phone or tablet with only a touch screen, which has no bookmarks bar to drag the bookmarklet to.
 export const touchOnlyQuery = '(hover: none) and (pointer: coarse)'
-
-// Material icons for each step: a bookmark being added, a page opening, a mouse, and a list being checked.
-const bookmarkAddIcon =
-  'M21 7h-2v2h-2V7h-2V5h2V3h2v2h2v2zm-2 14-7-3-7 3V5c0-1.1.9-2 2-2h7c-.64.84-1 1.87-1 3 0 2.76 2.24 5 5 5 .34 0 .68-.03 1-.08V21z'
-const openIcon =
-  'M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z'
-const mouseIcon =
-  'M13 1.07V9h7c0-4.08-3.05-7.44-7-7.93zM4 15c0 4.42 3.58 8 8 8s8-3.58 8-8v-4H4v4zm7-13.93C7.05 1.56 4 4.92 4 9h7V1.07z'
-const checkListIcon =
-  'M14 10H2v2h12v-2zm0-4H2v2h12V6zM2 16h8v-2H2v2zm19.5-4.5L23 13l-6.99 7-4.51-4.5L13 14l3.01 3 5.49-5.5z'
 
 // One step, as a card with its number and icon, a short title, a line saying what to do, and anything to do it with.
 // The number is only drawn, since the list it's in numbers the steps for a screen reader.
@@ -137,7 +128,7 @@ export function PreplyBookmarklet() {
         spacing={2}
         sx={{ listStyle: 'none', m: 0, p: 0 }}
       >
-        <Step number={1} icon={bookmarkAddIcon} title="Add the bookmarklet">
+        <Step number={1} icon={icons.bookmarkAdd} title="Add the bookmarklet">
           <Typography variant="body2" color="text.secondary">
             Drag this button to your bookmarks bar.
           </Typography>
@@ -162,7 +153,7 @@ export function PreplyBookmarklet() {
             Send to FlashCardSage
           </Button>
         </Step>
-        <Step number={2} icon={openIcon} title="Open Preply">
+        <Step number={2} icon={icons.open} title="Open Preply">
           <Typography variant="body2" color="text.secondary">
             Go to your vocabulary, signed in to Preply.
           </Typography>
@@ -175,12 +166,12 @@ export function PreplyBookmarklet() {
             Preply vocabulary
           </Link>
         </Step>
-        <Step number={3} icon={mouseIcon} title="Click the bookmarklet">
+        <Step number={3} icon={icons.mouse} title="Click the bookmarklet">
           <Typography variant="body2" color="text.secondary">
             FlashCardSage opens here with your words.
           </Typography>
         </Step>
-        <Step number={4} icon={checkListIcon} title="Pick and add">
+        <Step number={4} icon={icons.checkList} title="Pick and add">
           <Typography variant="body2" color="text.secondary">
             Change or remove any, then add them to your Preply deck. Words you
             already have are left out.

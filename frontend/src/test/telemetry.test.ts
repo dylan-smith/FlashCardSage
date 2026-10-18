@@ -36,6 +36,9 @@ const sdk = vi.hoisted(() => ({
 
 const config = vi.hoisted(() => ({ apiBaseUrl: 'http://localhost:5269' }))
 
+// The setup file mocks telemetry for every other test.
+vi.unmock('../telemetry')
+
 vi.mock('../config', () => ({
   get apiBaseUrl() {
     return config.apiBaseUrl

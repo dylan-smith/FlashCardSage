@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace FlashCardSage.Api.Models;
 
 // A named set of the user's cards to practice, such as Food or Week 1.
-public class Deck
+public class Deck : IUserOwned
 {
     public const int MaxNameLength = 50;
 

@@ -3,21 +3,22 @@ using System.Net.Http.Headers;
 using System.Text;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
+using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
-using Microsoft.AspNetCore.Hosting;
+using FlashCardSage.Api.Tests.TestData;
 using Microsoft.AspNetCore.Http;
-using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
-using UglyToad.PdfPig.Content;
-using UglyToad.PdfPig.Writer;
 
 namespace FlashCardSage.Api.Tests;
 
 public class DocumentScansControllerTests(WebApplicationFactory<Program> factory)
     : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
+    // The app with no key for the service, so it's off.
+    private static readonly Dictionary<string, string> Settings = new() { ["CardSuggestions:Key"] = "" };
+
     // The uploads' streams, which a FormFile doesn't dispose, disposed once the test is done.
     private readonly List<MemoryStream> streams = [];
 
@@ -30,16 +31,17 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     [Fact]
     public async Task Scan_ReturnsTheCandidates_LeavingOutCardsTheUserHas()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await SeedAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, ("el gato", "the cat"));
         var scanner = new FakeScanner
         {
             Result = [new(" el perro ", "the dog "), new("El Gato", "the kitty"), new("el pez", "the fish"), new("", "x")]
         };
+        await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(databaseName, scanner).Scan(File("cuento.txt", "Un gato y un perro."), CancellationToken.None);
+        var result = await CreateController(dbContext, scanner).Scan(File("cuento.txt", "Un gato y un perro."), CancellationToken.None);
 
-        var response = Assert.IsType<DocumentScanResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<DocumentScanResponse>(result.Result);
         Assert.Equal([new("el perro", "the dog"), new("el pez", "the fish")], response.Candidates);
         Assert.False(response.Truncated);
         Assert.Equal("Un gato y un perro.", scanner.Text);
@@ -49,13 +51,14 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     [Fact]
     public async Task Scan_TellsTheScannerOnlyAboutTheUsersCardsForWordsInTheDocument()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await SeedAsync(
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardsAsync(
             databaseName, TestDb.UserId, ("el gato", "the cat"), ("comer", "to eat"), ("la casa", "the house"), ("Y", "and"));
-        await SeedAsync(databaseName, TestDb.OtherUserId, ("perro", "dog"));
+        await TestDb.SeedCardsAsync(databaseName, TestDb.OtherUserId, ("perro", "dog"));
         var scanner = new FakeScanner();
+        await using var dbContext = TestDb.Create(databaseName);
 
-        await CreateController(databaseName, scanner).Scan(
+        await CreateController(dbContext, scanner).Scan(
             File("cuento.txt", "Un Gato y un perro van a comer."), CancellationToken.None);
 
         Assert.Equal(["el gato", "comer", "Y"], scanner.Cards!.Select(card => card.Spanish.Single()));
@@ -68,11 +71,12 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
         {
             Result = Enumerable.Range(1, 110).Select(i => new CardSuggestion($"es {i}", $"en {i}")).ToList()
         };
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), scanner).Scan(
+        var result = await CreateController(dbContext, scanner).Scan(
             File("cuento.txt", "Hola."), CancellationToken.None);
 
-        var response = Assert.IsType<DocumentScanResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<DocumentScanResponse>(result.Result);
         Assert.Equal(DocumentScansController.MaxCandidates, response.Candidates.Count);
         Assert.Equal("es 100", response.Candidates[^1].Spanish);
     }
@@ -82,11 +86,12 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     {
         var scanner = new FakeScanner();
         var text = new string('a', DocumentScansController.MaxCharacters) + "b";
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), scanner).Scan(
+        var result = await CreateController(dbContext, scanner).Scan(
             File("largo.txt", text), CancellationToken.None);
 
-        var response = Assert.IsType<DocumentScanResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var response = ActionResultAssert.Ok<DocumentScanResponse>(result.Result);
         Assert.True(response.Truncated);
         Assert.Equal(text[..^1], scanner.Text);
     }
@@ -95,9 +100,10 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     public async Task Scan_ScansAWordDocument()
     {
         var scanner = new FakeScanner();
-        using var stream = DocumentTextTests.WordDocument("<w:p><w:r><w:t>Buenos días.</w:t></w:r></w:p>");
+        using var stream = SampleDocuments.WordDocument("<w:p><w:r><w:t>Buenos días.</w:t></w:r></w:p>");
+        await using var dbContext = TestDb.Create();
 
-        await CreateController(Guid.NewGuid().ToString(), scanner).Scan(
+        await CreateController(dbContext, scanner).Scan(
             new FormFile(stream, 0, stream.Length, "file", "cuento.docx"), CancellationToken.None);
 
         Assert.Equal("Buenos días.\n", scanner.Text);
@@ -111,28 +117,27 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     public async Task Scan_ReturnsValidationProblem_ForADocumentItCantScan(string fileName, string content, string message)
     {
         var scanner = new FakeScanner();
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), scanner).Scan(
+        var result = await CreateController(dbContext, scanner).Scan(
             File(fileName, content), CancellationToken.None);
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal([message], problem.Errors["file"]);
+        ActionResultAssert.ValidationProblem(result.Result, "file", message);
         Assert.Null(scanner.Text);
     }
 
     [Fact]
     public async Task Scan_SaysAPdfWithoutTextMayBeScannedPictures()
     {
-        using var builder = new PdfDocumentBuilder();
-        builder.AddPage(PageSize.A4);
-        using var stream = new MemoryStream(builder.Build());
+        // A page with nothing written on it.
+        using var stream = SampleDocuments.Pdf([[]]);
         var scanner = new FakeScanner();
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), scanner).Scan(
+        var result = await CreateController(dbContext, scanner).Scan(
             new FormFile(stream, 0, stream.Length, "file", "escaneado.pdf"), CancellationToken.None);
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal([DocumentScansController.NoTextInPdfMessage], problem.Errors["file"]);
+        ActionResultAssert.ValidationProblem(result.Result, "file", DocumentScansController.NoTextInPdfMessage);
         Assert.Null(scanner.Text);
     }
 
@@ -140,11 +145,12 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     public async Task Scan_ReturnsServiceUnavailable_WhenScanningIsOff()
     {
         var scanner = new FakeScanner { IsAvailable = false };
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), scanner).Scan(
+        var result = await CreateController(dbContext, scanner).Scan(
             File("cuento.txt", "Hola."), CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status503ServiceUnavailable, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
         Assert.Null(scanner.Text);
     }
 
@@ -154,17 +160,18 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     public async Task Scan_ReturnsBadGateway_WhenTheScannerFailsOrTimesOut(Type failure)
     {
         var scanner = new FakeScanner { Failure = (Exception)Activator.CreateInstance(failure)! };
+        await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(Guid.NewGuid().ToString(), scanner).Scan(
+        var result = await CreateController(dbContext, scanner).Scan(
             File("cuento.txt", "Hola."), CancellationToken.None);
 
-        Assert.Equal(StatusCodes.Status502BadGateway, Assert.IsType<ObjectResult>(result.Result).StatusCode);
+        ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
 
     [Fact]
     public async Task Scan_RequiresSignIn()
     {
-        using var client = CreateClient(signedIn: false);
+        using var client = TestApp.CreateSignedOutClient(factory, Settings);
 
         var response = await client.PostAsync("/api/document-scans", Upload());
 
@@ -174,7 +181,7 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     [Fact]
     public async Task Scan_IsUnavailable_WithoutAnApiKey()
     {
-        using var client = CreateClient(signedIn: true);
+        using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
 
         var response = await client.PostAsync("/api/document-scans", Upload());
 
@@ -196,35 +203,10 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
         return new MultipartFormDataContent { { file, "file", "cuento.txt" } };
     }
 
-    private static async Task SeedAsync(string databaseName, int userId, params (string Spanish, string English)[] cards)
-    {
-        await using var dbContext = TestDb.Create(databaseName, userId);
-        dbContext.FlashCards.AddRange(cards.Select(card => new FlashCard { Words = TestDb.Words(card.Spanish, card.English) }));
-        await dbContext.SaveChangesAsync();
-    }
-
-    private static DocumentScansController CreateController(string databaseName, IDocumentScanner scanner)
+    private static DocumentScansController CreateController(FlashCardDbContext dbContext, IDocumentScanner scanner)
     {
         return new DocumentScansController(
-            TestDb.Create(databaseName), scanner, NullLogger<DocumentScansController>.Instance);
-    }
-
-    private HttpClient CreateClient(bool signedIn)
-    {
-        // Development uses the in-memory database and allows test sign-in, so the app starts without SQL Server.
-        var client = factory
-            .WithWebHostBuilder(builder => builder
-                .UseEnvironment("Development")
-                .UseSetting("Authentication:AllowTestSignIn", "true")
-                .UseSetting("CardSuggestions:Key", ""))
-            .CreateClient();
-        if (signedIn)
-        {
-            client.DefaultRequestHeaders.Authorization =
-                new AuthenticationHeaderValue("Bearer", $"test:Scans {Guid.NewGuid()}");
-        }
-
-        return client;
+            dbContext, scanner, NullLogger<DocumentScansController>.Instance);
     }
 
     private sealed class FakeScanner : IDocumentScanner

@@ -35,13 +35,9 @@ public class CachedTranslator(ITranslator translator, FlashCardDbContext dbConte
             Alternatives = [.. result.Alternatives],
             CreatedAt = DateTimeOffset.UtcNow
         });
-        try
-        {
-            // The translation has been paid for, so it's kept even if the user has typed on and the request is
-            // no longer wanted.
-            await dbContext.SaveChangesAsync(CancellationToken.None);
-        }
-        catch (DbUpdateException)
+        // The translation has been paid for, so it's kept even if the user has typed on and the request is no longer
+        // wanted.
+        if (await dbContext.TrySaveUniqueAsync(CancellationToken.None) is not null)
         {
             // Another request translated the same text in the meantime, which fails the unique index. Theirs is
             // kept, and this one is just as good.
