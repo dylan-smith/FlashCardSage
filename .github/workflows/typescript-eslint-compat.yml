@@ -56,4 +56,4 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.TS_COMPAT_PR_TOKEN }}
           LATEST: ${{ steps.versions.outputs.latest }}
-        run: bash .github/scripts/typescript-compat-open-pr.sh
+        run: bash .github/scripts/open-cleanup-pr.sh typescript-compat

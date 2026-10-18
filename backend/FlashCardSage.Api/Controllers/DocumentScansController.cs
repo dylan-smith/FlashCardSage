@@ -1,7 +1,6 @@
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Documents;
-using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -20,11 +19,11 @@ namespace FlashCardSage.Api.Controllers;
 public class DocumentScansController(
     FlashCardDbContext dbContext,
     IDocumentScanner scanner,
-    ILogger<DocumentScansController> logger) : ControllerBase
+    ILogger<DocumentScansController> logger) : ApiControllerBase
 {
     // The most cards a scan makes. A document with more can be scanned again once they're added, since a scan leaves
     // out the user's cards.
-    public const int MaxCandidates = 100;
+    public const int MaxCandidates = FlashCardBatchRequest.MaxCards;
 
     // The most of a document's text that's scanned, from its start, which keeps the request under the model
     // deployment's tokens a minute.
@@ -53,7 +52,7 @@ public class DocumentScansController(
     {
         if (!scanner.IsAvailable)
         {
-            return Problem("Scanning documents isn't available.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            return ServiceUnavailableProblem("Scanning documents isn't available.");
         }
 
         if (file.Length > MaxFileBytes)
@@ -102,7 +101,7 @@ public class DocumentScansController(
 
         var cards = await dbContext.FlashCards
             .AsNoTracking()
-            .Include(card => card.Words)
+            .WithWords()
             .OrderBy(card => card.Id)
             .ToListAsync(cancellationToken);
 
@@ -115,12 +114,10 @@ public class DocumentScansController(
         {
             scanned = await scanner.ScanAsync(text, inDocument, MaxCandidates + ExtraRequested, cancellationToken);
         }
-        // A timeout surfaces as a cancellation the caller didn't ask for.
-        catch (Exception ex) when (ex is HttpRequestException
-            || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
             logger.LogError(ex, "Scanning a document failed");
-            return Problem("Scanning the document failed.", statusCode: StatusCodes.Status502BadGateway);
+            return BadGatewayProblem("Scanning the document failed.");
         }
 
         var candidates = NewCards.From(scanned, cards).Take(MaxCandidates).ToList();

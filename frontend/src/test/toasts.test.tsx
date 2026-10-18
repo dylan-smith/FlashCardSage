@@ -2,7 +2,7 @@ import { act, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { Toaster } from '../Toaster'
+import { Toaster } from '../components/common/Toaster'
 import { showToast, toastMs, toastWithActionMs } from '../toasts'
 
 function renderToaster() {

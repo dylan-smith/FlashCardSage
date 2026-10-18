@@ -1,38 +1,18 @@
-import { cardData, onePixelPng, test, expect } from './fixtures'
+import { onePixelPng, openSection, test, expect } from './fixtures'
 
-// The backend started by playwright.config.ts, which adds the built-in decks when it starts.
-const apiUrl = 'http://localhost:5269/api'
-
+// The backend started by playwright.config.ts adds the built-in decks when it starts.
 test.describe('Import cards', () => {
-  test.beforeEach(async ({ request }) => {
-    // Start from one card that's on a built-in deck, with no decks or tags, deleted through the API like
-    // decks.spec.ts does.
-    for (const resource of ['decks', 'flashcards', 'tags']) {
-      const response = await request.get(`${apiUrl}/${resource}`)
-      expect(response.ok()).toBe(true)
-      for (const { id } of (await response.json()) as { id: number }[]) {
-        expect((await request.delete(`${apiUrl}/${resource}/${id}`)).ok()).toBe(
-          true,
-        )
-      }
-    }
-    expect(
-      (
-        await request.post(`${apiUrl}/flashcards`, {
-          data: cardData('lunes', 'Monday'),
-        })
-      ).ok(),
-    ).toBe(true)
+  test.beforeEach(async ({ api }) => {
+    // Start from one card that's on a built-in deck, with no decks or tags.
+    await api.reset('decks', 'flashcards', 'tags')
+    await api.createCard('lunes', 'Monday')
   })
 
   test('adds a built-in deck, leaving out the card the user has', async ({
     page,
   }) => {
     await page.goto('/')
-    await page
-      .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: 'Import cards' })
-      .click()
+    await openSection(page, 'Import cards')
 
     await expect(
       page
@@ -43,7 +23,7 @@ test.describe('Import cards', () => {
             exact: true,
           }),
         })
-        .getByText('7 cards', { exact: true }),
+        .getByText('7 cards, 1 added', { exact: true }),
     ).toBeVisible()
     await page
       .getByRole('button', { name: 'Days of the week', exact: true })
@@ -70,22 +50,14 @@ test.describe('Import cards', () => {
     ).toBeVisible()
     await expect(page.getByText('martes', { exact: true })).toBeVisible()
 
-    // The deck's tag came with it, and adding the deck again finds nothing new.
-    await page
-      .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: 'Tags' })
-      .click()
+    // The deck's tag came with it, and the deck now shows as added.
+    await openSection(page, 'Tags')
     await expect(page.getByRole('link', { name: 'Days' })).toBeVisible()
-    await page
-      .getByRole('navigation', { name: 'Manage cards' })
-      .getByRole('link', { name: 'Import cards' })
-      .click()
-    await page
-      .getByRole('button', { name: 'Add deck "Days of the week"' })
-      .click()
-    await expect(page.getByRole('alert')).toHaveText(
-      'You already have all of these cards.',
-    )
+    await openSection(page, 'Import cards')
+    await expect(
+      page.getByRole('button', { name: 'Added deck "Days of the week"' }),
+    ).toBeDisabled()
+    await expect(page.getByText('7 cards, all added')).toBeVisible()
   })
 
   test("adds a built-in deck's cards one at a time, making the deck for the first", async ({

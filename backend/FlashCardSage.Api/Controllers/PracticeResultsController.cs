@@ -34,6 +34,9 @@ public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<Pra
             return NotFound();
         }
 
+        // Required, so the model binder has already refused a request without it.
+        var outcome = request.Outcome!.Value;
+
         // A card's score only depends on its last few answers, so those are all it takes to see how much this one
         // changes it.
         var recentOutcomes = await dbContext.PracticeResults
@@ -42,13 +45,13 @@ public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<Pra
             .Take(PracticeScore.MaximumStreak)
             .Select(result => result.Outcome)
             .ToListAsync();
-        var scoreChange = PracticeScore.FromOutcomes(recentOutcomes.Prepend(request.Outcome!.Value))
+        var scoreChange = PracticeScore.FromOutcomes(recentOutcomes.Prepend(outcome))
             - PracticeScore.FromOutcomes(recentOutcomes);
 
         dbContext.PracticeResults.Add(new PracticeResult
         {
             FlashCardId = flashCardId,
-            Outcome = request.Outcome!.Value,
+            Outcome = outcome,
             PracticedAt = DateTimeOffset.UtcNow
         });
         await dbContext.SaveChangesAsync();

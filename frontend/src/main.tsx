@@ -1,38 +1,18 @@
 import { StrictMode } from 'react'
 import CssBaseline from '@mui/material/CssBaseline'
-import { ThemeProvider, createTheme } from '@mui/material/styles'
+import { ThemeProvider } from '@mui/material/styles'
 import { createRoot } from 'react-dom/client'
 import { BrowserRouter } from 'react-router'
 import './index.css'
-import App from './App.tsx'
-import ErrorBoundary from './ErrorBoundary.tsx'
-import { initTelemetry, trackException } from './telemetry.ts'
-import { startHandoff } from './wordSources/handoff.ts'
+import App from './App'
+import ErrorBoundary from './components/common/ErrorBoundary'
+import { initTelemetry, trackException } from './telemetry'
+import { startHandoff } from './wordSources/handoff'
+import { theme } from './theme'
 
 initTelemetry()
 // Before rendering, since the user may need to sign in before they see the words a bookmarklet sends.
 startHandoff()
-
-const theme = createTheme({
-  palette: {
-    mode: 'light',
-    primary: {
-      main: '#0e2841',
-    },
-    secondary: {
-      main: '#1b9a57',
-    },
-    background: {
-      default: '#f3f4f6',
-    },
-    text: {
-      primary: '#111827',
-    },
-  },
-  typography: {
-    fontFamily: 'Inter, system-ui, -apple-system, Segoe UI, Roboto, sans-serif',
-  },
-})
 
 // Setting these replaces React's default console logging, so keep logging as well as reporting.
 function reportRootError(kind: string) {

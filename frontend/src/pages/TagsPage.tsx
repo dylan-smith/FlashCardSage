@@ -1,121 +1,122 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
-import Link from '@mui/material/Link'
-import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
-import Paper from '@mui/material/Paper'
+import MenuItem from '@mui/material/MenuItem'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
-import { Link as RouterLink } from 'react-router'
-import { ApiError, describeFetchError, listFlashCards } from '../api/flashCards'
+import { listFlashCards } from '../api/flashCards'
 import type { Tag } from '../api/flashCards'
-import { createTag, deleteTag, listTags, renameTag } from '../api/tags'
+import { byName } from '../lib/text'
+import {
+  createTag,
+  deleteTag,
+  listTags,
+  renameTag,
+  tagMaxLength,
+  tagNameRequiredMessage,
+} from '../api/tags'
 import { usePreferences } from '../hooks/usePreferences'
-import { trackEvent, trackException } from '../telemetry'
-import { cardCount } from './cardCount'
-import { ConfirmDelete } from './ConfirmDelete'
-import { TagRenameForm, tagMaxLength } from './FlashCardTags'
-import { TagSuggestions } from './TagSuggestions'
+import { trackEvent } from '../telemetry'
+import { useAction } from '../hooks/useAction'
+import { useConfirm } from '../hooks/useConfirm'
+import { useLoad } from '../hooks/useLoad'
+import { EmptyText } from '../components/common/EmptyText'
+import { Loading } from '../components/common/Loading'
+import { NameForm } from '../components/common/NameForm'
+import { NamedItemRow } from '../components/common/NamedItemRow'
+import { Section } from '../components/common/Section'
+import {
+  AnimatedList,
+  AnimatedListItem,
+} from '../components/common/AnimatedList'
+import { cardCount } from '../lib/cardCount'
+import { ConfirmDelete } from '../components/common/ConfirmDelete'
+import { RenameForm } from '../components/cards/FlashCardTags'
+import { TagSuggestions } from '../components/cards/TagSuggestions'
 
 // Tags in name order whatever their case, as the API sends them.
 function sortTags(tags: Tag[]) {
-  return [...tags].sort((a, b) =>
-    a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }),
-  )
+  return [...tags].sort(byName)
 }
 
 // The user's tags, with how many cards have each. Tags are made here, from a suggestion here, or by naming them on a
-// card, and here they can be renamed or deleted.
+// card, and here they can be renamed or deleted (optionally replaced by another tag, merging the two).
 function TagsPage() {
-  const [tags, setTags] = useState<Tag[]>([])
-  // How many cards have each tag, by its id.
-  const [counts, setCounts] = useState<Map<number, number>>(new Map())
-  const [loading, setLoading] = useState(true)
-  const [loadFailed, setLoadFailed] = useState(false)
+  const [errorMessage, setErrorMessage] = useState('')
+  // The user's tags, and the ids of the cards with each tag, by its id, to count them and to merge them when a tag is
+  // replaced. The cards are only loaded for that.
+  const page = useLoad(
+    async () => {
+      const [tags, cards] = await Promise.all([listTags(), listFlashCards()])
+      const tagCards = new Map<number, Set<number>>()
+      for (const card of cards) {
+        for (const tag of card.tags) {
+          const ids = tagCards.get(tag.id) ?? new Set<number>()
+          ids.add(card.id)
+          tagCards.set(tag.id, ids)
+        }
+      }
+      return { tags, tagCards }
+    },
+    [],
+    {
+      operation: 'load',
+      fallback: 'Unable to load tags.',
+      onError: setErrorMessage,
+      initial: { tags: [] as Tag[], tagCards: new Map<number, Set<number>>() },
+    },
+  )
+  const { tags, tagCards } = page.data
   // The new tag's name as typed so far.
   const [name, setName] = useState('')
-  const [creating, setCreating] = useState(false)
+  const creating = useAction(setErrorMessage)
+  const addingSuggestion = useAction(setErrorMessage)
   // The tag being renamed and its new name as typed so far. One at a time keeps the list simple.
   const [rename, setRename] = useState<{ id: number; name: string } | null>(
     null,
   )
   // The tag being renamed or deleted, so its buttons can wait for the API.
-  const [busyId, setBusyId] = useState<number | null>(null)
-  const [errorMessage, setErrorMessage] = useState('')
+  const tagAction = useAction<number>(setErrorMessage)
+  const busyId = tagAction.busyKey
   // The tag whose Delete was clicked, while the user is asked whether they mean it.
-  const [confirmingDelete, setConfirmingDelete] = useState<Tag | null>(null)
+  const confirm = useConfirm<Tag>()
+  const confirming = confirm.target
+  // The id of the tag picked to go on its cards instead, or '' to just take it off them.
+  const [replacementId, setReplacementId] = useState('')
   const showSuggestions = usePreferences()?.showSuggestions === true
 
-  // The cards are only loaded to count each tag's.
-  useEffect(() => {
-    let cancelled = false
-    Promise.all([listTags(), listFlashCards()])
-      .then(([loadedTags, cards]) => {
-        if (!cancelled) {
-          const loadedCounts = new Map<number, number>()
-          for (const tag of cards.flatMap((card) => card.tags)) {
-            loadedCounts.set(tag.id, (loadedCounts.get(tag.id) ?? 0) + 1)
-          }
-          setTags(loadedTags)
-          setCounts(loadedCounts)
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'load' })
-          setLoadFailed(true)
-          setErrorMessage(describeFetchError(error, 'Unable to load tags.'))
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  function setTags(update: (current: Tag[]) => Tag[]) {
+    page.setData((current) => ({ ...current, tags: update(current.tags) }))
+  }
 
   // Makes a tag with this name, typed or suggested, resolving to whether it was saved.
-  async function addTag(newName: string, event: string) {
+  async function addTag(
+    newName: string,
+    event: string,
+    action: typeof creating,
+  ) {
     const trimmed = newName.trim()
     if (!trimmed) {
-      setErrorMessage('Tag name is required.')
+      setErrorMessage(tagNameRequiredMessage)
       return false
     }
 
-    setErrorMessage('')
-
-    try {
-      const created = await createTag(trimmed)
-      trackEvent(event)
-      setTags((current) => sortTags([...current, created]))
-      return true
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'createTag' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to save tag.'))
-      return false
-    }
+    return action.run(
+      { operation: 'createTag', fallback: 'Unable to save tag.' },
+      async () => {
+        const created = await createTag(trimmed)
+        trackEvent(event)
+        setTags((current) => sortTags([...current, created]))
+      },
+    )
   }
 
   async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
-    setCreating(true)
-    try {
-      if (await addTag(name, 'TagCreated')) {
-        setName('')
-      }
-    } finally {
-      setCreating(false)
+    if (await addTag(name, 'TagCreated', creating)) {
+      setName('')
     }
   }
 
@@ -126,143 +127,137 @@ function TagsPage() {
     }
     const trimmed = rename.name.trim()
     if (!trimmed) {
-      setErrorMessage('Tag name is required.')
+      setErrorMessage(tagNameRequiredMessage)
       return
     }
 
-    setBusyId(rename.id)
-    setErrorMessage('')
-
-    try {
-      const renamed = await renameTag(rename.id, trimmed)
-      trackEvent('TagRenamed')
-      setTags((current) =>
-        sortTags(
-          current.map((item) => (item.id === renamed.id ? renamed : item)),
-        ),
-      )
-      setRename(null)
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'renameTag' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to rename tag.'))
-    } finally {
-      setBusyId(null)
-    }
+    await tagAction.run(
+      {
+        operation: 'renameTag',
+        fallback: 'Unable to rename tag.',
+        key: rename.id,
+      },
+      async () => {
+        const renamed = await renameTag(rename.id, trimmed)
+        trackEvent('TagRenamed')
+        setTags((current) =>
+          sortTags(
+            current.map((item) => (item.id === renamed.id ? renamed : item)),
+          ),
+        )
+        setRename(null)
+      },
+    )
   }
 
-  // Deleting a tag takes it off its cards but leaves the cards.
-  async function handleDelete(tag: Tag) {
-    setBusyId(tag.id)
-    setErrorMessage('')
+  // How many cards have this tag, in words.
+  function tagCardCount(id: number) {
+    return cardCount(tagCards.get(id)?.size ?? 0)
+  }
 
-    try {
-      await deleteTag(tag.id)
-      trackEvent('TagDeleted')
-      setTags((current) => current.filter((item) => item.id !== tag.id))
-    } catch (error) {
-      trackException(error, { operation: 'deleteTag' })
-      setErrorMessage(describeFetchError(error, 'Unable to delete tag.'))
-    } finally {
-      setBusyId(null)
-      setConfirmingDelete(null)
-    }
+  function confirmDelete(tag: Tag) {
+    setReplacementId('')
+    confirm.ask(tag)
+  }
+
+  // Deleting a tag takes it off its cards but leaves the cards. With a replacement picked, that tag goes on them
+  // instead, which merges the two.
+  async function handleDelete(tag: Tag) {
+    const replacement = replacementId === '' ? undefined : Number(replacementId)
+    await tagAction.run(
+      {
+        operation: 'deleteTag',
+        fallback: 'Unable to delete tag.',
+        key: tag.id,
+        reportAll: true,
+      },
+      async () => {
+        await deleteTag(tag.id, replacement)
+        trackEvent(replacement === undefined ? 'TagDeleted' : 'TagReplaced')
+        setTags((current) => current.filter((item) => item.id !== tag.id))
+        if (replacement !== undefined) {
+          page.setData((current) => {
+            const merged = new Map(current.tagCards)
+            merged.set(
+              replacement,
+              new Set([
+                ...(current.tagCards.get(replacement) ?? []),
+                ...(current.tagCards.get(tag.id) ?? []),
+              ]),
+            )
+            return { ...current, tagCards: merged }
+          })
+        }
+      },
+    )
+    confirm.close()
   }
 
   return (
     <Stack spacing={2}>
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
-        <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-          New tag
-        </Typography>
-        <Box
-          component="form"
+      <Section title="New tag">
+        <NameForm
+          id="new-tag-name"
+          label="New tag name"
+          placeholder="e.g. Food"
+          maxLength={tagMaxLength}
+          value={name}
+          busy={creating.busy}
+          submitText="Create tag"
+          onChange={setName}
           onSubmit={(event) => void handleCreate(event)}
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            alignItems: { xs: 'stretch', sm: 'flex-start' },
-            gap: 2,
-          }}
-        >
-          <TextField
-            id="new-tag-name"
-            label="New tag name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            slotProps={{ htmlInput: { maxLength: tagMaxLength } }}
-            required
-            placeholder="e.g. Food"
-            sx={{ flexGrow: 1 }}
-          />
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={creating}
-            sx={{ flexShrink: 0, alignSelf: { sm: 'center' } }}
-          >
-            {creating ? 'Saving…' : 'Create tag'}
-          </Button>
-        </Box>
-      </Paper>
+        />
+      </Section>
 
-      {showSuggestions && !loading && !loadFailed && (
+      {showSuggestions && !page.loading && !page.failed && (
         <TagSuggestions
           tags={tags}
-          onAdd={(suggested) => addTag(suggested, 'SuggestedTagAdded')}
+          onAdd={(suggested) =>
+            addTag(suggested, 'SuggestedTagAdded', addingSuggestion)
+          }
         />
       )}
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
-        <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-          Tags
-        </Typography>
-        {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-            <CircularProgress aria-label="Loading" />
-          </Box>
-        ) : loadFailed ? null : tags.length === 0 ? (
-          <Typography color="text.secondary">
+      <Section title="Tags">
+        {page.loading ? (
+          <Loading />
+        ) : page.failed ? null : tags.length === 0 ? (
+          <EmptyText>
             You haven&apos;t made any tags yet. Create one above, or add one to
             a card on the Cards page.
-          </Typography>
+          </EmptyText>
         ) : (
-          <List disablePadding>
+          <AnimatedList disablePadding>
             {tags.map((tag) =>
               rename?.id === tag.id ? (
-                <ListItem key={tag.id} divider disablePadding sx={{ pb: 1 }}>
-                  <TagRenameForm
-                    name={rename.name}
-                    busy={busyId === tag.id}
-                    onChange={(name) => setRename({ id: tag.id, name })}
-                    onCancel={() => {
-                      setErrorMessage('')
-                      setRename(null)
-                    }}
-                    onSave={(event) => void handleRename(event)}
-                  />
-                </ListItem>
+                <AnimatedListItem key={`${tag.id}-rename`}>
+                  <ListItem
+                    component="div"
+                    divider
+                    disablePadding
+                    sx={{ pb: 1 }}
+                  >
+                    <RenameForm
+                      name={rename.name}
+                      busy={busyId === tag.id}
+                      onChange={(name) => setRename({ id: tag.id, name })}
+                      onCancel={() => {
+                        setErrorMessage('')
+                        setRename(null)
+                      }}
+                      onSave={(event) => void handleRename(event)}
+                    />
+                  </ListItem>
+                </AnimatedListItem>
               ) : (
-                <ListItem
-                  key={tag.id}
-                  divider
-                  disablePadding
-                  sx={{ py: 1, gap: 1 }}
-                >
-                  {/* The name wraps rather than the buttons, so they stay together on a phone. */}
-                  <ListItemText
-                    primary={
-                      <Link component={RouterLink} to={`/?tag=${tag.id}`}>
-                        {tag.name}
-                      </Link>
-                    }
-                    secondary={cardCount(counts.get(tag.id) ?? 0)}
-                    sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                  />
-                  <Box sx={{ display: 'flex', flexShrink: 0 }}>
+                <AnimatedListItem key={tag.id}>
+                  <NamedItemRow
+                    name={tag.name}
+                    to={`/?tag=${tag.id}`}
+                    secondary={tagCardCount(tag.id)}
+                  >
                     <Button
                       type="button"
                       aria-label={`Rename tag "${tag.name}"`}
@@ -279,30 +274,61 @@ function TagsPage() {
                       color="error"
                       aria-label={`Delete tag "${tag.name}"`}
                       disabled={busyId === tag.id}
-                      onClick={() => setConfirmingDelete(tag)}
+                      onClick={() => confirmDelete(tag)}
                     >
                       Delete
                     </Button>
-                  </Box>
-                </ListItem>
+                  </NamedItemRow>
+                </AnimatedListItem>
               ),
             )}
-          </List>
+          </AnimatedList>
         )}
-        {confirmingDelete !== null && (
+        {confirming !== null && (
           <ConfirmDelete
-            open
-            title={`Delete tag "${confirmingDelete.name}"?`}
-            busy={busyId === confirmingDelete.id}
-            onCancel={() => setConfirmingDelete(null)}
-            onConfirm={() => void handleDelete(confirmingDelete)}
+            {...confirm.dialogProps}
+            title={`Delete tag "${confirming.name}"?`}
+            busy={busyId === confirming.id}
+            onConfirm={() => void handleDelete(confirming)}
+            options={
+              // Only another tag can replace it, and there might not be one.
+              tags.length > 1 && (
+                <TextField
+                  select
+                  label="Replace with"
+                  helperText="Put another tag on its cards instead, merging the two."
+                  value={replacementId}
+                  onChange={(event) => setReplacementId(event.target.value)}
+                  disabled={busyId === confirming.id}
+                  // "No tag" is shown rather than an empty field.
+                  slotProps={{
+                    select: { displayEmpty: true },
+                    inputLabel: { shrink: true },
+                  }}
+                  fullWidth
+                  sx={{ mt: 3 }}
+                >
+                  <MenuItem value="">No tag</MenuItem>
+                  {tags
+                    .filter((item) => item.id !== confirming.id)
+                    .map((item) => (
+                      <MenuItem key={item.id} value={String(item.id)}>
+                        {item.name}
+                      </MenuItem>
+                    ))}
+                </TextField>
+              )
+            }
           >
-            This can&apos;t be undone. It&apos;ll be taken off its{' '}
-            {cardCount(counts.get(confirmingDelete.id) ?? 0)}, but the cards
-            won&apos;t be deleted, and keep their scores.
+            This can&apos;t be undone.{' '}
+            {replacementId === ''
+              ? "It'll be taken off its"
+              : `"${tags.find((item) => String(item.id) === replacementId)?.name}" will take its place on its`}{' '}
+            {tagCardCount(confirming.id)}, but the cards won&apos;t be deleted,
+            and keep their scores.
           </ConfirmDelete>
         )}
-      </Paper>
+      </Section>
     </Stack>
   )
 }

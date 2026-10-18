@@ -8,7 +8,7 @@ namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
 /// The user's tags. A tag is made here or by putting a new name on a card (see FlashCardsController), and here it
-/// can be renamed or deleted.
+/// can be renamed or deleted, optionally replacing it with another tag on its cards.
 /// </summary>
 /// <remarks>
 /// Like FlashCardsController, log statements include ids only, never a tag's name.
@@ -78,8 +78,9 @@ public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController
         return Ok(tag);
     }
 
+    // With replaceWith, that other tag of the user's is put on the deleted tag's cards first, which merges the two.
     [HttpDelete("{id:int}")]
-    public async Task<IActionResult> Delete(int id)
+    public async Task<IActionResult> Delete(int id, [FromQuery] int? replaceWith = null)
     {
         // The tag's cards are loaded so EF removes the tag from them first, which the database leaves to it.
         var tag = await dbContext.Tags
@@ -90,6 +91,29 @@ public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController
         {
             logger.LogWarning("Tag {TagId} not found for deletion", id);
             return NotFound();
+        }
+
+        if (replaceWith is int replacementId)
+        {
+            // The query filter means another user's tag isn't found, the same as one that doesn't exist.
+            var replacement = replacementId == id
+                ? null
+                : await dbContext.Tags
+                    .Include(item => item.FlashCards)
+                    .FirstOrDefaultAsync(item => item.Id == replacementId);
+
+            if (replacement is null)
+            {
+                ModelState.AddModelError(nameof(replaceWith), "Pick another of your tags to replace it with.");
+                return ValidationProblem(ModelState);
+            }
+
+            foreach (var card in tag.FlashCards.Where(card => !replacement.FlashCards.Contains(card)))
+            {
+                replacement.FlashCards.Add(card);
+            }
+
+            logger.LogInformation("Replacing tag {TagId} with tag {ReplacementTagId}", id, replacementId);
         }
 
         dbContext.Tags.Remove(tag);
@@ -111,7 +135,7 @@ public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController
             ModelState.AddModelError(nameof(TagRequest.Name), "Tag name is required.");
         }
         // Names are unique whatever their case, as the database's index is.
-        else if (tags.Any(item => item.Id != id && string.Equals(item.Name, trimmed, StringComparison.OrdinalIgnoreCase)))
+        else if (tags.Any(item => item.Id != id && TextRules.SameText(item.Name, trimmed)))
         {
             ModelState.AddModelError(nameof(TagRequest.Name), "There's already a tag with that name.");
         }

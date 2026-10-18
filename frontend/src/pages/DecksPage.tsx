@@ -1,69 +1,56 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
-import Link from '@mui/material/Link'
-import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
-import TextField from '@mui/material/TextField'
-import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useNavigate } from 'react-router'
-import { createDeck, deleteDeck, listDecks } from '../api/decks'
+import {
+  createDeck,
+  deckNameMaxLength,
+  deckNameRequiredMessage,
+  deleteDeck,
+  listDecks,
+} from '../api/decks'
 import type { Deck } from '../api/decks'
-import { ApiError, describeFetchError } from '../api/flashCards'
-import { trackEvent, trackException } from '../telemetry'
-import { cardCount } from './cardCount'
-import { ConfirmDelete } from './ConfirmDelete'
-
-export const deckNameRequiredMessage = 'Deck name is required.'
-
-// The most a deck name can be, as the API allows.
-export const deckNameMaxLength = 50
+import { trackEvent } from '../telemetry'
+import { useAction } from '../hooks/useAction'
+import { useConfirm } from '../hooks/useConfirm'
+import { useLoad } from '../hooks/useLoad'
+import { EmptyText } from '../components/common/EmptyText'
+import { Loading } from '../components/common/Loading'
+import { NameForm } from '../components/common/NameForm'
+import { NamedItemRow } from '../components/common/NamedItemRow'
+import { Section } from '../components/common/Section'
+import {
+  AnimatedList,
+  AnimatedListItem,
+} from '../components/common/AnimatedList'
+import { cardCount } from '../lib/cardCount'
+import { ConfirmDeleteDeck } from '../components/cards/ConfirmDeleteDeck'
 
 // The user's decks. A new deck opens on its own page, where its cards are picked.
 function DecksPage() {
   const navigate = useNavigate()
-  const [decks, setDecks] = useState<Deck[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadFailed, setLoadFailed] = useState(false)
-  const [name, setName] = useState('')
-  const [submitting, setSubmitting] = useState(false)
-  // The deck being deleted, so its buttons can wait for the API.
-  const [busyId, setBusyId] = useState<number | null>(null)
   const [errorMessage, setErrorMessage] = useState('')
-  // The deck whose Delete was clicked, while the user is asked whether they mean it.
-  const [confirmingDelete, setConfirmingDelete] = useState<Deck | null>(null)
-
   // Loads the decks once. The page starts out loading, and deleting keeps the list up to date itself.
-  useEffect(() => {
-    let cancelled = false
-    listDecks()
-      .then((loaded) => {
-        if (!cancelled) {
-          setDecks(loaded)
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'load' })
-          setLoadFailed(true)
-          setErrorMessage(describeFetchError(error, 'Unable to load decks.'))
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const {
+    data: decks,
+    setData: setDecks,
+    loading,
+    failed: loadFailed,
+  } = useLoad(() => listDecks(), [], {
+    operation: 'load',
+    fallback: 'Unable to load decks.',
+    onError: setErrorMessage,
+    initial: [] as Deck[],
+  })
+  const [name, setName] = useState('')
+  const creating = useAction(setErrorMessage)
+  // The deck being deleted, so its buttons can wait for the API.
+  const deleting = useAction<number>(setErrorMessage)
+  // The deck whose Delete was clicked, while the user is asked whether they mean it.
+  const confirm = useConfirm<Deck>()
+  const confirming = confirm.target
 
   async function handleCreate(event: SubmitEvent<HTMLFormElement>) {
     event.preventDefault()
@@ -73,110 +60,66 @@ function DecksPage() {
       return
     }
 
-    setSubmitting(true)
-    setErrorMessage('')
-
-    try {
-      const created = await createDeck({ name: trimmed, flashCardIds: [] })
-      trackEvent('DeckCreated')
-      await navigate(`/decks/${created.id}`)
-    } catch (error) {
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'create' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to save deck.'))
-      setSubmitting(false)
-    }
+    // Stays busy once the deck's made, while its page opens.
+    await creating.run(
+      { operation: 'create', fallback: 'Unable to save deck.', keepBusy: true },
+      async () => {
+        const created = await createDeck({ name: trimmed, flashCardIds: [] })
+        trackEvent('DeckCreated')
+        await navigate(`/decks/${created.id}`)
+      },
+    )
   }
 
   async function handleDelete(deck: Deck) {
-    setBusyId(deck.id)
-    setErrorMessage('')
-
-    try {
-      await deleteDeck(deck.id)
-      trackEvent('DeckDeleted')
-      setDecks((current) => current.filter((item) => item.id !== deck.id))
-    } catch (error) {
-      trackException(error, { operation: 'delete' })
-      setErrorMessage(describeFetchError(error, 'Unable to delete deck.'))
-    } finally {
-      setBusyId(null)
-      setConfirmingDelete(null)
-    }
+    await deleting.run(
+      {
+        operation: 'delete',
+        fallback: 'Unable to delete deck.',
+        key: deck.id,
+        reportAll: true,
+      },
+      async () => {
+        await deleteDeck(deck.id)
+        trackEvent('DeckDeleted')
+        setDecks((current) => current.filter((item) => item.id !== deck.id))
+      },
+    )
+    confirm.close()
   }
 
   return (
     <Stack spacing={2}>
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
-        <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-          New deck
-        </Typography>
-        <Box
-          component="form"
+      <Section title="New deck">
+        <NameForm
+          id="deck-name"
+          label="Deck name"
+          placeholder="e.g. Week 1"
+          maxLength={deckNameMaxLength}
+          value={name}
+          busy={creating.busy}
+          submitText="Create deck"
+          onChange={setName}
           onSubmit={(event) => void handleCreate(event)}
-          sx={{
-            display: 'flex',
-            flexDirection: { xs: 'column', sm: 'row' },
-            alignItems: { xs: 'stretch', sm: 'flex-start' },
-            gap: 2,
-          }}
-        >
-          <TextField
-            id="deck-name"
-            label="Deck name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            slotProps={{ htmlInput: { maxLength: deckNameMaxLength } }}
-            required
-            placeholder="e.g. Week 1"
-            sx={{ flexGrow: 1 }}
-          />
-          <Button
-            type="submit"
-            variant="contained"
-            disabled={submitting}
-            sx={{ flexShrink: 0, alignSelf: { sm: 'center' } }}
-          >
-            {submitting ? 'Saving…' : 'Create deck'}
-          </Button>
-        </Box>
-      </Paper>
+        />
+      </Section>
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
-        <Typography variant="h5" component="h2" sx={{ mb: 2 }}>
-          Decks
-        </Typography>
+      <Section title="Decks">
         {loading ? (
-          <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-            <CircularProgress aria-label="Loading" />
-          </Box>
+          <Loading />
         ) : loadFailed ? null : decks.length === 0 ? (
-          <Typography color="text.secondary">
-            You haven&apos;t made any decks yet.
-          </Typography>
+          <EmptyText>You haven&apos;t made any decks yet.</EmptyText>
         ) : (
-          <List disablePadding>
+          <AnimatedList disablePadding>
             {decks.map((deck) => (
-              <ListItem
-                key={deck.id}
-                divider
-                disablePadding
-                sx={{ py: 1, gap: 1 }}
-              >
-                {/* The name wraps rather than the buttons, so they stay together on a phone. */}
-                <ListItemText
-                  primary={
-                    <Link component={RouterLink} to={`/decks/${deck.id}`}>
-                      {deck.name}
-                    </Link>
-                  }
+              <AnimatedListItem key={deck.id}>
+                <NamedItemRow
+                  name={deck.name}
+                  to={`/decks/${deck.id}`}
                   secondary={cardCount(deck.flashCardIds.length)}
-                  sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                />
-                <Box sx={{ display: 'flex', flexShrink: 0 }}>
+                >
                   <Button
                     component={RouterLink}
                     to={`/practice?deck=${deck.id}`}
@@ -187,29 +130,25 @@ function DecksPage() {
                   <Button
                     color="error"
                     aria-label={`Delete deck "${deck.name}"`}
-                    disabled={busyId === deck.id}
-                    onClick={() => setConfirmingDelete(deck)}
+                    disabled={deleting.busyKey === deck.id}
+                    onClick={() => confirm.ask(deck)}
                   >
                     Delete
                   </Button>
-                </Box>
-              </ListItem>
+                </NamedItemRow>
+              </AnimatedListItem>
             ))}
-          </List>
+          </AnimatedList>
         )}
-        {confirmingDelete !== null && (
-          <ConfirmDelete
-            open
-            title={`Delete deck "${confirmingDelete.name}"?`}
-            busy={busyId === confirmingDelete.id}
-            onCancel={() => setConfirmingDelete(null)}
-            onConfirm={() => void handleDelete(confirmingDelete)}
-          >
-            This can&apos;t be undone. Its cards won&apos;t be deleted, and keep
-            their scores.
-          </ConfirmDelete>
+        {confirming !== null && (
+          <ConfirmDeleteDeck
+            {...confirm.dialogProps}
+            name={confirming.name}
+            busy={deleting.busyKey === confirming.id}
+            onConfirm={() => void handleDelete(confirming)}
+          />
         )}
-      </Paper>
+      </Section>
     </Stack>
   )
 }

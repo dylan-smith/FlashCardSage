@@ -1,3 +1,5 @@
+import { storageKeys } from '../lib/storageKeys'
+import { createStore } from '../lib/store'
 import { wordSourceFrom } from './wordSources'
 import type { SourceWord, WordSource, WordSourceId } from './wordSources'
 
@@ -17,11 +19,7 @@ export type Handoff =
 // How long to wait for the words. Reading them from the site takes a few seconds, even for a long list.
 export const handoffWaitMs = 30_000
 
-// Kept for the tab, so the words are still here after the user signs in or reloads the page.
-export const handoffKey = 'flashcardsage.wordHandoff'
-
-const listeners = new Set<() => void>()
-let current: Handoff = loadStored()
+const store = createStore<Handoff>(loadStored())
 
 // The words or error in a message from the source's bookmarklet, or null for anything else.
 function parseMessage(source: WordSource, data: unknown): Handoff | null {
@@ -74,7 +72,7 @@ function toWord(value: unknown): SourceWord | null {
 
 function loadStored(): Handoff {
   try {
-    const stored = sessionStorage.getItem(handoffKey)
+    const stored = sessionStorage.getItem(storageKeys.wordHandoff)
     if (stored !== null) {
       const { source, words } = JSON.parse(stored) as Record<string, unknown>
       if (typeof source === 'string' && Array.isArray(words)) {
@@ -92,32 +90,24 @@ function loadStored(): Handoff {
 }
 
 function update(next: Handoff) {
-  current = next
   try {
     if (next.status === 'received') {
       sessionStorage.setItem(
-        handoffKey,
+        storageKeys.wordHandoff,
         JSON.stringify({ source: next.source, words: next.words }),
       )
     } else {
-      sessionStorage.removeItem(handoffKey)
+      sessionStorage.removeItem(storageKeys.wordHandoff)
     }
   } catch {
     // The words are still kept for as long as the page is open.
   }
-  listeners.forEach((listener) => listener())
+  store.set(next)
 }
 
-export function getHandoff() {
-  return current
-}
+export const getHandoff = store.get
 
-export function subscribeHandoff(listener: () => void) {
-  listeners.add(listener)
-  return () => {
-    listeners.delete(listener)
-  }
-}
+export const subscribeHandoff = store.subscribe
 
 // Forgets the words, such as once they've been imported, so the page doesn't offer them again, or stops waiting for
 // them when the user gives up.
@@ -138,11 +128,12 @@ export function startHandoff(target: Window = window) {
     return
   }
 
+  const current = store.get()
   if (current.status !== 'received' || current.source !== source.id) {
     update({ status: 'waiting', source: source.id })
     // The bookmarklet only sends the words once, so a page reloaded or come back to later would wait forever.
     target.setTimeout(() => {
-      if (current.status === 'waiting') {
+      if (store.get().status === 'waiting') {
         update({ status: 'timedOut', source: source.id })
       }
     }, handoffWaitMs)

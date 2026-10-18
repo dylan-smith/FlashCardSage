@@ -1,5 +1,5 @@
 import { apiBaseUrl } from '../config'
-import { apiFetch } from './client'
+import { getJson, jsonRequest } from './client'
 import type { FlashCardWords } from './flashCards'
 
 // A side of a card, by its field name.
@@ -26,21 +26,14 @@ export async function translate(
   from: CardSide,
   signal?: AbortSignal,
 ): Promise<Translation> {
-  const response = await apiFetch(`${apiBaseUrl}/api/translations`, {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({ text, from: languages[from] }),
-    signal,
-  })
-  if (!response.ok) {
-    throw new Error('Unable to translate.')
-  }
-  const { translation, alternatives } = (await response.json()) as {
+  const { translation, alternatives } = await getJson<{
     translation?: unknown
     alternatives?: unknown
-  }
+  }>(
+    `${apiBaseUrl}/api/translations`,
+    'Unable to translate.',
+    jsonRequest('POST', { text, from: languages[from] }, signal),
+  )
   if (typeof translation !== 'string') {
     throw new Error('Unable to translate.')
   }

@@ -5,22 +5,16 @@
 # already granted, so it's retried.
 # Requires AZURE_STORAGE_ACCOUNT_NAME.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-for attempt in $(seq 1 5); do
-  if az storage blob service-properties update \
-    --account-name "${AZURE_STORAGE_ACCOUNT_NAME}" \
-    --auth-mode login \
-    --static-website \
-    --index-document index.html \
-    --404-document index.html \
-    --only-show-errors \
-    --output none; then
-    exit 0
-  fi
-  if [ "${attempt}" -eq 5 ]; then
-    echo "::error::Couldn't enable static website hosting on ${AZURE_STORAGE_ACCOUNT_NAME}"
-    exit 1
-  fi
-  echo "Attempt ${attempt} failed; retrying in 15 seconds"
-  sleep 15
-done
+if ! retry 5 15 "Attempt" -- az storage blob service-properties update \
+  --account-name "${AZURE_STORAGE_ACCOUNT_NAME}" \
+  --auth-mode login \
+  --static-website \
+  --index-document index.html \
+  --404-document index.html \
+  --only-show-errors \
+  --output none; then
+  echo "::error::Couldn't enable static website hosting on ${AZURE_STORAGE_ACCOUNT_NAME}"
+  exit 1
+fi

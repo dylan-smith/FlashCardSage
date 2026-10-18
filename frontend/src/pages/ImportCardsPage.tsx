@@ -1,20 +1,12 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
-import Collapse from '@mui/material/Collapse'
-import List from '@mui/material/List'
-import ListItem from '@mui/material/ListItem'
-import ListItemText from '@mui/material/ListItemText'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
-import SvgIcon from '@mui/material/SvgIcon'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
 import { useSearchParams } from 'react-router'
-import { ApiError, describeFetchError, formatWords } from '../api/flashCards'
+import { formatWords } from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
 import {
   importSystemDeck,
@@ -23,14 +15,19 @@ import {
 } from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
 import { trackEvent, trackException } from '../telemetry'
+import { useAction } from '../hooks/useAction'
+import { useLoad } from '../hooks/useLoad'
+import { EmptyText } from '../components/common/EmptyText'
+import { Loading } from '../components/common/Loading'
+import { Section } from '../components/common/Section'
+import { TabPanel } from '../components/common/TabPanel'
 import { showToast } from '../toasts'
+import { cardCount, skippedSentence } from '../lib/cardCount'
 import { wordSourceFrom, wordSources } from '../wordSources/wordSources'
 import type { WordSourceId } from '../wordSources/wordSources'
-import { CardActionButton } from './CardActionButton'
-import { cardCount } from './cardCount'
-import { DocumentScan } from './DocumentScan'
-import { FlashCardRow } from './FlashCardRow'
-import { WordSourceImport } from './WordSourceImport'
+import { DocumentScan } from '../components/import/DocumentScan'
+import { SystemDeckList } from '../components/import/SystemDeckList'
+import { WordSourceImport } from '../components/import/WordSourceImport'
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
 function describeImport({ deck, skippedCount }: SystemDeckImport) {
@@ -38,7 +35,7 @@ function describeImport({ deck, skippedCount }: SystemDeckImport) {
   if (skippedCount === 0) {
     return added
   }
-  return `${added} ${skippedCount === 1 ? '1 card was' : `${skippedCount} cards were`} left out because you already have ${skippedCount === 1 ? 'it' : 'them'}.`
+  return `${added} ${skippedSentence(skippedCount)}`
 }
 
 // Where the cards come from: a built-in deck, a document the user picks, or their words on a site they learn on.
@@ -61,46 +58,25 @@ function tabFrom(param: string | null): ImportTab {
 function ImportCardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = tabFrom(searchParams.get('from'))
-  const [decks, setDecks] = useState<SystemDeck[]>([])
-  const [loading, setLoading] = useState(true)
-  const [loadFailed, setLoadFailed] = useState(false)
-  // The decks whose cards are showing.
-  const [shownIds, setShownIds] = useState<number[]>([])
+  const [errorMessage, setErrorMessage] = useState('')
+  const {
+    data: decks,
+    setData: setDecks,
+    loading,
+    failed: loadFailed,
+  } = useLoad(() => listSystemDecks(), [], {
+    operation: 'load',
+    fallback: 'Unable to load the built-in decks.',
+    onError: setErrorMessage,
+    initial: [] as SystemDeck[],
+  })
   // The deck being added, so its button can wait for the API.
-  const [busyId, setBusyId] = useState<number | null>(null)
+  const importingDeck = useAction<number>(setErrorMessage)
   // The built-in card being added on its own, and the ones added since the decks were loaded, which the user has now
   // like the decks' owned cards.
-  const [busyCardId, setBusyCardId] = useState<number | null>(null)
+  const importingCard = useAction<number>(setErrorMessage)
   const [addedCardIds, setAddedCardIds] = useState<number[]>([])
-  const [errorMessage, setErrorMessage] = useState('')
-  const busy = busyId !== null || busyCardId !== null
-
-  useEffect(() => {
-    let cancelled = false
-    listSystemDecks()
-      .then((loaded) => {
-        if (!cancelled) {
-          setDecks(loaded)
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'load' })
-          setLoadFailed(true)
-          setErrorMessage(
-            describeFetchError(error, 'Unable to load the built-in decks.'),
-          )
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
+  const busy = importingDeck.busy || importingCard.busy
 
   // Loads the decks again after cards are added, so every card the user now has a word of says so, such as all of a
   // deck's after adding the deck. The page already shows the decks, so a failure only leaves them as they were.
@@ -112,64 +88,50 @@ function ImportCardsPage() {
       })
   }
 
-  function toggleShown(id: number) {
-    setShownIds((current) =>
-      current.includes(id)
-        ? current.filter((item) => item !== id)
-        : [...current, id],
+  // A 409 for a deck the user already has all the cards of is theirs to see, not a failure.
+  async function handleImport(deck: SystemDeck) {
+    await importingDeck.run(
+      {
+        operation: 'import',
+        fallback: 'Unable to add the deck.',
+        key: deck.id,
+      },
+      async () => {
+        const result = await importSystemDeck(deck.id)
+        trackEvent('SystemDeckImported')
+        refreshDecks()
+        showToast({
+          key: 'system-deck-imported',
+          severity: 'success',
+          message: describeImport(result),
+          action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
+        })
+      },
     )
   }
 
-  async function handleImport(deck: SystemDeck) {
-    setBusyId(deck.id)
-    setErrorMessage('')
-
-    try {
-      const result = await importSystemDeck(deck.id)
-      trackEvent('SystemDeckImported')
-      refreshDecks()
-      showToast({
-        key: 'system-deck-imported',
-        severity: 'success',
-        message: describeImport(result),
-        action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
-      })
-    } catch (error) {
-      // Such as a 409 for a deck the user already has all the cards of, which is theirs to see, not a failure.
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'import' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to add the deck.'))
-    } finally {
-      setBusyId(null)
-    }
-  }
-
   // Adds just this card, to the user's deck with the built-in deck's name, which the API makes if they haven't got it.
+  // A 409 for a card the user already has is theirs to see too.
   async function handleImportCard(deck: SystemDeck, card: FlashCard) {
-    setBusyCardId(card.id)
-    setErrorMessage('')
-
-    try {
-      const result = await importSystemDeckCard(deck.id, card.id)
-      trackEvent('SystemDeckCardImported')
-      setAddedCardIds((current) => [...current, card.id])
-      refreshDecks()
-      showToast({
-        key: 'system-deck-card-imported',
-        severity: 'success',
-        message: `Added "${formatWords(card.spanish)}" to ${result.deckCreated ? 'a new deck, ' : ''}${result.deck.name}.`,
-        action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
-      })
-    } catch (error) {
-      // Such as a 409 for a card the user already has.
-      if (!(error instanceof ApiError)) {
-        trackException(error, { operation: 'import card' })
-      }
-      setErrorMessage(describeFetchError(error, 'Unable to add the card.'))
-    } finally {
-      setBusyCardId(null)
-    }
+    await importingCard.run(
+      {
+        operation: 'import card',
+        fallback: 'Unable to add the card.',
+        key: card.id,
+      },
+      async () => {
+        const result = await importSystemDeckCard(deck.id, card.id)
+        trackEvent('SystemDeckCardImported')
+        setAddedCardIds((current) => [...current, card.id])
+        refreshDecks()
+        showToast({
+          key: 'system-deck-card-imported',
+          severity: 'success',
+          message: `Added "${formatWords(card.spanish)}" to ${result.deckCreated ? 'a new deck, ' : ''}${result.deck.name}.`,
+          action: { label: 'Open deck', to: `/decks/${result.deck.id}` },
+        })
+      },
+    )
   }
 
   function selectTab(value: ImportTab) {
@@ -184,7 +146,7 @@ function ImportCardsPage() {
 
   // Every tab stays mounted, so a scan on its way or cards half looked over are still there after a look at the decks.
   return (
-    <Paper component="section" elevation={2} sx={{ p: 3, pt: 1 }}>
+    <Section sx={{ pt: 1 }}>
       <Tabs
         value={tab}
         onChange={(_event, value: ImportTab) => selectTab(value)}
@@ -221,13 +183,7 @@ function ImportCardsPage() {
           />
         ))}
       </Tabs>
-      {/* A Box, since a Stack's display would show the panel while it's hidden. */}
-      <Box
-        role="tabpanel"
-        id="import-panel-decks"
-        aria-labelledby="import-tab-decks"
-        hidden={tab !== 'decks'}
-      >
+      <TabPanel group="import" value="decks" current={tab}>
         <Stack spacing={2}>
           {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
@@ -238,147 +194,37 @@ function ImportCardsPage() {
               have are left out.
             </Typography>
             {loading ? (
-              <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-                <CircularProgress aria-label="Loading" />
-              </Box>
+              <Loading />
             ) : loadFailed ? null : decks.length === 0 ? (
-              <Typography color="text.secondary">
-                There aren&apos;t any built-in decks yet.
-              </Typography>
+              <EmptyText>There aren&apos;t any built-in decks yet.</EmptyText>
             ) : (
-              <List disablePadding>
-                {decks.map((deck) => {
-                  const shown = shownIds.includes(deck.id)
-                  const cardsId = `system-deck-${deck.id}-cards`
-                  return (
-                    <ListItem
-                      key={deck.id}
-                      divider
-                      disablePadding
-                      sx={{ py: 1, display: 'block' }}
-                    >
-                      <Box
-                        sx={{ display: 'flex', alignItems: 'center', gap: 1 }}
-                      >
-                        {/* The name shows and hides the deck's cards, with an arrow like the suggested cards' heading. */}
-                        <ListItemText
-                          primary={
-                            <Button
-                              type="button"
-                              color="inherit"
-                              aria-expanded={shown}
-                              aria-controls={cardsId}
-                              onClick={() => toggleShown(deck.id)}
-                              endIcon={
-                                <SvgIcon
-                                  sx={{
-                                    transform: shown
-                                      ? 'none'
-                                      : 'rotate(-90deg)',
-                                    transition: 'transform 150ms',
-                                  }}
-                                >
-                                  <path d="M7.41 8.59 12 13.17l4.59-4.58L18 10l-6 6-6-6z" />
-                                </SvgIcon>
-                              }
-                              sx={{
-                                font: 'inherit',
-                                textTransform: 'none',
-                                textAlign: 'left',
-                                ml: -1,
-                                px: 1,
-                                py: 0,
-                              }}
-                            >
-                              {deck.name}
-                            </Button>
-                          }
-                          secondary={cardCount(deck.cards.length)}
-                          sx={{ minWidth: 0, overflowWrap: 'anywhere' }}
-                        />
-                        <Button
-                          variant="contained"
-                          aria-label={`Add deck "${deck.name}"`}
-                          disabled={busy}
-                          onClick={() => void handleImport(deck)}
-                          sx={{ flexShrink: 0 }}
-                        >
-                          {busyId === deck.id ? 'Adding…' : 'Add'}
-                        </Button>
-                      </Box>
-                      <Collapse in={shown} id={cardsId} unmountOnExit>
-                        {/* Laid out like the user's own cards, set in a little under the deck. */}
-                        <List
-                          disablePadding
-                          aria-label={`Cards in "${deck.name}"`}
-                          // The deck's own divider is under the last card.
-                          sx={{
-                            pl: 2,
-                            '& > li:last-of-type': { borderBottom: 'none' },
-                          }}
-                        >
-                          {deck.cards.map((card) => {
-                            const added =
-                              deck.ownedCardIds.includes(card.id) ||
-                              addedCardIds.includes(card.id)
-                            return (
-                              <FlashCardRow
-                                key={card.id}
-                                card={card}
-                                actions={
-                                  <CardActionButton
-                                    icon="add"
-                                    text={added ? 'Added' : 'Add'}
-                                    label={`${added ? 'Added' : 'Add'} "${formatWords(card.spanish)}"`}
-                                    disabled={busy || added}
-                                    busyText={
-                                      busyCardId === card.id
-                                        ? 'Adding…'
-                                        : undefined
-                                    }
-                                    tooltip={
-                                      added
-                                        ? 'This card is already in your collection.'
-                                        : undefined
-                                    }
-                                    onClick={() =>
-                                      void handleImportCard(deck, card)
-                                    }
-                                  />
-                                }
-                              />
-                            )
-                          })}
-                        </List>
-                      </Collapse>
-                    </ListItem>
-                  )
-                })}
-              </List>
+              <SystemDeckList
+                decks={decks}
+                addedCardIds={addedCardIds}
+                busy={busy}
+                busyDeckId={importingDeck.busyKey}
+                busyCardId={importingCard.busyKey}
+                onImport={(deck) => void handleImport(deck)}
+                onImportCard={(deck, card) => void handleImportCard(deck, card)}
+              />
             )}
           </Box>
         </Stack>
-      </Box>
-      <Box
-        role="tabpanel"
-        id="import-panel-document"
-        aria-labelledby="import-tab-document"
-        hidden={tab !== 'document'}
-      >
+      </TabPanel>
+      <TabPanel group="import" value="document" current={tab}>
         <DocumentScan />
-      </Box>
+      </TabPanel>
       {wordSources.map((source) => (
-        <Box
+        <TabPanel
           key={source.id}
-          role="tabpanel"
-          id={`import-panel-${source.id}`}
-          aria-labelledby={`import-tab-${source.id}`}
-          hidden={tab !== source.id}
+          group="import"
+          value={source.id}
+          current={tab}
         >
           <WordSourceImport source={source} active={tab === source.id} />
-        </Box>
+        </TabPanel>
       ))}
-    </Paper>
+    </Section>
   )
 }
 

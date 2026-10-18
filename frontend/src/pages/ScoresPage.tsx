@@ -1,33 +1,21 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Alert from '@mui/material/Alert'
-import Box from '@mui/material/Box'
-import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
-import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
-import { Link } from 'react-router'
-import {
-  describeFetchError,
-  formatWords,
-  listFlashCardScores,
-} from '../api/flashCards'
+import { formatWords, listFlashCardScores } from '../api/flashCards'
 import type { FlashCardScores } from '../api/flashCards'
-import { useCardSelection } from '../hooks/useCardSelection'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
-import { trackException } from '../telemetry'
-import CardSelectionPicker from './CardSelectionPicker'
-import { matchesSearch } from './cardSearch'
-
-const emptyMessages: Record<CardSelectionKind, string> = {
-  all: 'There are no flash cards to score yet.',
-  deck: 'There are no cards in this deck.',
-  tag: 'There are no cards with this tag.',
-}
+import { useLoad } from '../hooks/useLoad'
+import { EmptyText } from '../components/common/EmptyText'
+import { Loading } from '../components/common/Loading'
+import { Section } from '../components/common/Section'
+import { CardSelectionPage } from '../components/cards/CardSelectionPage'
+import { EmptySelection } from '../components/cards/EmptySelection'
+import { matchesSearch } from '../lib/cardSearch'
 
 // A light shade from red at 0 to green at 100, pale enough that the text on it stays readable.
 function scoreColor(score: number) {
@@ -35,44 +23,21 @@ function scoreColor(score: number) {
   return `hsl(${hue}, 70%, 90%)`
 }
 
-function Loading() {
-  return (
-    <Box sx={{ display: 'flex', justifyContent: 'center', py: 2 }}>
-      <CircularProgress aria-label="Loading" />
-    </Box>
-  )
-}
-
 function ScoresPage() {
-  const { choices, deck, tag, kind, value, waiting, select } =
-    useCardSelection()
   // Kept here, so it still applies when another deck or tag is picked.
   const [search, setSearch] = useState('')
 
   return (
-    <Stack spacing={2}>
-      <CardSelectionPicker
-        label="Cards"
-        choices={choices}
-        value={value}
-        onSelect={select}
-      />
-      {waiting ? (
-        <Paper component="section" elevation={2} sx={{ p: 3 }}>
-          <Loading />
-        </Paper>
-      ) : (
-        // Loaded again for each choice.
+    // Loaded again for each choice.
+    <CardSelectionPage label="Cards">
+      {(selection) => (
         <SelectionScores
-          key={value}
-          kind={kind}
-          deckId={deck?.id}
-          tagId={tag?.id}
+          {...selection}
           search={search}
           onSearchChange={setSearch}
         />
       )}
-    </Stack>
+    </CardSelectionPage>
   )
 }
 
@@ -91,34 +56,17 @@ function SelectionScores({
   search,
   onSearchChange,
 }: SelectionScoresProps) {
-  const [scores, setScores] = useState<FlashCardScores | null>(null)
-  const [loading, setLoading] = useState(true)
-  const [errorMessage, setErrorMessage] = useState('')
-
   // Loaded each time the page is opened, so it includes the latest practice.
-  useEffect(() => {
-    let cancelled = false
-    listFlashCardScores({ deckId, tagId })
-      .then((loaded) => {
-        if (!cancelled) {
-          setScores(loaded)
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          trackException(error, { operation: 'scores' })
-          setErrorMessage(describeFetchError(error, 'Unable to load scores.'))
-        }
-      })
-      .finally(() => {
-        if (!cancelled) {
-          setLoading(false)
-        }
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [deckId, tagId])
+  const {
+    data: scores,
+    loading,
+    error: errorMessage,
+  } = useLoad(
+    (): Promise<FlashCardScores | null> =>
+      listFlashCardScores({ deckId, tagId }),
+    [deckId, tagId],
+    { operation: 'scores', fallback: 'Unable to load scores.', initial: null },
+  )
 
   // The total stays the score of every card picked, whatever the search shows.
   const matching =
@@ -128,24 +76,14 @@ function SelectionScores({
     <Stack spacing={2}>
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
-      <Paper component="section" elevation={2} sx={{ p: 3 }}>
+      <Section>
         {loading ? (
           <Loading />
         ) : scores === null ? null : scores.cards.length === 0 ? (
-          <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
-            <Typography color="text.secondary">
-              {emptyMessages[kind]}
-            </Typography>
-            {kind === 'deck' ? (
-              <Button component={Link} to="/decks" variant="contained">
-                Edit decks
-              </Button>
-            ) : (
-              <Button component={Link} to="/" variant="contained">
-                {kind === 'tag' ? 'Manage cards' : 'Add flash cards'}
-              </Button>
-            )}
-          </Stack>
+          <EmptySelection
+            kind={kind}
+            noCardsMessage="There are no flash cards to score yet."
+          />
         ) : (
           <>
             <Typography variant="h6" component="p" sx={{ mb: 1 }}>
@@ -161,7 +99,7 @@ function SelectionScores({
               sx={{ mb: 2 }}
             />
             {matching.length === 0 ? (
-              <Typography color="text.secondary">No cards match.</Typography>
+              <EmptyText>No cards match.</EmptyText>
             ) : (
               <List disablePadding aria-label="Card scores">
                 {matching.map((card) => (
@@ -186,7 +124,7 @@ function SelectionScores({
             )}
           </>
         )}
-      </Paper>
+      </Section>
     </Stack>
   )
 }

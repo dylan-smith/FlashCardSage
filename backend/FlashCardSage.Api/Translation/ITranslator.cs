@@ -1,3 +1,5 @@
+using FlashCardSage.Api.Models;
+
 namespace FlashCardSage.Api.Translation;
 
 public interface ITranslator

@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace FlashCardSage.Api.Models;
 
 // A name the user puts on cards to organize them, such as Food or Travel.
-public class Tag
+public class Tag : IUserOwned
 {
     public const int MaxNameLength = 50;
 
@@ -18,7 +18,7 @@ public class Tag
     [JsonIgnore]
     public int UserId { get; set; }
 
-    // Only used to remove the tag from its cards when it's deleted, so it's never returned.
+    // Only used to remove the tag from its cards when it's deleted (or put another on them), so it's never returned.
     [JsonIgnore]
     public List<FlashCard> FlashCards { get; set; } = [];
 }

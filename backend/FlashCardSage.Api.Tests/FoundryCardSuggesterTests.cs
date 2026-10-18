@@ -1,8 +1,9 @@
 using System.Net;
-using System.Text;
 using System.Text.Json;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
+using FlashCardSage.Api.Suggestions.Foundry;
+using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Tests;
@@ -12,14 +13,14 @@ public class FoundryCardSuggesterTests
     private static readonly List<FlashCard> Cards =
     [
         new() { Words = TestDb.Words("el gato", "the cat"), Tags = [new Tag { Name = "animals" }, new Tag { Name = "home" }] },
-        new() { Words = TestDb.Words("comer", "to eat") },
+        TestDb.Card("comer", "to eat"),
         new() { Words = TestDb.Words(["solo", "únicamente"], ["only"]) }
     ];
 
     [Fact]
     public async Task SuggestAsync_AsksTheModelAboutTheCards_AndReturnsItsSuggestions()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion(
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json(
             """{"cards":[{"spanish":"el perro","english":"the dog"},{"spanish":"beber","english":"to drink"}]}"""));
         using var httpClient = new HttpClient(handler);
 
@@ -28,7 +29,7 @@ public class FoundryCardSuggesterTests
         Assert.Equal([new("el perro", "the dog"), new("beber", "to drink")], suggestions);
         var request = Assert.Single(handler.Requests);
         Assert.Equal("https://foundry.example/openai/v1/chat/completions", request.Url);
-        Assert.Equal("secret-key", request.Key);
+        Assert.Equal("secret-key", request.Header("api-key"));
         Assert.Equal("application/json", request.ContentType);
         Assert.NotNull(request.ContentLength);
         using var body = JsonDocument.Parse(request.Body!);
@@ -53,7 +54,7 @@ public class FoundryCardSuggesterTests
     [Fact]
     public async Task SuggestAsync_AsksForCardsRelatedToTheGivenCard()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"cards":[]}"""));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
 
         await CreateSuggester(httpClient).SuggestAsync(Cards, Cards[0], null, 8, CancellationToken.None);
@@ -68,7 +69,7 @@ public class FoundryCardSuggesterTests
     [Fact]
     public async Task SuggestAsync_AsksForCardsUnderTheGivenTag()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"cards":[]}"""));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
 
         await CreateSuggester(httpClient).SuggestAsync(Cards, null, Cards[0].Tags[0], 8, CancellationToken.None);
@@ -83,7 +84,7 @@ public class FoundryCardSuggesterTests
     [Fact]
     public async Task SuggestAsync_DescribesEveryWordOfTheGivenCard()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"cards":[]}"""));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
 
         await CreateSuggester(httpClient).SuggestAsync(Cards, Cards[2], null, 8, CancellationToken.None);
@@ -97,7 +98,7 @@ public class FoundryCardSuggesterTests
     [Fact]
     public async Task SuggestAsync_AsksForBeginnerCards_WhenThereAreNone()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"cards":[]}"""));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
 
         var suggestions = await CreateSuggester(httpClient).SuggestAsync([], null, null, 5, CancellationToken.None);
@@ -111,7 +112,7 @@ public class FoundryCardSuggesterTests
     [Fact]
     public async Task SuggestAsync_Throws_WithTheErrorCode_WhenTheServiceFails()
     {
-        var handler = new FakeHandler(
+        var handler = new RecordingHttpHandler(
             HttpStatusCode.NotFound,
             """{"error":{"code":"DeploymentNotFound","message":"The API deployment for this resource does not exist."}}""");
         using var httpClient = new HttpClient(handler);
@@ -129,7 +130,7 @@ public class FoundryCardSuggesterTests
     [InlineData("stop", "I can't help with that.")]
     public async Task SuggestAsync_Throws_WhenTheModelDoesNotFinishItsAnswer(string finishReason, string? refusal)
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("""{"cards":[""", finishReason, refusal));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[""", finishReason, refusal));
         using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
@@ -139,7 +140,7 @@ public class FoundryCardSuggesterTests
     [Fact]
     public async Task SuggestAsync_Throws_WhenTheAnswerIsNotJson()
     {
-        var handler = new FakeHandler(HttpStatusCode.OK, Completion("Here are some cards!"));
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("Here are some cards!"));
         using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
@@ -155,63 +156,14 @@ public class FoundryCardSuggesterTests
     {
         using var httpClient = new HttpClient();
         var suggester = new FoundryCardSuggester(
-            httpClient, Options.Create(new CardSuggesterOptions { Endpoint = endpoint, Key = key }));
+            httpClient, Options.Create(new FoundryChatOptions { Endpoint = endpoint, Key = key }));
 
         Assert.Equal(expected, suggester.IsAvailable);
     }
 
     private static FoundryCardSuggester CreateSuggester(HttpClient httpClient)
     {
-        var options = new CardSuggesterOptions
-        {
-            Endpoint = "https://foundry.example/",
-            Key = "secret-key",
-            Deployment = "gpt-test"
-        };
-        return new FoundryCardSuggester(httpClient, Options.Create(options));
+        return new FoundryCardSuggester(httpClient, FoundryTestOptions.Default);
     }
 
-    // A chat completion whose answer is this text.
-    private static string Completion(string content, string finishReason = "stop", string? refusal = null)
-    {
-        return JsonSerializer.Serialize(new
-        {
-            id = "chatcmpl-test",
-            @object = "chat.completion",
-            model = "gpt-5-mini-2025-08-07",
-            choices = new[]
-            {
-                new
-                {
-                    index = 0,
-                    finish_reason = finishReason,
-                    message = new { role = "assistant", content, refusal }
-                }
-            }
-        });
-    }
-
-    private sealed record SentRequest(string Url, string? Key, string? ContentType, long? ContentLength, string? Body);
-
-    // Answers every request the same way, and keeps what was sent.
-    private sealed class FakeHandler(HttpStatusCode status, string body) : HttpMessageHandler
-    {
-        public List<SentRequest> Requests { get; } = [];
-
-        protected override async Task<HttpResponseMessage> SendAsync(
-            HttpRequestMessage request,
-            CancellationToken cancellationToken)
-        {
-            Requests.Add(new SentRequest(
-                request.RequestUri!.ToString(),
-                request.Headers.TryGetValues("api-key", out var keys) ? keys.Single() : null,
-                request.Content?.Headers.ContentType?.MediaType,
-                request.Content?.Headers.ContentLength,
-                request.Content is null ? null : await request.Content.ReadAsStringAsync(cancellationToken)));
-            return new HttpResponseMessage(status)
-            {
-                Content = new StringContent(body, Encoding.UTF8, "application/json")
-            };
-        }
-    }
 }
