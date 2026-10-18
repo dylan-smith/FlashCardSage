@@ -93,6 +93,8 @@ npm run test:e2e
   them: a deck that's already in the database is left as it is, so a changed deck needs a new name or a script.
   Their pictures are committed in `SystemDecks/images` (made by `scripts/Generate-SystemDeckImages.ps1`), and the API
   puts them on the cards when it starts (`SystemDeckImageSync`). A new built-in card needs the script run for it too.
+- Cached translations (`Translations`, read and written by `CachedTranslator`) are the one thing that belongs to no
+  user: a text translates the same way for everyone, so there's no owner and no query filter.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
 
 ### Database

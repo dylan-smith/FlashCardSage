@@ -3,10 +3,12 @@ using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Tests.Fakes;
 using FlashCardSage.Api.Translation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
@@ -29,7 +31,7 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
         var response = ActionResultAssert.Ok<TranslationResponse>(result.Result);
         Assert.Equal("silla", response.Translation);
         Assert.Equal(["cátedra", "presidente"], response.Alternatives);
-        Assert.Equal(("el gato", Language.Spanish), (translator.Text, translator.From));
+        Assert.Equal([("el gato", Language.Spanish)], translator.Calls);
     }
 
     [Fact]
@@ -44,7 +46,7 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
         var problem = Assert.IsType<ObjectResult>(result.Result);
         var details = Assert.IsType<ValidationProblemDetails>(problem.Value);
         Assert.Equal("Text is required.", Assert.Single(details.Errors["Text"]));
-        Assert.Null(translator.Text);
+        Assert.Empty(translator.Calls);
     }
 
     [Fact]
@@ -57,7 +59,7 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
             CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
-        Assert.Null(translator.Text);
+        Assert.Empty(translator.Calls);
     }
 
     [Fact]
@@ -114,28 +116,17 @@ public class TranslationsControllerTests(WebApplicationFactory<Program> factory)
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
+    [Fact]
+    public void TheTranslatorIsCached()
+    {
+        using var app = TestApp.CreateFactory(factory);
+        using var scope = app.Services.CreateScope();
+
+        Assert.IsType<CachedTranslator>(scope.ServiceProvider.GetRequiredService<ITranslator>());
+    }
+
     private static TranslationsController CreateController(ITranslator translator)
     {
         return new TranslationsController(translator, NullLogger<TranslationsController>.Instance);
-    }
-
-    private sealed class FakeTranslator : ITranslator
-    {
-        public bool IsAvailable { get; init; } = true;
-
-        public TranslationResult Result { get; init; } = new(string.Empty, []);
-
-        public Exception? Failure { get; init; }
-
-        public string? Text { get; private set; }
-
-        public Language? From { get; private set; }
-
-        public Task<TranslationResult> TranslateAsync(string text, Language from, CancellationToken cancellationToken)
-        {
-            Text = text;
-            From = from;
-            return Failure is null ? Task.FromResult(Result) : Task.FromException<TranslationResult>(Failure);
-        }
     }
 }

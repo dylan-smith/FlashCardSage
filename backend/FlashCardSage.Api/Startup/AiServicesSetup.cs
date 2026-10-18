@@ -1,3 +1,4 @@
+using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
@@ -13,7 +14,12 @@ public static class AiServicesSetup
     {
         services.AddOptions<TranslatorOptions>().BindConfiguration(TranslatorOptions.SectionName);
         // Translation fills in a field while the user types, so a slow answer is no better than none.
-        services.AddHttpClient<ITranslator, AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+        services.AddHttpClient<AzureTranslator>(client => client.Timeout = TimeSpan.FromSeconds(10));
+        // Every translation is kept in the database, so a text is only paid for the first time anyone types it.
+        services.AddScoped<ITranslator>(provider => new CachedTranslator(
+            provider.GetRequiredService<AzureTranslator>(),
+            provider.GetRequiredService<FlashCardDbContext>(),
+            provider.GetRequiredService<ILogger<CachedTranslator>>()));
         services.AddOptions<FoundryChatOptions>().BindConfiguration(FoundryChatOptions.SectionName);
         // The page shows suggestions as soon as they come, and they're only a nicety, so a slow answer isn't waited out.
         services.AddHttpClient<ICardSuggester, FoundryCardSuggester>(client => client.Timeout = TimeSpan.FromSeconds(45));

@@ -11,7 +11,8 @@ namespace FlashCardSage.Api.Data;
 /// Practice results and a card's words are filtered through their card, so they're only the current user's too, and
 /// a card's tags are only reached through the card. A deck only gets cards that were found through the filter. The
 /// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDeckImporter reads them past
-/// the filter.
+/// the filter. Cached translations are the exception: they're shared by every user, so they have no owner and no
+/// filter.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {
@@ -29,6 +30,8 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<Tag> Tags => Set<Tag>();
 
     public DbSet<Deck> Decks => Set<Deck>();
+
+    public DbSet<CachedTranslation> Translations => Set<CachedTranslation>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -62,6 +65,7 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         ConfigurePracticeResult(modelBuilder.Entity<PracticeResult>());
         ConfigureTag(OwnedBy<Tag>(modelBuilder));
         ConfigureDeck(OwnedBy<Deck>(modelBuilder));
+        ConfigureCachedTranslation(modelBuilder.Entity<CachedTranslation>());
     }
 
     // Only the current user's rows are found, and deleting a user deletes theirs.
@@ -193,5 +197,25 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
                     link.HasKey("DeckId", "FlashCardId");
                     link.HasIndex("FlashCardId");
                 });
+    }
+
+    // Not owned: a text is translated the same way for everyone, so there's one row for it, shared by every user.
+    private static void ConfigureCachedTranslation(EntityTypeBuilder<CachedTranslation> translation)
+    {
+        // The translation's case follows the text's, so the text is compared case-sensitively (0011-*.sql).
+        translation.HasIndex(item => new { item.FromLanguage, item.Text })
+            .IsUnique();
+
+        translation.Property(item => item.FromLanguage)
+            .HasConversion<string>()
+            .HasMaxLength(10);
+
+        translation.Property(item => item.Text)
+            .HasMaxLength(FlashCard.MaxWordLength)
+            .UseCollation("Latin1_General_CS_AS")
+            .IsRequired();
+
+        translation.Property(item => item.Translation)
+            .IsRequired();
     }
 }
