@@ -2,7 +2,6 @@ using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
-using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 
 namespace FlashCardSage.Api.Tests;
@@ -13,7 +12,7 @@ public class PreferencesControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Get_ReturnsEverythingOn_ForANewUser()
     {
-        using var client = CreateClient(CreateFactory());
+        using var client = TestApp.CreateSignedInClient(factory);
 
         var preferences = await client.GetFromJsonAsync<PreferencesResponse>("/api/preferences");
 
@@ -23,9 +22,9 @@ public class PreferencesControllerTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task Put_SavesTheUsersPreferences_AndLeavesOtherUsersAlone()
     {
-        var webFactory = CreateFactory();
-        using var alice = CreateClient(webFactory);
-        using var bob = CreateClient(webFactory);
+        using var app = TestApp.CreateFactory(factory);
+        using var alice = TestApp.CreateClient(app, $"test:Alice {Guid.NewGuid()}");
+        using var bob = TestApp.CreateClient(app, $"test:Bob {Guid.NewGuid()}");
         await bob.GetAsync("/api/preferences");
 
         var response = await alice.PutAsJsonAsync(
@@ -47,7 +46,7 @@ public class PreferencesControllerTests(WebApplicationFactory<Program> factory)
     [InlineData("""{"showPictures":"no","showSuggestions":true,"autoTranslate":true}""")]
     public async Task Put_ReturnsBadRequest_ForAMissingOrInvalidPreference(string body)
     {
-        using var client = CreateClient(CreateFactory());
+        using var client = TestApp.CreateSignedInClient(factory);
         using var content = new StringContent(body, MediaTypeHeaderValue.Parse("application/json"));
 
         var response = await client.PutAsync("/api/preferences", content);
@@ -56,21 +55,5 @@ public class PreferencesControllerTests(WebApplicationFactory<Program> factory)
         Assert.Equal(
             new PreferencesResponse(true, true, true),
             await client.GetFromJsonAsync<PreferencesResponse>("/api/preferences"));
-    }
-
-    private WebApplicationFactory<Program> CreateFactory()
-    {
-        // Development uses the in-memory database and allows test sign-in, so the app starts without SQL Server.
-        return factory.WithWebHostBuilder(builder => builder
-            .UseEnvironment("Development")
-            .UseSetting("Authentication:AllowTestSignIn", "true"));
-    }
-
-    private static HttpClient CreateClient(WebApplicationFactory<Program> webFactory)
-    {
-        var client = webFactory.CreateClient();
-        client.DefaultRequestHeaders.Authorization =
-            new AuthenticationHeaderValue("Bearer", $"test:Preferences {Guid.NewGuid()}");
-        return client;
     }
 }

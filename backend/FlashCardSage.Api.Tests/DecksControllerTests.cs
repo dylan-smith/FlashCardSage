@@ -3,6 +3,7 @@ using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
+using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -14,16 +15,12 @@ public class DecksControllerTests
     [Fact]
     public async Task GetAll_ReturnsTheUsersDecksInNameOrder_WithTheirCardIds()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            otherContext.Decks.Add(new Deck { Name = "Theirs" });
-            await otherContext.SaveChangesAsync();
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.Decks.Add(new Deck { Name = "Theirs" }));
 
         await using var dbContext = TestDb.Create(databaseName);
-        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
-        var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
+        var cat = TestDb.Card("el gato", "the cat");
+        var dog = TestDb.Card("el perro", "the dog");
         dbContext.Decks.AddRange(new Deck { Name = "Week 1" }, new Deck { Name = "Animals", FlashCards = [dog, cat] });
         await dbContext.SaveChangesAsync();
         var controller = CreateController(dbContext);
@@ -41,7 +38,7 @@ public class DecksControllerTests
     public async Task GetById_ReturnsTheDeck()
     {
         await using var dbContext = TestDb.Create();
-        var card = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+        var card = TestDb.Card("el gato", "the cat");
         var deck = new Deck { Name = "Animals", FlashCards = [card] };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -49,7 +46,7 @@ public class DecksControllerTests
 
         var result = await controller.GetById(deck.Id);
 
-        var found = Assert.IsType<DeckResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var found = ActionResultAssert.Ok<DeckResponse>(result.Result);
         Assert.Equal((deck.Id, "Animals"), (found.Id, found.Name));
         Assert.Equal([card.Id], found.FlashCardIds);
     }
@@ -58,16 +55,16 @@ public class DecksControllerTests
     public async Task Create_TrimsTheNameAndAddsTheCards()
     {
         await using var dbContext = TestDb.Create();
-        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
-        var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
-        dbContext.FlashCards.AddRange(cat, dog, new FlashCard { Words = TestDb.Words("la casa", "the house") });
+        var cat = TestDb.Card("el gato", "the cat");
+        var dog = TestDb.Card("el perro", "the dog");
+        dbContext.FlashCards.AddRange(cat, dog, TestDb.Card("la casa", "the house"));
         await dbContext.SaveChangesAsync();
         var controller = CreateController(dbContext);
 
         var result = await controller.Create(
             new DeckRequest { Name = "  Animals  ", FlashCardIds = [dog.Id, cat.Id, dog.Id] });
 
-        var created = Assert.IsType<DeckResponse>(Assert.IsType<CreatedAtActionResult>(result.Result).Value);
+        var created = ActionResultAssert.Created<DeckResponse>(result.Result);
         Assert.Equal("Animals", created.Name);
         Assert.Equal(new[] { cat.Id, dog.Id }.Order(), created.FlashCardIds);
         var saved = await dbContext.Decks.Include(deck => deck.FlashCards).SingleAsync();
@@ -85,8 +82,7 @@ public class DecksControllerTests
 
         var result = await controller.Create(new DeckRequest { Name = name });
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal(["Deck name is required."], problem.Errors["Name"]);
+        ActionResultAssert.ValidationProblem(result.Result, "Name", "Deck name is required.");
         Assert.False(await dbContext.Decks.AnyAsync());
     }
 
@@ -100,20 +96,15 @@ public class DecksControllerTests
 
         var result = await controller.Create(new DeckRequest { Name = "animals" });
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal(["There's already a deck with that name."], problem.Errors["Name"]);
+        ActionResultAssert.ValidationProblem(result.Result, "Name", "There's already a deck with that name.");
     }
 
     [Fact]
     public async Task Create_ReturnsValidationProblem_ForAnUnknownOrAnotherUsersCard()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var other = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            otherContext.FlashCards.Add(other);
-            await otherContext.SaveChangesAsync();
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        var other = TestDb.Card("el perro", "the dog");
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.FlashCards.Add(other));
 
         await using var dbContext = TestDb.Create(databaseName);
 
@@ -121,8 +112,7 @@ public class DecksControllerTests
         {
             var result = await CreateController(dbContext).Create(new DeckRequest { Name = "Animals", FlashCardIds = [cardId] });
 
-            var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-            Assert.Equal(["Some of those flash cards no longer exist."], problem.Errors["FlashCardIds"]);
+            ActionResultAssert.ValidationProblem(result.Result, "FlashCardIds", "Some of those flash cards no longer exist.");
         }
 
         Assert.False(await dbContext.Decks.IgnoreQueryFilters().AnyAsync());
@@ -131,11 +121,11 @@ public class DecksControllerTests
     [Fact]
     public async Task Rename_TrimsTheNameAndKeepsTheCards()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         int deckId, catId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+            var cat = TestDb.Card("el gato", "the cat");
             var deck = new Deck { Name = "Anmals", FlashCards = [cat] };
             setupContext.Decks.Add(deck);
             await setupContext.SaveChangesAsync();
@@ -145,7 +135,7 @@ public class DecksControllerTests
         await using var dbContext = TestDb.Create(databaseName);
         var result = await CreateController(dbContext).Rename(deckId, new DeckNameRequest { Name = "  Animals " });
 
-        var renamed = Assert.IsType<DeckResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var renamed = ActionResultAssert.Ok<DeckResponse>(result.Result);
         Assert.Equal("Animals", renamed.Name);
         Assert.Equal([catId], renamed.FlashCardIds);
         await using var checkContext = TestDb.Create(databaseName);
@@ -164,7 +154,7 @@ public class DecksControllerTests
 
         var result = await CreateController(dbContext).Rename(deck.Id, new DeckNameRequest { Name = "animals" });
 
-        Assert.Equal("animals", Assert.IsType<DeckResponse>(Assert.IsType<OkObjectResult>(result.Result).Value).Name);
+        Assert.Equal("animals", ActionResultAssert.Ok<DeckResponse>(result.Result).Name);
     }
 
     [Theory]
@@ -179,21 +169,20 @@ public class DecksControllerTests
 
         var result = await CreateController(dbContext).Rename(deck.Id, new DeckNameRequest { Name = name });
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal([message], problem.Errors["Name"]);
+        ActionResultAssert.ValidationProblem(result.Result, "Name", message);
     }
 
     [Fact]
     public async Task ChangeCards_AddsAndRemovesOnlyTheCardsGiven()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         int deckId, catId, dogId, houseId, bookId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
-            var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
-            var house = new FlashCard { Words = TestDb.Words("la casa", "the house") };
-            var book = new FlashCard { Words = TestDb.Words("el libro", "the book") };
+            var cat = TestDb.Card("el gato", "the cat");
+            var dog = TestDb.Card("el perro", "the dog");
+            var house = TestDb.Card("la casa", "the house");
+            var book = TestDb.Card("el libro", "the book");
             var deck = new Deck { Name = "Animals", FlashCards = [cat, dog] };
             setupContext.FlashCards.AddRange(house, book);
             setupContext.Decks.Add(deck);
@@ -206,7 +195,7 @@ public class DecksControllerTests
         var result = await CreateController(dbContext).ChangeCards(
             deckId, new DeckCardsRequest { Add = [houseId, catId, houseId], Remove = [dogId, bookId] });
 
-        var changed = Assert.IsType<DeckResponse>(Assert.IsType<OkObjectResult>(result.Result).Value);
+        var changed = ActionResultAssert.Ok<DeckResponse>(result.Result);
         var expected = new[] { catId, houseId }.Order();
         Assert.Equal(expected, changed.FlashCardIds);
         await using var checkContext = TestDb.Create(databaseName);
@@ -219,16 +208,12 @@ public class DecksControllerTests
     [Fact]
     public async Task ChangeCards_ReturnsValidationProblem_ForAnotherUsersCard_AndChangesNothing()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        var other = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            otherContext.FlashCards.Add(other);
-            await otherContext.SaveChangesAsync();
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        var other = TestDb.Card("el perro", "the dog");
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.FlashCards.Add(other));
 
         await using var dbContext = TestDb.Create(databaseName);
-        var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
+        var cat = TestDb.Card("el gato", "the cat");
         var deck = new Deck { Name = "Animals", FlashCards = [cat] };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
@@ -236,8 +221,7 @@ public class DecksControllerTests
         var result = await CreateController(dbContext).ChangeCards(
             deck.Id, new DeckCardsRequest { Add = [other.Id], Remove = [cat.Id] });
 
-        var problem = Assert.IsType<ValidationProblemDetails>(Assert.IsType<ObjectResult>(result.Result).Value);
-        Assert.Equal(["Some of those flash cards no longer exist."], problem.Errors["Add"]);
+        ActionResultAssert.ValidationProblem(result.Result, "Add", "Some of those flash cards no longer exist.");
         await using var checkContext = TestDb.Create(databaseName);
         Assert.Equal(
             [cat.Id],
@@ -247,11 +231,11 @@ public class DecksControllerTests
     [Fact]
     public async Task Delete_RemovesTheDeck_AndKeepsItsCards()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         int deckId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var deck = new Deck { Name = "Animals", FlashCards = [new FlashCard { Words = TestDb.Words("el gato", "the cat") }] };
+            var deck = new Deck { Name = "Animals", FlashCards = [TestDb.Card("el gato", "the cat")] };
             setupContext.Decks.Add(deck);
             await setupContext.SaveChangesAsync();
             deckId = deck.Id;
@@ -268,12 +252,12 @@ public class DecksControllerTests
     [Fact]
     public async Task DeletingACard_RemovesItFromItsDecks()
     {
-        var databaseName = Guid.NewGuid().ToString();
+        var databaseName = TestDb.NewDatabaseName();
         int catId;
         await using (var setupContext = TestDb.Create(databaseName))
         {
-            var cat = new FlashCard { Words = TestDb.Words("el gato", "the cat") };
-            var dog = new FlashCard { Words = TestDb.Words("el perro", "the dog") };
+            var cat = TestDb.Card("el gato", "the cat");
+            var dog = TestDb.Card("el perro", "the dog");
             setupContext.Decks.Add(new Deck { Name = "Animals", FlashCards = [cat, dog] });
             await setupContext.SaveChangesAsync();
             catId = cat.Id;
@@ -296,23 +280,17 @@ public class DecksControllerTests
     [Fact]
     public async Task OtherUsersDecks_CannotBeReadChangedOrDeleted()
     {
-        var databaseName = Guid.NewGuid().ToString();
-        int otherId;
-        await using (var otherContext = TestDb.Create(databaseName, TestDb.OtherUserId))
-        {
-            var other = new Deck { Name = "Theirs" };
-            otherContext.Decks.Add(other);
-            await otherContext.SaveChangesAsync();
-            otherId = other.Id;
-        }
+        var databaseName = TestDb.NewDatabaseName();
+        var other = new Deck { Name = "Theirs" };
+        await TestDb.SeedAsOtherUserAsync(databaseName, otherContext => otherContext.Decks.Add(other));
 
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext);
 
-        Assert.IsType<NotFoundResult>((await controller.GetById(otherId)).Result);
-        Assert.IsType<NotFoundResult>((await controller.Rename(otherId, new DeckNameRequest { Name = "Mine" })).Result);
-        Assert.IsType<NotFoundResult>((await controller.ChangeCards(otherId, new DeckCardsRequest())).Result);
-        Assert.IsType<NotFoundResult>(await controller.Delete(otherId));
+        Assert.IsType<NotFoundResult>((await controller.GetById(other.Id)).Result);
+        Assert.IsType<NotFoundResult>((await controller.Rename(other.Id, new DeckNameRequest { Name = "Mine" })).Result);
+        Assert.IsType<NotFoundResult>((await controller.ChangeCards(other.Id, new DeckCardsRequest())).Result);
+        Assert.IsType<NotFoundResult>(await controller.Delete(other.Id));
         Assert.Equal("Theirs", (await dbContext.Decks.IgnoreQueryFilters().SingleAsync()).Name);
     }
 

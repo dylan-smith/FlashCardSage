@@ -22,7 +22,7 @@ public class PromptTextTests
             Words = TestDb.Words("el gato", "the cat"),
             Tags = [new Tag { Name = "animals" }, new Tag { Name = "home" }]
         };
-        var untagged = new FlashCard { Words = TestDb.Words("comer", "to eat") };
+        var untagged = TestDb.Card("comer", "to eat");
 
         Assert.Equal("el gato = the cat [animals, home]", PromptText.CardWithTags(tagged));
         Assert.Equal("comer = to eat", PromptText.CardWithTags(untagged));
