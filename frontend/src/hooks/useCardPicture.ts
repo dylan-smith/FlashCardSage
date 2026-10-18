@@ -60,14 +60,14 @@ export function useCardPicture(current: string | null) {
         ? last.id
         : undefined
     try {
-      const { id, image } = await generateCardImage(
+      const image = await generateCardImage(
         spanish,
         english,
         afterId,
         controller.signal,
       )
       if (!controller.signal.aborted) {
-        lastGenerated.current = { spanish, english, id }
+        lastGenerated.current = { spanish, english, id: image.generatedImageId }
         setChosen(image)
         setUploaded(false)
         trackEvent('FlashCardImageGenerated')

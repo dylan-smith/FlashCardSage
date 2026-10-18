@@ -3,6 +3,7 @@ using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
 using FlashCardSage.Api.Translation;
+using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Startup;
 
@@ -30,8 +31,12 @@ public static class AiServicesSetup
             client.Timeout = TimeSpan.FromSeconds(150));
         services.AddOptions<ImageGenerationOptions>().BindConfiguration(ImageGenerationOptions.SectionName);
         // A picture takes the model tens of seconds, and the user asked for it, so they're given that long.
-        services.AddHttpClient<IImageGenerator, FoundryImageGenerator>(client =>
-            client.Timeout = TimeSpan.FromSeconds(60));
+        services.AddHttpClient<FoundryImageGenerator>(client => client.Timeout = TimeSpan.FromSeconds(60));
+        // The E2E tests have no Foundry, so they ask for a sample picture instead.
+        services.AddScoped<IImageGenerator>(provider =>
+            provider.GetRequiredService<IOptions<ImageGenerationOptions>>().Value.UseSamplePicture
+                ? new SampleImageGenerator()
+                : provider.GetRequiredService<FoundryImageGenerator>());
         // Every picture is kept, so the same words are only paid for once the user has seen every picture of them.
         services.AddScoped<CachedImageGenerator>();
 

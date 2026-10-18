@@ -4,8 +4,8 @@
 -- for it, oldest first by Id.
 --
 -- PromptHash is the SHA-256, as lowercase hex, of the lowercased prompt the generator was sent, so a change to the
--- prompt starts afresh. ImageUrl is the picture's public URL in the image store, which no card shares: a card gets
--- its own copy.
+-- prompt starts afresh. ImageUrl is the picture's public URL in the image store. A card given the picture points at
+-- the same URL, so the file is never removed.
 CREATE TABLE [dbo].[GeneratedImages] (
     [Id] INT IDENTITY(1,1) NOT NULL,
     [PromptHash] CHAR(64) NOT NULL,

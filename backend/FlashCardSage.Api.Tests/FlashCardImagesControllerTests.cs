@@ -220,6 +220,58 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     }
 
     [Fact]
+    public async Task Put_PointsTheCardAtAGeneratedPicture_WithoutCopyingIt()
+    {
+        await using var dbContext = TestDb.Create();
+        var store = new FakeImageStore();
+        var controller = CreateController(dbContext, store: store);
+        var generated = ActionResultAssert.Ok<CardImageResponse>((await controller.Generate(
+            new ImageGenerationRequest { Spanish = "nadar" }, CancellationToken.None)).Result);
+        var card = await AddCardAsync(dbContext);
+
+        var result = await controller.Put(
+            card.Id, new CardImageRequest { GeneratedImageId = generated.Id }, CancellationToken.None);
+
+        var returned = ActionResultAssert.Ok<FlashCard>(result.Result);
+        var cached = Assert.Single(store.Saved);
+        Assert.Equal(cached.Url, returned.ImageUrl);
+        Assert.Equal(cached.Url, (await dbContext.FlashCards.AsNoTracking().SingleAsync()).ImageUrl);
+    }
+
+    [Fact]
+    public async Task Put_ReturnsValidationProblem_ForAGeneratedPictureThatIsNotThere()
+    {
+        await using var dbContext = TestDb.Create();
+        var card = await AddCardAsync(dbContext);
+
+        var result = await CreateController(dbContext).Put(
+            card.Id, new CardImageRequest { GeneratedImageId = 42 }, CancellationToken.None);
+
+        ActionResultAssert.ValidationProblem(result.Result, "GeneratedImageId", "That picture is gone.");
+        Assert.Null((await dbContext.FlashCards.AsNoTracking().SingleAsync()).ImageUrl);
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task TakingAGeneratedPictureOff_KeepsItInTheCache(bool replace)
+    {
+        await using var dbContext = TestDb.Create();
+        var store = new FakeImageStore();
+        var controller = CreateController(dbContext, store: store);
+        var generated = ActionResultAssert.Ok<CardImageResponse>((await controller.Generate(
+            new ImageGenerationRequest { Spanish = "nadar" }, CancellationToken.None)).Result);
+        var card = await AddCardAsync(dbContext);
+        await controller.Put(card.Id, new CardImageRequest { GeneratedImageId = generated.Id }, CancellationToken.None);
+
+        _ = replace
+            ? await controller.Put(card.Id, new CardImageRequest { ContentType = "image/png", Data = Png }, CancellationToken.None)
+            : await controller.Delete(card.Id, CancellationToken.None);
+
+        Assert.Empty(store.Deleted);
+    }
+
+    [Fact]
     public async Task Put_ReturnsValidationProblem_ForAPictureThatIsNotOne()
     {
         await using var dbContext = TestDb.Create();
@@ -331,6 +383,21 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
         var response = await client.PostAsJsonAsync("/api/flashcards/images/generate", new { spanish = "nadar" });
 
         Assert.Equal(HttpStatusCode.ServiceUnavailable, response.StatusCode);
+    }
+
+    [Fact]
+    public async Task Generate_MakesTheSamplePicture_WhenAskedTo()
+    {
+        var settings = Settings;
+        settings["ImageGeneration:UseSamplePicture"] = "true";
+        using var client = TestApp.CreateSignedInClient(factory, settings: settings);
+
+        var response = await client.PostAsJsonAsync("/api/flashcards/images/generate", new { spanish = "nadar" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var picture = (await response.Content.ReadFromJsonAsync<CardImageResponse>())!;
+        Assert.Equal(SampleImageGenerator.ContentType, picture.ContentType);
+        Assert.Single(Directory.GetFiles(pictures));
     }
 
     [Fact]

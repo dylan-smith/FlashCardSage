@@ -2,23 +2,18 @@ import { ApiError, apiFetch, jsonRequest, sendJson } from './client'
 import { flashCardsUrl } from './flashCards'
 import type { FlashCard } from './flashCards'
 
-// A picture the API made for a card, as base64. The browser holds it until the user puts it on the card, so one
-// they don't want is never kept.
+// A picture for a card, as base64, which the browser holds until the user puts it on the card: one the API made,
+// with its ID in the API's cache of them, or one the user uploaded, without.
 export type CardImage = {
   contentType: string
   data: string
+  generatedImageId?: number
 }
 
 export const picturesUnavailableMessage = "Pictures aren't available."
 export const cannotIllustrateMessage =
   "That card can't be illustrated. Try other words."
 const generateFailedMessage = 'Unable to make a picture.'
-
-// A generated picture, and its ID in the API's cache of them, which asks for the next picture of the same words.
-export type GeneratedCardImage = {
-  id: number
-  image: CardImage
-}
 
 // Asks the API for a picture of what the card means, from whichever sides are filled in. The API keeps every
 // picture it makes, so it answers with the first one it has of the words after afterId (the last one the user saw),
@@ -29,7 +24,7 @@ export async function generateCardImage(
   english: string,
   afterId?: number,
   signal?: AbortSignal,
-): Promise<GeneratedCardImage> {
+): Promise<CardImage & { generatedImageId: number }> {
   const response = await apiFetch(
     `${flashCardsUrl}/images/generate`,
     jsonRequest('POST', { spanish, english, afterId }, signal),
@@ -55,7 +50,7 @@ export async function generateCardImage(
   ) {
     throw new Error(generateFailedMessage)
   }
-  return { id, image: { contentType, data } }
+  return { contentType, data, generatedImageId: id }
 }
 
 // The kinds of picture the API keeps, and the biggest it takes (CardImage.cs), so a file it would refuse is turned
@@ -90,12 +85,15 @@ export function cardImageDataUrl(image: CardImage) {
   return `data:${image.contentType};base64,${image.data}`
 }
 
-// Puts the picture on the card, replacing any it had, and returns the card with its new picture's URL.
+// Puts the picture on the card, replacing any it had, and returns the card with its new picture's URL. A generated
+// picture is sent by its ID, since the API has it already, and the card shares it with the cache.
 export function putCardImage(id: number, image: CardImage) {
   return sendJson<FlashCard>(
     'PUT',
     `${flashCardsUrl}/${id}/image`,
-    image,
+    image.generatedImageId === undefined
+      ? { contentType: image.contentType, data: image.data }
+      : { generatedImageId: image.generatedImageId },
     'Unable to add the picture.',
   )
 }

@@ -271,6 +271,38 @@ public class FlashCardsControllerTests
     }
 
     [Fact]
+    public async Task Delete_KeepsAGeneratedPicture_WhichTheCacheShares()
+    {
+        const string cached = "https://images.test/card-images/cached.jpg";
+        await using var dbContext = TestDb.Create();
+        dbContext.GeneratedImages.Add(new CachedImage { PromptHash = new string('a', 64), ImageUrl = cached });
+        var card = await TestDb.AddCardAsync(dbContext, TestDb.Card("nadar", "to swim", imageUrl: cached));
+        var store = new FakeImageStore();
+
+        Assert.IsType<NoContentResult>(await CreateController(dbContext, store).Delete(card.Id));
+
+        Assert.Empty(store.Deleted);
+    }
+
+    [Fact]
+    public async Task DeleteMany_KeepsGeneratedPictures_AndRemovesTheOthers()
+    {
+        const string cached = "https://images.test/card-images/cached.jpg";
+        var databaseName = TestDb.NewDatabaseName();
+        var catId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat", imageUrl: cached));
+        var dogId = await TestDb.SeedCardAsync(
+            databaseName, TestDb.Card("el perro", "the dog", imageUrl: "https://images.test/card-images/dog.jpg"));
+        await using var dbContext = TestDb.Create(databaseName);
+        dbContext.GeneratedImages.Add(new CachedImage { PromptHash = new string('a', 64), ImageUrl = cached });
+        await dbContext.SaveChangesAsync();
+        var store = new FakeImageStore();
+
+        await CreateController(dbContext, store).DeleteMany(new FlashCardIdsRequest { FlashCardIds = [catId, dogId] });
+
+        Assert.Equal(["https://images.test/card-images/dog.jpg"], store.Deleted);
+    }
+
+    [Fact]
     public async Task Delete_ReturnsNotFound_WhenFlashCardDoesNotExist()
     {
         await using var dbContext = TestDb.Create();

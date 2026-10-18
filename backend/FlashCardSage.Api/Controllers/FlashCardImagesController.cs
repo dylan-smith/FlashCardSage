@@ -11,7 +11,9 @@ namespace FlashCardSage.Api.Controllers;
 /// Makes a picture of what a card means, and puts one on a card or takes it off. A generated picture is handed back
 /// to the user and goes on the card only when they ask. Every one is also kept in a cache every user shares (see
 /// CachedImageGenerator), so asking again for the same words shows the next picture there is of them, and a new one
-/// is only made once the user has seen them all.
+/// is only made once the user has seen them all. A card given a generated picture points at it in the cache, which
+/// every card with that picture shares and nothing removes; a picture the user uploads is the card's own, and goes
+/// when the card's done with it.
 /// </summary>
 /// <remarks>
 /// A card is always looked up first, since that's what limits it to the current user's cards. The words a
@@ -82,32 +84,52 @@ public class FlashCardImagesController(
             return NotFound();
         }
 
-        if (!CardImage.TryDecode(request.ContentType, request.Data, out var data, out var contentType, out var error))
-        {
-            ModelState.AddModelError(nameof(request.Data), error);
-            return ValidationProblem(ModelState);
-        }
-
         var previousUrl = card.ImageUrl;
-        var url = await imageStore.SaveAsync(data, contentType, cancellationToken);
-        card.ImageUrl = url;
-        try
+        if (request.GeneratedImageId is { } generatedImageId)
         {
+            // A generated picture is in the cache already, so the card points at it there rather than keeping a copy.
+            var cached = await dbContext.GeneratedImages
+                .AsNoTracking()
+                .FirstOrDefaultAsync(item => item.Id == generatedImageId, cancellationToken);
+            if (cached is null)
+            {
+                ModelState.AddModelError(nameof(request.GeneratedImageId), "That picture is gone.");
+                return ValidationProblem(ModelState);
+            }
+
+            card.ImageUrl = cached.ImageUrl;
             await dbContext.SaveChangesAsync(cancellationToken);
+            logger.LogInformation(
+                "Put generated picture {GeneratedImageId} on flash card {FlashCardId}", generatedImageId, id);
         }
-        catch
+        else
         {
-            // The picture isn't on the card, so it isn't kept either.
-            await imageStore.TryDeleteAsync(url, logger, CancellationToken.None);
-            throw;
+            if (!CardImage.TryDecode(request.ContentType, request.Data, out var data, out var contentType, out var error))
+            {
+                ModelState.AddModelError(nameof(request.Data), error);
+                return ValidationProblem(ModelState);
+            }
+
+            var url = await imageStore.SaveAsync(data, contentType, cancellationToken);
+            card.ImageUrl = url;
+            try
+            {
+                await dbContext.SaveChangesAsync(cancellationToken);
+            }
+            catch
+            {
+                // The picture isn't on the card, so it isn't kept either.
+                await imageStore.TryDeleteAsync(url, logger, CancellationToken.None);
+                throw;
+            }
+
+            logger.LogInformation("Put a {Length} byte picture on flash card {FlashCardId}", data.Length, id);
         }
 
-        if (previousUrl is not null)
+        if (previousUrl is not null && previousUrl != card.ImageUrl)
         {
-            await imageStore.TryDeleteAsync(previousUrl, logger, cancellationToken);
+            await imageStore.TryDeleteCardPicturesAsync(dbContext, [previousUrl], logger, cancellationToken);
         }
-
-        logger.LogInformation("Put a {Length} byte picture on flash card {FlashCardId}", data.Length, id);
 
         return Ok(card);
     }
@@ -126,7 +148,7 @@ public class FlashCardImagesController(
         {
             card.ImageUrl = null;
             await dbContext.SaveChangesAsync(cancellationToken);
-            await imageStore.TryDeleteAsync(url, logger, cancellationToken);
+            await imageStore.TryDeleteCardPicturesAsync(dbContext, [url], logger, cancellationToken);
             logger.LogInformation("Removed the picture from flash card {FlashCardId}", id);
         }
 
