@@ -1,9 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using FlashCardSage.Api.Data;
-using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Usage;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Authentication;
 
@@ -24,7 +22,8 @@ public class CurrentUserMiddleware(RequestDelegate next)
         {
             var name = context.User.FindFirst(AuthenticationSetup.NameClaim)?.Value;
             var email = context.User.FindFirst(AuthenticationSetup.EmailClaim)?.Value;
-            currentUser.UserId = await GetOrCreateUserIdAsync(dbContext, subject, name, email, context.RequestAborted);
+            currentUser.UserId = await UserAccounts.GetOrCreateUserIdAsync(
+                dbContext, subject, name, email, context.RequestAborted);
 
             if (UsageSnapshot.IsPerson(subject))
             {
@@ -34,47 +33,5 @@ public class CurrentUserMiddleware(RequestDelegate next)
         }
 
         await next(context);
-    }
-
-    public static async Task<int> GetOrCreateUserIdAsync(
-        FlashCardDbContext dbContext,
-        string subject,
-        string? name,
-        string? email,
-        CancellationToken cancellationToken)
-    {
-        var user = await dbContext.Users.FirstOrDefaultAsync(item => item.Subject == subject, cancellationToken);
-
-        if (user is null)
-        {
-            user = new User { Subject = subject, DisplayName = name, Email = email, CreatedAt = DateTimeOffset.UtcNow };
-            dbContext.Users.Add(user);
-
-            try
-            {
-                await dbContext.SaveChangesAsync(cancellationToken);
-                return user.Id;
-            }
-            catch (DbUpdateException)
-            {
-                // Another request from the same user created the row first, which fails the unique Subject index.
-                dbContext.Entry(user).State = EntityState.Detached;
-                return await dbContext.Users
-                    .AsNoTracking()
-                    .Where(item => item.Subject == subject)
-                    .Select(item => item.Id)
-                    .SingleAsync(cancellationToken);
-            }
-        }
-
-        // Keep the name and email in step with the account, without writing on every request.
-        if ((name is not null && user.DisplayName != name) || (email is not null && user.Email != email))
-        {
-            user.DisplayName = name ?? user.DisplayName;
-            user.Email = email ?? user.Email;
-            await dbContext.SaveChangesAsync(cancellationToken);
-        }
-
-        return user.Id;
     }
 }

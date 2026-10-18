@@ -135,7 +135,7 @@ public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController
             ModelState.AddModelError(nameof(TagRequest.Name), "Tag name is required.");
         }
         // Names are unique whatever their case, as the database's index is.
-        else if (tags.Any(item => item.Id != id && string.Equals(item.Name, trimmed, StringComparison.OrdinalIgnoreCase)))
+        else if (tags.Any(item => item.Id != id && TextRules.SameText(item.Name, trimmed)))
         {
             ModelState.AddModelError(nameof(TagRequest.Name), "There's already a tag with that name.");
         }

@@ -17,7 +17,7 @@ namespace FlashCardSage.Api.Controllers;
 public class CardSuggestionsController(
     FlashCardDbContext dbContext,
     ICardSuggester suggester,
-    ILogger<CardSuggestionsController> logger) : ControllerBase
+    ILogger<CardSuggestionsController> logger) : ApiControllerBase
 {
     // A handful, so they fit on the page next to the user's cards.
     public const int SuggestionCount = 5;
@@ -38,15 +38,13 @@ public class CardSuggestionsController(
     {
         if (!suggester.IsAvailable)
         {
-            return Problem("Card suggestions aren't available.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            return ServiceUnavailableProblem("Card suggestions aren't available.");
         }
 
         var cards = await dbContext.FlashCards
             .AsNoTracking()
-            .Include(card => card.Words)
-            .Include(card => card.Tags.OrderBy(tag => tag.Name))
+            .WithWordsAndTags()
             .OrderBy(card => card.Id)
-            .AsSplitQuery()
             .ToListAsync(cancellationToken);
 
         // The card the suggestions are to be related to, e.g. one just added. It's looked up in the user's cards, so
@@ -89,12 +87,10 @@ public class CardSuggestionsController(
             suggested = await suggester.SuggestAsync(
                 described, related, selectedTag, SuggestionCount + ExtraRequested, cancellationToken);
         }
-        // A timeout surfaces as a cancellation the caller didn't ask for.
-        catch (Exception ex) when (ex is HttpRequestException
-            || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
             logger.LogError(ex, "Suggesting cards failed");
-            return Problem("Card suggestions failed.", statusCode: StatusCodes.Status502BadGateway);
+            return BadGatewayProblem("Card suggestions failed.");
         }
 
         var suggestions = NewCards.From(suggested, cards).Take(SuggestionCount).ToList();
