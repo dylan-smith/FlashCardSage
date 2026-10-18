@@ -16,6 +16,9 @@ public interface IImageStore
     // picture is gone.
     Task<string?> CopyAsync(string url, CancellationToken cancellationToken);
 
+    // The picture at the URL SaveAsync gave it. Null when the URL isn't this store's or the picture is gone.
+    Task<ReadOnlyMemory<byte>?> LoadAsync(string url, CancellationToken cancellationToken);
+
     // Removes a picture by the URL SaveAsync gave it. A URL that isn't this store's, or a picture that's already
     // gone, is left alone.
     Task DeleteAsync(string url, CancellationToken cancellationToken);

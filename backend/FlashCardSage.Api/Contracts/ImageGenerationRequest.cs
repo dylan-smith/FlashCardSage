@@ -11,4 +11,7 @@ public class ImageGenerationRequest
 
     [MaxLength(FlashCard.MaxWordLength)]
     public string? English { get; set; }
+
+    // The ID of the last picture the user was shown for these words, to get the next one, or null for the first.
+    public int? AfterId { get; set; }
 }

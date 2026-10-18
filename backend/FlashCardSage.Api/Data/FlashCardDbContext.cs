@@ -11,8 +11,8 @@ namespace FlashCardSage.Api.Data;
 /// Practice results and a card's words are filtered through their card, so they're only the current user's too, and
 /// a card's tags are only reached through the card. A deck only gets cards that were found through the filter. The
 /// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDeckImporter reads them past
-/// the filter. Cached translations are the exception: they're shared by every user, so they have no owner and no
-/// filter.
+/// the filter. Cached translations and generated pictures are the exception: they're shared by every user, so they
+/// have no owner and no filter.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {
@@ -32,6 +32,8 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<Deck> Decks => Set<Deck>();
 
     public DbSet<CachedTranslation> Translations => Set<CachedTranslation>();
+
+    public DbSet<CachedImage> GeneratedImages => Set<CachedImage>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -66,6 +68,7 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         ConfigureTag(OwnedBy<Tag>(modelBuilder));
         ConfigureDeck(OwnedBy<Deck>(modelBuilder));
         ConfigureCachedTranslation(modelBuilder.Entity<CachedTranslation>());
+        ConfigureCachedImage(modelBuilder.Entity<CachedImage>());
     }
 
     // Only the current user's rows are found, and deleting a user deletes theirs.
@@ -216,6 +219,22 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
             .IsRequired();
 
         translation.Property(item => item.Translation)
+            .IsRequired();
+    }
+
+    // Not owned either: a picture of some words suits anyone, so every user's pictures are shared, many to a prompt.
+    private static void ConfigureCachedImage(EntityTypeBuilder<CachedImage> image)
+    {
+        image.HasIndex(item => new { item.PromptHash, item.Id });
+
+        image.Property(item => item.PromptHash)
+            .HasMaxLength(CachedImage.PromptHashLength)
+            .IsFixedLength()
+            .IsUnicode(false)
+            .IsRequired();
+
+        image.Property(item => item.ImageUrl)
+            .HasMaxLength(FlashCard.MaxImageUrlLength)
             .IsRequired();
     }
 }

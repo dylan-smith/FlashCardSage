@@ -29,6 +29,11 @@ public abstract class ImageStoreBase : IImageStore
             : null;
     }
 
+    public async Task<ReadOnlyMemory<byte>?> LoadAsync(string url, CancellationToken cancellationToken)
+    {
+        return NameFromUrl(url) is { } name ? await ReadAsync(name, cancellationToken) : null;
+    }
+
     public abstract Task DeleteAsync(string url, CancellationToken cancellationToken);
 
     // The name of this store's picture at the URL, or null when it isn't one.

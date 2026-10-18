@@ -32,6 +32,8 @@ public static class AiServicesSetup
         // A picture takes the model tens of seconds, and the user asked for it, so they're given that long.
         services.AddHttpClient<IImageGenerator, FoundryImageGenerator>(client =>
             client.Timeout = TimeSpan.FromSeconds(60));
+        // Every picture is kept, so the same words are only paid for once the user has seen every picture of them.
+        services.AddScoped<CachedImageGenerator>();
 
         return services;
     }

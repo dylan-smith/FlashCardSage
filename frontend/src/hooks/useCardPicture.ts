@@ -26,6 +26,9 @@ export function useCardPicture(current: string | null) {
   const [generating, setGenerating] = useState(false)
   const [errorMessage, setErrorMessage] = useState('')
   const request = useRef<AbortController | null>(null)
+  // The words of the last picture the API made and its ID, so asking again for the same words gets the next picture
+  // the API has of them, and only a new one once the user has seen them all.
+  const lastGenerated = useRef<(CardText & { id: number }) | null>(null)
 
   useEffect(
     () => () => {
@@ -41,20 +44,30 @@ export function useCardPicture(current: string | null) {
     setGenerating(false)
   }
 
-  // Asks the API for a picture of the card's words, from whichever sides are filled in.
+  // Asks the API for a picture of the card's words, from whichever sides are filled in: the one after the last it
+  // gave for the same words, or the first it has for new ones.
   async function generate(fields: CardText) {
     cancel()
     const controller = new AbortController()
     request.current = controller
     setGenerating(true)
     setErrorMessage('')
+    const spanish = fields.spanish.trim()
+    const english = fields.english.trim()
+    const last = lastGenerated.current
+    const afterId =
+      last?.spanish === spanish && last.english === english
+        ? last.id
+        : undefined
     try {
-      const image = await generateCardImage(
-        fields.spanish.trim(),
-        fields.english.trim(),
+      const { id, image } = await generateCardImage(
+        spanish,
+        english,
+        afterId,
         controller.signal,
       )
       if (!controller.signal.aborted) {
+        lastGenerated.current = { spanish, english, id }
         setChosen(image)
         setUploaded(false)
         trackEvent('FlashCardImageGenerated')
@@ -90,7 +103,7 @@ export function useCardPicture(current: string | null) {
     }
   }
 
-  // Throws the new picture away.
+  // Throws the new picture away. Asking again for the same words still gets the next picture of them.
   function discard() {
     cancel()
     setChosen(null)
@@ -108,6 +121,7 @@ export function useCardPicture(current: string | null) {
   function reset() {
     discard()
     setRemoved(false)
+    lastGenerated.current = null
   }
 
   // Puts the user's choice on the saved card: the new picture unless they discarded it, or none when they took the

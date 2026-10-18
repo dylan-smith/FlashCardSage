@@ -21,7 +21,7 @@ describe('pictures', () => {
   // Answers a request for a picture as told, and saves a card and its picture as the API would. Translation is
   // off, as it is locally.
   function mockPictures({
-    generate = jsonResponse(picture),
+    generate = jsonResponse({ id: 1, ...picture }),
     putStatus = 200,
     cards = [],
     routes = {},
@@ -232,6 +232,48 @@ describe('pictures', () => {
       screen.getByRole('button', { name: 'Generate another picture' }),
     ).toBeInTheDocument()
     expect(calls.all.filter((call) => call.url === generateUrl)).toHaveLength(2)
+  })
+
+  it('asks for the next picture of the same words, and the first of new ones', async () => {
+    const user = userEvent.setup()
+    let id = 0
+    const calls = mockPictures({
+      routes: {
+        'POST /flashcards/images/generate': () =>
+          jsonResponse({ id: ++id, ...picture }),
+      },
+    })
+    renderAt('/')
+    await screen.findByText('No flash cards yet.')
+    await generatePicture(user)
+    const generateAnother = screen.getByRole('button', {
+      name: 'Generate another picture',
+    })
+
+    await user.click(generateAnother)
+    await waitFor(() => expect(id).toBe(2))
+    await user.click(screen.getByRole('button', { name: 'Discard' }))
+    await user.click(screen.getByRole('button', { name: 'Generate picture' }))
+    await waitFor(() => expect(id).toBe(3))
+    await user.type(
+      screen.getByLabelText('English', { exact: false }),
+      'the cat',
+    )
+    await user.click(
+      screen.getByRole('button', { name: 'Generate another picture' }),
+    )
+    await waitFor(() => expect(id).toBe(4))
+
+    expect(
+      calls.all
+        .filter((call) => call.url === generateUrl)
+        .map((call) => call.body),
+    ).toEqual([
+      { spanish: 'el gato', english: '' },
+      { spanish: 'el gato', english: '', afterId: 1 },
+      { spanish: 'el gato', english: '', afterId: 2 },
+      { spanish: 'el gato', english: 'the cat' },
+    ])
   })
 
   it.each([
