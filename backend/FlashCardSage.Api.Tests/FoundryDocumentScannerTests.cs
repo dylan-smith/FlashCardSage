@@ -3,6 +3,7 @@ using System.Text;
 using System.Text.Json;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
+using FlashCardSage.Api.Suggestions.Foundry;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Tests;
@@ -68,7 +69,7 @@ public class FoundryDocumentScannerTests
 
     private static FoundryDocumentScanner CreateScanner(HttpClient httpClient)
     {
-        var options = new CardSuggesterOptions
+        var options = new FoundryChatOptions
         {
             Endpoint = "https://foundry.example/",
             Key = "secret-key",

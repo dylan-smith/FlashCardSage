@@ -3,6 +3,7 @@ using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.SystemDecks;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
 
@@ -69,6 +70,23 @@ public sealed class SystemDeckImageSyncTests : IDisposable
 
         // Monday's picture was made again.
         Assert.Equal(1, await SyncAsync(databaseName, store, Image("lunes", Jpeg3), Image("martes", Jpeg2)));
+
+        await using var checkContext = TestDb.Create(databaseName, systemUserId);
+        var monday = (await checkContext.FlashCards.Include(card => card.Words).ToListAsync())
+            .Single(card => card.Spanish[0] == "lunes");
+        Assert.Equal(ExpectedUrl(Jpeg3), monday.ImageUrl);
+        Assert.Equal([ExpectedUrl(CardImageTests.Jpeg)], store.Deleted);
+    }
+
+    [Fact]
+    public async Task SyncAsync_KeepsTheNewPicture_WhenTheOldOneCannotBeRemoved()
+    {
+        var databaseName = await SystemDeckSeederTests.CreateDatabaseWithUsersAsync();
+        var systemUserId = await SystemDeckSeederTests.SeedAsync(databaseName, [Days]);
+        await SyncAsync(databaseName, new FakeImageStore(), Image("lunes", CardImageTests.Jpeg));
+
+        var store = new FakeImageStore { DeleteFailure = new IOException("Storage is down.") };
+        Assert.Equal(1, await SyncAsync(databaseName, store, Image("lunes", Jpeg3)));
 
         await using var checkContext = TestDb.Create(databaseName, systemUserId);
         var monday = (await checkContext.FlashCards.Include(card => card.Words).ToListAsync())
@@ -147,6 +165,7 @@ public sealed class SystemDeckImageSyncTests : IDisposable
     {
         var currentUser = new CurrentUser();
         await using var dbContext = TestDb.Create(databaseName, currentUser);
-        return await SystemDeckImageSync.SyncAsync(dbContext, currentUser, store, images, CancellationToken.None);
+        return await SystemDeckImageSync.SyncAsync(
+            dbContext, currentUser, store, images, NullLogger.Instance, CancellationToken.None);
     }
 }

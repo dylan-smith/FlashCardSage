@@ -183,7 +183,16 @@ export async function openSection(
     .click()
 }
 
+// Axe reads colors as they are on screen, so let the transitions under way (like a nav button turning outlined) end.
 export async function expectNoA11yViolations(page: Page) {
+  await page.evaluate(() =>
+    Promise.allSettled(
+      document
+        .getAnimations()
+        .filter((a) => a.effect?.getComputedTiming().iterations !== Infinity)
+        .map((a) => a.finished),
+    ),
+  )
   const results = await new AxeBuilder({ page }).analyze()
   expect(results.violations).toEqual([])
 }
