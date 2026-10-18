@@ -7,11 +7,9 @@
 # next sweep. One failed deletion doesn't stop the others; the script fails at the end if any did.
 # Requires PREVIEW_RESOURCE_GROUP, CURRENT_PR, GITHUB_REPOSITORY and GH_TOKEN, and runs from the repository root.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
-listing="$(az resource list \
-  --resource-group "${PREVIEW_RESOURCE_GROUP}" \
-  --query '[?tags."pr-number"].tags."pr-number"' \
-  --output tsv)"
+listing="$(preview_resources '[?tags."pr-number"].tags."pr-number"' --output tsv)"
 
 failed=()
 for pr in $(sort -un <<<"${listing}"); do

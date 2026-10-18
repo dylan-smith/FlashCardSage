@@ -5,6 +5,7 @@
 # it, and it can be re-run after a deletion that failed partway.
 # Requires PREVIEW_RESOURCE_GROUP and PR_NUMBER.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 deployment="preview-pr-${PR_NUMBER}"
 
@@ -14,11 +15,7 @@ bash .github/scripts/wait-for-deployment.sh "${PREVIEW_RESOURCE_GROUP}" "${deplo
 
 # Deleting the web app as a resource (unlike `az webapp delete`) never deletes the shared plan.
 # Captured first so a failed listing stops the script (a failure inside < <(...) wouldn't).
-# az won't combine --tag with --resource-group, so the tag is filtered in the query.
-listing="$(az resource list \
-  --resource-group "${PREVIEW_RESOURCE_GROUP}" \
-  --query "[?tags.\"pr-number\" == '${PR_NUMBER}'].id" \
-  --output tsv)"
+listing="$(preview_resources "[?tags.\"pr-number\" == '${PR_NUMBER}'].id" --output tsv)"
 ids=()
 if [ -n "${listing}" ]; then
   mapfile -t ids <<<"${listing}"
