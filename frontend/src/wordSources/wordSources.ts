@@ -2,6 +2,8 @@ import { duolingoGroups } from '../duolingo/duolingoCards'
 import { duolingoBookmarkletHref } from '../duolingo/sendToFlashCardSage'
 import { groupWords } from '../preply/groupWords'
 import { bookmarkletHref } from '../preply/sendToFlashCardSage'
+import { duolingoLogo, preplyLogo } from './logos'
+import type { Logo } from './logos'
 
 // A word or phrase from a website the user learns on, as the import page keeps it whichever site it came from: its
 // Spanish, and whatever English the site has for it, which can be none.
@@ -19,13 +21,14 @@ export type WordGroup = {
 
 export type WordSourceId = 'preply' | 'duolingo'
 
-// A website the user's words can be brought in from with a "Send to FlashCardSage" bookmarklet. Each is a button on
+// A website the user's words can be brought in from with a "Send to FlashCardSage" bookmarklet. Each is a tile on
 // the Import cards page's website tab (/import?from=website&site=<id>), which the bookmarklet opens with the site
 // picked, and has a deck named after it that the cards go in.
 export type WordSource = {
   id: WordSourceId
-  // The site's name, which names its button, its deck and its telemetry events.
+  // The site's name, which names its tile, its deck and its telemetry events, and its logo, on the tile.
   name: string
+  logo: Logo
   // Where the bookmarklet runs, and so where its messages come from.
   origin: string
   // The page the user clicks the bookmarklet on, and what the site calls the words there.
@@ -40,6 +43,7 @@ export type WordSource = {
 export const preplySource: WordSource = {
   id: 'preply',
   name: 'Preply',
+  logo: preplyLogo,
   origin: 'https://preply.com',
   wordsUrl: 'https://preply.com/en/practice/vocab-bank?subject=spanish',
   wordsName: 'vocabulary',
@@ -50,6 +54,7 @@ export const preplySource: WordSource = {
 export const duolingoSource: WordSource = {
   id: 'duolingo',
   name: 'Duolingo',
+  logo: duolingoLogo,
   origin: 'https://www.duolingo.com',
   wordsUrl: 'https://www.duolingo.com/practice-hub/words',
   wordsName: 'word list',
@@ -57,7 +62,7 @@ export const duolingoSource: WordSource = {
   toGroups: duolingoGroups,
 }
 
-// In the order of their buttons. The first is picked when the website tab is opened without a site.
+// In the order of their tiles. The first is picked when the website tab is opened without a site.
 export const wordSources = [preplySource, duolingoSource]
 
 // The source with this id, such as the URL's site parameter, if it's one.
