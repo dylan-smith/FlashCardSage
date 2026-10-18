@@ -69,7 +69,7 @@ for attempt in $(seq 1 24); do
 done
 
 # Requests the old API had already accepted can keep retrying the database for minutes (see the retry policy in
-# Program.cs), so restart the app to end them. The restarted API gets no requests.
+# the API's Startup/DatabaseSetup.cs), so restart the app to end them. The restarted API gets no requests.
 # synchronous=true makes the call wait until the restart has finished.
 echo "Restarting the API to end in-flight requests"
 app_id="$(az webapp show \

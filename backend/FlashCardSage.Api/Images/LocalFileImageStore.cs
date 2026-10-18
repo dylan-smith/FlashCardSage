@@ -5,7 +5,7 @@ using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Images;
 
-// Keeps pictures as files in a folder, which Program.cs serves on /card-images, for local development and E2E
+// Keeps pictures as files in a folder, which UseLocalImageFiles serves on /card-images, for local development and E2E
 // tests, where there's no storage account. A picture's URL is on the API's own address, as the browser sees it, or
 // outside a request (the built-in cards' pictures, saved when the API starts) on the address the server listens on.
 public partial class LocalFileImageStore(
