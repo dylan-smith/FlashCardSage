@@ -67,12 +67,9 @@ public static class SystemDeckSeeder
                     cards.Add(card);
                 }
 
-                foreach (var tag in cardDefinition.Tags.Select(tags.FindOrAdd))
+                foreach (var tag in cardDefinition.Tags.Select(tags.FindOrAdd).Where(tag => !card.Tags.Contains(tag)))
                 {
-                    if (!card.Tags.Contains(tag))
-                    {
-                        card.Tags.Add(tag);
-                    }
+                    card.Tags.Add(tag);
                 }
 
                 deck.FlashCards.Add(card);
