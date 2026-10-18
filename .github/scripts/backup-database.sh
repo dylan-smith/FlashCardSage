@@ -5,20 +5,18 @@
 #
 # Requires CONNECTION_STRING: the same one the migrations use, so the backup is always of the database they change.
 set -euo pipefail
+source "$(dirname "${BASH_SOURCE[0]}")/lib.sh"
 
 BACKUP_FILE="FlashCardSage-$(date -u +%Y%m%dT%H%M%SZ)-${GITHUB_SHA::7}.bacpac"
-for attempt in 1 2 3 4 5; do
-  if sqlpackage /Action:Export \
-    /SourceConnectionString:"${CONNECTION_STRING}" \
-    /TargetFile:"${RUNNER_TEMP}/${BACKUP_FILE}"; then
-    break
-  fi
-  if [ "${attempt}" -eq 5 ]; then
-    echo "::error::Database export failed after ${attempt} attempts"
-    exit 1
-  fi
-  echo "Export attempt ${attempt} failed; retrying in 15 seconds"
+# Each attempt first removes what a failed one left.
+export_database() {
   rm -f "${RUNNER_TEMP}/${BACKUP_FILE}"
-  sleep 15
-done
+  sqlpackage /Action:Export \
+    /SourceConnectionString:"${CONNECTION_STRING}" \
+    /TargetFile:"${RUNNER_TEMP}/${BACKUP_FILE}"
+}
+if ! retry 5 15 "Export attempt" -- export_database; then
+  echo "::error::Database export failed after 5 attempts"
+  exit 1
+fi
 echo "BACKUP_FILE=${BACKUP_FILE}" >> "$GITHUB_ENV"
