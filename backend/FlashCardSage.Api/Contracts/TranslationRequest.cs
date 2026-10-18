@@ -1,5 +1,5 @@
 using System.ComponentModel.DataAnnotations;
-using FlashCardSage.Api.Translation;
+using FlashCardSage.Api.Models;
 
 namespace FlashCardSage.Api.Contracts;
 
