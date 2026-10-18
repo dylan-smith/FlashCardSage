@@ -5,8 +5,6 @@ import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
-import { useTheme } from '@mui/material/styles'
-import useMediaQuery from '@mui/material/useMediaQuery'
 import { useSearchParams } from 'react-router'
 import { formatWords } from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
@@ -25,11 +23,12 @@ import { Section } from '../components/common/Section'
 import { TabPanel } from '../components/common/TabPanel'
 import { showToast } from '../toasts'
 import { cardCount, skippedSentence } from '../lib/cardCount'
+import { getHandoff } from '../wordSources/handoff'
 import { wordSourceFrom, wordSources } from '../wordSources/wordSources'
-import type { WordSourceId } from '../wordSources/wordSources'
+import type { WordSource } from '../wordSources/wordSources'
 import { DocumentScan } from '../components/import/DocumentScan'
 import { SystemDeckList } from '../components/import/SystemDeckList'
-import { WordSourceImport } from '../components/import/WordSourceImport'
+import { WebsiteImport } from '../components/import/WebsiteImport'
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
 function describeImport({ deck, skippedCount }: SystemDeckImport) {
@@ -40,26 +39,33 @@ function describeImport({ deck, skippedCount }: SystemDeckImport) {
   return `${added} ${skippedSentence(skippedCount)}`
 }
 
-// Where the cards come from: a built-in deck, a document the user picks, or their words on a site they learn on.
-type ImportTab = 'decks' | 'document' | WordSourceId
+// Where the cards come from: a built-in deck, a document the user picks, or a website they learn on.
+type ImportTab = 'decks' | 'document' | 'website'
 
-// The URL's from parameter for each tab but the first, so a link, a refresh or the back button opens it. A site's
-// "Send to FlashCardSage" bookmarklet opens the site's tab this way, with the site's id.
-const documentTabParam = 'document'
-
+// The URL's from parameter is the tab, for each but the first, so a link, a refresh or the back button opens it, and
+// its site parameter the website picked on the website tab. A site's "Send to FlashCardSage" bookmarklet opens the
+// page this way (/import?from=website&site=<site id>).
 function tabFrom(param: string | null): ImportTab {
-  if (param === documentTabParam) {
-    return 'document'
-  }
-  return wordSourceFrom(param)?.id ?? 'decks'
+  return param === 'document' || param === 'website' ? param : 'decks'
 }
 
-// The built-in decks the user can add to their own, cards made from a document they pick, and the words on each site
+// The site to show when the URL doesn't say: the one whose words a bookmarklet has sent or is sending, such as when
+// the user comes back to the page with them still here, or else the first.
+function defaultSite(): WordSource {
+  const handoff = getHandoff()
+  return (
+    (handoff.status !== 'none' ? wordSourceFrom(handoff.source) : null) ??
+    wordSources[0]
+  )
+}
+
+// The built-in decks the user can add to their own, cards made from a document they pick, and the words on a website
 // they learn on, on tabs rather than one after the other, since each can be a long list. Adding a deck copies its
 // cards and tags, so the user can change them like any of their cards.
 function ImportCardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = tabFrom(searchParams.get('from'))
+  const site = wordSourceFrom(searchParams.get('site')) ?? defaultSite()
   const [errorMessage, setErrorMessage] = useState('')
   const {
     data: decks,
@@ -79,9 +85,6 @@ function ImportCardsPage() {
   const importingCard = useAction<number>(setErrorMessage)
   const [addedCardIds, setAddedCardIds] = useState<number[]>([])
   const busy = importingDeck.busy || importingCard.busy
-  // Four tabs spelled out don't fit across a phone, so there each is just where the cards come from. Read straight
-  // away, since the app is only rendered in the browser, so a wide screen doesn't show the short labels first.
-  const wide = useMediaQuery(useTheme().breakpoints.up('sm'), { noSsr: true })
 
   // Loads the decks again after cards are added, so every card the user now has a word of says so, such as all of a
   // deck's after adding the deck. The page already shows the decks, so a failure only leaves them as they were.
@@ -140,13 +143,11 @@ function ImportCardsPage() {
   }
 
   function selectTab(value: ImportTab) {
-    setSearchParams(
-      value === 'document'
-        ? { from: documentTabParam }
-        : value === 'decks'
-          ? {}
-          : { from: value },
-    )
+    setSearchParams(value === 'decks' ? {} : { from: value })
+  }
+
+  function pickSite(source: WordSource) {
+    setSearchParams({ from: 'website', site: source.id })
   }
 
   // Every tab stays mounted, so a scan on its way or cards half looked over are still there after a look at the decks.
@@ -157,40 +158,26 @@ function ImportCardsPage() {
         onChange={(_event, value: ImportTab) => selectTab(value)}
         aria-label="Import cards from"
         variant="fullWidth"
-        // Even the short labels need less than a tab's usual least width and padding to share a phone's width.
-        sx={{
-          mb: 2,
-          '& .MuiTab-root': {
-            minWidth: { xs: 0, sm: 90 },
-            px: { xs: 1, sm: 2 },
-          },
-        }}
+        sx={{ mb: 2 }}
       >
-        {/* Each tab's full name is its label for a screen reader, whatever it shows. */}
         <Tab
           value="decks"
-          label={wide ? 'Built-in decks' : 'Built-in'}
-          aria-label="Built-in decks"
+          label="Built-in decks"
           id="import-tab-decks"
           aria-controls="import-panel-decks"
         />
         <Tab
           value="document"
-          label={wide ? 'From a document' : 'Document'}
-          aria-label="From a document"
+          label="From a document"
           id="import-tab-document"
           aria-controls="import-panel-document"
         />
-        {wordSources.map((source) => (
-          <Tab
-            key={source.id}
-            value={source.id}
-            label={wide ? `From ${source.name}` : source.name}
-            aria-label={`From ${source.name}`}
-            id={`import-tab-${source.id}`}
-            aria-controls={`import-panel-${source.id}`}
-          />
-        ))}
+        <Tab
+          value="website"
+          label="From a website"
+          id="import-tab-website"
+          aria-controls="import-panel-website"
+        />
       </Tabs>
       <TabPanel group="import" value="decks" current={tab}>
         <Stack spacing={2}>
@@ -223,16 +210,13 @@ function ImportCardsPage() {
       <TabPanel group="import" value="document" current={tab}>
         <DocumentScan />
       </TabPanel>
-      {wordSources.map((source) => (
-        <TabPanel
-          key={source.id}
-          group="import"
-          value={source.id}
-          current={tab}
-        >
-          <WordSourceImport source={source} active={tab === source.id} />
-        </TabPanel>
-      ))}
+      <TabPanel group="import" value="website" current={tab}>
+        <WebsiteImport
+          picked={site}
+          onPick={pickSite}
+          active={tab === 'website'}
+        />
+      </TabPanel>
     </Section>
   )
 }

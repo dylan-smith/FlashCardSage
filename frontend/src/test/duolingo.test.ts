@@ -131,7 +131,9 @@ describe('the Send to FlashCardSage bookmarklet for Duolingo', () => {
 
     const sending = sendDuolingoToFlashCardSage(appOrigin, duolingo)
 
-    expect(open).toHaveBeenCalledWith(`${appOrigin}/import?from=duolingo`)
+    expect(open).toHaveBeenCalledWith(
+      `${appOrigin}/import?from=website&site=duolingo`,
+    )
     await vi.waitFor(() => {
       expect(fetch).toHaveBeenCalledTimes(3)
     })
@@ -252,7 +254,7 @@ describe('the Send to FlashCardSage bookmarklet for Duolingo', () => {
     expect(href).toMatch(/^javascript:/)
     const source = decodeURIComponent(href.slice('javascript:'.length))
     expect(source).toMatch(/\)\("https:\/\/flashcardsage\.example"\)$/)
-    expect(source).toContain('/import?from=duolingo')
+    expect(source).toContain('/import?from=website&site=duolingo')
   })
 })
 

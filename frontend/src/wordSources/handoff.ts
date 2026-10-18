@@ -3,8 +3,9 @@ import { createStore } from '../lib/store'
 import { wordSourceFrom } from './wordSources'
 import type { SourceWord, WordSource, WordSourceId } from './wordSources'
 
-// A site's "Send to FlashCardSage" bookmarklet opens FlashCardSage on the Import cards page's tab for that site
-// (/import?from=<source id>), and the page only takes words from that site. Its messages are named for the site:
+// A site's "Send to FlashCardSage" bookmarklet opens FlashCardSage on the Import cards page's website tab with that
+// site picked (/import?from=website&site=<source id>), and the page only takes words from that site. Its messages are
+// named for the site:
 // flashcardsage:<source id>-words with the words, or flashcardsage:<source id>-error saying why there aren't any.
 
 // What a bookmarklet has sent this window: nothing (opened some other way), nothing yet, the user's words, why they
@@ -119,9 +120,10 @@ export function clearHandoff() {
 // Started before the app renders, since the user may need to sign in first, which replaces the page.
 export function startHandoff(target: Window = window) {
   const opener = target.opener as Window | null
+  const params = new URLSearchParams(target.location.search)
   const source =
-    target.location.pathname === '/import'
-      ? wordSourceFrom(new URLSearchParams(target.location.search).get('from'))
+    target.location.pathname === '/import' && params.get('from') === 'website'
+      ? wordSourceFrom(params.get('site'))
       : null
   // A closed tab of the site can't send anything.
   if (source === null || opener === null || opener.closed) {

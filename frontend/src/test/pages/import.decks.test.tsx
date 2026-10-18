@@ -7,12 +7,7 @@ import { trackEvent, trackException } from '../../telemetry'
 import { api, card, deck, tag } from '../support/factories'
 import { jsonResponse, mockApi, unreachable } from '../support/mockApi'
 import type { Routes } from '../support/mockApi'
-import {
-  renderAt,
-  renderLoaded,
-  signInForEachTest,
-  stubMatchMedia,
-} from '../support/render'
+import { renderAt, renderLoaded, signInForEachTest } from '../support/render'
 
 signInForEachTest()
 
@@ -49,7 +44,7 @@ describe('importing cards', () => {
   it('lists the built-in decks with their card counts', async () => {
     await showImport()
 
-    // The built-in decks' tab is open, next to the document's, Preply's and Duolingo's.
+    // The built-in decks' tab is open, next to the document's and the websites'.
     expect(screen.getByRole('tab', { name: 'Built-in decks' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -57,11 +52,7 @@ describe('importing cards', () => {
     expect(
       screen.getByRole('tab', { name: 'From a document' }),
     ).toHaveAttribute('aria-selected', 'false')
-    expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
-      'aria-selected',
-      'false',
-    )
-    expect(screen.getByRole('tab', { name: 'From Duolingo' })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: 'From a website' })).toHaveAttribute(
       'aria-selected',
       'false',
     )
@@ -73,32 +64,6 @@ describe('importing cards', () => {
     expect(screen.getByText('Days of the week')).toBeInTheDocument()
     expect(screen.getByText('2 cards')).toBeInTheDocument()
     expect(screen.getByText('1 card')).toBeInTheDocument()
-  })
-
-  // Four tabs spelled out don't fit across a phone. They keep their full names for a screen reader, which is how the
-  // other tests find them.
-  it('says just where the cards come from on each tab on a phone', async () => {
-    await showImport()
-
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Built-in',
-      'Document',
-      'Preply',
-      'Duolingo',
-    ])
-  })
-
-  it('spells the tabs out on a wide screen', async () => {
-    // A screen at least as wide as the sm breakpoint.
-    stubMatchMedia((query) => query.includes('min-width:600px'))
-    await showImport()
-
-    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
-      'Built-in decks',
-      'From a document',
-      'From Preply',
-      'From Duolingo',
-    ])
   })
 
   it("shows and hides a deck's cards", async () => {
@@ -367,22 +332,31 @@ describe('importing cards', () => {
     )
   })
 
-  it("offers the bookmarklet that brings in Preply words on Preply's tab", async () => {
+  it('offers the bookmarklet that brings in Preply words on the website tab', async () => {
     const user = userEvent.setup()
     await showImport()
     expect(
       screen.queryByRole('link', { name: 'Send to FlashCardSage' }),
     ).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+    await user.click(screen.getByRole('tab', { name: 'From a website' }))
 
-    expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: 'From a website' })).toHaveAttribute(
       'aria-selected',
       'true',
     )
+    // Preply is the first of the sites, so it's picked.
+    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
     // Four steps, in order, with the bookmarklet in the first and Preply's page in the second.
     const steps = within(
-      screen.getByRole('tabpanel', { name: 'From Preply' }),
+      screen.getByRole('region', { name: 'From Preply' }),
     ).getAllByRole('listitem')
     expect(
       steps.map(

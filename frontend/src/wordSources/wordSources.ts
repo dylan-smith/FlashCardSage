@@ -19,11 +19,12 @@ export type WordGroup = {
 
 export type WordSourceId = 'preply' | 'duolingo'
 
-// A website the user's words can be brought in from with a "Send to FlashCardSage" bookmarklet. Each has a tab on the
-// Import cards page (/import?from=<id>), which the bookmarklet opens, and a deck named after it that the cards go in.
+// A website the user's words can be brought in from with a "Send to FlashCardSage" bookmarklet. Each is a button on
+// the Import cards page's website tab (/import?from=website&site=<id>), which the bookmarklet opens with the site
+// picked, and has a deck named after it that the cards go in.
 export type WordSource = {
   id: WordSourceId
-  // The site's name, which names its tab, its deck and its telemetry events.
+  // The site's name, which names its button, its deck and its telemetry events.
   name: string
   // Where the bookmarklet runs, and so where its messages come from.
   origin: string
@@ -56,10 +57,10 @@ export const duolingoSource: WordSource = {
   toGroups: duolingoGroups,
 }
 
-// In the order of their tabs.
+// In the order of their buttons. The first is picked when the website tab is opened without a site.
 export const wordSources = [preplySource, duolingoSource]
 
-// The source with this id, such as the URL's from parameter, if it's one.
+// The source with this id, such as the URL's site parameter, if it's one.
 export function wordSourceFrom(id: string | null): WordSource | null {
   return wordSources.find((source) => source.id === id) ?? null
 }

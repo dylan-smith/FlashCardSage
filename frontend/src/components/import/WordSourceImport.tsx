@@ -26,7 +26,7 @@ import { BookmarkletSteps } from './BookmarkletSteps'
 // The words on the user's cards, by language and ignoring case, so the site's words they already have are left out.
 type Known = { spanish: Set<string>; english: Set<string> }
 
-// What this tab's panel sees when the bookmarklet that sent something, or is being waited for, is another site's.
+// What a site's panel sees when the bookmarklet that sent something, or is being waited for, is another site's.
 const noHandoff: Handoff = { status: 'none' }
 
 // The notices already shown for each lot of words, so coming back to the page doesn't show them again.
@@ -67,10 +67,10 @@ function wordsAre(count: number) {
   return count === 1 ? '1 word is' : `${count} words are`
 }
 
-// The Import cards page's tab for a site the user learns on, where its "Send to FlashCardSage" bookmarklet brings the
-// user's words. The words are listed like the cards from a document, to look over, change or remove, and then add one
-// at a time or all at once to the user's deck for the site. Words the user already has cards for are left out. Until
-// the bookmarklet sends words, it says how to use it. Its notices wait until its tab is showing.
+// The Import cards page's panel for a site the user learns on, where its "Send to FlashCardSage" bookmarklet brings
+// the user's words. The words are listed like the cards from a document, to look over, change or remove, and then add
+// one at a time or all at once to the user's deck for the site. Words the user already has cards for are left out.
+// Until the bookmarklet sends words, it says how to use it. Its notices wait until it's showing (active).
 export function WordSourceImport({
   source,
   active,
@@ -80,7 +80,7 @@ export function WordSourceImport({
 }) {
   const { name: deckName } = source
   const everyHandoff = useSyncExternalStore(subscribeHandoff, getHandoff)
-  // Only this site's words. Another site's tab is waiting for, or has, its own.
+  // Only this site's words. Another site's panel is waiting for, or has, its own.
   const handoff =
     everyHandoff.status !== 'none' && everyHandoff.source === source.id
       ? everyHandoff

@@ -101,7 +101,7 @@ test.describe('Import from Duolingo', () => {
   test('the steps have no detectable accessibility violations', async ({
     page,
   }) => {
-    await page.goto('/import?from=duolingo')
+    await page.goto('/import?from=website&site=duolingo')
     await expect(
       page.getByRole('link', { name: 'Send to FlashCardSage' }),
     ).toHaveAttribute('href', /^javascript:/)
@@ -116,8 +116,9 @@ test.describe('Import from Duolingo', () => {
     await context.route('https://www.duolingo.com/**', fakeDuolingo)
 
     await page.goto('/import')
-    await page.getByRole('tab', { name: 'From Duolingo' }).click()
-    await expect(page).toHaveURL(/\/import\?from=duolingo$/)
+    await page.getByRole('tab', { name: 'From a website' }).click()
+    await page.getByRole('button', { name: 'Duolingo' }).click()
+    await expect(page).toHaveURL(/\/import\?from=website&site=duolingo$/)
     const bookmarklet = page.getByRole('link', {
       name: 'Send to FlashCardSage',
     })
@@ -131,11 +132,14 @@ test.describe('Import from Duolingo', () => {
     const opened = context.waitForEvent('page')
     await duolingo.evaluate(source)
     const importPage = await opened
-    // It opens on the Import cards page's Duolingo tab.
-    await expect(importPage).toHaveURL(/\/import\?from=duolingo$/)
+    // It opens on the Import cards page's website tab with Duolingo picked.
+    await expect(importPage).toHaveURL(/\/import\?from=website&site=duolingo$/)
     await expect(
-      importPage.getByRole('tab', { name: 'From Duolingo' }),
+      importPage.getByRole('tab', { name: 'From a website' }),
     ).toHaveAttribute('aria-selected', 'true')
+    await expect(
+      importPage.getByRole('button', { name: 'Duolingo' }),
+    ).toHaveAttribute('aria-pressed', 'true')
 
     // Listed like the cards from a document, leaving out the word the user has a card for, with "for" only on the
     // first card that has it.
@@ -191,7 +195,7 @@ test.describe('Import from Duolingo on a phone', () => {
   })
 
   test('says to bring the words in on a computer', async ({ page }) => {
-    await page.goto('/import?from=duolingo')
+    await page.goto('/import?from=website&site=duolingo')
 
     await expect(
       page.getByText(/Bringing in your Duolingo words needs a computer\./),

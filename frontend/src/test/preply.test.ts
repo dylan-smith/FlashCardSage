@@ -92,7 +92,9 @@ describe('the Send to FlashCardSage bookmarklet', () => {
       search: '?subject=french',
     })
 
-    expect(open).toHaveBeenCalledWith(`${appOrigin}/import?from=preply`)
+    expect(open).toHaveBeenCalledWith(
+      `${appOrigin}/import?from=website&site=preply`,
+    )
     await vi.waitFor(() => {
       expect(fetch).toHaveBeenCalledTimes(2)
     })
@@ -187,7 +189,10 @@ describe('receiving the words from Preply', () => {
   }
 
   // The window the bookmarklet opened, with this window as the one that opened it.
-  function openedWindow(pathname = '/import', search = '?from=preply') {
+  function openedWindow(
+    pathname = '/import',
+    search = '?from=website&site=preply',
+  ) {
     return Object.assign(new EventTarget(), {
       location: { pathname, search },
       opener: window,

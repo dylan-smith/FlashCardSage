@@ -46,7 +46,7 @@ export async function sendDuolingoToFlashCardSage(
   }
 
   // Opened straight away, while the click still lets it, since browsers block windows opened later.
-  const app = window.open(`${appOrigin}/import?from=duolingo`)
+  const app = window.open(`${appOrigin}/import?from=website&site=duolingo`)
   if (app === null) {
     window.alert(
       'Your browser stopped FlashCardSage from opening. Allow pop-ups on duolingo.com and try again.',

@@ -10,8 +10,8 @@ import { renderAt, signInForEachTest } from '../support/render'
 
 signInForEachTest()
 
-// The Duolingo tab works like the Preply one (see import.preply.test.tsx), with its own bookmarklet, deck and words:
-// Duolingo gives a word every English meaning it has, and a meaning goes on the first card that has it.
+// Duolingo's panel on the website tab works like Preply's (see import.preply.test.tsx), with its own bookmarklet,
+// deck and words: Duolingo gives a word every English meaning it has, and a meaning goes on the first card that has it.
 describe('importing from Duolingo', () => {
   const words = [
     { spanish: 'a', english: ['to', 'at', 'for'] },
@@ -27,7 +27,7 @@ describe('importing from Duolingo', () => {
   // This window, opened by the bookmarklet, which is the one that sends it messages. jsdom only takes a real window
   // as a message's source, so that's this one too.
   const opened = Object.assign(new EventTarget(), {
-    location: { pathname: '/import', search: '?from=duolingo' },
+    location: { pathname: '/import', search: '?from=website&site=duolingo' },
     opener: window,
     setTimeout: () => 0,
   }) as unknown as Window
@@ -52,13 +52,17 @@ describe('importing from Duolingo', () => {
     clearHandoff()
   })
 
-  // Shows the Import cards page's Duolingo tab, as the bookmarklet opens it, with the user's cards loaded. Saving
-  // anything is answered from routes. The other tabs' lists are empty.
+  // Shows the Import cards page's website tab with Duolingo picked, as the bookmarklet opens it, with the user's
+  // cards loaded. Saving anything is answered from routes. The other tabs' lists are empty.
   async function showDuolingo(routes: Routes = {}) {
     const { calls } = mockApi({ 'GET /flashcards': ownCards, ...routes })
-    renderAt('/import?from=duolingo')
-    expect(screen.getByRole('tab', { name: 'From Duolingo' })).toHaveAttribute(
+    renderAt('/import?from=website&site=duolingo')
+    expect(screen.getByRole('tab', { name: 'From a website' })).toHaveAttribute(
       'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
+      'aria-pressed',
       'true',
     )
     // The built-in decks load on their hidden tab too.
@@ -85,17 +89,18 @@ describe('importing from Duolingo', () => {
   }
 
   it('offers its own bookmarklet and deck', async () => {
+    const user = userEvent.setup()
     clearHandoff()
     await showDuolingo()
 
-    // Only the Duolingo tab's steps show, though the Preply tab has its own.
+    // Only Duolingo's steps show, though Preply has its own.
     expect(
       screen.getByText(
         'Bring in the words in your Duolingo word list as cards in your Duolingo deck:',
       ),
     ).toBeVisible()
     const steps = within(
-      screen.getByRole('tabpanel', { name: 'From Duolingo' }),
+      screen.getByRole('region', { name: 'From Duolingo' }),
     ).getAllByRole('listitem')
     expect(
       within(steps[1]).getByRole('heading', { level: 2 }),
@@ -108,7 +113,43 @@ describe('importing from Duolingo', () => {
     })
     expect(
       decodeURIComponent(bookmarklet.getAttribute('href') ?? ''),
-    ).toContain('/import?from=duolingo')
+    ).toContain('/import?from=website&site=duolingo')
+
+    // Picking another site shows its steps instead.
+    await user.click(screen.getByRole('button', { name: 'Preply' }))
+
+    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('region', { name: 'From Preply' })).toBeVisible()
+    expect(
+      screen.queryByRole('region', { name: 'From Duolingo' }),
+    ).not.toBeInTheDocument()
+  })
+
+  // Such as coming back to the page with the words still here.
+  it('opens the website tab on the site whose words are here', async () => {
+    const user = userEvent.setup()
+    mockApi({ 'GET /flashcards': ownCards })
+    sendFromDuolingo({ type: 'flashcardsage:duolingo-words', words })
+    renderAt('/import')
+    expect(
+      await screen.findByText("There aren't any built-in decks yet."),
+    ).toBeVisible()
+
+    await user.click(screen.getByRole('tab', { name: 'From a website' }))
+
+    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(
+      within(screen.getByRole('region', { name: 'From Duolingo' })).getByRole(
+        'list',
+        { name: 'Cards from Duolingo' },
+      ),
+    ).toBeVisible()
   })
 
   it('waits for the words, then lists each as a card with its English', async () => {
