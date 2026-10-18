@@ -39,13 +39,12 @@ public static class SystemDeckImageSync
             return 0;
         }
 
-        currentUser.UserId = await CurrentUserMiddleware.GetOrCreateUserIdAsync(
-            dbContext, User.SystemSubject, "FlashCardSage", email: null, cancellationToken);
+        await UserAccounts.BecomeSystemUserAsync(dbContext, currentUser, cancellationToken);
 
         var imagesBySpanish = images
-            .GroupBy(image => image.Spanish, StringComparer.OrdinalIgnoreCase)
-            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
-        var cards = await dbContext.FlashCards.Include(card => card.Words).ToListAsync(cancellationToken);
+            .GroupBy(image => image.Spanish, TextRules.Comparer)
+            .ToDictionary(group => group.Key, group => group.First(), TextRules.Comparer);
+        var cards = await dbContext.FlashCards.WithWords().ToListAsync(cancellationToken);
         var replaced = new List<string>();
         var updated = 0;
 

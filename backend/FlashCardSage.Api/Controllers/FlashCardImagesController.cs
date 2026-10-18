@@ -21,7 +21,7 @@ public class FlashCardImagesController(
     FlashCardDbContext dbContext,
     IImageGenerator imageGenerator,
     IImageStore imageStore,
-    ILogger<FlashCardImagesController> logger) : ControllerBase
+    ILogger<FlashCardImagesController> logger) : ApiControllerBase
 {
     [HttpPost("images/generate")]
     [ProducesResponseType<CardImageResponse>(StatusCodes.Status200OK)]
@@ -33,8 +33,8 @@ public class FlashCardImagesController(
         [FromBody] ImageGenerationRequest request,
         CancellationToken cancellationToken)
     {
-        var spanish = (request.Spanish ?? string.Empty).Trim();
-        var english = (request.English ?? string.Empty).Trim();
+        var spanish = TextRules.Clean(request.Spanish);
+        var english = TextRules.Clean(request.English);
         if (spanish.Length == 0 && english.Length == 0)
         {
             ModelState.AddModelError(nameof(request.Spanish), "Spanish or English is required.");
@@ -43,7 +43,7 @@ public class FlashCardImagesController(
 
         if (!imageGenerator.IsAvailable)
         {
-            return Problem("Pictures aren't available.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            return ServiceUnavailableProblem("Pictures aren't available.");
         }
 
         try
@@ -57,12 +57,10 @@ public class FlashCardImagesController(
             logger.LogWarning(ex, "The image generator refused the words");
             return Problem("That card can't be illustrated.", statusCode: StatusCodes.Status422UnprocessableEntity);
         }
-        // A timeout surfaces as a cancellation the caller didn't ask for.
-        catch (Exception ex) when (ex is HttpRequestException
-            || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
             logger.LogError(ex, "Generating a picture failed");
-            return Problem("Generating a picture failed.", statusCode: StatusCodes.Status502BadGateway);
+            return BadGatewayProblem("Generating a picture failed.");
         }
     }
 
@@ -132,9 +130,7 @@ public class FlashCardImagesController(
     private Task<FlashCard?> FindCardAsync(int id, CancellationToken cancellationToken)
     {
         return dbContext.FlashCards
-            .Include(card => card.Words)
-            .Include(card => card.Tags.OrderBy(tag => tag.Name))
-            .AsSplitQuery()
+            .WithWordsAndTags()
             .FirstOrDefaultAsync(card => card.Id == id, cancellationToken);
     }
 }

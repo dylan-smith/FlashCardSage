@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text;
 using System.Text.Json;
+using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Translation;
 using Microsoft.Extensions.Options;
 

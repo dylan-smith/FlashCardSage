@@ -1,6 +1,6 @@
 using System.Text.Json.Serialization;
 
-namespace FlashCardSage.Api.Translation;
+namespace FlashCardSage.Api.Models;
 
 // A language a card's side is written in, sent by name.
 [JsonConverter(typeof(JsonStringEnumConverter<Language>))]

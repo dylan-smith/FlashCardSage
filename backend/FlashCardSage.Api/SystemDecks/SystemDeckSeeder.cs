@@ -1,7 +1,6 @@
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
-using FlashCardSage.Api.Translation;
 using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.SystemDecks;
@@ -29,12 +28,11 @@ public static class SystemDeckSeeder
         ArgumentNullException.ThrowIfNull(currentUser);
         ArgumentNullException.ThrowIfNull(definitions);
 
-        currentUser.UserId = await CurrentUserMiddleware.GetOrCreateUserIdAsync(
-            dbContext, User.SystemSubject, "FlashCardSage", email: null, cancellationToken);
+        await UserAccounts.BecomeSystemUserAsync(dbContext, currentUser, cancellationToken);
 
         var deckNames = await dbContext.Decks.Select(deck => deck.Name).ToListAsync(cancellationToken);
         var missing = definitions
-            .Where(definition => !deckNames.Contains(definition.Name, StringComparer.OrdinalIgnoreCase))
+            .Where(definition => !deckNames.Contains(definition.Name, TextRules.Comparer))
             .ToList();
 
         if (missing.Count == 0)
@@ -44,11 +42,7 @@ public static class SystemDeckSeeder
 
         // Decks can share cards and tags, so ones that are already there are used again. They're matched in memory,
         // since the in-memory database used in development can't ignore case in a query.
-        var cards = await dbContext.FlashCards
-            .Include(card => card.Words)
-            .Include(card => card.Tags)
-            .AsSplitQuery()
-            .ToListAsync(cancellationToken);
+        var cards = await dbContext.FlashCards.WithWordsAndTags().ToListAsync(cancellationToken);
         var tags = await dbContext.Tags.ToListAsync(cancellationToken);
 
         foreach (var definition in missing)
@@ -59,15 +53,15 @@ public static class SystemDeckSeeder
             {
                 // A word is only ever on one card, so a card with any of these Spanish words is this one.
                 var card = cards.FirstOrDefault(item =>
-                    item.Spanish.Any(word => cardDefinition.Spanish.Any(text => SameText(word, text))));
+                    item.Spanish.Any(word => cardDefinition.Spanish.Any(text => TextRules.SameText(word, text))));
                 if (card is null)
                 {
                     card = new FlashCard
                     {
                         Words =
                         [
-                            .. Words(Language.Spanish, cardDefinition.Spanish),
-                            .. Words(Language.English, cardDefinition.English)
+                            .. FlashCard.NewWords(Language.Spanish, cardDefinition.Spanish),
+                            .. FlashCard.NewWords(Language.English, cardDefinition.English)
                         ]
                     };
                     cards.Add(card);
@@ -75,13 +69,7 @@ public static class SystemDeckSeeder
 
                 foreach (var tagName in cardDefinition.Tags)
                 {
-                    var tag = tags.FirstOrDefault(item => SameText(item.Name, tagName));
-                    if (tag is null)
-                    {
-                        tag = new Tag { Name = tagName };
-                        tags.Add(tag);
-                    }
-
+                    var tag = tags.FindOrAdd(tagName);
                     if (!card.Tags.Contains(tag))
                     {
                         card.Tags.Add(tag);
@@ -97,17 +85,5 @@ public static class SystemDeckSeeder
         await dbContext.SaveChangesAsync(cancellationToken);
 
         return missing.Count;
-    }
-
-    // A new card's words in a language, in order.
-    private static IEnumerable<FlashCardWord> Words(Language language, IReadOnlyList<string> texts)
-    {
-        return texts.Select((text, position) =>
-            new FlashCardWord { Language = language, Text = text, Position = position });
-    }
-
-    private static bool SameText(string a, string b)
-    {
-        return string.Equals(a, b, StringComparison.OrdinalIgnoreCase);
     }
 }
