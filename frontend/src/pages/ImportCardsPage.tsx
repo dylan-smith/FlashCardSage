@@ -14,7 +14,6 @@ import {
   listSystemDecks,
 } from '../api/systemDecks'
 import type { SystemDeck, SystemDeckImport } from '../api/systemDecks'
-import { preplyTabParam } from '../preply/preplyHandoff'
 import { trackEvent, trackException } from '../telemetry'
 import { useAction } from '../hooks/useAction'
 import { useLoad } from '../hooks/useLoad'
@@ -24,9 +23,12 @@ import { Section } from '../components/common/Section'
 import { TabPanel } from '../components/common/TabPanel'
 import { showToast } from '../toasts'
 import { cardCount, skippedSentence } from '../lib/cardCount'
+import { getHandoff } from '../wordSources/handoff'
+import { wordSourceFrom, wordSources } from '../wordSources/wordSources'
+import type { WordSource } from '../wordSources/wordSources'
 import { DocumentScan } from '../components/import/DocumentScan'
-import { PreplyImport } from '../components/import/PreplyImport'
 import { SystemDeckList } from '../components/import/SystemDeckList'
+import { WebsiteImport } from '../components/import/WebsiteImport'
 
 // What importing did, such as "Added Months with 12 cards." and how many were left out.
 function describeImport({ deck, skippedCount }: SystemDeckImport) {
@@ -37,26 +39,33 @@ function describeImport({ deck, skippedCount }: SystemDeckImport) {
   return `${added} ${skippedSentence(skippedCount)}`
 }
 
-// Where the cards come from: a built-in deck, a document the user picks, or their Preply vocabulary.
-type ImportTab = 'decks' | 'document' | 'preply'
+// Where the cards come from: a built-in deck, a document the user picks, or a website they learn on.
+type ImportTab = 'decks' | 'document' | 'website'
 
-// The URL's from parameter for each tab but the first, so a link, a refresh or the back button opens it. The
-// "Send to FlashCardSage" bookmarklet opens the Preply tab this way.
-const documentTabParam = 'document'
-
+// The URL's from parameter is the tab, for each but the first, so a link, a refresh or the back button opens it, and
+// its site parameter the website picked on the website tab. A site's "Send to FlashCardSage" bookmarklet opens the
+// page this way (/import?from=website&site=<site id>).
 function tabFrom(param: string | null): ImportTab {
-  if (param === documentTabParam) {
-    return 'document'
-  }
-  return param === preplyTabParam ? 'preply' : 'decks'
+  return param === 'document' || param === 'website' ? param : 'decks'
 }
 
-// The built-in decks the user can add to their own, cards made from a document they pick, and the words in their
-// Preply vocabulary, on tabs rather than one after the other, since each can be a long list. Adding a deck copies its
+// The site to show when the URL doesn't say: the one whose words a bookmarklet has sent or is sending, such as when
+// the user comes back to the page with them still here, or else the first.
+function defaultSite(): WordSource {
+  const handoff = getHandoff()
+  return (
+    (handoff.status !== 'none' ? wordSourceFrom(handoff.source) : null) ??
+    wordSources[0]
+  )
+}
+
+// The built-in decks the user can add to their own, cards made from a document they pick, and the words on a website
+// they learn on, on tabs rather than one after the other, since each can be a long list. Adding a deck copies its
 // cards and tags, so the user can change them like any of their cards.
 function ImportCardsPage() {
   const [searchParams, setSearchParams] = useSearchParams()
   const tab = tabFrom(searchParams.get('from'))
+  const site = wordSourceFrom(searchParams.get('site')) ?? defaultSite()
   const [errorMessage, setErrorMessage] = useState('')
   const {
     data: decks,
@@ -134,16 +143,14 @@ function ImportCardsPage() {
   }
 
   function selectTab(value: ImportTab) {
-    setSearchParams(
-      value === 'document'
-        ? { from: documentTabParam }
-        : value === 'preply'
-          ? { from: preplyTabParam }
-          : {},
-    )
+    setSearchParams(value === 'decks' ? {} : { from: value })
   }
 
-  // Both tabs stay mounted, so a scan on its way or cards half looked over are still there after a look at the decks.
+  function pickSite(source: WordSource) {
+    setSearchParams({ from: 'website', site: source.id })
+  }
+
+  // Every tab stays mounted, so a scan on its way or cards half looked over are still there after a look at the decks.
   return (
     <Section sx={{ pt: 1 }}>
       <Tabs
@@ -166,10 +173,10 @@ function ImportCardsPage() {
           aria-controls="import-panel-document"
         />
         <Tab
-          value="preply"
-          label="From Preply"
-          id="import-tab-preply"
-          aria-controls="import-panel-preply"
+          value="website"
+          label="From a website"
+          id="import-tab-website"
+          aria-controls="import-panel-website"
         />
       </Tabs>
       <TabPanel group="import" value="decks" current={tab}>
@@ -203,8 +210,12 @@ function ImportCardsPage() {
       <TabPanel group="import" value="document" current={tab}>
         <DocumentScan />
       </TabPanel>
-      <TabPanel group="import" value="preply" current={tab}>
-        <PreplyImport active={tab === 'preply'} />
+      <TabPanel group="import" value="website" current={tab}>
+        <WebsiteImport
+          picked={site}
+          onPick={pickSite}
+          active={tab === 'website'}
+        />
       </TabPanel>
     </Section>
   )
