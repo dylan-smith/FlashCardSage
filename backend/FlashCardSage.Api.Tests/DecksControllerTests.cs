@@ -2,6 +2,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -280,7 +281,10 @@ public class DecksControllerTests
 
         await using (var dbContext = TestDb.Create(databaseName))
         {
-            var controller = new FlashCardsController(dbContext, new FakeImageStore(), NullLogger<FlashCardsController>.Instance);
+            var controller = new FlashCardsController(
+                dbContext,
+                new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance),
+                NullLogger<FlashCardsController>.Instance);
             Assert.IsType<NoContentResult>(await controller.Delete(catId));
         }
 

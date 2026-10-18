@@ -2,7 +2,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
-using FlashCardSage.Api.Translation;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -290,7 +290,10 @@ public class FlashCardsControllerTests
         dbContext.FlashCards.Add(card);
         await dbContext.SaveChangesAsync();
         var store = new FakeImageStore();
-        var controller = new FlashCardsController(dbContext, store, NullLogger<FlashCardsController>.Instance);
+        var controller = new FlashCardsController(
+            dbContext,
+            new FlashCardService(dbContext, store, NullLogger<FlashCardService>.Instance),
+            NullLogger<FlashCardsController>.Instance);
 
         Assert.IsType<NoContentResult>(await controller.Delete(card.Id));
 
@@ -320,7 +323,10 @@ public class FlashCardsControllerTests
         dog.ImageUrl = "https://images.test/card-images/dog.jpg";
         await dbContext.SaveChangesAsync();
         var store = new FakeImageStore();
-        var controller = new FlashCardsController(dbContext, store, NullLogger<FlashCardsController>.Instance);
+        var controller = new FlashCardsController(
+            dbContext,
+            new FlashCardService(dbContext, store, NullLogger<FlashCardService>.Instance),
+            NullLogger<FlashCardsController>.Instance);
 
         var result = await controller.DeleteMany(new FlashCardIdsRequest { FlashCardIds = [catId, dogId, catId] });
 
@@ -802,6 +808,9 @@ public class FlashCardsControllerTests
 
     private static FlashCardsController CreateController(FlashCardDbContext dbContext)
     {
-        return new FlashCardsController(dbContext, new FakeImageStore(), NullLogger<FlashCardsController>.Instance);
+        return new FlashCardsController(
+            dbContext,
+            new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance),
+            NullLogger<FlashCardsController>.Instance);
     }
 }

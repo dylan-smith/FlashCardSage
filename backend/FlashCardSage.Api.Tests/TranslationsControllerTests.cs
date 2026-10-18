@@ -3,6 +3,7 @@ using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
+using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Translation;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Http;

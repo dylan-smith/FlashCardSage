@@ -9,7 +9,7 @@ public static class FlashCardScoring
     // Scores each of the user's cards from how many times in a row it was last answered with Got it! in practice,
     // in card order. A selection limits it to the cards in a deck or with a tag.
     public static async Task<List<FlashCardScore>> ScoreFlashCardsAsync(
-        this FlashCardDbContext dbContext, PracticeSelection? selection = null)
+        this FlashCardDbContext dbContext, PracticeSelection? selection)
     {
         var query = dbContext.FlashCards.AsNoTracking();
         if (selection?.DeckId is { } deckId)
@@ -23,7 +23,7 @@ public static class FlashCardScoring
         }
 
         var cards = await query
-            .Include(card => card.Words)
+            .WithWords()
             .OrderBy(card => card.Id)
             .ToListAsync();
 

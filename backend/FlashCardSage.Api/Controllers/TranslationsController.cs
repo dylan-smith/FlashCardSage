@@ -12,7 +12,7 @@ namespace FlashCardSage.Api.Controllers;
 /// </remarks>
 [ApiController]
 [Route("api/translations")]
-public class TranslationsController(ITranslator translator, ILogger<TranslationsController> logger) : ControllerBase
+public class TranslationsController(ITranslator translator, ILogger<TranslationsController> logger) : ApiControllerBase
 {
     [HttpPost]
     [ProducesResponseType<TranslationResponse>(StatusCodes.Status200OK)]
@@ -32,7 +32,7 @@ public class TranslationsController(ITranslator translator, ILogger<Translations
 
         if (!translator.IsAvailable)
         {
-            return Problem("Translation isn't available.", statusCode: StatusCodes.Status503ServiceUnavailable);
+            return ServiceUnavailableProblem("Translation isn't available.");
         }
 
         var from = request.From!.Value;
@@ -42,12 +42,10 @@ public class TranslationsController(ITranslator translator, ILogger<Translations
             logger.LogInformation("Translated {Length} characters from {Language}", text.Length, from);
             return Ok(new TranslationResponse(translation.Text, translation.Alternatives));
         }
-        // A timeout surfaces as a cancellation the caller didn't ask for.
-        catch (Exception ex) when (ex is HttpRequestException
-            || (ex is TaskCanceledException && !cancellationToken.IsCancellationRequested))
+        catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
             logger.LogError(ex, "Translating from {Language} failed", from);
-            return Problem("Translation failed.", statusCode: StatusCodes.Status502BadGateway);
+            return BadGatewayProblem("Translation failed.");
         }
     }
 }

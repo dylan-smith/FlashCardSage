@@ -89,7 +89,7 @@ npm run test:e2e
   that up first, or it can reach another user's data.
 - The built-in decks users can import belong to a system user (`Subject` `system`, which no sign-in can produce). The
   API adds any that are missing from `backend/FlashCardSage.Api/SystemDecks/system-decks.json` when it starts, and
-  only `SystemDecksController` reads them past the query filter. Importing copies them, so edit the JSON to change
+  only `SystemDeckImporter` reads them past the query filter. Importing copies them, so edit the JSON to change
   them: a deck that's already in the database is left as it is, so a changed deck needs a new name or a script.
   Their pictures are committed in `SystemDecks/images` (made by `scripts/Generate-SystemDeckImages.ps1`), and the API
   puts them on the cards when it starts (`SystemDeckImageSync`). A new built-in card needs the script run for it too.
@@ -104,7 +104,7 @@ npm run test:e2e
   loaded through the API by `.github/scripts/seed-preview.sh`) and update it if needed, so new
   previews show the new data (e.g. a new field on cards).
 - Production is an Azure SQL Basic database, but PR previews are serverless and auto-pause. Keep the
-  transient-error retry handling in `Program.cs` and `DbUpRunner.cs` intact.
+  transient-error retry handling in `Startup/DatabaseSetup.cs` and `DbUpRunner.cs` intact.
 
 ### Infrastructure
 

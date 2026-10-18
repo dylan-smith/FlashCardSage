@@ -22,10 +22,13 @@ jobs:
     runs-on: ubuntu-latest
     # The same PRs deploy-preview deploys: from this repository and not opened by Dependabot (whoever closes it).
     if: github.event.pull_request.head.repo.full_name == github.repository && github.event.pull_request.user.login != 'dependabot[bot]'
-    # The same group as deploy-preview, so closing the PR cancels a deployment still running for it.
+    # The same queue as deploy-preview, so the preview is deleted only once a deployment still running for it
+    # finishes (cancelling would stop another PR's deployment, since every PR shares the group). A deployment of
+    # this PR still waiting its turn then skips, since the PR is no longer open.
     concurrency:
-      group: preview-${{ github.event.pull_request.number }}
-      cancel-in-progress: true
+      group: preview-deploy
+      cancel-in-progress: false
+      queue: max
     permissions:
       id-token: write
       contents: read

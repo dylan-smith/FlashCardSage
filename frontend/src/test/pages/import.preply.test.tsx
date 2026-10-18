@@ -1,4 +1,4 @@
-import { act, screen, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Deck } from '../../api/decks'
@@ -85,7 +85,12 @@ describe('importing from Preply', () => {
         '1 word is left out because you already have a card for it.',
       ),
     ).toBeInTheDocument()
-    return screen.getByRole('list', { name: 'Cards from Preply' })
+    // The words are listed before the user's cards load, so the one they have collapses away after.
+    const list = screen.getByRole('list', { name: 'Cards from Preply' })
+    await waitFor(() =>
+      expect(within(list).queryByText('el pan')).not.toBeInTheDocument(),
+    )
+    return list
   }
 
   it('waits for the words, then lists them like cards to add', async () => {

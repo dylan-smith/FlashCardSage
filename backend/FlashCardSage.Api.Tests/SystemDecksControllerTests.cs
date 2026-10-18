@@ -2,8 +2,8 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.SystemDecks;
-using FlashCardSage.Api.Translation;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
@@ -463,7 +463,9 @@ public class SystemDecksControllerTests
     private static SystemDecksController CreateController(FlashCardDbContext dbContext, FakeImageStore? store = null)
     {
         return new SystemDecksController(
-            dbContext, store ?? new FakeImageStore(), NullLogger<SystemDecksController>.Instance);
+            dbContext,
+            new SystemDeckImporter(dbContext, store ?? new FakeImageStore(), NullLogger<SystemDeckImporter>.Instance),
+            NullLogger<SystemDecksController>.Instance);
     }
 
     // Fails the save as a unique index would. The in-memory database has no unique indexes of its own.
