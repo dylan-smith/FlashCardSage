@@ -23,7 +23,7 @@ test.describe('Import cards', () => {
             exact: true,
           }),
         })
-        .getByText('7 cards', { exact: true }),
+        .getByText('7 cards, 1 added', { exact: true }),
     ).toBeVisible()
     await page
       .getByRole('button', { name: 'Days of the week', exact: true })
@@ -50,16 +50,14 @@ test.describe('Import cards', () => {
     ).toBeVisible()
     await expect(page.getByText('martes', { exact: true })).toBeVisible()
 
-    // The deck's tag came with it, and adding the deck again finds nothing new.
+    // The deck's tag came with it, and the deck now shows as added.
     await openSection(page, 'Tags')
     await expect(page.getByRole('link', { name: 'Days' })).toBeVisible()
     await openSection(page, 'Import cards')
-    await page
-      .getByRole('button', { name: 'Add deck "Days of the week"' })
-      .click()
-    await expect(page.getByRole('alert')).toHaveText(
-      'You already have all of these cards.',
-    )
+    await expect(
+      page.getByRole('button', { name: 'Added deck "Days of the week"' }),
+    ).toBeDisabled()
+    await expect(page.getByText('7 cards, all added')).toBeVisible()
   })
 
   test("adds a built-in deck's cards one at a time, making the deck for the first", async ({
