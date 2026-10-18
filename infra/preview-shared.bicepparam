@@ -5,7 +5,8 @@ using './preview-shared.bicep'
 param location = 'westus2'
 
 param appServicePlanName = 'FlashCardSage-Preview-Plan'
-param appServicePlanSku = 'F1'
+// B1, since every preview's files share the plan's storage, and F1's 1 GB only holds about 7 of them.
+param appServicePlanSku = 'B1'
 param sqlServerName = 'flashcardsage-preview-sql'
 
 // The flashcardsage-preview-deploy managed identity (see README, Identities & Permissions). Replace the object ID
