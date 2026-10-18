@@ -92,7 +92,9 @@ describe('the Send to FlashCardSage bookmarklet', () => {
       search: '?subject=french',
     })
 
-    expect(open).toHaveBeenCalledWith(`${appOrigin}/import?from=preply`)
+    expect(open).toHaveBeenCalledWith(
+      `${appOrigin}/import?from=website&site=preply`,
+    )
     await vi.waitFor(() => {
       expect(fetch).toHaveBeenCalledTimes(2)
     })
@@ -177,15 +179,20 @@ describe('receiving the words from Preply', () => {
   const words = [
     { spanish: 'tostado', english: 'toasted', partOfSpeech: 'adjective' },
   ]
+  // As the import page keeps them, whichever site they're from.
+  const received = [{ spanish: 'tostado', english: ['toasted'] }]
 
   // A fresh copy of the module, since it keeps what it received.
   async function loadHandoff() {
     vi.resetModules()
-    return import('../preply/preplyHandoff')
+    return import('../wordSources/handoff')
   }
 
   // The window the bookmarklet opened, with this window as the one that opened it.
-  function openedWindow(pathname = '/import', search = '?from=preply') {
+  function openedWindow(
+    pathname = '/import',
+    search = '?from=website&site=preply',
+  ) {
     return Object.assign(new EventTarget(), {
       location: { pathname, search },
       opener: window,
@@ -215,39 +222,48 @@ describe('receiving the words from Preply', () => {
     const handoff = await loadHandoff()
     const target = openedWindow()
     const listener = vi.fn()
-    handoff.subscribePreplyHandoff(listener)
+    handoff.subscribeHandoff(listener)
 
-    handoff.startPreplyHandoff(target)
+    handoff.startHandoff(target)
 
     expect(posted).toHaveBeenCalledWith(
       { type: 'flashcardsage:ready' },
       'https://preply.com',
     )
-    expect(handoff.getPreplyHandoff()).toEqual({ status: 'waiting' })
+    expect(handoff.getHandoff()).toEqual({
+      status: 'waiting',
+      source: 'preply',
+    })
 
     send(target, { type: 'flashcardsage:preply-words', words })
 
-    expect(handoff.getPreplyHandoff()).toEqual({ status: 'received', words })
+    expect(handoff.getHandoff()).toEqual({
+      status: 'received',
+      source: 'preply',
+      words: received,
+    })
     expect(listener).toHaveBeenCalled()
     // Kept for the tab, so they're still there after signing in or reloading.
-    expect((await loadHandoff()).getPreplyHandoff()).toEqual({
+    expect((await loadHandoff()).getHandoff()).toEqual({
       status: 'received',
-      words,
+      source: 'preply',
+      words: received,
     })
   })
 
   it("keeps Preply's error", async () => {
     const handoff = await loadHandoff()
     const target = openedWindow()
-    handoff.startPreplyHandoff(target)
+    handoff.startHandoff(target)
 
     send(target, {
       type: 'flashcardsage:preply-error',
       message: 'Not signed in',
     })
 
-    expect(handoff.getPreplyHandoff()).toEqual({
+    expect(handoff.getHandoff()).toEqual({
       status: 'failed',
+      source: 'preply',
       message: 'Not signed in',
     })
   })
@@ -255,7 +271,7 @@ describe('receiving the words from Preply', () => {
   it('ignores anything that is not the bookmarklet', async () => {
     const handoff = await loadHandoff()
     const target = openedWindow()
-    handoff.startPreplyHandoff(target)
+    handoff.startHandoff(target)
 
     send(
       target,
@@ -275,7 +291,10 @@ describe('receiving the words from Preply', () => {
       }),
     )
 
-    expect(handoff.getPreplyHandoff()).toEqual({ status: 'waiting' })
+    expect(handoff.getHandoff()).toEqual({
+      status: 'waiting',
+      source: 'preply',
+    })
   })
 
   it('does nothing unless the bookmarklet opened the import page', async () => {
@@ -288,12 +307,12 @@ describe('receiving the words from Preply', () => {
       opener: { closed: true, postMessage: vi.fn() },
     })
 
-    handoff.startPreplyHandoff(elsewhere)
-    handoff.startPreplyHandoff(notOpened)
-    handoff.startPreplyHandoff(openerClosed)
+    handoff.startHandoff(elsewhere)
+    handoff.startHandoff(notOpened)
+    handoff.startHandoff(openerClosed)
 
     expect(posted).not.toHaveBeenCalled()
-    expect(handoff.getPreplyHandoff()).toEqual({ status: 'none' })
+    expect(handoff.getHandoff()).toEqual({ status: 'none' })
   })
 
   // Such as the page reloaded, or come back to later, after the bookmarklet sent the words, which it only does once.
@@ -301,13 +320,19 @@ describe('receiving the words from Preply', () => {
     vi.useFakeTimers()
     try {
       const handoff = await loadHandoff()
-      handoff.startPreplyHandoff(openedWindow())
+      handoff.startHandoff(openedWindow())
 
-      vi.advanceTimersByTime(handoff.preplyWaitMs - 1)
-      expect(handoff.getPreplyHandoff()).toEqual({ status: 'waiting' })
+      vi.advanceTimersByTime(handoff.handoffWaitMs - 1)
+      expect(handoff.getHandoff()).toEqual({
+        status: 'waiting',
+        source: 'preply',
+      })
       vi.advanceTimersByTime(1)
 
-      expect(handoff.getPreplyHandoff()).toEqual({ status: 'timedOut' })
+      expect(handoff.getHandoff()).toEqual({
+        status: 'timedOut',
+        source: 'preply',
+      })
     } finally {
       vi.useRealTimers()
     }
@@ -318,12 +343,16 @@ describe('receiving the words from Preply', () => {
     try {
       const handoff = await loadHandoff()
       const target = openedWindow()
-      handoff.startPreplyHandoff(target)
+      handoff.startHandoff(target)
       send(target, { type: 'flashcardsage:preply-words', words })
 
-      vi.advanceTimersByTime(handoff.preplyWaitMs)
+      vi.advanceTimersByTime(handoff.handoffWaitMs)
 
-      expect(handoff.getPreplyHandoff()).toEqual({ status: 'received', words })
+      expect(handoff.getHandoff()).toEqual({
+        status: 'received',
+        source: 'preply',
+        words: received,
+      })
     } finally {
       vi.useRealTimers()
     }
@@ -332,19 +361,20 @@ describe('receiving the words from Preply', () => {
   it('forgets the words once cleared', async () => {
     const handoff = await loadHandoff()
     const target = openedWindow()
-    handoff.startPreplyHandoff(target)
+    handoff.startHandoff(target)
     send(target, { type: 'flashcardsage:preply-words', words })
 
-    handoff.clearPreplyHandoff()
+    handoff.clearHandoff()
 
-    expect(handoff.getPreplyHandoff()).toEqual({ status: 'none' })
-    expect(sessionStorage.getItem(storageKeys.preplyHandoff)).toBeNull()
+    expect(handoff.getHandoff()).toEqual({ status: 'none' })
+    expect(sessionStorage.getItem(storageKeys.wordHandoff)).toBeNull()
   })
 })
 
 describe('grouping Preply words into cards', () => {
+  // A Preply word as the import page keeps it, with its English or none.
   function word(spanish: string, english: string | null) {
-    return { spanish, english, partOfSpeech: null }
+    return { spanish, english: english === null ? [] : [english] }
   }
 
   it('puts words with the same English on one card', () => {

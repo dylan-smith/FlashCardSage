@@ -7,7 +7,7 @@ export const storageKeys = {
   // localStorage, so a suggestions section stays collapsed across reloads once the user collapses it.
   suggestionsCollapsed: 'flashcardsage.suggestionsCollapsed',
   tagSuggestionsCollapsed: 'flashcardsage.tagSuggestionsCollapsed',
-  // sessionStorage, kept for the tab, so the words the Preply bookmarklet sent are still here after the user signs in
-  // or reloads the page.
-  preplyHandoff: 'flashcardsage.preplyHandoff',
+  // sessionStorage, kept for the tab, so the words a site's bookmarklet sent are still here after the user signs in or
+  // reloads the page.
+  wordHandoff: 'flashcardsage.wordHandoff',
 }
