@@ -67,9 +67,8 @@ public static class SystemDeckSeeder
                     cards.Add(card);
                 }
 
-                foreach (var tagName in cardDefinition.Tags)
+                foreach (var tag in cardDefinition.Tags.Select(tags.FindOrAdd))
                 {
-                    var tag = tags.FindOrAdd(tagName);
                     if (!card.Tags.Contains(tag))
                     {
                         card.Tags.Add(tag);
