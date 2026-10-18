@@ -4,7 +4,7 @@ using System.Text.Json.Serialization;
 namespace FlashCardSage.Api.Models;
 
 // A name the user puts on cards to organize them, such as Food or Travel.
-public class Tag
+public class Tag : IUserOwned
 {
     public const int MaxNameLength = 50;
 

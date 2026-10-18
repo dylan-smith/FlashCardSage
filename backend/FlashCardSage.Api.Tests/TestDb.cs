@@ -1,7 +1,6 @@
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
-using FlashCardSage.Api.Translation;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 
