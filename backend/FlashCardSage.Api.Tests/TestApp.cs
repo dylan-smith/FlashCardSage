@@ -1,7 +1,6 @@
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
-using Microsoft.AspNetCore.Mvc.Testing.Handlers;
 
 namespace FlashCardSage.Api.Tests;
 
@@ -54,10 +53,11 @@ internal static class TestApp
         return CreateOwningClient(CreateFactory(factory, settings), null);
     }
 
-    // Made like WebApplicationFactory.CreateClient's, following redirects and keeping cookies.
+    // Unlike WebApplicationFactory.CreateClient's, it doesn't follow redirects or keep cookies, which the API doesn't
+    // use: it signs in with a bearer token and only redirects to HTTPS, which tests never ask for.
     private static HttpClient CreateOwningClient(WebApplicationFactory<Program> app, string? token)
     {
-        var client = app.CreateDefaultClient(new AppOwner(app), new RedirectHandler(), new CookieContainerHandler());
+        var client = app.CreateDefaultClient(new AppOwner(app));
         if (token is not null)
         {
             client.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", token);
