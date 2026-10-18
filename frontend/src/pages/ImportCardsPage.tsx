@@ -5,6 +5,8 @@ import Stack from '@mui/material/Stack'
 import Tab from '@mui/material/Tab'
 import Tabs from '@mui/material/Tabs'
 import Typography from '@mui/material/Typography'
+import { useTheme } from '@mui/material/styles'
+import useMediaQuery from '@mui/material/useMediaQuery'
 import { useSearchParams } from 'react-router'
 import { formatWords } from '../api/flashCards'
 import type { FlashCard } from '../api/flashCards'
@@ -77,6 +79,9 @@ function ImportCardsPage() {
   const importingCard = useAction<number>(setErrorMessage)
   const [addedCardIds, setAddedCardIds] = useState<number[]>([])
   const busy = importingDeck.busy || importingCard.busy
+  // Four tabs spelled out don't fit across a phone, so there each is just where the cards come from. Read straight
+  // away, since the app is only rendered in the browser, so a wide screen doesn't show the short labels first.
+  const wide = useMediaQuery(useTheme().breakpoints.up('sm'), { noSsr: true })
 
   // Loads the decks again after cards are added, so every card the user now has a word of says so, such as all of a
   // deck's after adding the deck. The page already shows the decks, so a failure only leaves them as they were.
@@ -152,24 +157,27 @@ function ImportCardsPage() {
         onChange={(_event, value: ImportTab) => selectTab(value)}
         aria-label="Import cards from"
         variant="fullWidth"
-        // Four tabs at their usual least width and padding are wider than a phone, so there they're narrower.
+        // Even the short labels need less than a tab's usual least width and padding to share a phone's width.
         sx={{
           mb: 2,
           '& .MuiTab-root': {
             minWidth: { xs: 0, sm: 90 },
-            px: { xs: 0.5, sm: 2 },
+            px: { xs: 1, sm: 2 },
           },
         }}
       >
+        {/* Each tab's full name is its label for a screen reader, whatever it shows. */}
         <Tab
           value="decks"
-          label="Built-in decks"
+          label={wide ? 'Built-in decks' : 'Built-in'}
+          aria-label="Built-in decks"
           id="import-tab-decks"
           aria-controls="import-panel-decks"
         />
         <Tab
           value="document"
-          label="From a document"
+          label={wide ? 'From a document' : 'Document'}
+          aria-label="From a document"
           id="import-tab-document"
           aria-controls="import-panel-document"
         />
@@ -177,7 +185,8 @@ function ImportCardsPage() {
           <Tab
             key={source.id}
             value={source.id}
-            label={`From ${source.name}`}
+            label={wide ? `From ${source.name}` : source.name}
+            aria-label={`From ${source.name}`}
             id={`import-tab-${source.id}`}
             aria-controls={`import-panel-${source.id}`}
           />

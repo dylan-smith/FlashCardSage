@@ -7,7 +7,12 @@ import { trackEvent, trackException } from '../../telemetry'
 import { api, card, deck, tag } from '../support/factories'
 import { jsonResponse, mockApi, unreachable } from '../support/mockApi'
 import type { Routes } from '../support/mockApi'
-import { renderAt, renderLoaded, signInForEachTest } from '../support/render'
+import {
+  renderAt,
+  renderLoaded,
+  signInForEachTest,
+  stubMatchMedia,
+} from '../support/render'
 
 signInForEachTest()
 
@@ -68,6 +73,32 @@ describe('importing cards', () => {
     expect(screen.getByText('Days of the week')).toBeInTheDocument()
     expect(screen.getByText('2 cards')).toBeInTheDocument()
     expect(screen.getByText('1 card')).toBeInTheDocument()
+  })
+
+  // Four tabs spelled out don't fit across a phone. They keep their full names for a screen reader, which is how the
+  // other tests find them.
+  it('says just where the cards come from on each tab on a phone', async () => {
+    await showImport()
+
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Built-in',
+      'Document',
+      'Preply',
+      'Duolingo',
+    ])
+  })
+
+  it('spells the tabs out on a wide screen', async () => {
+    // A screen at least as wide as the sm breakpoint.
+    stubMatchMedia((query) => query.includes('min-width:600px'))
+    await showImport()
+
+    expect(screen.getAllByRole('tab').map((tab) => tab.textContent)).toEqual([
+      'Built-in decks',
+      'From a document',
+      'From Preply',
+      'From Duolingo',
+    ])
   })
 
   it("shows and hides a deck's cards", async () => {
