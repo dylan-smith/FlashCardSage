@@ -1,0 +1,22 @@
+{
+  "name": "FlashCardSage",
+  "short_name": "FlashCardSage",
+  "description": "Learn a language one card at a time.",
+  "start_url": "/practice",
+  "scope": "/",
+  "display": "standalone",
+  "theme_color": "#0e2841",
+  "background_color": "#f3f4f6",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml"
+    },
+    {
+      "src": "/apple-touch-icon.png",
+      "sizes": "180x180",
+      "type": "image/png"
+    }
+  ]
+}
