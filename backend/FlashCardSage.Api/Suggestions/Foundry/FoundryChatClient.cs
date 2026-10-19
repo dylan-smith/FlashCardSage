@@ -5,7 +5,10 @@ namespace FlashCardSage.Api.Suggestions.Foundry;
 
 // Asks the chat model (gpt-5-mini) on an Azure AI Foundry resource a question and reads its answer as JSON, for the
 // suggesters. It calls the resource's Azure OpenAI v1 chat completions API, which needs no API version.
-public class FoundryChatClient(HttpClient httpClient, FoundryChatOptions options)
+//
+// Every answer's token usage is logged, for the FlashCardSage AI workbook (infra/workbooks/ai.workbook.json), which
+// finds the feature it was for by the request that asked.
+public class FoundryChatClient(HttpClient httpClient, FoundryChatOptions options, ILogger logger)
 {
     // Enough for a handful of suggestions and the reasoning behind them.
     public const int ShortAnswerTokens = 4096;
@@ -53,6 +56,19 @@ public class FoundryChatClient(HttpClient httpClient, FoundryChatOptions options
         }
 
         var completion = await response.Content.ReadFromJsonAsync<Completion>(cancellationToken);
+        // An answer that can't be used is paid for all the same, so it's logged before it's checked.
+        if (completion?.Usage is { } usage)
+        {
+            logger.LogInformation(
+                "The suggestion model {ChatModel} used {PromptTokens} prompt tokens ({CachedPromptTokens} cached) and {CompletionTokens} completion tokens ({ReasoningTokens} reasoning), finishing with {FinishReason}",
+                completion.Model,
+                usage.PromptTokens,
+                usage.PromptTokensDetails?.CachedTokens ?? 0,
+                usage.CompletionTokens,
+                usage.CompletionTokensDetails?.ReasoningTokens ?? 0,
+                completion.Choices is [var first, ..] ? first.FinishReason : null);
+        }
+
         if (completion?.Choices is not [{ FinishReason: "stop", Message: { Refusal: null, Content: { } content } }, ..])
         {
             var reason = completion?.Choices is [var choice, ..] ? choice.FinishReason : null;
@@ -69,7 +85,20 @@ public class FoundryChatClient(HttpClient httpClient, FoundryChatOptions options
         }
     }
 
-    private sealed record Completion([property: JsonPropertyName("choices")] IReadOnlyList<Choice>? Choices);
+    private sealed record Completion(
+        [property: JsonPropertyName("model")] string? Model,
+        [property: JsonPropertyName("choices")] IReadOnlyList<Choice>? Choices,
+        [property: JsonPropertyName("usage")] TokenUsage? Usage);
+
+    private sealed record TokenUsage(
+        [property: JsonPropertyName("prompt_tokens")] int PromptTokens,
+        [property: JsonPropertyName("completion_tokens")] int CompletionTokens,
+        [property: JsonPropertyName("prompt_tokens_details")] PromptTokensDetails? PromptTokensDetails,
+        [property: JsonPropertyName("completion_tokens_details")] CompletionTokensDetails? CompletionTokensDetails);
+
+    private sealed record PromptTokensDetails([property: JsonPropertyName("cached_tokens")] int CachedTokens);
+
+    private sealed record CompletionTokensDetails([property: JsonPropertyName("reasoning_tokens")] int ReasoningTokens);
 
     private sealed record Choice(
         [property: JsonPropertyName("finish_reason")] string? FinishReason,

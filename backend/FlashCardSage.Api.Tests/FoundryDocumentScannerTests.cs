@@ -3,6 +3,7 @@ using System.Text.Json;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Tests.Fakes;
+using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
 
@@ -67,7 +68,7 @@ public class FoundryDocumentScannerTests
 
     private static FoundryDocumentScanner CreateScanner(HttpClient httpClient)
     {
-        return new FoundryDocumentScanner(httpClient, FoundryTestOptions.Default);
+        return new FoundryDocumentScanner(httpClient, FoundryTestOptions.Default, NullLogger<FoundryDocumentScanner>.Instance);
     }
 
 }

@@ -21,3 +21,6 @@ resource translator 'Microsoft.CognitiveServices/accounts@2024-10-01' = {
 
 @description('Name of the Translator resource.')
 output name string = translator.name
+
+@description('Resource ID of the Translator resource.')
+output id string = translator.id
