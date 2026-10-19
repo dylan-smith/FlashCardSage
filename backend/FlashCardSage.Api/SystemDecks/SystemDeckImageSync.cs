@@ -80,8 +80,9 @@ public static class SystemDeckImageSync
 
         await dbContext.SaveChangesAsync(cancellationToken);
 
-        // Only once the cards point at their new pictures, so a card never points at one that's gone.
-        await imageStore.TryDeleteAllAsync(replaced, logger, cancellationToken);
+        // Only once the cards point at their new pictures, so a card never points at one that's gone. An old picture
+        // that's in the cache stays, since users' cards share it.
+        await imageStore.TryDeleteCardPicturesAsync(dbContext, replaced, logger, cancellationToken);
 
         return updated;
     }
