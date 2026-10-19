@@ -208,6 +208,9 @@ module workbook 'modules/workbook.bicep' = {
     sqlDatabaseId: sql.outputs.sqlDatabaseId
     storageAccountId: storage.outputs.storageAccountId
     actionGroupId: alerts.outputs.actionGroupId
+    // By name rather than from the module's outputs, which there aren't when it isn't deployed.
+    foundryId: resourceId('Microsoft.CognitiveServices/accounts', foundryName)
+    translatorId: translator.outputs.id
     apiUrl: appService.outputs.appServiceUrl
     frontendUrl: storage.outputs.frontendOrigin
   }
