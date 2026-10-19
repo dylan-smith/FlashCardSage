@@ -122,9 +122,26 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   }
 }
 
+// The origin the frontend is served on. The browser sends it without a trailing slash.
+var frontendOrigin = replace(storageAccount.properties.primaryEndpoints.web, '.net/', '.net')
+
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01' = {
   parent: storageAccount
   name: 'default'
+  properties: {
+    // The page fetches the pictures on cards itself to keep them for offline practice (see modules/storage.bicep).
+    cors: {
+      corsRules: [
+        {
+          allowedOrigins: [frontendOrigin]
+          allowedMethods: ['GET', 'HEAD', 'OPTIONS']
+          allowedHeaders: ['*']
+          exposedHeaders: ['*']
+          maxAgeInSeconds: 3600
+        }
+      ]
+    }
+  }
 }
 
 // The pictures on the preview's cards, which browsers load straight from here (see modules/storage.bicep).
@@ -166,8 +183,7 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
     {
       // The web app connects as its own managed identity; CI creates the database user for it.
       ConnectionStrings__FlashCardSage: 'Server=tcp:${sqlServer.properties.fullyQualifiedDomainName},1433;Initial Catalog=${sqlDatabase.name};Authentication=Active Directory Managed Identity;Encrypt=True;TrustServerCertificate=False;Connection Timeout=30;'
-      // The browser sends the origin without a trailing slash.
-      Cors__AllowedOrigins__0: replace(storageAccount.properties.primaryEndpoints.web, '.net/', '.net')
+      Cors__AllowedOrigins__0: frontendOrigin
       // Google only accepts the origins registered with it, and every preview has its own, so previews use test
       // sign-in instead: anyone can sign in as any name. Never set this in main.bicep.
       Authentication__AllowTestSignIn: 'true'

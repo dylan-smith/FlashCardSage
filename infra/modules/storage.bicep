@@ -41,9 +41,30 @@ resource storageAccount 'Microsoft.Storage/storageAccounts@2025-01-01' = {
   }
 }
 
+// The origins the frontend is served on, without the trailing slash the browser leaves off: the custom domain
+// first when there is one, and the web endpoint either way.
+var webEndpointOrigin = replace(storageAccount.properties.primaryEndpoints.web, '.net/', '.net')
+var frontendOrigins = empty(customDomainName)
+  ? [webEndpointOrigin]
+  : ['https://${customDomainName}', webEndpointOrigin]
+
 resource blobService 'Microsoft.Storage/storageAccounts/blobServices@2025-01-01' = {
   parent: storageAccount
   name: 'default'
+  properties: {
+    // The page fetches the pictures on cards itself to keep them for offline practice, which needs CORS here.
+    cors: {
+      corsRules: [
+        {
+          allowedOrigins: frontendOrigins
+          allowedMethods: ['GET', 'HEAD', 'OPTIONS']
+          allowedHeaders: ['*']
+          exposedHeaders: ['*']
+          maxAgeInSeconds: 3600
+        }
+      ]
+    }
+  }
 }
 
 // Private container for the BACPAC exports CI takes before running database migrations.
@@ -99,9 +120,7 @@ resource lifecyclePolicy 'Microsoft.Storage/storageAccounts/managementPolicies@2
 output primaryWebEndpoint string = storageAccount.properties.primaryEndpoints.web
 
 @description('Origin the frontend is served on: the custom domain when there is one, otherwise the web endpoint.')
-output frontendOrigin string = empty(customDomainName)
-  ? replace(storageAccount.properties.primaryEndpoints.web, '.net/', '.net')
-  : 'https://${customDomainName}'
+output frontendOrigin string = frontendOrigins[0]
 
 @description('Resource ID of the Storage Account.')
 output storageAccountId string = storageAccount.id
