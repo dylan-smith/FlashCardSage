@@ -80,6 +80,29 @@ public sealed class SystemDeckImageSyncTests : IDisposable
     }
 
     [Fact]
+    public async Task SyncAsync_KeepsAReplacedPicture_ThatIsCached()
+    {
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithUsersAsync();
+        await SystemDeckTestData.SeedAsync(databaseName, [Days]);
+        var store = new FakeImageStore();
+        await SyncAsync(databaseName, store, Image("lunes", SampleImages.Jpeg));
+        await using (var dbContext = TestDb.Create(databaseName))
+        {
+            // Users' cards share the cached picture.
+            dbContext.GeneratedImages.Add(new Models.CachedImage
+            {
+                PromptHash = new string('a', 64),
+                ImageUrl = ExpectedUrl(SampleImages.Jpeg)
+            });
+            await dbContext.SaveChangesAsync();
+        }
+
+        Assert.Equal(1, await SyncAsync(databaseName, store, Image("lunes", Jpeg3)));
+
+        Assert.Empty(store.Deleted);
+    }
+
+    [Fact]
     public async Task SyncAsync_KeepsTheNewPicture_WhenTheOldOneCannotBeRemoved()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithUsersAsync();

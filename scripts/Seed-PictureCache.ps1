@@ -17,14 +17,24 @@
     have a copy of its pictures. The built-in cards' pictures go first, so they're the first anyone is shown. Pictures
     already cached, and files that are gone, are passed over, so the script can be run again.
 
-    Needs the Azure CLI, signed in as someone who can write to the database (the SQL Entra admin). The server only
-    lets Azure services in, so this machine's address is allowed through while the script runs.
+    With -ShareCopies, each card whose picture is a copy of a cached one (for the same words) is pointed at the cached
+    file instead, and its own file is deleted, to save the space. Cards are only changed when they still have the
+    picture the script read, and a file is only deleted once no card or cache row points at it. Run it once the API
+    that leaves cached pictures alone when a built-in card's picture is replaced has deployed, or replacing a
+    built-in picture would take it off every card sharing it.
+
+    Needs the Azure CLI, signed in as someone who can write to the database (the SQL Entra admin), and with
+    -ShareCopies, who can read the storage account's keys, to delete the copies. The server only lets Azure
+    services in, so this machine's address is allowed through while the script runs.
 
 .EXAMPLE
     ./scripts/Seed-PictureCache.ps1 -WhatIf
 
 .EXAMPLE
     ./scripts/Seed-PictureCache.ps1
+
+.EXAMPLE
+    ./scripts/Seed-PictureCache.ps1 -ShareCopies -WhatIf
 #>
 [CmdletBinding(SupportsShouldProcess)]
 param(
@@ -32,7 +42,9 @@ param(
     [string]$SqlServerName = 'flashcardsage-sql',
     [string]$DatabaseName = 'FlashCardSage',
     # Another database to run against, such as a local one, signed in to by the connection string itself.
-    [string]$ConnectionString
+    [string]$ConnectionString,
+    # Points cards with copies of cached pictures at the cached files, and deletes the copies.
+    [switch]$ShareCopies
 )
 
 $ErrorActionPreference = 'Stop'
@@ -146,11 +158,12 @@ try {
     }
     $reader.Close()
     $cachedUrls = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
-    $cached = [Collections.Generic.HashSet[string]]::new()
+    # The URL of the first cached picture for each prompt and content.
+    $cached = [Collections.Generic.Dictionary[string, string]]::new()
     foreach ($row in $cachedRows) {
         [void]$cachedUrls.Add($row.ImageUrl)
         if ($null -ne ($data = Read-Picture $row.ImageUrl)) {
-            [void]$cached.Add("$($row.PromptHash)/$(Get-ContentKey $data)")
+            [void]$cached.TryAdd("$($row.PromptHash)/$(Get-ContentKey $data)", $row.ImageUrl)
         }
     }
 
@@ -185,7 +198,9 @@ ORDER BY CASE WHEN u.[Subject] = 'system' THEN 0 ELSE 1 END, c.[Id], w.[Language
 
     Write-Step 'Working out what to add'
     $added = [Collections.Generic.List[object]]::new()
-    $copies = 0
+    # Cards with a copy of a picture that's cached, or about to be, and that picture's URL.
+    $copies = [Collections.Generic.List[object]]::new()
+    $target = $null
     $gone = 0
     foreach ($card in $cards) {
         if ($cachedUrls.Contains($card.ImageUrl)) {
@@ -199,13 +214,16 @@ ORDER BY CASE WHEN u.[Subject] = 'system' THEN 0 ELSE 1 END, c.[Id], w.[Language
         }
 
         $hash = Get-PromptHash ($card.Spanish -join ' / ') ($card.English -join ' / ')
-        if (-not $cached.Add("$hash/$(Get-ContentKey $data)")) {
-            $copies++
+        $key = "$hash/$(Get-ContentKey $data)"
+        if ($cached.TryGetValue($key, [ref]$target)) {
+            $copies.Add([pscustomobject]@{ Card = $card; ImageUrl = $target; Length = $data.Length })
             continue
         }
+        $cached[$key] = $card.ImageUrl
         $added.Add([pscustomobject]@{ Card = $card; PromptHash = $hash })
     }
-    Write-Done "$($added.Count) pictures to add; $copies copies of pictures already cached and $gone missing files passed over"
+    Write-Done ("$($added.Count) pictures to add; $($copies.Count) cards with a copy of one of those or a cached " +
+        "picture, and $gone missing files, passed over")
 
     if ($added.Count -gt 0 -and $PSCmdlet.ShouldProcess($connection.Database,"Add $($added.Count) pictures to the cache")) {
         Write-Step 'Adding them'
@@ -222,7 +240,86 @@ ORDER BY CASE WHEN u.[Subject] = 'system' THEN 0 ELSE 1 END, c.[Id], w.[Language
             [void]$command.ExecuteNonQuery()
         }
         $transaction.Commit()
+        foreach ($item in $added) { [void]$cachedUrls.Add($item.Card.ImageUrl) }
         Write-Done "Added $($added.Count) pictures"
+    }
+
+    if ($ShareCopies) {
+        Write-Step 'Sharing the cached pictures with the cards that have copies of them'
+        # Only pictures that are in the cache now, which those added above aren't when -WhatIf skipped them.
+        $sharing = @($copies | Where-Object { $cachedUrls.Contains($_.ImageUrl) -or $WhatIfPreference })
+        $megabytes = [Math]::Round(($sharing | Measure-Object Length -Sum).Sum / 1MB, 1)
+        Write-Done "$($sharing.Count) cards to point at the cached picture, deleting $megabytes MB of copies"
+
+        if ($sharing.Count -gt 0 -and
+            $PSCmdlet.ShouldProcess($connection.Database, "Point $($sharing.Count) cards at cached pictures and delete their copies")) {
+            # What signs a delete of each copy, worked out before any card changes, so a failure here (such as no
+            # access to the storage account's keys) leaves everything as it was, rather than copies nothing points at.
+            $sas = @{}
+            foreach ($item in $sharing) {
+                $uri = [Uri]$item.Card.ImageUrl
+                # Blob storage takes a delete signed with the account's key, one SAS per container.
+                if ($uri.Host -match '^([a-z0-9]+)\.blob\.core\.windows\.net$') {
+                    $account = $Matches[1]
+                    $container = $uri.Segments[1].TrimEnd('/')
+                    if (-not $sas.ContainsKey("$account/$container")) {
+                        $expiry = (Get-Date).ToUniversalTime().AddHours(2).ToString('yyyy-MM-ddTHH:mmZ')
+                        $sas["$account/$container"] = Invoke-Az storage container generate-sas --account-name $account `
+                            --name $container --permissions d --expiry $expiry --auth-mode key
+                    }
+                }
+            }
+
+            $transaction = $connection.BeginTransaction()
+            $command = $connection.CreateCommand()
+            $command.Transaction = $transaction
+            # Only a card that still has the copy the script read, in case its user changed it meanwhile.
+            $command.CommandText = 'UPDATE [dbo].[FlashCards] SET [ImageUrl] = @imageUrl WHERE [Id] = @id AND [ImageUrl] = @oldUrl'
+            $id = $command.Parameters.Add('@id', [Data.SqlDbType]::Int)
+            $imageUrl = $command.Parameters.Add('@imageUrl', [Data.SqlDbType]::NVarChar, 400)
+            $oldUrl = $command.Parameters.Add('@oldUrl', [Data.SqlDbType]::NVarChar, 400)
+            $replaced = [Collections.Generic.List[string]]::new()
+            foreach ($item in $sharing) {
+                $id.Value = $item.Card.Id
+                $imageUrl.Value = $item.ImageUrl
+                $oldUrl.Value = $item.Card.ImageUrl
+                if ($command.ExecuteNonQuery() -eq 1) { $replaced.Add($item.Card.ImageUrl) }
+            }
+            $transaction.Commit()
+            Write-Done "Pointed $($replaced.Count) cards at cached pictures"
+
+            # A copy is only deleted once nothing points at it.
+            $inUse = [Collections.Generic.HashSet[string]]::new([StringComparer]::Ordinal)
+            $command = $connection.CreateCommand()
+            $command.CommandText = 'SELECT [ImageUrl] FROM [dbo].[FlashCards] WHERE [ImageUrl] IS NOT NULL ' +
+                'UNION SELECT [ImageUrl] FROM [dbo].[GeneratedImages]'
+            $reader = $command.ExecuteReader()
+            while ($reader.Read()) { [void]$inUse.Add($reader.GetString(0)) }
+            $reader.Close()
+            $unused = @($replaced | Where-Object { -not $inUse.Contains($_) } | Select-Object -Unique)
+
+            $deleted = 0
+            foreach ($url in $unused) {
+                $uri = [Uri]$url
+                $query = ''
+                if ($uri.Host -match '^([a-z0-9]+)\.blob\.core\.windows\.net$') {
+                    $query = "?$($sas["$($Matches[1])/$($uri.Segments[1].TrimEnd('/'))"])"
+                }
+                $response = $http.DeleteAsync("$url$query").GetAwaiter().GetResult()
+                try {
+                    if ($response.IsSuccessStatusCode -or $response.StatusCode -eq [Net.HttpStatusCode]::NotFound) {
+                        $deleted++
+                    }
+                    else {
+                        Write-Note "Couldn't delete $url ($([int]$response.StatusCode)); it's left behind"
+                    }
+                }
+                finally {
+                    $response.Dispose()
+                }
+            }
+            Write-Done "Deleted $deleted copies"
+        }
     }
 }
 finally {
