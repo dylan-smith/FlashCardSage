@@ -7,7 +7,7 @@ import Stack from '@mui/material/Stack'
 import TextField from '@mui/material/TextField'
 import Typography from '@mui/material/Typography'
 import { formatWords, listFlashCardScores } from '../api/flashCards'
-import type { FlashCardScores } from '../api/flashCards'
+import type { FlashCardScore, FlashCardScores } from '../api/flashCards'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { useLoad } from '../hooks/useLoad'
 import { EmptyText } from '../components/common/EmptyText'
@@ -21,6 +21,23 @@ import { matchesSearch } from '../lib/cardSearch'
 function scoreColor(score: number) {
   const hue = (Math.min(Math.max(score, 0), 100) / 100) * 120
   return `hsl(${hue}, 70%, 90%)`
+}
+
+// How many times the card was practiced, and how each one went.
+function practiceSummary({ gotIt, wasClose, failed }: FlashCardScore) {
+  const practiced = gotIt + wasClose + failed
+  if (practiced === 0) {
+    return 'Never practiced'
+  }
+  return `Practiced ${practiced} ${practiced === 1 ? 'time' : 'times'}: ${gotIt} got it, ${wasClose} close, ${failed} failed`
+}
+
+// When the card was last practiced, in the viewer's own locale and time zone.
+function formatPracticedAt(practicedAt: string) {
+  return new Date(practicedAt).toLocaleString(undefined, {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  })
 }
 
 function ScoresPage() {
@@ -115,6 +132,25 @@ function SelectionScores({
                       slotProps={{ primary: { lang: 'es' } }}
                       sx={{ overflowWrap: 'anywhere' }}
                     />
+                    {/* Left out on phones, where there's no room beside the words. */}
+                    <Typography
+                      variant="body2"
+                      color="text.secondary"
+                      sx={{
+                        display: { xs: 'none', sm: 'block' },
+                        flexShrink: 0,
+                        ml: 2,
+                        textAlign: 'right',
+                      }}
+                    >
+                      {practiceSummary(card)}
+                      {card.lastPracticedAt && (
+                        <>
+                          <br />
+                          {`Last ${formatPracticedAt(card.lastPracticedAt)}`}
+                        </>
+                      )}
+                    </Typography>
                     <Typography sx={{ flexShrink: 0, ml: 2 }}>
                       {card.score} / 100
                     </Typography>
