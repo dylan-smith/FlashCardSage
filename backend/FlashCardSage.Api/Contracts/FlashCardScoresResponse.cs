@@ -1,12 +1,15 @@
 namespace FlashCardSage.Api.Contracts;
 
-// A card's words in each language, in order. LastPracticedAt is null for a card that's never been practiced, and
-// ImageUrl for a card without a picture.
+// A card's words in each language, in order, and how many times it was answered with each outcome in practice.
+// LastPracticedAt is null for a card that's never been practiced, and ImageUrl for a card without a picture.
 public record FlashCardScore(
     int Id,
     IReadOnlyList<string> Spanish,
     IReadOnlyList<string> English,
     int Score,
+    int GotIt,
+    int WasClose,
+    int Failed,
     DateTimeOffset? LastPracticedAt,
     string? ImageUrl);
 

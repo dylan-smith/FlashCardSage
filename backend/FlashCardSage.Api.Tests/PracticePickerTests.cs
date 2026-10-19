@@ -7,9 +7,9 @@ public class PracticePickerTests
 {
     private static readonly DateTimeOffset Now = new(2026, 10, 12, 12, 0, 0, TimeSpan.Zero);
 
-    private static readonly FlashCardScore Cat = new(1, ["el gato"], ["the cat"], 0, null, null);
-    private static readonly FlashCardScore Dog = new(2, ["el perro"], ["the dog"], 0, null, null);
-    private static readonly FlashCardScore House = new(3, ["la casa"], ["the house"], 0, null, null);
+    private static readonly FlashCardScore Cat = new(1, ["el gato"], ["the cat"], 0, 0, 0, 0, null, null);
+    private static readonly FlashCardScore Dog = new(2, ["el perro"], ["the dog"], 0, 0, 0, 0, null, null);
+    private static readonly FlashCardScore House = new(3, ["la casa"], ["the house"], 0, 0, 0, 0, null, null);
 
     [Theory]
     [InlineData(0, null, 100)]

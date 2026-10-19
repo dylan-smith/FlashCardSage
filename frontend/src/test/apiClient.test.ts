@@ -110,4 +110,11 @@ describe('the API client', () => {
       withQuery('/things', { deckId: 3, tagId: undefined, q: 'a b' }),
     ).toBe('/things?deckId=3&q=a+b')
   })
+
+  it('repeats a parameter for each value in a list', () => {
+    expect(withQuery('/things', { name: [] })).toBe('/things')
+    expect(withQuery('/things', { name: ['a', 'b c'] })).toBe(
+      '/things?name=a&name=b+c',
+    )
+  })
 })

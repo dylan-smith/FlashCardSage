@@ -25,7 +25,7 @@ public class FoundryCardSuggesterTests
             """{"cards":[{"spanish":"el perro","english":"the dog"},{"spanish":"beber","english":"to drink"}]}"""));
         using var httpClient = new HttpClient(handler);
 
-        var suggestions = await CreateSuggester(httpClient).SuggestAsync(Cards, null, null, 8, CancellationToken.None);
+        var suggestions = await CreateSuggester(httpClient).SuggestAsync(Cards, null, null, [], 8, CancellationToken.None);
 
         Assert.Equal([new("el perro", "the dog"), new("beber", "to drink")], suggestions);
         var request = Assert.Single(handler.Requests);
@@ -58,7 +58,7 @@ public class FoundryCardSuggesterTests
         var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
 
-        await CreateSuggester(httpClient).SuggestAsync(Cards, Cards[0], null, 8, CancellationToken.None);
+        await CreateSuggester(httpClient).SuggestAsync(Cards, Cards[0], null, [], 8, CancellationToken.None);
 
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
         var prompt = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!;
@@ -73,7 +73,7 @@ public class FoundryCardSuggesterTests
         var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
 
-        await CreateSuggester(httpClient).SuggestAsync(Cards, null, Cards[0].Tags[0], 8, CancellationToken.None);
+        await CreateSuggester(httpClient).SuggestAsync(Cards, null, Cards[0].Tags[0], [], 8, CancellationToken.None);
 
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
         var prompt = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!;
@@ -88,7 +88,7 @@ public class FoundryCardSuggesterTests
         var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
 
-        await CreateSuggester(httpClient).SuggestAsync(Cards, Cards[2], null, 8, CancellationToken.None);
+        await CreateSuggester(httpClient).SuggestAsync(Cards, Cards[2], null, [], 8, CancellationToken.None);
 
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
         var prompt = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!;
@@ -97,12 +97,28 @@ public class FoundryCardSuggesterTests
     }
 
     [Fact]
+    public async Task SuggestAsync_AsksForDifferentCards_ThanTheOnesAlreadyShown()
+    {
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
+        using var httpClient = new HttpClient(handler);
+
+        await CreateSuggester(httpClient).SuggestAsync(Cards, null, null, ["el perro", "beber"], 8, CancellationToken.None);
+
+        using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
+        var prompt = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!
+            .ReplaceLineEndings("\n");
+        Assert.EndsWith(
+            "\nThe learner has already been shown cards for these, so suggest different ones: el perro, beber.\n",
+            prompt, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SuggestAsync_AsksForBeginnerCards_WhenThereAreNone()
     {
         var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
         using var httpClient = new HttpClient(handler);
 
-        var suggestions = await CreateSuggester(httpClient).SuggestAsync([], null, null, 5, CancellationToken.None);
+        var suggestions = await CreateSuggester(httpClient).SuggestAsync([], null, null, [], 5, CancellationToken.None);
 
         Assert.Empty(suggestions);
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
@@ -119,7 +135,7 @@ public class FoundryCardSuggesterTests
         using var httpClient = new HttpClient(handler);
 
         var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSuggester(httpClient).SuggestAsync(Cards, null, null, 8, CancellationToken.None));
+            CreateSuggester(httpClient).SuggestAsync(Cards, null, null, [], 8, CancellationToken.None));
 
         Assert.Equal(HttpStatusCode.NotFound, ex.StatusCode);
         Assert.Contains("(DeploymentNotFound)", ex.Message, StringComparison.Ordinal);
@@ -135,7 +151,7 @@ public class FoundryCardSuggesterTests
         using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSuggester(httpClient).SuggestAsync(Cards, null, null, 8, CancellationToken.None));
+            CreateSuggester(httpClient).SuggestAsync(Cards, null, null, [], 8, CancellationToken.None));
     }
 
     [Fact]
@@ -145,7 +161,7 @@ public class FoundryCardSuggesterTests
         using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSuggester(httpClient).SuggestAsync(Cards, null, null, 8, CancellationToken.None));
+            CreateSuggester(httpClient).SuggestAsync(Cards, null, null, [], 8, CancellationToken.None));
     }
 
     [Theory]

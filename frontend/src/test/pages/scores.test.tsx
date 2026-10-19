@@ -15,6 +15,14 @@ import { renderAt, signInForEachTest } from '../support/render'
 
 signInForEachTest()
 
+// The practice details of a card that's never been practiced.
+const neverPracticed = {
+  gotIt: 0,
+  wasClose: 0,
+  failed: 0,
+  lastPracticedAt: null,
+}
+
 describe('scores', () => {
   // The urls the page asked for its scores from, in order.
   function scoresUrls(calls: CallLog) {
@@ -27,9 +35,27 @@ describe('scores', () => {
         total: 130,
         maximum: 300,
         cards: [
-          { id: 3, spanish: ['la casa'], english: ['the house'], score: 0 },
-          { id: 2, spanish: ['el perro'], english: ['the dog'], score: 50 },
-          { id: 1, spanish: ['el gato'], english: ['the cat'], score: 80 },
+          {
+            id: 3,
+            spanish: ['la casa'],
+            english: ['the house'],
+            score: 0,
+            ...neverPracticed,
+          },
+          {
+            id: 2,
+            spanish: ['el perro'],
+            english: ['the dog'],
+            score: 50,
+            ...neverPracticed,
+          },
+          {
+            id: 1,
+            spanish: ['el gato'],
+            english: ['the cat'],
+            score: 80,
+            ...neverPracticed,
+          },
         ],
       },
     })
@@ -42,12 +68,66 @@ describe('scores', () => {
       screen.getByRole('list', { name: 'Card scores' }),
     ).getAllByRole('listitem')
     expect(items.map((item) => item.textContent)).toEqual([
-      'la casathe house0 / 100',
-      'el perrothe dog50 / 100',
-      'el gatothe cat80 / 100',
+      'la casathe houseNever practiced0 / 100',
+      'el perrothe dogNever practiced50 / 100',
+      'el gatothe catNever practiced80 / 100',
     ])
     expect(screen.getByText('la casa')).toHaveAttribute('lang', 'es')
     expect(scoresUrls(calls)).toEqual([api('/flashcards/scores')])
+  })
+
+  it('shows how many times each card was practiced, how each went and when it was last', async () => {
+    const lastPracticedAt = '2026-10-18T14:32:00Z'
+    mockApi({
+      'GET /flashcards/scores': {
+        total: 50,
+        maximum: 300,
+        cards: [
+          {
+            id: 3,
+            spanish: ['la casa'],
+            english: ['the house'],
+            score: 0,
+            ...neverPracticed,
+          },
+          {
+            id: 2,
+            spanish: ['el perro'],
+            english: ['the dog'],
+            score: 0,
+            gotIt: 2,
+            wasClose: 1,
+            failed: 1,
+            lastPracticedAt,
+          },
+          {
+            id: 1,
+            spanish: ['el gato'],
+            english: ['the cat'],
+            score: 50,
+            gotIt: 1,
+            wasClose: 0,
+            failed: 0,
+            lastPracticedAt,
+          },
+        ],
+      },
+    })
+    renderAt('/scores')
+
+    await screen.findByText('Total score 50 / 300 (17%)')
+    const last = new Date(lastPracticedAt).toLocaleString(undefined, {
+      dateStyle: 'medium',
+      timeStyle: 'short',
+    })
+    const items = within(
+      screen.getByRole('list', { name: 'Card scores' }),
+    ).getAllByRole('listitem')
+    expect(items.map((item) => item.textContent)).toEqual([
+      'la casathe houseNever practiced0 / 100',
+      `el perrothe dogPracticed 4 times: 2 got it, 1 close, 1 failedLast ${last}0 / 100`,
+      `el gatothe catPracticed 1 time: 1 got it, 0 close, 0 failedLast ${last}50 / 100`,
+    ])
   })
 
   it('shades each card from red for a low score to green for a high one', async () => {
@@ -56,9 +136,27 @@ describe('scores', () => {
         total: 150,
         maximum: 300,
         cards: [
-          { id: 3, spanish: ['la casa'], english: ['the house'], score: 0 },
-          { id: 2, spanish: ['el perro'], english: ['the dog'], score: 50 },
-          { id: 1, spanish: ['el gato'], english: ['the cat'], score: 100 },
+          {
+            id: 3,
+            spanish: ['la casa'],
+            english: ['the house'],
+            score: 0,
+            ...neverPracticed,
+          },
+          {
+            id: 2,
+            spanish: ['el perro'],
+            english: ['the dog'],
+            score: 50,
+            ...neverPracticed,
+          },
+          {
+            id: 1,
+            spanish: ['el gato'],
+            english: ['the cat'],
+            score: 100,
+            ...neverPracticed,
+          },
         ],
       },
     })
@@ -80,9 +178,27 @@ describe('scores', () => {
         total: 130,
         maximum: 300,
         cards: [
-          { id: 3, spanish: ['la canción'], english: ['the song'], score: 0 },
-          { id: 2, spanish: ['el perro'], english: ['the dog'], score: 50 },
-          { id: 1, spanish: ['el gato'], english: ['the cat'], score: 80 },
+          {
+            id: 3,
+            spanish: ['la canción'],
+            english: ['the song'],
+            score: 0,
+            ...neverPracticed,
+          },
+          {
+            id: 2,
+            spanish: ['el perro'],
+            english: ['the dog'],
+            score: 50,
+            ...neverPracticed,
+          },
+          {
+            id: 1,
+            spanish: ['el gato'],
+            english: ['the cat'],
+            score: 80,
+            ...neverPracticed,
+          },
         ],
       },
     })
@@ -98,7 +214,7 @@ describe('scores', () => {
       within(screen.getByRole('list', { name: 'Card scores' }))
         .getAllByRole('listitem')
         .map((item) => item.textContent)
-    expect(items()).toEqual(['la canciónthe song0 / 100'])
+    expect(items()).toEqual(['la canciónthe songNever practiced0 / 100'])
     expect(screen.getByText('Total score 130 / 300 (43%)')).toBeInTheDocument()
 
     await user.clear(screen.getByRole('searchbox', { name: 'Search' }))
@@ -107,7 +223,7 @@ describe('scores', () => {
       'the dog',
     )
 
-    expect(items()).toEqual(['el perrothe dog50 / 100'])
+    expect(items()).toEqual(['el perrothe dogNever practiced50 / 100'])
 
     await user.type(screen.getByRole('searchbox', { name: 'Search' }), 'x')
 
@@ -133,14 +249,14 @@ describe('scores', () => {
               ? {
                   total: 50,
                   maximum: 100,
-                  cards: [{ ...scoredCat, score: 50 }],
+                  cards: [{ ...scoredCat, score: 50, ...neverPracticed }],
                 }
               : {
                   total: 50,
                   maximum: 200,
                   cards: [
-                    { ...house, score: 0 },
-                    { ...scoredCat, score: 50 },
+                    { ...house, score: 0, ...neverPracticed },
+                    { ...scoredCat, score: 50, ...neverPracticed },
                   ],
                 },
           ),
@@ -173,7 +289,7 @@ describe('scores', () => {
       expect(
         await screen.findByText('Total score 50 / 100 (50%)'),
       ).toBeInTheDocument()
-      expect(items()).toEqual(['el gatothe cat50 / 100'])
+      expect(items()).toEqual(['el gatothe catNever practiced50 / 100'])
       expect(scoresUrls(calls)).toEqual([
         api('/flashcards/scores'),
         api('/flashcards/scores?deckId=3'),
@@ -210,7 +326,7 @@ describe('scores', () => {
       expect(screen.getByRole('searchbox', { name: 'Search' })).toHaveValue(
         'gato',
       )
-      expect(items()).toEqual(['el gatothe cat50 / 100'])
+      expect(items()).toEqual(['el gatothe catNever practiced50 / 100'])
     })
 
     it('links to the decks when the deck has no cards', async () => {
@@ -237,7 +353,7 @@ describe('scores', () => {
         'GET /flashcards/scores': {
           total: 0,
           maximum: 100,
-          cards: [{ ...scoredCat, score: 0 }],
+          cards: [{ ...scoredCat, score: 0, ...neverPracticed }],
         },
       })
       renderAt('/scores')
