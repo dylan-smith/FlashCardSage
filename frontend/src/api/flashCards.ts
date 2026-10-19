@@ -113,11 +113,11 @@ export async function deleteFlashCards(ids: number[]) {
 // How the user did at a card in practice mode, by the name the API stores.
 export type PracticeOutcome = 'GotIt' | 'WasClose' | 'Failed'
 
-// The side of a card shown first in practice, by the name the API sends.
+// The side of a card shown first in practice.
 export type PracticeSide = 'Spanish' | 'English'
 
-// A card the API picked to practice, and the side to show first. Its picture, if it has one, is shown once the
-// card is revealed.
+// A card picked to practice, and the side to show first. Its picture, if it has one, is shown once the card is
+// revealed.
 export type PracticeCard = FlashCardWords & {
   side: PracticeSide
   imageUrl: string | null
@@ -129,39 +129,6 @@ export type PracticeSelection = { deckId?: number; tagId?: number }
 // The URL for the selection's cards.
 function practiceUrl(path: string, { deckId, tagId }: PracticeSelection) {
   return withQuery(`${flashCardsUrl}/${path}`, { deckId, tagId })
-}
-
-// The card to start practicing with, or null when there are no cards in the selection.
-export async function getNextPracticeCard(
-  selection: PracticeSelection = {},
-): Promise<PracticeCard | null> {
-  const response = await fetchOk(
-    practiceUrl('practice/next', selection),
-    'Unable to load flash cards.',
-  )
-  return response.status === 204
-    ? null
-    : ((await response.json()) as PracticeCard)
-}
-
-// The card to practice next, and how much the answer raised or lowered the answered card's score. There's no next
-// card when the deck or tag being practiced has lost all its cards since practice started.
-export type PracticeResult = {
-  next: PracticeCard | null
-  scoreChange: number
-}
-
-// Records the answer, and picks the next card from the same selection.
-export function recordPracticeResult(
-  id: number,
-  outcome: PracticeOutcome,
-  selection: PracticeSelection = {},
-) {
-  return getJson<PracticeResult>(
-    practiceUrl(`${id}/practice-results`, selection),
-    'Unable to save your answer.',
-    jsonRequest('POST', { outcome }),
-  )
 }
 
 // A card's score out of 100, from how many times in a row it was last answered with Got it! in practice, how many

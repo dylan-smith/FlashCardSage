@@ -49,6 +49,7 @@ const defaultRoutes: Routes = {
   'GET /system-decks': [],
   'GET /counts': { cards: 0, decks: 0, tags: 0 },
   'GET /preferences': defaultPreferences,
+  'GET /flashcards/practice/pack': { cards: [], decks: [], tags: [] },
   'GET /card-suggestions': emptyResponse(503),
   'POST /tag-suggestions': emptyResponse(503),
   'GET /tag-suggestions/new': emptyResponse(503),
@@ -59,6 +60,8 @@ const defaultRoutes: Routes = {
 const backgroundRequests = new Set([
   'GET /counts',
   'GET /preferences',
+  // Loaded at sign-in too, and after answers are saved (see practice/sync).
+  'GET /flashcards/practice/pack',
   'GET /card-suggestions',
   'POST /tag-suggestions',
   'GET /tag-suggestions/new',

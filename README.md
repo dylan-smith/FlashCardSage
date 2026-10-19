@@ -20,6 +20,7 @@ A flash card app for learning a language, with:
 - Ask for a picture of what a card means, made by FLUX.2-pro on Azure AI Foundry, or upload your own (a JPEG, PNG or WebP of up to 5 MB), which goes on the card when you save it unless you discard it; practice mode shows it once the card is revealed
 - A Preferences page, where each user can turn off pictures, suggested cards and translation as they type
 - Opens with no connection once it's been opened online, and can be installed as an app (on a phone, Add to Home Screen): a service worker keeps the app itself on the device
+- Practice offline: practice picks the next card on the device from your cards and scores as last loaded, and keeps your answers there until they can be saved
 - RESTful API with OpenAPI support
 
 ## Prerequisites
