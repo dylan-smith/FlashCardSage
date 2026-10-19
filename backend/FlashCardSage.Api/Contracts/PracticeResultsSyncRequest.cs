@@ -11,5 +11,5 @@ public class PracticeResultsSyncRequest
     [Required]
     [MinLength(1)]
     [MaxLength(MaxResults)]
-    public List<PracticeResultSyncItem> Results { get; set; } = [];
+    public List<PracticeResultRequest> Results { get; set; } = [];
 }

@@ -8,74 +8,18 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// Records how the user did each time they practice a card, says how much that changed the card's score, and picks
-/// the card to practice next. Or records the answers the device kept while practicing on its own (offline too), all
-/// at once.
+/// Records the answers the device kept while practicing on its own (offline too), all at once.
 /// FlashCardScoresController scores the cards from them.
 /// </summary>
 [ApiController]
-[Route("api/flashcards")]
+[Route("api/flashcards/practice-results")]
 public class PracticeResultsController(FlashCardDbContext dbContext, ILogger<PracticeResultsController> logger)
     : ControllerBase
 {
-    [HttpPost("{flashCardId:int}/practice-results")]
-    public async Task<ActionResult<PracticeResultResponse>> Create(
-        int flashCardId, [FromBody] PracticeResultRequest request, [FromQuery] PracticeSelection selection)
-    {
-        // The card is looked up first, since that's what limits it to the current user's cards.
-        if (!await dbContext.FlashCards.AnyAsync(card => card.Id == flashCardId))
-        {
-            logger.LogWarning("Flash card {FlashCardId} not found for a practice result", flashCardId);
-            return NotFound();
-        }
-
-        if (!await dbContext.SelectionExistsAsync(selection))
-        {
-            logger.LogWarning(
-                "Deck {DeckId} or tag {TagId} not found to practice", selection.DeckId, selection.TagId);
-            return NotFound();
-        }
-
-        // Required, so the model binder has already refused a request without it.
-        var outcome = request.Outcome!.Value;
-
-        // A card's score only depends on its last few answers, so those are all it takes to see how much this one
-        // changes it.
-        var recentOutcomes = await dbContext.PracticeResults
-            .Where(result => result.FlashCardId == flashCardId)
-            .OrderByDescending(result => result.Id)
-            .Take(PracticeScore.MaximumStreak)
-            .Select(result => result.Outcome)
-            .ToListAsync();
-        var scoreChange = PracticeScore.FromOutcomes(recentOutcomes.Prepend(outcome))
-            - PracticeScore.FromOutcomes(recentOutcomes);
-
-        dbContext.PracticeResults.Add(new PracticeResult
-        {
-            FlashCardId = flashCardId,
-            Outcome = outcome,
-            PracticedAt = DateTimeOffset.UtcNow
-        });
-        await dbContext.SaveChangesAsync();
-
-        // Picked after saving, so the answer just given counts, from the same deck or tag. There's none when the deck
-        // or tag has lost all its cards since practice started.
-        var next = await PracticePicker.PickNextAsync(dbContext, flashCardId, selection);
-
-        logger.LogInformation(
-            "Recorded practice result {Outcome} ({ScoreChange}) for flash card {FlashCardId}, next is {NextFlashCardId}",
-            request.Outcome,
-            scoreChange,
-            flashCardId,
-            next?.Id);
-
-        return Ok(new PracticeResultResponse(next, scoreChange));
-    }
-
     // The answers the device kept, oldest first. Each is recorded once, by the id the device gave it, so the device
     // can send them again when it didn't hear back. Answers for cards that are gone (or were never the user's) are
     // skipped rather than refused, since the device can't do anything else with them.
-    [HttpPost("practice-results")]
+    [HttpPost]
     public async Task<ActionResult<PracticeResultsSyncResponse>> Sync(
         [FromBody] PracticeResultsSyncRequest request, CancellationToken cancellationToken)
     {
