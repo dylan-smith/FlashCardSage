@@ -769,6 +769,23 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
 
+      # The browser alerts leave out failures while the API is paused (see Mark the API resumed). Never holds up
+      # the deployment.
+      - name: Resolve Application Insights connection string
+        id: resolve-appinsights
+        continue-on-error: true
+        run: bash .github/scripts/resolve-appinsights-connection-string.sh
+        env:
+          AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+          AZURE_BACKEND_APP_NAME: ${{ vars.AZURE_BACKEND_APP_NAME }}
+
+      - name: Mark the API paused
+        id: pause-event
+        continue-on-error: true
+        run: bash .github/scripts/track-deploy-event.sh ApiPaused
+        env:
+          APPINSIGHTS_CONNECTION_STRING: ${{ steps['resolve-appinsights'].outputs['connection-string'] }}
+
       # Pause the API from before the backup until the new version is deployed, so the old API never runs
       # against the migrated database (and the backup can't miss writes made after it).
       - name: Pause API
@@ -850,6 +867,15 @@ jobs:
         env:
           AZURE_RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
           AZURE_BACKEND_APP_NAME: ${{ vars.AZURE_BACKEND_APP_NAME }}
+
+      # Only once the API is back, so an API left paused still fires the browser alerts after 30 minutes.
+      - name: Mark the API resumed
+        if: always() && steps.resume.outcome == 'success'
+        continue-on-error: true
+        run: bash .github/scripts/track-deploy-event.sh ApiResumed
+        env:
+          APPINSIGHTS_CONNECTION_STRING: ${{ steps['resolve-appinsights'].outputs['connection-string'] }}
+          PAUSED_AT: ${{ steps['pause-event'].outputs.time }}
 
       - name: Report API left paused
         if: always() && steps.pause.outcome != 'skipped' && steps.resume.outcome != 'success'

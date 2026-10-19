@@ -54,6 +54,7 @@ var investigationEnabled = slackEnabled && !empty(alertInvestigationToken)
 var slowApiName = 'FlashCardSage slow API'
 var slowPageLoadsName = 'FlashCardSage slow page loads'
 var browserErrorsName = 'FlashCardSage browser errors'
+var browserApiFailuresName = 'FlashCardSage browser API call failures'
 var failureAnomaliesName = 'Failure Anomalies - ${last(split(appInsightsId, '/'))}'
 var resourceHealthName = 'FlashCardSage resource health'
 var serviceHealthName = 'FlashCardSage service health'
@@ -101,6 +102,11 @@ var alertSteps = union(
     '${browserErrorsName}': [
       'On the *Frontend* tab of the ${workbookLink}, check *Browser exceptions* for the operation (load, save, delete) that failed and its *Status*.'
       'Open ${failuresLink} and switch to *Browser* for the stack traces. If it started with a frontend deployment (${ciRunsLink}), revert the change on `main`.'
+    ]
+    '${browserApiFailuresName}': [
+      'On the *Frontend* tab of the ${workbookLink}, check *Browser calls to the API* for the calls and result codes that failed.'
+      'If the *API* tab shows the same failures, follow the steps for *FlashCardSage API server errors*.'
+      'If it doesn\'t, the calls never reached the API: look for CORS errors (the allowed origin is set in `infra/modules/appservice.bicep`), network errors, or the API being down or cold-starting.'
     ]
     '${failureAnomaliesName}': apiServerErrorSteps
     '${resourceHealthName}': [
@@ -550,31 +556,6 @@ var metricAlerts = [
     ]
   }
   {
-    name: 'FlashCardSage browser API call failures'
-    description: 'More than 5 API calls from the frontend failed in an hour (network, CORS or server errors).'
-    steps: [
-      'On the *Frontend* tab of the ${workbookLink}, check *Browser calls to the API* for the calls and result codes that failed.'
-      'If the *API* tab shows the same failures, follow the steps for *FlashCardSage API server errors*.'
-      'If it doesn\'t, the calls never reached the API: look for CORS errors (the allowed origin is set in `infra/modules/appservice.bicep`), network errors, or the API being down or cold-starting.'
-    ]
-    severity: 2
-    scope: appInsightsId
-    namespace: 'microsoft.insights/components'
-    metric: 'dependencies/failed'
-    timeAggregation: 'Count'
-    operator: 'GreaterThan'
-    threshold: 5
-    windowSize: 'PT1H'
-    frequency: 'PT15M'
-    dimensions: [
-      {
-        name: 'cloud/roleName'
-        operator: 'Include'
-        values: [frontendRoleName]
-      }
-    ]
-  }
-  {
     name: 'FlashCardSage CPU quota'
     description: 'The API used more than 75% of the F1 plan\'s 60 CPU-minute daily quota in the last 24 hours. The app stops when the quota runs out.'
     steps: [
@@ -733,6 +714,14 @@ resource slowPageLoads 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
   }
 }
 
+// The production deploy pauses the API on purpose, so browsers can't reach it until it resumes. CI marks the pause
+// with ApiPaused and ApiResumed events (.github/scripts/track-deploy-event.sh), and the browser alerts leave out
+// failures from then until 5 minutes after the resume, while the API comes back. A pause with no resume (the run
+// failed or is still going) counts for 30 minutes, and no pause counts for more than that, so an API left paused
+// still alerts. Queries keep the rows outside every pause by joining all of them to each row.
+var deployPausesQuery = 'let deployPauses = AppEvents\n| where Name in ("ApiPaused", "ApiResumed")\n| summarize Paused = min(iff(Name == "ApiResumed", todatetime(Properties.PausedAt), TimeGenerated)), Resumed = maxif(TimeGenerated, Name == "ApiResumed") by RunId = tostring(Properties.RunId)\n| extend End = iff(isnull(Resumed), Paused + 30m, Resumed + 5m)\n| project Start = max_of(Paused, End - 35m), End, Key = 1;\n'
+var outsideDeployPauses = '| extend Key = 1\n| join kind=leftouter deployPauses on Key\n| summarize ItemCount = take_any(ItemCount), DuringPause = countif(TimeGenerated between (Start .. End)) by _ItemId\n| where DuringPause == 0\n'
+
 // A log alert rather than the exceptions/browser metric, which has no dimension to leave out headless Chrome: the
 // CI smoke tests after each production deploy fired it on their own. ItemCount counts the exceptions sampling dropped.
 resource browserErrors 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
@@ -740,7 +729,7 @@ resource browserErrors 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
   location: location
   properties: {
     displayName: browserErrorsName
-    description: 'The frontend reported more than 5 exceptions in an hour, not counting automated tests in headless Chrome.'
+    description: 'The frontend reported more than 5 exceptions in an hour, not counting automated tests in headless Chrome or while a deployment has the API paused.'
     severity: 2
     enabled: true
     scopes: [workspaceId]
@@ -750,7 +739,40 @@ resource browserErrors 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
     criteria: {
       allOf: [
         {
-          query: 'AppExceptions\n| where AppRoleName == "${frontendRoleName}" and ClientBrowser !startswith "HeadlessChrome"\n| summarize Exceptions = sum(ItemCount)\n| where Exceptions > 5'
+          query: '${deployPausesQuery}AppExceptions\n| where AppRoleName == "${frontendRoleName}" and ClientBrowser !startswith "HeadlessChrome"\n${outsideDeployPauses}| summarize Exceptions = sum(ItemCount)\n| where Exceptions > 5'
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
+
+// A log alert rather than the dependencies/failed metric, which can't leave out the deploy pause.
+resource browserApiFailures 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: browserApiFailuresName
+  location: location
+  properties: {
+    displayName: browserApiFailuresName
+    description: 'More than 5 API calls from the frontend failed in an hour (network, CORS or server errors), not counting while a deployment has the API paused.'
+    severity: 2
+    enabled: true
+    scopes: [workspaceId]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT1H'
+    autoMitigate: true
+    criteria: {
+      allOf: [
+        {
+          query: '${deployPausesQuery}AppDependencies\n| where AppRoleName == "${frontendRoleName}" and not(Success)\n${outsideDeployPauses}| summarize Failures = sum(ItemCount)\n| where Failures > 5'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 0
