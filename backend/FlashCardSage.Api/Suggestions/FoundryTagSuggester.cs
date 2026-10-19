@@ -7,7 +7,8 @@ namespace FlashCardSage.Api.Suggestions;
 
 // Asks the chat model (gpt-5-mini) on the Azure AI Foundry resource that suggests cards which of the user's tags a
 // card they're adding or changing belongs under, going by the cards they've put under each.
-public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOptions> options) : ITagSuggester
+public class FoundryTagSuggester(
+    HttpClient httpClient, IOptions<FoundryChatOptions> options, ILogger<FoundryTagSuggester> logger) : ITagSuggester
 {
     private const string Instructions = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
@@ -31,7 +32,7 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOpti
     // Defines the answer as a list of tag names.
     private static readonly object AnswerFormat = FoundrySchemas.StringList("tag_suggestions", "tags");
 
-    private readonly FoundryChatClient chat = new(httpClient, options.Value);
+    private readonly FoundryChatClient chat = new(httpClient, options.Value, logger);
 
     public bool IsAvailable => chat.IsAvailable;
 

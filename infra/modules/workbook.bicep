@@ -22,6 +22,12 @@ param storageAccountId string
 @description('Resource ID of the action group the alert rules notify.')
 param actionGroupId string
 
+@description('Resource ID of the Azure AI Foundry resource, which needn\'t exist: its charts are empty without it.')
+param foundryId string
+
+@description('Resource ID of the Azure AI Translator resource.')
+param translatorId string
+
 @description('Default HTTPS URL of the backend App Service, without a trailing slash.')
 param apiUrl string
 
@@ -74,6 +80,29 @@ resource usageWorkbook 'Microsoft.Insights/workbooks@2023-06-01' = {
     category: 'workbook'
     sourceId: toLower(appInsightsId)
     serializedData: replace(string(loadJsonContent('../workbooks/usage.workbook.json')), '__APP_INSIGHTS_ID__', appInsightsId)
+  }
+}
+
+// What the AI models are used for and what they cost, from Application Insights, the AI resources' metrics and Cost
+// Management.
+resource aiWorkbook 'Microsoft.Insights/workbooks@2023-06-01' = {
+  name: guid(resourceGroup().id, 'flashcardsage-ai-workbook')
+  location: location
+  kind: 'shared'
+  properties: {
+    displayName: 'FlashCardSage AI'
+    category: 'workbook'
+    sourceId: toLower(appInsightsId)
+    serializedData: reduce(
+      items({
+        __APP_INSIGHTS_ID__: appInsightsId
+        __FOUNDRY_ID__: foundryId
+        __TRANSLATOR_ID__: translatorId
+        __RESOURCE_GROUP_ID__: resourceGroup().id
+      }),
+      string(loadJsonContent('../workbooks/ai.workbook.json')),
+      (json, token) => replace(json, token.key, token.value)
+    )
   }
 }
 

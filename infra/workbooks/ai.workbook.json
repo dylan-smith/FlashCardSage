@@ -1,0 +1,779 @@
+{
+  "version": "Notebook/1.0",
+  "items": [
+    {
+      "type": 1,
+      "content": {
+        "json": "# FlashCardSage AI\nWhat the AI models behind FlashCardSage are used for, how well they answer, and what they cost:\n\n- **gpt-5-mini** (Azure AI Foundry) suggests new cards, tags for a card, and new tags, and makes cards from an uploaded document.\n- **FLUX.2-pro** (Azure AI Foundry) makes the picture of a card.\n- **Azure AI Translator** translates one side of a card into the other, through its dictionary for a single word and its translator for anything else.\n\nMost sections come from Application Insights: each call the API makes to a model is a dependency, and the API request that made it says which feature it was for. A call is **Cancelled** when the user stopped waiting for it (the page moved on, or they typed on), so the browser dropped the request; the model may still have charged for it. Application Insights keeps 30 days of telemetry.\n\nThe **Azure metrics** and **Costs** sections come from the Foundry and Translator resources themselves, so they also count calls from outside the app, such as `scripts/Generate-SystemDeckImages.ps1` making the built-in decks' pictures."
+      },
+      "name": "title"
+    },
+    {
+      "type": 9,
+      "content": {
+        "version": "KqlParameterItem/1.0",
+        "parameters": [
+          {
+            "id": "3f9a6c2e-8d41-4b7a-9e05-1c6d2b8f4a01",
+            "version": "KqlParameterItem/1.0",
+            "name": "TimeRange",
+            "label": "Time range",
+            "type": 4,
+            "isRequired": true,
+            "value": {
+              "durationMs": 604800000
+            },
+            "typeSettings": {
+              "selectableValues": [
+                {
+                  "durationMs": 86400000
+                },
+                {
+                  "durationMs": 259200000
+                },
+                {
+                  "durationMs": 604800000
+                },
+                {
+                  "durationMs": 1209600000
+                },
+                {
+                  "durationMs": 2592000000
+                }
+              ],
+              "allowCustom": true
+            }
+          }
+        ],
+        "style": "pills",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components"
+      },
+      "name": "parameters"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Calls to the models"
+      },
+      "name": "calls-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet calls = dependencies\n| where timestamp {TimeRange} and type == 'HTTP'\n| extend Model = case(\n    name has '/chat/completions', 'gpt-5-mini',\n    name has '/blackforestlabs/', 'FLUX.2-pro',\n    target endswith 'microsofttranslator.com', iff(name has '/dictionary/', 'Translator (dictionary)', 'Translator (translate)'),\n    '')\n| where isnotempty(Model)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature)\n| extend Outcome = case(success == true, 'Succeeded', RequestCode == '499', 'Cancelled', resultCode == '429', 'Rate limited', 'Failed');\nlet tokens = traces\n| where timestamp {TimeRange} and isnotempty(customDimensions.PromptTokens)\n| extend Prompt = tolong(customDimensions.PromptTokens), Cached = tolong(customDimensions.CachedPromptTokens),\n    Completion = tolong(customDimensions.CompletionTokens), Reasoning = tolong(customDimensions.ReasoningTokens),\n    FinishReason = tostring(customDimensions.FinishReason)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature);\nlet total = toscalar(calls | summarize sum(itemCount));\nlet percent = (n: long) { iff(total == 0, '', strcat(' (', round(100.0 * n / total, 1), '%)')) };\nlet failed = toscalar(calls | where Outcome in ('Failed', 'Rate limited') | summarize sum(itemCount));\nlet cancelled = toscalar(calls | where Outcome == 'Cancelled' | summarize sum(itemCount));\nlet answers = toscalar(tokens | count);\nlet tokenCount = toscalar(tokens | summarize sum((Prompt + Completion) * itemCount));\nunion\n    (print Order = 0, Metric = 'Calls to the models', Value = tostring(total)),\n    (print Order = 1, Metric = 'Failed', Value = strcat(failed, percent(failed))),\n    (print Order = 2, Metric = 'Cancelled by the user', Value = strcat(cancelled, percent(cancelled))),\n    (print Order = 3, Metric = 'Pictures made', Value = tostring(toscalar(calls | where Model == 'FLUX.2-pro' and Outcome == 'Succeeded' | summarize sum(itemCount)))),\n    (print Order = 4, Metric = 'gpt-5-mini tokens', Value = iff(answers == 0, 'None logged yet', tostring(tokenCount))),\n    (print Order = 5, Metric = 'People who used them', Value = tostring(toscalar(calls | where isnotempty(User) | summarize dcount(User))))\n| order by Order asc\n| project Metric, Value",
+        "size": 4,
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "tiles",
+        "tileSettings": {
+          "titleContent": {
+            "columnMatch": "Metric",
+            "formatter": 1
+          },
+          "leftContent": {
+            "columnMatch": "Value",
+            "formatter": 1
+          },
+          "showBorder": true
+        }
+      },
+      "name": "calls-tiles"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "**People who used them** counts the signed-in users whose requests called a model. The smoke tests and load test sign in as a service user, which isn't counted there but whose calls are."
+      },
+      "name": "calls-tiles-description"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet calls = dependencies\n| where timestamp {TimeRange} and type == 'HTTP'\n| extend Model = case(\n    name has '/chat/completions', 'gpt-5-mini',\n    name has '/blackforestlabs/', 'FLUX.2-pro',\n    target endswith 'microsofttranslator.com', iff(name has '/dictionary/', 'Translator (dictionary)', 'Translator (translate)'),\n    '')\n| where isnotempty(Model)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature)\n| extend Outcome = case(success == true, 'Succeeded', RequestCode == '499', 'Cancelled', resultCode == '429', 'Rate limited', 'Failed');\ncalls\n| summarize Calls = sum(itemCount), Succeeded = sumif(itemCount, Outcome == 'Succeeded'),\n    Cancelled = sumif(itemCount, Outcome == 'Cancelled'), ['Rate limited'] = sumif(itemCount, Outcome == 'Rate limited'),\n    Failed = sumif(itemCount, Outcome == 'Failed'), People = dcountif(User, isnotempty(User)),\n    ['Median (s)'] = round(percentile(duration, 50) / 1000, 2), ['95th percentile (s)'] = round(percentile(duration, 95) / 1000, 2)\n    by Feature, Model\n| order by Calls desc",
+        "size": 0,
+        "title": "Calls by feature",
+        "noDataMessage": "No calls to the models in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Calls",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            {
+              "columnMatch": "Rate limited",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">",
+                    "thresholdValue": "0",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            },
+            {
+              "columnMatch": "Failed",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">",
+                    "thresholdValue": "0",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "calls-by-feature"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet calls = dependencies\n| where timestamp {TimeRange} and type == 'HTTP'\n| extend Model = case(\n    name has '/chat/completions', 'gpt-5-mini',\n    name has '/blackforestlabs/', 'FLUX.2-pro',\n    target endswith 'microsofttranslator.com', iff(name has '/dictionary/', 'Translator (dictionary)', 'Translator (translate)'),\n    '')\n| where isnotempty(Model)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature)\n| extend Outcome = case(success == true, 'Succeeded', RequestCode == '499', 'Cancelled', resultCode == '429', 'Rate limited', 'Failed');\nlet step = iff(todatetime('{TimeRange:endISO}') - todatetime('{TimeRange:startISO}') <= 2d, 1h, 1d);\ncalls\n| make-series Calls = sum(itemCount) default = 0\n    on timestamp from bin(todatetime('{TimeRange:startISO}'), step) to todatetime('{TimeRange:endISO}') step step by Feature",
+        "size": 0,
+        "title": "Calls by feature",
+        "noDataMessage": "No calls to the models in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "timechart"
+      },
+      "name": "calls-over-time",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet calls = dependencies\n| where timestamp {TimeRange} and type == 'HTTP'\n| extend Model = case(\n    name has '/chat/completions', 'gpt-5-mini',\n    name has '/blackforestlabs/', 'FLUX.2-pro',\n    target endswith 'microsofttranslator.com', iff(name has '/dictionary/', 'Translator (dictionary)', 'Translator (translate)'),\n    '')\n| where isnotempty(Model)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature)\n| extend Outcome = case(success == true, 'Succeeded', RequestCode == '499', 'Cancelled', resultCode == '429', 'Rate limited', 'Failed');\nlet step = iff(todatetime('{TimeRange:endISO}') - todatetime('{TimeRange:startISO}') <= 2d, 1h, 1d);\ncalls\n| make-series Calls = sum(itemCount) default = 0\n    on timestamp from bin(todatetime('{TimeRange:startISO}'), step) to todatetime('{TimeRange:endISO}') step step by Outcome",
+        "size": 0,
+        "title": "Calls by outcome",
+        "noDataMessage": "No calls to the models in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "timechart",
+        "chartSettings": {
+          "seriesLabelSettings": [
+            {
+              "seriesName": "Succeeded",
+              "color": "green"
+            },
+            {
+              "seriesName": "Cancelled",
+              "color": "gray"
+            },
+            {
+              "seriesName": "Rate limited",
+              "color": "orange"
+            },
+            {
+              "seriesName": "Failed",
+              "color": "redBright"
+            }
+          ]
+        }
+      },
+      "name": "calls-outcomes",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet calls = dependencies\n| where timestamp {TimeRange} and type == 'HTTP'\n| extend Model = case(\n    name has '/chat/completions', 'gpt-5-mini',\n    name has '/blackforestlabs/', 'FLUX.2-pro',\n    target endswith 'microsofttranslator.com', iff(name has '/dictionary/', 'Translator (dictionary)', 'Translator (translate)'),\n    '')\n| where isnotempty(Model)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature)\n| extend Outcome = case(success == true, 'Succeeded', RequestCode == '499', 'Cancelled', resultCode == '429', 'Rate limited', 'Failed');\nlet step = iff(todatetime('{TimeRange:endISO}') - todatetime('{TimeRange:startISO}') <= 2d, 1h, 1d);\ncalls\n| where Outcome == 'Succeeded'\n| make-series ['95th percentile (s)'] = percentile(duration, 95) / 1000 default = 0\n    on timestamp from bin(todatetime('{TimeRange:startISO}'), step) to todatetime('{TimeRange:endISO}') step step by Model",
+        "size": 0,
+        "title": "How long the models take to answer (95th percentile, seconds)",
+        "noDataMessage": "No calls to the models in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "timechart"
+      },
+      "name": "calls-duration",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet calls = dependencies\n| where timestamp {TimeRange} and type == 'HTTP'\n| extend Model = case(\n    name has '/chat/completions', 'gpt-5-mini',\n    name has '/blackforestlabs/', 'FLUX.2-pro',\n    target endswith 'microsofttranslator.com', iff(name has '/dictionary/', 'Translator (dictionary)', 'Translator (translate)'),\n    '')\n| where isnotempty(Model)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature)\n| extend Outcome = case(success == true, 'Succeeded', RequestCode == '499', 'Cancelled', resultCode == '429', 'Rate limited', 'Failed');\ncalls\n| where Outcome != 'Succeeded'\n| summarize Calls = sum(itemCount), ['Last seen'] = max(timestamp) by Outcome, Feature, Model, ['Result code'] = resultCode\n| order by Calls desc",
+        "size": 0,
+        "title": "Calls that didn't succeed",
+        "noDataMessage": "Every call succeeded in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Calls",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            }
+          ]
+        }
+      },
+      "name": "calls-failures",
+      "customWidth": "50"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "A **Result code** of 0 means the call got no answer: it timed out, or was cancelled. **Rate limited** (429) means the deployment's quota per minute was used up (`capacity` and `suggestionCapacity` in `infra/modules/foundry.bicep`)."
+      },
+      "name": "calls-failures-description"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nexceptions\n| where timestamp {TimeRange}\n| join kind=inner (features | where Feature != 'Other') on operation_ParentId\n| summarize Count = sum(itemCount), ['Last seen'] = max(timestamp) by Feature, Error = outerMessage\n| order by Count desc",
+        "size": 0,
+        "title": "Errors the AI features logged",
+        "noDataMessage": "No errors in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Count",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            }
+          ]
+        }
+      },
+      "name": "calls-errors"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## gpt-5-mini tokens\nThe tokens each answer from gpt-5-mini used, as the API logs them. **Prompt** tokens are what it was sent: the instructions and the user's cards, tags or document. **Cached** prompt tokens are the part it had seen recently, which costs a tenth as much. **Completion** tokens are what it wrote, including its **reasoning**, which isn't shown to the user but is paid for. An answer **Cut short** ran out of completion tokens before it finished, and couldn't be used.\n\nAnswers the user had stopped waiting for aren't logged, since the API stops reading them."
+      },
+      "name": "tokens-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet tokens = traces\n| where timestamp {TimeRange} and isnotempty(customDimensions.PromptTokens)\n| extend Prompt = tolong(customDimensions.PromptTokens), Cached = tolong(customDimensions.CachedPromptTokens),\n    Completion = tolong(customDimensions.CompletionTokens), Reasoning = tolong(customDimensions.ReasoningTokens),\n    FinishReason = tostring(customDimensions.FinishReason)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature);\ntokens\n| summarize Answers = sum(itemCount), ['Prompt tokens'] = sum(Prompt * itemCount), Cached = sum(Cached * itemCount),\n    ['Completion tokens'] = sum(Completion * itemCount), Reasoning = sum(Reasoning * itemCount),\n    ['Prompt per answer'] = round(avg(Prompt)), ['Completion per answer'] = round(avg(Completion)),\n    ['Cut short'] = sumif(itemCount, FinishReason == 'length')\n    by Feature\n| order by ['Prompt tokens'] + ['Completion tokens'] desc",
+        "size": 0,
+        "title": "Tokens by feature",
+        "noDataMessage": "No token usage logged in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Prompt tokens",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            {
+              "columnMatch": "Completion tokens",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            },
+            {
+              "columnMatch": "Cut short",
+              "formatter": 18,
+              "formatOptions": {
+                "thresholdsOptions": "colors",
+                "thresholdsGrid": [
+                  {
+                    "operator": ">",
+                    "thresholdValue": "0",
+                    "representation": "redBright",
+                    "text": "{0}{1}"
+                  },
+                  {
+                    "operator": "Default",
+                    "representation": "green",
+                    "text": "{0}{1}"
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      },
+      "name": "tokens-by-feature"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet tokens = traces\n| where timestamp {TimeRange} and isnotempty(customDimensions.PromptTokens)\n| extend Prompt = tolong(customDimensions.PromptTokens), Cached = tolong(customDimensions.CachedPromptTokens),\n    Completion = tolong(customDimensions.CompletionTokens), Reasoning = tolong(customDimensions.ReasoningTokens),\n    FinishReason = tostring(customDimensions.FinishReason)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature);\nlet step = iff(todatetime('{TimeRange:endISO}') - todatetime('{TimeRange:startISO}') <= 2d, 1h, 1d);\ntokens\n| make-series Tokens = sum((Prompt + Completion) * itemCount) default = 0\n    on timestamp from bin(todatetime('{TimeRange:startISO}'), step) to todatetime('{TimeRange:endISO}') step step by Feature",
+        "size": 0,
+        "title": "Tokens by feature",
+        "noDataMessage": "No token usage logged in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "timechart"
+      },
+      "name": "tokens-over-time",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let features = requests\n| where timestamp {TimeRange}\n| extend Feature = case(\n    name == 'GET api/card-suggestions', 'Card suggestions',\n    name == 'POST api/tag-suggestions', 'Tags for a card',\n    name == 'GET api/tag-suggestions/new', 'New tags',\n    name == 'POST api/document-scans', 'Document scans',\n    name == 'POST api/flashcards/images/generate', 'Pictures',\n    name == 'POST api/translations', 'Translation',\n    'Other')\n| project operation_ParentId = id, Feature, RequestCode = resultCode, User = user_AuthenticatedId;\nlet tokens = traces\n| where timestamp {TimeRange} and isnotempty(customDimensions.PromptTokens)\n| extend Prompt = tolong(customDimensions.PromptTokens), Cached = tolong(customDimensions.CachedPromptTokens),\n    Completion = tolong(customDimensions.CompletionTokens), Reasoning = tolong(customDimensions.ReasoningTokens),\n    FinishReason = tostring(customDimensions.FinishReason)\n| join kind=leftouter features on operation_ParentId\n| extend Feature = iff(isempty(Feature), 'Other', Feature);\nlet step = iff(todatetime('{TimeRange:endISO}') - todatetime('{TimeRange:startISO}') <= 2d, 1h, 1d);\ntokens\n| make-series Prompt = sum((Prompt - Cached) * itemCount), Cached = sum(Cached * itemCount), Reasoning = sum(Reasoning * itemCount), Answer = sum((Completion - Reasoning) * itemCount) default = 0\n    on timestamp from bin(todatetime('{TimeRange:startISO}'), step) to todatetime('{TimeRange:endISO}') step step",
+        "size": 0,
+        "title": "Tokens by kind",
+        "noDataMessage": "No token usage logged in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "timechart"
+      },
+      "name": "tokens-kinds",
+      "customWidth": "50"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Caches\nEvery translation and picture is kept in the database, shared by every user, so the same words are only paid for once. A translation is **From the cache** when anyone has translated the same text before. A picture is when someone has made one of the same words that this user hasn't been shown yet: asking for another picture shows the next one there is, and makes a new one only when there's none left."
+      },
+      "name": "cache-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let logs = traces\n| where timestamp {TimeRange}\n| extend Category = tostring(customDimensions.CategoryName);\nlet translations = toscalar(logs | where Category == 'FlashCardSage.Api.Controllers.TranslationsController' and message startswith 'Translated ' | summarize sum(itemCount));\nlet cachedTranslations = toscalar(logs | where Category == 'FlashCardSage.Api.Translation.CachedTranslator' and message startswith 'Found the translation' | summarize sum(itemCount));\nlet cachedPictures = toscalar(logs | where Category == 'FlashCardSage.Api.Images.CachedImageGenerator' and message startswith 'Found picture' | summarize sum(itemCount));\nlet newPictures = toscalar(logs | where Category == 'FlashCardSage.Api.Images.CachedImageGenerator' and message startswith 'Kept a new' | summarize sum(itemCount));\nunion\n    (print Feature = 'Translation', Answered = coalesce(translations, 0), FromCache = coalesce(cachedTranslations, 0)),\n    (print Feature = 'Pictures', Answered = coalesce(cachedPictures, 0) + coalesce(newPictures, 0), FromCache = coalesce(cachedPictures, 0))\n| project Feature, Answered, ['From the cache'] = FromCache, ['From the model'] = Answered - FromCache,\n    ['Cache hit %'] = iff(Answered == 0, real(null), round(100.0 * FromCache / Answered, 1))",
+        "size": 0,
+        "title": "Answers from the cache",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Cache hit %",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              }
+            }
+          ]
+        }
+      },
+      "name": "cache-tiles",
+      "customWidth": "50"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "let step = iff(todatetime('{TimeRange:endISO}') - todatetime('{TimeRange:startISO}') <= 2d, 1h, 1d);\ntraces\n| where timestamp {TimeRange}\n| extend Category = tostring(customDimensions.CategoryName)\n| extend Series = case(\n    Category == 'FlashCardSage.Api.Translation.CachedTranslator' and message startswith 'Found the translation', 'Translations from the cache',\n    Category == 'FlashCardSage.Api.Controllers.TranslationsController' and message startswith 'Translated ', 'Translations',\n    Category == 'FlashCardSage.Api.Images.CachedImageGenerator' and message startswith 'Found picture', 'Pictures from the cache',\n    Category == 'FlashCardSage.Api.Images.CachedImageGenerator' and message startswith 'Kept a new', 'New pictures',\n    '')\n| where isnotempty(Series)\n| make-series Count = sum(itemCount) default = 0\n    on timestamp from bin(todatetime('{TimeRange:startISO}'), step) to todatetime('{TimeRange:endISO}') step step by Series",
+        "size": 0,
+        "title": "Translations and pictures",
+        "noDataMessage": "No translations or pictures in this period.",
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "queryType": 0,
+        "resourceType": "microsoft.insights/components",
+        "crossComponentResources": [
+          "__APP_INSIGHTS_ID__"
+        ],
+        "visualization": "timechart"
+      },
+      "name": "cache-over-time",
+      "customWidth": "50"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Azure metrics\nWhat the Azure AI Foundry and Translator resources counted, whoever called them. Charts with nothing in them mean the resource wasn't called in this period (or, for Foundry, isn't deployed)."
+      },
+      "name": "metrics-heading"
+    },
+    {
+      "type": 10,
+      "content": {
+        "version": "MetricsItem/2.0",
+        "size": 0,
+        "chartType": 2,
+        "resourceType": "microsoft.cognitiveservices/accounts",
+        "metricScope": 0,
+        "resourceIds": [
+          "__FOUNDRY_ID__"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "metrics": [
+          {
+            "namespace": "microsoft.cognitiveservices/accounts",
+            "metric": "microsoft.cognitiveservices/accounts--ModelRequests",
+            "aggregation": 1,
+            "splitBy": "ModelDeploymentName",
+            "splitBySortOrder": -1
+          }
+        ],
+        "title": "Foundry requests by deployment",
+        "gridSettings": {
+          "rowLimit": 10000
+        }
+      },
+      "customWidth": "50",
+      "name": "metrics-requests"
+    },
+    {
+      "type": 10,
+      "content": {
+        "version": "MetricsItem/2.0",
+        "size": 0,
+        "chartType": 2,
+        "resourceType": "microsoft.cognitiveservices/accounts",
+        "metricScope": 0,
+        "resourceIds": [
+          "__FOUNDRY_ID__"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "metrics": [
+          {
+            "namespace": "microsoft.cognitiveservices/accounts",
+            "metric": "microsoft.cognitiveservices/accounts--ModelRequests",
+            "aggregation": 1,
+            "splitBy": "StatusCode",
+            "splitBySortOrder": -1
+          }
+        ],
+        "title": "Foundry requests by status code",
+        "gridSettings": {
+          "rowLimit": 10000
+        }
+      },
+      "customWidth": "50",
+      "name": "metrics-status"
+    },
+    {
+      "type": 10,
+      "content": {
+        "version": "MetricsItem/2.0",
+        "size": 0,
+        "chartType": 2,
+        "resourceType": "microsoft.cognitiveservices/accounts",
+        "metricScope": 0,
+        "resourceIds": [
+          "__FOUNDRY_ID__"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "metrics": [
+          {
+            "namespace": "microsoft.cognitiveservices/accounts",
+            "metric": "microsoft.cognitiveservices/accounts--InputTokens",
+            "aggregation": 1
+          },
+          {
+            "namespace": "microsoft.cognitiveservices/accounts",
+            "metric": "microsoft.cognitiveservices/accounts--OutputTokens",
+            "aggregation": 1
+          }
+        ],
+        "title": "gpt-5-mini tokens",
+        "gridSettings": {
+          "rowLimit": 10000
+        }
+      },
+      "customWidth": "50",
+      "name": "metrics-tokens"
+    },
+    {
+      "type": 10,
+      "content": {
+        "version": "MetricsItem/2.0",
+        "size": 0,
+        "chartType": 2,
+        "resourceType": "microsoft.cognitiveservices/accounts",
+        "metricScope": 0,
+        "resourceIds": [
+          "__FOUNDRY_ID__"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "metrics": [
+          {
+            "namespace": "microsoft.cognitiveservices/accounts",
+            "metric": "microsoft.cognitiveservices/accounts--GeneratedImages",
+            "aggregation": 1
+          }
+        ],
+        "title": "Pictures generated",
+        "gridSettings": {
+          "rowLimit": 10000
+        }
+      },
+      "customWidth": "50",
+      "name": "metrics-images"
+    },
+    {
+      "type": 10,
+      "content": {
+        "version": "MetricsItem/2.0",
+        "size": 0,
+        "chartType": 2,
+        "resourceType": "microsoft.cognitiveservices/accounts",
+        "metricScope": 0,
+        "resourceIds": [
+          "__FOUNDRY_ID__"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "metrics": [
+          {
+            "namespace": "microsoft.cognitiveservices/accounts",
+            "metric": "microsoft.cognitiveservices/accounts--TimeToResponse",
+            "aggregation": 4,
+            "splitBy": "ModelDeploymentName",
+            "splitBySortOrder": -1
+          }
+        ],
+        "title": "Time to response by deployment",
+        "gridSettings": {
+          "rowLimit": 10000
+        }
+      },
+      "customWidth": "50",
+      "name": "metrics-latency"
+    },
+    {
+      "type": 10,
+      "content": {
+        "version": "MetricsItem/2.0",
+        "size": 0,
+        "chartType": 2,
+        "resourceType": "microsoft.cognitiveservices/accounts",
+        "metricScope": 0,
+        "resourceIds": [
+          "__TRANSLATOR_ID__"
+        ],
+        "timeContext": {
+          "durationMs": 604800000
+        },
+        "timeContextFromParameter": "TimeRange",
+        "metrics": [
+          {
+            "namespace": "microsoft.cognitiveservices/accounts",
+            "metric": "microsoft.cognitiveservices/accounts--TextCharactersTranslated",
+            "aggregation": 1
+          },
+          {
+            "namespace": "microsoft.cognitiveservices/accounts",
+            "metric": "microsoft.cognitiveservices/accounts--TotalCalls",
+            "aggregation": 1
+          }
+        ],
+        "title": "Translator characters translated and calls",
+        "gridSettings": {
+          "rowLimit": 10000
+        }
+      },
+      "customWidth": "50",
+      "name": "metrics-translator"
+    },
+    {
+      "type": 1,
+      "content": {
+        "json": "## Costs\nWhat the Azure AI resources cost, from Azure Cost Management, by what's billed (the meter): FLUX.2-pro by the megapixel, and gpt-5-mini by the million input, cached input and output tokens. Translator's free tier (`translatorSku` F0) costs nothing, so it only shows on the paid one. Amounts are actual costs in the billing currency, before any subscription credits. Cost data usually lags usage by 8 to 24 hours, so the most recent day is incomplete. The FlashCardSage Health workbook's **Costs** tab has the whole app's."
+      },
+      "name": "costs-heading"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"ARMEndpoint/1.0\",\"data\":\"{\\\"type\\\":\\\"ActualCost\\\",\\\"timeframe\\\":\\\"Custom\\\",\\\"timePeriod\\\":{\\\"from\\\":\\\"{TimeRange:startISO}\\\",\\\"to\\\":\\\"{TimeRange:endISO}\\\"},\\\"dataset\\\":{\\\"aggregation\\\":{\\\"totalCost\\\":{\\\"name\\\":\\\"Cost\\\",\\\"function\\\":\\\"Sum\\\"},\\\"totalQuantity\\\":{\\\"name\\\":\\\"UsageQuantity\\\",\\\"function\\\":\\\"Sum\\\"}},\\\"sorting\\\":[{\\\"direction\\\":\\\"descending\\\",\\\"name\\\":\\\"Cost\\\"}],\\\"granularity\\\":\\\"None\\\",\\\"filter\\\":{\\\"dimensions\\\":{\\\"name\\\":\\\"ResourceType\\\",\\\"operator\\\":\\\"In\\\",\\\"values\\\":[\\\"microsoft.cognitiveservices/accounts\\\"]}},\\\"grouping\\\":[{\\\"type\\\":\\\"Dimension\\\",\\\"name\\\":\\\"ResourceId\\\"},{\\\"type\\\":\\\"Dimension\\\",\\\"name\\\":\\\"Meter\\\"}]}}\",\"headers\":[],\"method\":\"POST\",\"path\":\"__RESOURCE_GROUP_ID__/providers/Microsoft.CostManagement/query\",\"urlParams\":[{\"key\":\"api-version\",\"value\":\"2023-11-01\"}],\"batchDisabled\":false,\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.properties.rows\",\"columns\":[{\"path\":\"$[3]\",\"columnid\":\"Meter\"},{\"path\":\"$[2]\",\"columnid\":\"Resource\"},{\"path\":\"$[1]\",\"columnid\":\"Quantity\",\"columnType\":\"number\"},{\"path\":\"$[0]\",\"columnid\":\"Cost\",\"columnType\":\"number\"},{\"path\":\"$[4]\",\"columnid\":\"Currency\"}]}}]}",
+        "size": 0,
+        "title": "Cost by meter",
+        "noDataMessage": "No AI costs in this period.",
+        "queryType": 12,
+        "visualization": "table",
+        "gridSettings": {
+          "formatters": [
+            {
+              "columnMatch": "Resource",
+              "formatter": 13,
+              "formatOptions": {
+                "linkTarget": "Resource",
+                "showIcon": true
+              }
+            },
+            {
+              "columnMatch": "Cost",
+              "formatter": 4,
+              "formatOptions": {
+                "palette": "blue"
+              },
+              "numberFormat": {
+                "unit": 0,
+                "options": {
+                  "style": "decimal",
+                  "useGrouping": true,
+                  "minimumFractionDigits": 2,
+                  "maximumFractionDigits": 4
+                }
+              }
+            }
+          ]
+        }
+      },
+      "customWidth": "50",
+      "name": "costs-by-meter"
+    },
+    {
+      "type": 3,
+      "content": {
+        "version": "KqlItem/1.0",
+        "query": "{\"version\":\"ARMEndpoint/1.0\",\"data\":\"{\\\"type\\\":\\\"ActualCost\\\",\\\"timeframe\\\":\\\"Custom\\\",\\\"timePeriod\\\":{\\\"from\\\":\\\"{TimeRange:startISO}\\\",\\\"to\\\":\\\"{TimeRange:endISO}\\\"},\\\"dataset\\\":{\\\"aggregation\\\":{\\\"totalCost\\\":{\\\"name\\\":\\\"Cost\\\",\\\"function\\\":\\\"Sum\\\"}},\\\"sorting\\\":[{\\\"direction\\\":\\\"descending\\\",\\\"name\\\":\\\"Cost\\\"}],\\\"granularity\\\":\\\"Daily\\\",\\\"filter\\\":{\\\"dimensions\\\":{\\\"name\\\":\\\"ResourceType\\\",\\\"operator\\\":\\\"In\\\",\\\"values\\\":[\\\"microsoft.cognitiveservices/accounts\\\"]}},\\\"grouping\\\":[{\\\"type\\\":\\\"Dimension\\\",\\\"name\\\":\\\"Meter\\\"}]}}\",\"headers\":[],\"method\":\"POST\",\"path\":\"__RESOURCE_GROUP_ID__/providers/Microsoft.CostManagement/query\",\"urlParams\":[{\"key\":\"api-version\",\"value\":\"2023-11-01\"}],\"batchDisabled\":false,\"transformers\":[{\"type\":\"jsonpath\",\"settings\":{\"tablePath\":\"$.properties.rows\",\"columns\":[{\"path\":\"$[0]\",\"columnid\":\"Cost\",\"columnType\":\"number\"},{\"path\":\"$[1]\",\"columnid\":\"Day\",\"columnType\":\"datetime\",\"substringRegexMatch\":\"(\\\\d{4})(\\\\d{2})(\\\\d{2})\",\"substringReplace\":\"$1-$2-$3T00:00:00Z\"},{\"path\":\"$[2]\",\"columnid\":\"Meter\"}]}}]}",
+        "size": 0,
+        "title": "Daily cost by meter",
+        "noDataMessage": "No AI costs in this period.",
+        "queryType": 12,
+        "visualization": "barchart",
+        "chartSettings": {
+          "xAxis": "Day",
+          "yAxis": [
+            "Cost"
+          ],
+          "group": "Meter",
+          "createOtherGroup": 0,
+          "showLegend": true
+        }
+      },
+      "customWidth": "50",
+      "name": "costs-daily"
+    }
+  ],
+  "fallbackResourceIds": [
+    "__APP_INSIGHTS_ID__"
+  ],
+  "$schema": "https://github.com/Microsoft/Application-Insights-Workbooks/blob/master/schema/workbook.json"
+}

@@ -4,6 +4,7 @@ using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
 using FlashCardSage.Api.Tests.Fakes;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Tests;
@@ -164,6 +165,34 @@ public class FoundryCardSuggesterTests
     }
 
     [Theory]
+    [InlineData("stop")]
+    [InlineData("length")]
+    public async Task SuggestAsync_LogsTheTokensTheModelUsed_EvenWhenItsAnswerCantBeUsed(string finishReason)
+    {
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}""", finishReason));
+        using var httpClient = new HttpClient(handler);
+        var logger = new RecordingLogger<FoundryCardSuggester>();
+        var suggester = new FoundryCardSuggester(httpClient, FoundryTestOptions.Default, logger);
+
+        try
+        {
+            await suggester.SuggestAsync(Cards, null, null, [], 8, CancellationToken.None);
+        }
+        catch (HttpRequestException)
+        {
+            // An answer cut short is an error, but its tokens are paid for.
+        }
+
+        var entry = Assert.Single(logger.Entries);
+        Assert.Equal("gpt-5-mini-2025-08-07", entry["ChatModel"]);
+        Assert.Equal(1200, entry["PromptTokens"]);
+        Assert.Equal(256, entry["CachedPromptTokens"]);
+        Assert.Equal(300, entry["CompletionTokens"]);
+        Assert.Equal(192, entry["ReasoningTokens"]);
+        Assert.Equal(finishReason, entry["FinishReason"]);
+    }
+
+    [Theory]
     [InlineData("", "secret-key", false)]
     [InlineData("https://foundry.example/", "", false)]
     [InlineData("https://foundry.example/", " ", false)]
@@ -172,14 +201,16 @@ public class FoundryCardSuggesterTests
     {
         using var httpClient = new HttpClient();
         var suggester = new FoundryCardSuggester(
-            httpClient, Options.Create(new FoundryChatOptions { Endpoint = endpoint, Key = key }));
+            httpClient,
+            Options.Create(new FoundryChatOptions { Endpoint = endpoint, Key = key }),
+            NullLogger<FoundryCardSuggester>.Instance);
 
         Assert.Equal(expected, suggester.IsAvailable);
     }
 
     private static FoundryCardSuggester CreateSuggester(HttpClient httpClient)
     {
-        return new FoundryCardSuggester(httpClient, FoundryTestOptions.Default);
+        return new FoundryCardSuggester(httpClient, FoundryTestOptions.Default, NullLogger<FoundryCardSuggester>.Instance);
     }
 
 }

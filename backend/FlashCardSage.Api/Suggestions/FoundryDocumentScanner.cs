@@ -7,7 +7,8 @@ namespace FlashCardSage.Api.Suggestions;
 
 // Asks the chat model (gpt-5-mini) on the Azure AI Foundry resource that suggests cards to make cards for the words
 // and phrases in a document the user uploads, such as an article or a story they're reading.
-public class FoundryDocumentScanner(HttpClient httpClient, IOptions<FoundryChatOptions> options) : IDocumentScanner
+public class FoundryDocumentScanner(
+    HttpClient httpClient, IOptions<FoundryChatOptions> options, ILogger<FoundryDocumentScanner> logger) : IDocumentScanner
 {
     private const string Instructions = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
@@ -27,7 +28,7 @@ public class FoundryDocumentScanner(HttpClient httpClient, IOptions<FoundryChatO
     // The same answer as the card suggester's: a list of cards.
     private static readonly object AnswerFormat = FoundrySchemas.Cards("document_cards");
 
-    private readonly FoundryChatClient chat = new(httpClient, options.Value);
+    private readonly FoundryChatClient chat = new(httpClient, options.Value, logger);
 
     public bool IsAvailable => chat.IsAvailable;
 

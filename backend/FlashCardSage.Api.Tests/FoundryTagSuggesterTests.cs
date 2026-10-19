@@ -4,6 +4,7 @@ using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
 using FlashCardSage.Api.Tests.Fakes;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Options;
 
 namespace FlashCardSage.Api.Tests;
@@ -153,14 +154,16 @@ public class FoundryTagSuggesterTests
     {
         using var httpClient = new HttpClient();
         var suggester = new FoundryTagSuggester(
-            httpClient, Options.Create(new FoundryChatOptions { Endpoint = endpoint, Key = key }));
+            httpClient,
+            Options.Create(new FoundryChatOptions { Endpoint = endpoint, Key = key }),
+            NullLogger<FoundryTagSuggester>.Instance);
 
         Assert.Equal(expected, suggester.IsAvailable);
     }
 
     private static FoundryTagSuggester CreateSuggester(HttpClient httpClient)
     {
-        return new FoundryTagSuggester(httpClient, FoundryTestOptions.Default);
+        return new FoundryTagSuggester(httpClient, FoundryTestOptions.Default, NullLogger<FoundryTagSuggester>.Instance);
     }
 
 }
