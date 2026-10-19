@@ -20,6 +20,8 @@ internal sealed class FakeTagSuggester : ITagSuggester
 
     public IReadOnlyList<FlashCard>? Untagged { get; private set; }
 
+    public IReadOnlyList<string>? Exclude { get; private set; }
+
     public int? Count { get; private set; }
 
     // How many times new tags were asked for.
@@ -40,12 +42,14 @@ internal sealed class FakeTagSuggester : ITagSuggester
     public Task<IReadOnlyList<string>> SuggestNewAsync(
         IReadOnlyList<Tag> tags,
         IReadOnlyList<FlashCard> untagged,
+        IReadOnlyList<string> exclude,
         int count,
         CancellationToken cancellationToken)
     {
         NewCallCount++;
         Tags = tags;
         Untagged = untagged;
+        Exclude = exclude;
         Count = count;
         return Failure is null ? Task.FromResult(Result) : Task.FromException<IReadOnlyList<string>>(Failure);
     }

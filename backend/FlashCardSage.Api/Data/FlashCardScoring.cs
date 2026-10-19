@@ -42,6 +42,9 @@ public static class FlashCardScoring
                 card.Spanish,
                 card.English,
                 PracticeScore.FromOutcomes(resultsByCard[card.Id].Select(result => result.Outcome)),
+                resultsByCard[card.Id].Count(result => result.Outcome == PracticeOutcome.GotIt),
+                resultsByCard[card.Id].Count(result => result.Outcome == PracticeOutcome.WasClose),
+                resultsByCard[card.Id].Count(result => result.Outcome == PracticeOutcome.Failed),
                 resultsByCard[card.Id].FirstOrDefault()?.PracticedAt,
                 card.ImageUrl))
             .ToList();

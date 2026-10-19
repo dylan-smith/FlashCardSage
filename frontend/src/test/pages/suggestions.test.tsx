@@ -201,15 +201,21 @@ describe('suggested cards', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('asks for more suggestions, not the ones the API kept', async () => {
+  it('asks for more suggestions, leaving out the ones already shown', async () => {
     const user = userEvent.setup()
     const suggest = vi
       .fn<(url: string) => Promise<Response>>()
       .mockResolvedValueOnce(
-        jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
+        jsonResponse([
+          { spanish: 'el perro', english: 'the dog' },
+          { spanish: 'el gato', english: 'the cat' },
+        ]),
       )
       .mockResolvedValueOnce(
         jsonResponse([{ spanish: 'el pez', english: 'the fish' }]),
+      )
+      .mockResolvedValueOnce(
+        jsonResponse([{ spanish: 'la vaca', english: 'the cow' }]),
       )
     await showSuggestions(suggest)
     await screen.findByRole('list', { name: 'Suggested cards' })
@@ -220,9 +226,16 @@ describe('suggested cards', () => {
       expect(suggestionList()).toHaveTextContent('el pez')
     })
     expect(suggestionList()).not.toHaveTextContent('el perro')
-    expect(suggest.mock.calls).toEqual([
-      [api('/card-suggestions')],
-      [api('/card-suggestions?refresh=true')],
+
+    await user.click(screen.getByRole('button', { name: 'More suggestions' }))
+
+    await waitFor(() => {
+      expect(suggestionList()).toHaveTextContent('la vaca')
+    })
+    expect(suggest.mock.calls.map(([url]) => url)).toEqual([
+      api('/card-suggestions'),
+      api('/card-suggestions?exclude=el+perro&exclude=el+gato'),
+      api('/card-suggestions?exclude=el+perro&exclude=el+gato&exclude=el+pez'),
     ])
   })
 

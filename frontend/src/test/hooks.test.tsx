@@ -281,12 +281,10 @@ describe('useSuggestions', () => {
   it('asks for more on refresh, ignoring the earlier request', async () => {
     const pending: ((value: string[]) => void)[] = []
     const signals: AbortSignal[] = []
-    const refreshes: boolean[] = []
     const { result } = renderHook(() =>
       useSuggestions(
-        (signal, { refresh }) => {
+        (signal) => {
           signals.push(signal)
-          refreshes.push(refresh)
           return new Promise<string[]>((resolve) => pending.push(resolve))
         },
         [],
@@ -299,7 +297,6 @@ describe('useSuggestions', () => {
 
     expect(result.current.state).toEqual({ status: 'loading' })
     await waitFor(() => expect(pending).toHaveLength(2))
-    expect(refreshes).toEqual([false, true])
     expect(signals[0].aborted).toBe(true)
     await act(async () => {
       pending[0](['viejo'])

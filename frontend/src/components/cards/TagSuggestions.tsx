@@ -1,11 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import ListItem from '@mui/material/ListItem'
 import ListItemText from '@mui/material/ListItemText'
 import type { Tag } from '../../api/flashCards'
 import { storageKeys } from '../../lib/storageKeys'
 import { sameText } from '../../lib/text'
 import { listNewTagSuggestions } from '../../api/tagSuggestions'
-import { useSuggestions } from '../../hooks/useSuggestions'
+import { maxShownSuggestions, useSuggestions } from '../../hooks/useSuggestions'
 import { AnimatedList, AnimatedListItem } from '../common/AnimatedList'
 import { CardActionButton } from './CardActionButton'
 import { SuggestionsPanel } from './SuggestionsPanel'
@@ -21,8 +21,19 @@ export function TagSuggestions({
   // Makes the tag, resolving to whether it was saved.
   onAdd: (name: string) => Promise<boolean>
 }) {
+  // Every name suggested so far, so asking for more gives different ones. The API only reads the newest.
+  const shown = useRef<string[]>([])
   const { state, refresh, update } = useSuggestions(
-    (signal, { refresh }) => listNewTagSuggestions({ refresh }, signal),
+    async (signal) => {
+      const names = await listNewTagSuggestions(
+        shown.current.slice(-maxShownSuggestions),
+        signal,
+      )
+      if (names !== null) {
+        shown.current = [...shown.current, ...names]
+      }
+      return names
+    },
     [],
     'suggestTags',
   )

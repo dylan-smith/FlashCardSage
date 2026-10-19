@@ -56,23 +56,23 @@ public class CachedCardSuggesterTests
         var cat = TestDb.Card("el gato", "the cat", tags: ["animals"]);
         var suggester = new FakeCardSuggester { Result = [Fish] };
         var cachedSuggester = CreateCachedSuggester(suggester, dbContext);
-        await cachedSuggester.SuggestAsync([cat], null, null, 8, false, CancellationToken.None);
+        await cachedSuggester.SuggestAsync([cat], null, null, [], 8, CancellationToken.None);
 
         // Another card, a card's changed tags, the card they're related to, a tag and another count.
         await cachedSuggester.SuggestAsync(
-            [cat, TestDb.Card("el perro", "the dog")], null, null, 8, false, CancellationToken.None);
+            [cat, TestDb.Card("el perro", "the dog")], null, null, [], 8, CancellationToken.None);
         await cachedSuggester.SuggestAsync(
-            [TestDb.Card("el gato", "the cat", tags: ["pets"])], null, null, 8, false, CancellationToken.None);
-        await cachedSuggester.SuggestAsync([cat], cat, null, 8, false, CancellationToken.None);
-        await cachedSuggester.SuggestAsync([cat], null, new Tag { Name = "animals" }, 8, false, CancellationToken.None);
-        await cachedSuggester.SuggestAsync([cat], null, null, 9, false, CancellationToken.None);
+            [TestDb.Card("el gato", "the cat", tags: ["pets"])], null, null, [], 8, CancellationToken.None);
+        await cachedSuggester.SuggestAsync([cat], cat, null, [], 8, CancellationToken.None);
+        await cachedSuggester.SuggestAsync([cat], null, new Tag { Name = "animals" }, [], 8, CancellationToken.None);
+        await cachedSuggester.SuggestAsync([cat], null, null, [], 9, CancellationToken.None);
 
         Assert.Equal(6, suggester.CallCount);
         Assert.Equal(6, await dbContext.CardSuggestions.CountAsync());
     }
 
     [Fact]
-    public async Task SuggestAsync_AsksAgainAndReplacesTheKeptSuggestions_WhenRefreshing()
+    public async Task SuggestAsync_AsksAgainAndReplacesTheKeptSuggestions_WhenAskedForMore()
     {
         await using var dbContext = TestDb.Create();
         var cards = new List<FlashCard> { TestDb.Card("el gato", "the cat") };
@@ -80,12 +80,17 @@ public class CachedCardSuggesterTests
         await Suggest(suggester, dbContext, cards);
         suggester.Result = [Mouse];
 
-        var result = await Suggest(suggester, dbContext, cards, refresh: true);
+        var result = await Suggest(suggester, dbContext, cards, exclude: ["el pez"]);
 
         Assert.Equal([Mouse], result);
         Assert.Equal(2, suggester.CallCount);
+        Assert.Equal(["el pez"], suggester.Exclude);
+        // Kept for the request with nothing excluded, which is what opening the page asks.
         var cached = Assert.Single(dbContext.CardSuggestions);
+        Assert.Equal(CachedCardSuggester.PromptHash(cards, null, null, 8), cached.PromptHash);
         Assert.Equal([Mouse], cached.Suggestions);
+        Assert.Equal([Mouse], await Suggest(suggester, dbContext, cards));
+        Assert.Equal(2, suggester.CallCount);
     }
 
     [Fact]
@@ -149,12 +154,12 @@ public class CachedCardSuggesterTests
         var cachedSuggester = CreateCachedSuggester(suggester, dbContext);
         for (var count = 1; count <= SuggestionCache.MaxKept + 2; count++)
         {
-            await cachedSuggester.SuggestAsync([], null, null, count, false, CancellationToken.None);
+            await cachedSuggester.SuggestAsync([], null, null, [], count, CancellationToken.None);
         }
 
         // The two oldest were removed, so asking for the first again asks the model.
         Assert.Equal(SuggestionCache.MaxKept, await dbContext.CardSuggestions.CountAsync());
-        await cachedSuggester.SuggestAsync([], null, null, 1, false, CancellationToken.None);
+        await cachedSuggester.SuggestAsync([], null, null, [], 1, CancellationToken.None);
         Assert.Equal(SuggestionCache.MaxKept + 3, suggester.CallCount);
     }
 
@@ -162,7 +167,7 @@ public class CachedCardSuggesterTests
     public void PromptHash_IsTheSha256OfTheInstructionsAndTheRequest()
     {
         var cards = new List<FlashCard> { TestDb.Card("el gato", "the cat") };
-        var prompt = FoundryCardSuggester.Instructions + "\n" + FoundryCardSuggester.Request(cards, null, null, 8);
+        var prompt = FoundryCardSuggester.Instructions + "\n" + FoundryCardSuggester.Request(cards, null, null, [], 8);
 
         Assert.Equal(
             Convert.ToHexStringLower(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(prompt))),
@@ -180,10 +185,10 @@ public class CachedCardSuggesterTests
     }
 
     private static Task<IReadOnlyList<CardSuggestion>> Suggest(
-        FakeCardSuggester suggester, FlashCardDbContext dbContext, List<FlashCard> cards, bool refresh = false)
+        FakeCardSuggester suggester, FlashCardDbContext dbContext, List<FlashCard> cards, List<string>? exclude = null)
     {
         return CreateCachedSuggester(suggester, dbContext)
-            .SuggestAsync(cards, null, null, 8, refresh, CancellationToken.None);
+            .SuggestAsync(cards, null, null, exclude ?? [], 8, CancellationToken.None);
     }
 
     private static CachedCardSuggester CreateCachedSuggester(ICardSuggester suggester, FlashCardDbContext dbContext)

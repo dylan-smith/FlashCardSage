@@ -15,18 +15,13 @@ export function suggestTags(fields: FlashCardFields, signal?: AbortSignal) {
   )
 }
 
-// The names of a handful of new tags that go with the user's tags and cards, or null when suggestions aren't available
-// (a 503). The API gives the same ones as last time while the user's tags and cards haven't changed, unless refresh
-// asks for new ones. Throws when they fail.
-export function listNewTagSuggestions(
-  { refresh }: { refresh?: boolean },
-  signal?: AbortSignal,
-) {
+// The names of a handful of new tags that go with the user's tags and cards, leaving out the ones in exclude (already
+// shown), or null when suggestions aren't available (a 503). With nothing to exclude, the API gives the ones it last
+// gave while the user's tags and cards haven't changed, and otherwise it asks for new ones. Throws when they fail.
+export function listNewTagSuggestions(exclude: string[], signal?: AbortSignal) {
   return optional(
     getJson<string[]>(
-      withQuery(`${apiBaseUrl}/api/tag-suggestions/new`, {
-        refresh: refresh === true ? 'true' : undefined,
-      }),
+      withQuery(`${apiBaseUrl}/api/tag-suggestions/new`, { exclude }),
       'Unable to suggest tags.',
       { signal },
     ),

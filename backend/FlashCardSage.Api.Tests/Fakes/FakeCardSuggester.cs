@@ -20,15 +20,23 @@ internal sealed class FakeCardSuggester : ICardSuggester
 
     public Tag? Tag { get; private set; }
 
+    public IReadOnlyList<string>? Exclude { get; private set; }
+
     public int? Count { get; private set; }
 
     public Task<IReadOnlyList<CardSuggestion>> SuggestAsync(
-        IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, int count, CancellationToken cancellationToken)
+        IReadOnlyList<FlashCard> cards,
+        FlashCard? relatedTo,
+        Tag? tag,
+        IReadOnlyList<string> exclude,
+        int count,
+        CancellationToken cancellationToken)
     {
         CallCount++;
         Cards = cards;
         RelatedTo = relatedTo;
         Tag = tag;
+        Exclude = exclude;
         Count = count;
         return Failure is null ? Task.FromResult(Result) : Task.FromException<IReadOnlyList<CardSuggestion>>(Failure);
     }

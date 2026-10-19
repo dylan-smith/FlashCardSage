@@ -25,7 +25,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         var response = await GetAsync(dbContext);
 
-        Assert.Equivalent(new[] { new FlashCardScore(card.Id, ["el gato"], ["the cat"], 0, null, null) }, response.Cards);
+        Assert.Equivalent(new[] { new FlashCardScore(card.Id, ["el gato"], ["the cat"], 0, 0, 0, 0, null, null) }, response.Cards);
     }
 
     [Theory]
@@ -68,6 +68,22 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
             [(house.Id, 0), (book.Id, 0), (dog.Id, 50), (cat.Id, 80)],
             response.Cards.Select(card => (card.Id, card.Score)));
         Assert.Equal((130, 400), (response.Total, response.Maximum));
+    }
+
+    [Fact]
+    public async Task Get_CountsEachCardsOutcomes()
+    {
+        await using var dbContext = TestDb.Create();
+        var cat = await TestDb.AddCardAsync(dbContext, TestDb.Card("el gato", "the cat"));
+        var dog = await TestDb.AddCardAsync(dbContext, TestDb.Card("el perro", "the dog"));
+        await AddResultsAsync(dbContext, cat, GotIt, Failed, GotIt, WasClose);
+        await AddResultsAsync(dbContext, dog, Failed);
+
+        var response = await GetAsync(dbContext);
+
+        Assert.Equal(
+            [(cat.Id, 2, 1, 1), (dog.Id, 0, 0, 1)],
+            response.Cards.OrderBy(card => card.Id).Select(card => (card.Id, card.GotIt, card.WasClose, card.Failed)));
     }
 
     [Fact]
@@ -115,7 +131,7 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
 
         var response = await GetAsync(dbContext);
 
-        Assert.Equivalent(new[] { new FlashCardScore(card.Id, ["el gato"], ["the cat"], 0, null, null) }, response.Cards);
+        Assert.Equivalent(new[] { new FlashCardScore(card.Id, ["el gato"], ["the cat"], 0, 0, 0, 0, null, null) }, response.Cards);
         Assert.Equal((0, 100), (response.Total, response.Maximum));
     }
 

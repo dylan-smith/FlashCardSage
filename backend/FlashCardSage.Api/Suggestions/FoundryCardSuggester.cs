@@ -26,19 +26,27 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<FoundryChatOpt
     public bool IsAvailable => chat.IsAvailable;
 
     public async Task<IReadOnlyList<CardSuggestion>> SuggestAsync(
-        IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, int count, CancellationToken cancellationToken)
+        IReadOnlyList<FlashCard> cards,
+        FlashCard? relatedTo,
+        Tag? tag,
+        IReadOnlyList<string> exclude,
+        int count,
+        CancellationToken cancellationToken)
     {
         var answer = await chat.AskAsync<Answer>(
-            Instructions, Request(cards, relatedTo, tag, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
+            Instructions, Request(cards, relatedTo, tag, exclude, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
         return answer?.Cards ?? [];
     }
 
     // The request: how many cards to suggest, and the learner's cards one per line, with their tags, which say what
     // the learner groups them by. With relatedTo, the new cards are to be related to that one, and with tag, they're to
-    // go under that tag. It's also what the suggestions are cached by (see CachedCardSuggester).
-    public static string Request(IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, int count)
+    // go under that tag. The Spanish of the cards they've already been shown comes last, if any. Without that, it's
+    // also what the suggestions are cached by (see CachedCardSuggester).
+    public static string Request(
+        IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, IReadOnlyList<string> exclude, int count)
     {
         ArgumentNullException.ThrowIfNull(cards);
+        ArgumentNullException.ThrowIfNull(exclude);
 
         var text = new StringBuilder();
         if (relatedTo is not null)
@@ -62,6 +70,11 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<FoundryChatOpt
         foreach (var card in cards)
         {
             text.Append("- ").AppendLine(PromptText.CardWithTags(card));
+        }
+        if (exclude.Count > 0)
+        {
+            text.AppendLine().Append("The learner has already been shown cards for these, so suggest different ones: ")
+                .AppendJoin(", ", exclude).AppendLine(".");
         }
         return text.ToString();
     }

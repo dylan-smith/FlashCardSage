@@ -80,17 +80,20 @@ public class CachedTagSuggesterTests
     }
 
     [Fact]
-    public async Task SuggestNewAsync_AsksAgain_WhenRefreshing()
+    public async Task SuggestNewAsync_AsksAgainAndReplacesTheKeptSuggestions_WhenAskedForMore()
     {
         await using var dbContext = TestDb.Create();
         var suggester = new FakeTagSuggester { Result = ["Food"] };
         await SuggestNew(suggester, dbContext, [], []);
         suggester.Result = ["Colors"];
 
-        var result = await SuggestNew(suggester, dbContext, [], [], refresh: true);
+        var result = await SuggestNew(suggester, dbContext, [], [], exclude: ["Food"]);
 
         Assert.Equal(["Colors"], result);
+        Assert.Equal(["Food"], suggester.Exclude);
         Assert.Equal(["Colors"], Assert.Single(dbContext.TagSuggestions).Suggestions);
+        Assert.Equal(["Colors"], await SuggestNew(suggester, dbContext, [], []));
+        Assert.Equal(2, suggester.NewCallCount);
     }
 
     [Fact]
@@ -100,7 +103,7 @@ public class CachedTagSuggesterTests
 
         Assert.Equal(
             SuggestionCache.PromptHash(
-                FoundryTagSuggester.NewTagInstructions, FoundryTagSuggester.NewTagsRequest(tags, [], 8)),
+                FoundryTagSuggester.NewTagInstructions, FoundryTagSuggester.NewTagsRequest(tags, [], [], 8)),
             CachedTagSuggester.PromptHash(tags, [], 8));
     }
 
@@ -109,9 +112,9 @@ public class CachedTagSuggesterTests
         FlashCardDbContext dbContext,
         List<Tag> tags,
         List<FlashCard> untagged,
-        bool refresh = false)
+        List<string>? exclude = null)
     {
         return new CachedTagSuggester(suggester, dbContext, NullLogger<CachedTagSuggester>.Instance)
-            .SuggestNewAsync(tags, untagged, 8, refresh, CancellationToken.None);
+            .SuggestNewAsync(tags, untagged, exclude ?? [], 8, CancellationToken.None);
     }
 }

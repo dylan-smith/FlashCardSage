@@ -180,7 +180,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         var suggester = new FakeTagSuggester { Result = ["Colors"] };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         var names = ActionResultAssert.Ok<List<string>>(result.Result);
         Assert.Equal(["Colors"], names);
@@ -201,7 +201,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         var suggester = new FakeTagSuggester();
         await using var dbContext = TestDb.Create(databaseName);
 
-        await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         var described = suggester.Untagged!.Select(card => card.Spanish.Single()).ToList();
         Assert.Equal(TagSuggestionsController.MaxUntaggedCards, described.Count);
@@ -224,10 +224,37 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         var names = ActionResultAssert.Ok<List<string>>(result.Result);
         Assert.Equal(["Food", "Colors", "Home", "Travel", "Weather"], names);
+        Assert.Empty(suggester.Exclude!);
+    }
+
+    [Fact]
+    public async Task SuggestNewTags_LeavesOutNamesAlreadyShown_AndTellsTheSuggester()
+    {
+        var suggester = new FakeTagSuggester { Result = ["food", "Colors", "Home"] };
+        await using var dbContext = TestDb.Create();
+
+        var result = await CreateController(dbContext, suggester)
+            .SuggestNewTags([" Food ", "Travel", "food", "", new string('x', Tag.MaxNameLength + 1)], CancellationToken.None);
+
+        var names = ActionResultAssert.Ok<List<string>>(result.Result);
+        Assert.Equal(["Colors", "Home"], names);
+        Assert.Equal(["Food", "Travel"], suggester.Exclude);
+    }
+
+    [Fact]
+    public async Task SuggestNewTags_TellsTheSuggesterOnlyTheNewestNamesShown()
+    {
+        var shown = Enumerable.Range(1, ShownSuggestions.MaxCount + 2).Select(i => $"Tag {i}").ToArray();
+        var suggester = new FakeTagSuggester();
+        await using var dbContext = TestDb.Create();
+
+        await CreateController(dbContext, suggester).SuggestNewTags(shown, CancellationToken.None);
+
+        Assert.Equal(shown[2..], suggester.Exclude);
     }
 
     [Fact]
@@ -238,14 +265,14 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         var suggester = new FakeTagSuggester { Result = ["Food"] };
         await using (var dbContext = TestDb.Create(databaseName))
         {
-            await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
+            await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
         }
         suggester.Result = ["Colors"];
         await using var secondContext = TestDb.Create(databaseName);
 
-        var again = await CreateController(secondContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        var again = await CreateController(secondContext, suggester).SuggestNewTags(null, CancellationToken.None);
         await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Travel");
-        var changed = await CreateController(secondContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        var changed = await CreateController(secondContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         Assert.Equal(["Food"], ActionResultAssert.Ok<List<string>>(again.Result));
         Assert.Equal(["Colors"], ActionResultAssert.Ok<List<string>>(changed.Result));
@@ -253,18 +280,18 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     }
 
     [Fact]
-    public async Task SuggestNewTags_AsksForNewSuggestions_WhenRefreshing()
+    public async Task SuggestNewTags_AsksForMore_AndShowsThemNextTime()
     {
         var suggester = new FakeTagSuggester { Result = ["Food"] };
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext, suggester);
-        await controller.SuggestNewTags(false, CancellationToken.None);
+        await controller.SuggestNewTags(null, CancellationToken.None);
         suggester.Result = ["Colors"];
 
-        var refreshed = await controller.SuggestNewTags(true, CancellationToken.None);
-        var again = await controller.SuggestNewTags(false, CancellationToken.None);
+        var more = await controller.SuggestNewTags(["Food"], CancellationToken.None);
+        var again = await controller.SuggestNewTags(null, CancellationToken.None);
 
-        Assert.Equal(["Colors"], ActionResultAssert.Ok<List<string>>(refreshed.Result));
+        Assert.Equal(["Colors"], ActionResultAssert.Ok<List<string>>(more.Result));
         Assert.Equal(["Colors"], ActionResultAssert.Ok<List<string>>(again.Result));
         Assert.Equal(2, suggester.NewCallCount);
     }
@@ -275,7 +302,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         var suggester = new FakeTagSuggester { IsAvailable = false };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
         Assert.Null(suggester.Count);
@@ -292,7 +319,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }

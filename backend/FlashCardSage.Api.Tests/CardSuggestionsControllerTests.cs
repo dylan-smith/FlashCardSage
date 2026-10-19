@@ -26,7 +26,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester { Result = [new("  el pájaro ", " the bird"), new("el pez", "the fish")] };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pájaro", "the bird"), new("el pez", "the fish")], suggestions);
@@ -34,6 +34,37 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         Assert.Null(suggester.RelatedTo);
         Assert.Null(suggester.Tag);
         Assert.Equal(CardSuggestionsController.SuggestionCount + 3, suggester.Count);
+        Assert.Empty(suggester.Exclude!);
+    }
+
+    [Fact]
+    public async Task Suggest_LeavesOutCardsAlreadyShown_AndTellsTheSuggester()
+    {
+        var suggester = new FakeCardSuggester
+        {
+            Result = [new("El Pájaro", "the bird"), new("el pez", "the fish"), new("la vaca", "the cow")]
+        };
+        await using var dbContext = TestDb.Create();
+
+        var result = await CreateController(dbContext, suggester).Suggest(
+            null, null, [" el pájaro ", "la vaca", "el pájaro", "", new string('x', FlashCard.MaxWordLength + 1)],
+            CancellationToken.None);
+
+        var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
+        Assert.Equal([new("el pez", "the fish")], suggestions);
+        Assert.Equal(["el pájaro", "la vaca"], suggester.Exclude);
+    }
+
+    [Fact]
+    public async Task Suggest_TellsTheSuggesterOnlyTheNewestCardsShown()
+    {
+        var shown = Enumerable.Range(1, ShownSuggestions.MaxCount + 2).Select(i => $"es {i}").ToArray();
+        var suggester = new FakeCardSuggester();
+        await using var dbContext = TestDb.Create();
+
+        await CreateController(dbContext, suggester).Suggest(null, null, shown, CancellationToken.None);
+
+        Assert.Equal(shown[2..], suggester.Exclude);
     }
 
     [Fact]
@@ -44,7 +75,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester { Result = [new("el collar", "the collar")] };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).Suggest(ids[1], null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(ids[1], null, null, CancellationToken.None);
 
         var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el collar", "the collar")], suggestions);
@@ -61,7 +92,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester();
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).Suggest(others[0], null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(others[0], null, null, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result.Result);
         Assert.Null(suggester.Cards);
@@ -79,7 +110,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester { Result = [new("el pan", "the bread")] };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, tagId, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, tagId, null, CancellationToken.None);
 
         var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pan", "the bread")], suggestions);
@@ -100,7 +131,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester();
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, otherTagId, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, otherTagId, null, CancellationToken.None);
 
         Assert.IsType<NotFoundResult>(result.Result);
         Assert.Null(suggester.Cards);
@@ -127,7 +158,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pez", "the fish"), new("el ratón", "the mouse")], suggestions);
@@ -145,7 +176,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pez", "the fish")], suggestions);
@@ -160,7 +191,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal(CardSuggestionsController.SuggestionCount, suggestions.Count);
@@ -177,7 +208,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester();
         await using var dbContext = TestDb.Create(databaseName);
 
-        await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         Assert.Equal(CardSuggestionsController.MaxCardsDescribed, suggester.Cards!.Count);
         Assert.Equal("es 11", suggester.Cards[0].Spanish.Single());
@@ -191,12 +222,12 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester { Result = [new("el pez", "the fish")] };
         await using (var dbContext = TestDb.Create(databaseName))
         {
-            await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+            await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
         }
         suggester.Result = [new("el ratón", "the mouse")];
         await using var secondContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(secondContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        var result = await CreateController(secondContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
         Assert.Equal([new("el pez", "the fish")], suggestions);
@@ -210,10 +241,10 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester { Result = [new("el pez", "the fish"), new("el ratón", "the mouse")] };
         await using var dbContext = TestDb.Create(databaseName);
         var controller = CreateController(dbContext, suggester);
-        await controller.Suggest(null, null, false, CancellationToken.None);
+        await controller.Suggest(null, null, null, CancellationToken.None);
         await TestDb.AddCardAsync(dbContext, TestDb.Card("el pez", "the fish"));
 
-        var result = await controller.Suggest(null, null, false, CancellationToken.None);
+        var result = await controller.Suggest(null, null, null, CancellationToken.None);
 
         // The cards changed, so the model is asked again, and what it says is still checked against them.
         var suggestions = ActionResultAssert.Ok<List<CardSuggestion>>(result.Result);
@@ -222,18 +253,18 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     }
 
     [Fact]
-    public async Task Suggest_AsksForNewSuggestions_WhenRefreshing()
+    public async Task Suggest_AsksForMore_AndShowsThemNextTime()
     {
         var suggester = new FakeCardSuggester { Result = [new("el pez", "the fish")] };
         await using var dbContext = TestDb.Create();
         var controller = CreateController(dbContext, suggester);
-        await controller.Suggest(null, null, false, CancellationToken.None);
+        await controller.Suggest(null, null, null, CancellationToken.None);
         suggester.Result = [new("el ratón", "the mouse")];
 
-        var refreshed = await controller.Suggest(null, null, true, CancellationToken.None);
-        var again = await controller.Suggest(null, null, false, CancellationToken.None);
+        var more = await controller.Suggest(null, null, ["el pez"], CancellationToken.None);
+        var again = await controller.Suggest(null, null, null, CancellationToken.None);
 
-        Assert.Equal([new("el ratón", "the mouse")], ActionResultAssert.Ok<List<CardSuggestion>>(refreshed.Result));
+        Assert.Equal([new("el ratón", "the mouse")], ActionResultAssert.Ok<List<CardSuggestion>>(more.Result));
         Assert.Equal([new("el ratón", "the mouse")], ActionResultAssert.Ok<List<CardSuggestion>>(again.Result));
         Assert.Equal(2, suggester.CallCount);
     }
@@ -244,7 +275,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester { IsAvailable = false };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
         Assert.Null(suggester.Cards);
@@ -256,7 +287,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester { Failure = new HttpRequestException("boom") };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
@@ -267,7 +298,7 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
         var suggester = new FakeCardSuggester { Failure = new TaskCanceledException("timed out") };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).Suggest(null, null, false, CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).Suggest(null, null, null, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }

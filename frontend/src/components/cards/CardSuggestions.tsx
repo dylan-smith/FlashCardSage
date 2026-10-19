@@ -5,7 +5,7 @@ import type { FlashCardWords, Tag } from '../../api/flashCards'
 import { storageKeys } from '../../lib/storageKeys'
 import { sameText } from '../../lib/text'
 import { useCandidateEditing } from '../../hooks/useCandidateEditing'
-import { useSuggestions } from '../../hooks/useSuggestions'
+import { maxShownSuggestions, useSuggestions } from '../../hooks/useSuggestions'
 import type { Candidate } from '../../lib/candidates'
 import { CandidateList } from './CandidateList'
 import { SuggestionsPanel } from './SuggestionsPanel'
@@ -48,26 +48,37 @@ export function CardSuggestions({
   const [adding, setAdding] = useState<number | null>(null)
   // Each suggestion gets a key of its own, since the user can change its words.
   const nextKey = useRef(0)
+  // The Spanish of every card suggested so far, so asking for more gives different ones. The API only reads the newest.
+  const shown = useRef<string[]>([])
 
   const relatedToId = relatedTo?.id
   const tagName = tag?.name
   const tagId = tag?.id
 
   const { state, refresh, update } = useSuggestions(
-    async (signal, { refresh }): Promise<Candidate[] | null> => {
+    async (signal): Promise<Candidate[] | null> => {
       const suggestions = await listCardSuggestions(
-        { relatedTo: relatedToId, tag: tagId, refresh },
+        {
+          relatedTo: relatedToId,
+          tag: tagId,
+          exclude: shown.current.slice(-maxShownSuggestions),
+        },
         signal,
       )
-      return suggestions === null
-        ? null
-        : suggestions.map(({ spanish, english }) => ({
-            key: nextKey.current++,
-            spanish: [spanish],
-            english: [english],
-            tags: tagName === undefined ? [] : [tagName],
-            picture: null,
-          }))
+      if (suggestions === null) {
+        return null
+      }
+      shown.current = [
+        ...shown.current,
+        ...suggestions.map(({ spanish }) => spanish),
+      ]
+      return suggestions.map(({ spanish, english }) => ({
+        key: nextKey.current++,
+        spanish: [spanish],
+        english: [english],
+        tags: tagName === undefined ? [] : [tagName],
+        picture: null,
+      }))
     },
     [relatedToId, tagId, tagName],
     'suggest',
