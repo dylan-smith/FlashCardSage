@@ -19,7 +19,7 @@ public class FoundryTagSuggester(
         instructions.
         """;
 
-    private const string NewTagInstructions = """
+    public const string NewTagInstructions = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
         English translation, and the learner tags cards to group them, for example by topic. Given the learner's tags,
         each with some of the cards under it, and some of their cards that have no tag yet, suggest new tags they're
@@ -55,7 +55,7 @@ public class FoundryTagSuggester(
         CancellationToken cancellationToken)
     {
         var answer = await chat.AskAsync<Answer>(
-            NewTagInstructions, DescribeNew(tags, untagged, exclude, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
+            NewTagInstructions, NewTagsRequest(tags, untagged, exclude, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
         return answer?.Tags ?? [];
     }
 
@@ -78,10 +78,15 @@ public class FoundryTagSuggester(
     }
 
     // The request for new tags: the learner's tags one per line, each with its cards, then their untagged cards, then
-    // the names they've already been shown, if any.
-    private static string DescribeNew(
+    // the names they've already been shown, if any. Without those, it's also what the new tags are cached by (see
+    // CachedTagSuggester).
+    public static string NewTagsRequest(
         IReadOnlyList<Tag> tags, IReadOnlyList<FlashCard> untagged, IReadOnlyList<string> exclude, int count)
     {
+        ArgumentNullException.ThrowIfNull(tags);
+        ArgumentNullException.ThrowIfNull(untagged);
+        ArgumentNullException.ThrowIfNull(exclude);
+
         if (tags.Count == 0 && untagged.Count == 0)
         {
             var beginner = new StringBuilder(

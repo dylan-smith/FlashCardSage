@@ -16,7 +16,8 @@ export function suggestTags(fields: FlashCardFields, signal?: AbortSignal) {
 }
 
 // The names of a handful of new tags that go with the user's tags and cards, leaving out the ones in exclude (already
-// shown), or null when suggestions aren't available (a 503). Throws when they fail.
+// shown), or null when suggestions aren't available (a 503). With nothing to exclude, the API gives the ones it last
+// gave while the user's tags and cards haven't changed, and otherwise it asks for new ones. Throws when they fail.
 export function listNewTagSuggestions(exclude: string[], signal?: AbortSignal) {
   return optional(
     getJson<string[]>(

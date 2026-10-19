@@ -16,7 +16,7 @@ namespace FlashCardSage.Api.Controllers;
 [Route("api/card-suggestions")]
 public class CardSuggestionsController(
     FlashCardDbContext dbContext,
-    ICardSuggester suggester,
+    CachedCardSuggester suggester,
     ILogger<CardSuggestionsController> logger) : ApiControllerBase
 {
     // A handful, so they fit on the page next to the user's cards.
@@ -31,7 +31,7 @@ public class CardSuggestionsController(
     /// <summary>
     /// Suggests new cards, related to the card relatedTo and under the tag tag when they're given. The Spanish words in
     /// exclude, of the cards the page has already shown, aren't suggested again, so asking for more gives different
-    /// ones.
+    /// ones. Without exclude, they're the ones from the last time the same cards were asked about.
     /// </summary>
     [HttpGet]
     [ProducesResponseType<IEnumerable<CardSuggestion>>(StatusCodes.Status200OK)]

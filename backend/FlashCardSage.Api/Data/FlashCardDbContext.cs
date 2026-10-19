@@ -1,6 +1,9 @@
+using System.Text.Json;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Suggestions;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
 namespace FlashCardSage.Api.Data;
@@ -9,7 +12,8 @@ namespace FlashCardSage.Api.Data;
 /// Flash cards belong to a user. A query filter only shows the current user's, and new ones are given the current
 /// user when they're saved, so the controllers never handle the owner themselves. Tags and decks work the same way.
 /// Practice results and a card's words are filtered through their card, so they're only the current user's too, and
-/// a card's tags are only reached through the card. A deck only gets cards that were found through the filter. The
+/// a card's tags are only reached through the card. A deck only gets cards that were found through the filter, and
+/// cached card suggestions are owned like cards, since they're made from the user's cards. The
 /// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDeckImporter reads them past
 /// the filter. Cached translations and generated pictures are the exception: they're shared by every user, so they
 /// have no owner and no filter.
@@ -34,6 +38,10 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<CachedTranslation> Translations => Set<CachedTranslation>();
 
     public DbSet<CachedImage> GeneratedImages => Set<CachedImage>();
+
+    public DbSet<CachedCardSuggestions> CardSuggestions => Set<CachedCardSuggestions>();
+
+    public DbSet<CachedTagSuggestions> TagSuggestions => Set<CachedTagSuggestions>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -69,6 +77,8 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         ConfigureDeck(OwnedBy<Deck>(modelBuilder));
         ConfigureCachedTranslation(modelBuilder.Entity<CachedTranslation>());
         ConfigureCachedImage(modelBuilder.Entity<CachedImage>());
+        ConfigureCachedCardSuggestions(OwnedBy<CachedCardSuggestions>(modelBuilder));
+        ConfigureCachedSuggestions<CachedTagSuggestions, string>(OwnedBy<CachedTagSuggestions>(modelBuilder));
     }
 
     // Only the current user's rows are found, and deleting a user deletes theirs.
@@ -235,6 +245,40 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
 
         image.Property(item => item.ImageUrl)
             .HasMaxLength(FlashCard.MaxImageUrlLength)
+            .IsRequired();
+    }
+
+    // A request's suggestions are made from the user's cards, so a user has one row for each request (0013-*.sql).
+    // The suggestions are kept as a JSON array.
+    private static void ConfigureCachedSuggestions<TEntity, TItem>(EntityTypeBuilder<TEntity> suggestions)
+        where TEntity : class, ICachedSuggestions<TItem>
+    {
+        // By name, since the type is only known to have them through the interface.
+        suggestions.HasIndex(nameof(IUserOwned.UserId), nameof(ICachedSuggestions<TItem>.PromptHash))
+            .IsUnique();
+
+        suggestions.Property<string>(nameof(ICachedSuggestions<TItem>.PromptHash))
+            .HasMaxLength(SuggestionCache.PromptHashLength)
+            .IsFixedLength()
+            .IsUnicode(false)
+            .IsRequired();
+    }
+
+    private static void ConfigureCachedCardSuggestions(EntityTypeBuilder<CachedCardSuggestions> suggestions)
+    {
+        ConfigureCachedSuggestions<CachedCardSuggestions, CardSuggestion>(suggestions);
+
+        // A card isn't a primitive, so it's converted to JSON here, and compared by its words, so a changed list is
+        // saved.
+        suggestions.Property(item => item.Suggestions)
+            .HasConversion(
+                value => JsonSerializer.Serialize(value, JsonSerializerOptions.Web),
+                json => JsonSerializer.Deserialize<List<CardSuggestion>>(json, JsonSerializerOptions.Web)
+                    ?? new List<CardSuggestion>(),
+                new ValueComparer<List<CardSuggestion>>(
+                    (left, right) => left!.SequenceEqual(right!),
+                    value => value.Aggregate(0, (hash, item) => HashCode.Combine(hash, item)),
+                    value => value.ToList()))
             .IsRequired();
     }
 }

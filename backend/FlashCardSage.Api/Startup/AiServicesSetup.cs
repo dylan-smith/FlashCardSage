@@ -24,8 +24,12 @@ public static class AiServicesSetup
         services.AddOptions<FoundryChatOptions>().BindConfiguration(FoundryChatOptions.SectionName);
         // The page shows suggestions as soon as they come, and they're only a nicety, so a slow answer isn't waited out.
         services.AddHttpClient<ICardSuggester, FoundryCardSuggester>(client => client.Timeout = TimeSpan.FromSeconds(45));
+        // The page asks for suggestions every time it's opened, so they're kept until the user's cards change.
+        services.AddScoped<CachedCardSuggester>();
         // Tag suggestions come while the user is filling in a card, so like translation, a slow answer is no better than none.
         services.AddHttpClient<ITagSuggester, FoundryTagSuggester>(client => client.Timeout = TimeSpan.FromSeconds(20));
+        // The Tags page asks for new tags every time it's opened, so they're kept until the user's tags and cards change.
+        services.AddScoped<CachedTagSuggester>();
         // Scanning a document makes up to a hundred cards, which takes the model a while, and the user asked for it and waits.
         services.AddHttpClient<IDocumentScanner, FoundryDocumentScanner>(client =>
             client.Timeout = TimeSpan.FromSeconds(150));
