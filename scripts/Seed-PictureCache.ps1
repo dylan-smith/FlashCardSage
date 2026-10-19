@@ -114,12 +114,20 @@ try {
                     --name $firewallRuleName --start-ip-address $ip --end-ip-address $ip | Out-Null
                 $firewallRuleAdded = $true
             }
+            elseif ($message -match 'Login failed') {
+                # Not something waiting fixes: the signed-in account isn't one the database knows.
+                $signedIn = if ($ConnectionString) { 'the connection string' }
+                else { "the Azure CLI's $((Invoke-Az account show).user.name)" }
+                throw "The database refused $signedIn. Sign in as the SQL server's Entra admin " +
+                    "(az sql server ad-admin list -g $ResourceGroup -s $SqlServerName) with az login, then run the " +
+                    "script again."
+            }
             elseif ($attempt -ge 10) {
                 throw
             }
             else {
                 # A new firewall rule takes a moment to apply, and a paused database a minute to resume.
-                Write-Note "Connecting failed (attempt $attempt of 10); retrying in 15 s"
+                Write-Note "Connecting failed (attempt $attempt of 10): $message; retrying in 15 s"
             }
             Start-Sleep -Seconds 15
         }
