@@ -1,6 +1,7 @@
 import { apiBaseUrl } from '../../config'
 import type { Deck } from '../../api/decks'
 import type { FlashCard, Tag } from '../../api/flashCards'
+import type { PackCard } from '../../api/practice'
 
 // The full URL of an API path, such as api('/flashcards/1').
 export function api(path: string) {
@@ -20,6 +21,25 @@ export function card(
     english: typeof english === 'string' ? [english] : english,
     tags: [],
     imageUrl: null,
+    ...fields,
+  }
+}
+
+// A card as the practice pack has it: never practiced, with no picture or tags unless fields gives them.
+export function packCard(
+  id: number,
+  spanish: string | string[],
+  english: string | string[],
+  fields: Partial<PackCard> = {},
+): PackCard {
+  return {
+    id,
+    spanish: typeof spanish === 'string' ? [spanish] : spanish,
+    english: typeof english === 'string' ? [english] : english,
+    score: 0,
+    lastPracticedAt: null,
+    imageUrl: null,
+    tagIds: [],
     ...fields,
   }
 }

@@ -13,7 +13,7 @@ export function useSignedInUserData(session: Session | null) {
       return
     }
     const controller = new AbortController()
-    loadPreferences(controller.signal)
+    loadPreferences(subject, controller.signal)
     refreshCounts()
     return () => {
       controller.abort()

@@ -19,6 +19,8 @@ export function signInForEachTest() {
   afterEach(() => {
     // Signing out re-renders the app if a test left it mounted.
     act(() => setSession(null))
+    // What the app kept for the user, such as their preferences, isn't cleared at sign-out.
+    localStorage.clear()
     vi.restoreAllMocks()
     vi.clearAllMocks()
   })

@@ -165,13 +165,15 @@ export function recordPracticeResult(
 }
 
 // A card's score out of 100, from how many times in a row it was last answered with Got it! in practice, how many
-// times it was answered with each outcome, and when it was last practiced (null if never).
+// times it was answered with each outcome, and when it was last practiced (null if never). imageUrl is its picture, or
+// null for a card without one.
 export type FlashCardScore = FlashCardWords & {
   score: number
   gotIt: number
   wasClose: number
   failed: number
   lastPracticedAt: string | null
+  imageUrl: string | null
 }
 
 // Each card's score in the selection, lowest first, and the total out of the most those cards could score.
