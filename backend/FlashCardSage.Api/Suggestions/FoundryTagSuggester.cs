@@ -18,7 +18,7 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOpti
         instructions.
         """;
 
-    private const string NewTagInstructions = """
+    public const string NewTagInstructions = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
         English translation, and the learner tags cards to group them, for example by topic. Given the learner's tags,
         each with some of the cards under it, and some of their cards that have no tag yet, suggest new tags they're
@@ -53,7 +53,7 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOpti
         CancellationToken cancellationToken)
     {
         var answer = await chat.AskAsync<Answer>(
-            NewTagInstructions, DescribeNew(tags, untagged, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
+            NewTagInstructions, NewTagsRequest(tags, untagged, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
         return answer?.Tags ?? [];
     }
 
@@ -75,9 +75,13 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOpti
         return text.ToString();
     }
 
-    // The request for new tags: the learner's tags one per line, each with its cards, then their untagged cards.
-    private static string DescribeNew(IReadOnlyList<Tag> tags, IReadOnlyList<FlashCard> untagged, int count)
+    // The request for new tags: the learner's tags one per line, each with its cards, then their untagged cards. It's
+    // also what the new tags are cached by (see CachedTagSuggester).
+    public static string NewTagsRequest(IReadOnlyList<Tag> tags, IReadOnlyList<FlashCard> untagged, int count)
     {
+        ArgumentNullException.ThrowIfNull(tags);
+        ArgumentNullException.ThrowIfNull(untagged);
+
         if (tags.Count == 0 && untagged.Count == 0)
         {
             return $"The learner has no cards or tags yet. Suggest {count} tags a beginner would want first.";

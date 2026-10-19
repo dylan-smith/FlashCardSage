@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from 'react'
+import { useEffect, useEffectEvent, useRef, useState } from 'react'
 import type { DependencyList } from 'react'
 import { trackException } from '../telemetry'
 
@@ -9,12 +9,15 @@ export type SuggestionsState<T> =
   | { status: 'ready'; suggestions: T[] }
 
 // A handful of suggestions, loaded when a component mounts, again whenever the deps change, and again when refresh asks
-// for more. fetch resolves to null when suggestions aren't available, and a failure is reported with operation. A
-// result that comes after the deps changed, more were asked for or the component unmounted is ignored, and the signal
-// passed to fetch is aborted then too. update changes the suggestions once they're ready, such as to take out one
-// that was added.
+// for more. fetch resolves to null when suggestions aren't available, and a failure is reported with operation. It's
+// told whether refresh asked for it, so it can ask for new suggestions rather than ones the API kept. A result that
+// comes after the deps changed, more were asked for or the component unmounted is ignored, and the signal passed to
+// fetch is aborted then too. update changes the suggestions once they're ready, such as to take out one that was added.
 export function useSuggestions<T>(
-  fetch: (signal: AbortSignal) => Promise<T[] | null>,
+  fetch: (
+    signal: AbortSignal,
+    options: { refresh: boolean },
+  ) => Promise<T[] | null>,
   deps: DependencyList,
   operation: string,
 ) {
@@ -23,9 +26,13 @@ export function useSuggestions<T>(
   })
   // Bumped to ask for a fresh handful.
   const [request, setRequest] = useState(0)
+  // Whether the next fetch is for refresh.
+  const refreshing = useRef(false)
 
   const start = useEffectEvent((signal: AbortSignal) => {
-    fetch(signal)
+    const refresh = refreshing.current
+    refreshing.current = false
+    fetch(signal, { refresh })
       .then((suggestions) => {
         if (!signal.aborted) {
           setState(
@@ -52,6 +59,7 @@ export function useSuggestions<T>(
   }, [...deps, request])
 
   function refresh() {
+    refreshing.current = true
     setState({ status: 'loading' })
     setRequest((current) => current + 1)
   }

@@ -718,7 +718,7 @@ describe('tags', () => {
         ).toBeEnabled()
       })
 
-      it('asks for more suggestions', async () => {
+      it('asks for more suggestions, not the ones the API kept', async () => {
         const user = userEvent.setup()
         const { background, routes } = await showTags({
           'GET /tag-suggestions/new': ['Animals'],
@@ -736,7 +736,9 @@ describe('tags', () => {
         expect(
           screen.queryByRole('button', { name: 'Add tag "Animals"' }),
         ).not.toBeInTheDocument()
-        expect(suggestionRequests(background)).toBe(2)
+        expect(
+          background.filter('GET', '/tag-suggestions/new').map((c) => c.path),
+        ).toEqual(['/tag-suggestions/new', '/tag-suggestions/new?refresh=true'])
       })
 
       it('says when suggesting failed, and tries again', async () => {

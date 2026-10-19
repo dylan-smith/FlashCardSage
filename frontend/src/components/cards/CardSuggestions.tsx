@@ -54,9 +54,9 @@ export function CardSuggestions({
   const tagId = tag?.id
 
   const { state, refresh, update } = useSuggestions(
-    async (signal): Promise<Candidate[] | null> => {
+    async (signal, { refresh }): Promise<Candidate[] | null> => {
       const suggestions = await listCardSuggestions(
-        { relatedTo: relatedToId, tag: tagId },
+        { relatedTo: relatedToId, tag: tagId, refresh },
         signal,
       )
       return suggestions === null

@@ -5,6 +5,7 @@ using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Suggestions;
+using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -30,7 +31,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Travel", cards[1]);
         var others = await TestDb.SeedCardsAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"));
         await TestDb.SeedTagAsync(databaseName, TestDb.OtherUserId, "Home", others[0]);
-        var suggester = new FakeSuggester { Result = ["animals "] };
+        var suggester = new FakeTagSuggester { Result = ["animals "] };
         await using var dbContext = TestDb.Create(databaseName);
 
         var result = await CreateController(dbContext, suggester).Suggest(
@@ -54,7 +55,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
             .ToArray();
         var cards = await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, many);
         await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "food", [.. cards]);
-        var suggester = new FakeSuggester();
+        var suggester = new FakeTagSuggester();
         await using var dbContext = TestDb.Create(databaseName);
 
         await CreateController(dbContext, suggester).Suggest(
@@ -74,7 +75,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         {
             await TestDb.SeedTagAsync(databaseName, TestDb.UserId, name);
         }
-        var suggester = new FakeSuggester { Result = ["Animals", "Zoo", "Pets", "pets", "Home", "Nature", "Food"] };
+        var suggester = new FakeTagSuggester { Result = ["Animals", "Zoo", "Pets", "pets", "Home", "Nature", "Food"] };
         await using var dbContext = TestDb.Create(databaseName);
 
         var result = await CreateController(dbContext, suggester).Suggest(
@@ -90,7 +91,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     {
         var databaseName = TestDb.NewDatabaseName();
         await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Animals");
-        var suggester = new FakeSuggester { Result = ["Animals"] };
+        var suggester = new FakeTagSuggester { Result = ["Animals"] };
         await using var dbContext = TestDb.Create(databaseName);
 
         var result = await CreateController(dbContext, suggester).Suggest(
@@ -103,7 +104,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     [Fact]
     public async Task Suggest_RequiresSomeWords()
     {
-        var suggester = new FakeSuggester();
+        var suggester = new FakeTagSuggester();
         await using var dbContext = TestDb.Create();
 
         var result = await CreateController(dbContext, suggester).Suggest(
@@ -119,7 +120,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     {
         var databaseName = TestDb.NewDatabaseName();
         await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Animals");
-        var suggester = new FakeSuggester { IsAvailable = false };
+        var suggester = new FakeTagSuggester { IsAvailable = false };
         await using var dbContext = TestDb.Create(databaseName);
 
         var result = await CreateController(dbContext, suggester).Suggest(
@@ -136,7 +137,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     {
         var databaseName = TestDb.NewDatabaseName();
         await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Animals");
-        var suggester = new FakeSuggester
+        var suggester = new FakeTagSuggester
         {
             Failure = timesOut ? new TaskCanceledException("timed out") : new HttpRequestException("boom")
         };
@@ -176,10 +177,10 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Animals", cards[0]);
         var others = await TestDb.SeedCardsAsync(databaseName, TestDb.OtherUserId, ("la casa", "the house"), ("azul", "blue"));
         await TestDb.SeedTagAsync(databaseName, TestDb.OtherUserId, "Home", others[0]);
-        var suggester = new FakeSuggester { Result = ["Colors"] };
+        var suggester = new FakeTagSuggester { Result = ["Colors"] };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
 
         var names = ActionResultAssert.Ok<List<string>>(result.Result);
         Assert.Equal(["Colors"], names);
@@ -197,10 +198,10 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
             .Select(i => ($"es {i}", $"en {i}"))
             .ToArray();
         await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, many);
-        var suggester = new FakeSuggester();
+        var suggester = new FakeTagSuggester();
         await using var dbContext = TestDb.Create(databaseName);
 
-        await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
 
         var described = suggester.Untagged!.Select(card => card.Spanish.Single()).ToList();
         Assert.Equal(TagSuggestionsController.MaxUntaggedCards, described.Count);
@@ -213,7 +214,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     {
         var databaseName = TestDb.NewDatabaseName();
         await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Animals");
-        var suggester = new FakeSuggester
+        var suggester = new FakeTagSuggester
         {
             Result =
             [
@@ -223,19 +224,58 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
 
         var names = ActionResultAssert.Ok<List<string>>(result.Result);
         Assert.Equal(["Food", "Colors", "Home", "Travel", "Weather"], names);
     }
 
     [Fact]
+    public async Task SuggestNewTags_ReturnsTheLastSuggestions_UntilTheUsersTagsChange()
+    {
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Animals");
+        var suggester = new FakeTagSuggester { Result = ["Food"] };
+        await using (var dbContext = TestDb.Create(databaseName))
+        {
+            await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        }
+        suggester.Result = ["Colors"];
+        await using var secondContext = TestDb.Create(databaseName);
+
+        var again = await CreateController(secondContext, suggester).SuggestNewTags(false, CancellationToken.None);
+        await TestDb.SeedTagAsync(databaseName, TestDb.UserId, "Travel");
+        var changed = await CreateController(secondContext, suggester).SuggestNewTags(false, CancellationToken.None);
+
+        Assert.Equal(["Food"], ActionResultAssert.Ok<List<string>>(again.Result));
+        Assert.Equal(["Colors"], ActionResultAssert.Ok<List<string>>(changed.Result));
+        Assert.Equal(2, suggester.NewCallCount);
+    }
+
+    [Fact]
+    public async Task SuggestNewTags_AsksForNewSuggestions_WhenRefreshing()
+    {
+        var suggester = new FakeTagSuggester { Result = ["Food"] };
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext, suggester);
+        await controller.SuggestNewTags(false, CancellationToken.None);
+        suggester.Result = ["Colors"];
+
+        var refreshed = await controller.SuggestNewTags(true, CancellationToken.None);
+        var again = await controller.SuggestNewTags(false, CancellationToken.None);
+
+        Assert.Equal(["Colors"], ActionResultAssert.Ok<List<string>>(refreshed.Result));
+        Assert.Equal(["Colors"], ActionResultAssert.Ok<List<string>>(again.Result));
+        Assert.Equal(2, suggester.NewCallCount);
+    }
+
+    [Fact]
     public async Task SuggestNewTags_ReturnsServiceUnavailable_WhenSuggestionsAreOff()
     {
-        var suggester = new FakeSuggester { IsAvailable = false };
+        var suggester = new FakeTagSuggester { IsAvailable = false };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
         Assert.Null(suggester.Count);
@@ -246,13 +286,13 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     [InlineData(true)]
     public async Task SuggestNewTags_ReturnsBadGateway_WhenTheSuggesterFailsOrTimesOut(bool timesOut)
     {
-        var suggester = new FakeSuggester
+        var suggester = new FakeTagSuggester
         {
             Failure = timesOut ? new TaskCanceledException("timed out") : new HttpRequestException("boom")
         };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(false, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
@@ -274,49 +314,9 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     private static TagSuggestionsController CreateController(FlashCardDbContext dbContext, ITagSuggester suggester)
     {
         return new TagSuggestionsController(
-            dbContext, suggester, NullLogger<TagSuggestionsController>.Instance);
-    }
-
-    private sealed class FakeSuggester : ITagSuggester
-    {
-        public bool IsAvailable { get; init; } = true;
-
-        public IReadOnlyList<string> Result { get; init; } = [];
-
-        public Exception? Failure { get; init; }
-
-        public IReadOnlyList<string>? Spanish { get; private set; }
-
-        public IReadOnlyList<string>? English { get; private set; }
-
-        public IReadOnlyList<Tag>? Tags { get; private set; }
-
-        public Task<IReadOnlyList<string>> SuggestAsync(
-            IReadOnlyList<string> spanish,
-            IReadOnlyList<string> english,
-            IReadOnlyList<Tag> tags,
-            CancellationToken cancellationToken)
-        {
-            Spanish = spanish;
-            English = english;
-            Tags = tags;
-            return Failure is null ? Task.FromResult(Result) : Task.FromException<IReadOnlyList<string>>(Failure);
-        }
-
-        public IReadOnlyList<FlashCard>? Untagged { get; private set; }
-
-        public int? Count { get; private set; }
-
-        public Task<IReadOnlyList<string>> SuggestNewAsync(
-            IReadOnlyList<Tag> tags,
-            IReadOnlyList<FlashCard> untagged,
-            int count,
-            CancellationToken cancellationToken)
-        {
-            Tags = tags;
-            Untagged = untagged;
-            Count = count;
-            return Failure is null ? Task.FromResult(Result) : Task.FromException<IReadOnlyList<string>>(Failure);
-        }
+            dbContext,
+            suggester,
+            new CachedTagSuggester(suggester, dbContext, NullLogger<CachedTagSuggester>.Instance),
+            NullLogger<TagSuggestionsController>.Instance);
     }
 }

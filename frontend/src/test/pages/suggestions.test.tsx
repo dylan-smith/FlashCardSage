@@ -201,10 +201,10 @@ describe('suggested cards', () => {
     expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
-  it('asks for more suggestions', async () => {
+  it('asks for more suggestions, not the ones the API kept', async () => {
     const user = userEvent.setup()
     const suggest = vi
-      .fn<() => Promise<Response>>()
+      .fn<(url: string) => Promise<Response>>()
       .mockResolvedValueOnce(
         jsonResponse([{ spanish: 'el perro', english: 'the dog' }]),
       )
@@ -220,7 +220,10 @@ describe('suggested cards', () => {
       expect(suggestionList()).toHaveTextContent('el pez')
     })
     expect(suggestionList()).not.toHaveTextContent('el perro')
-    expect(suggest).toHaveBeenCalledTimes(2)
+    expect(suggest.mock.calls).toEqual([
+      [api('/card-suggestions')],
+      [api('/card-suggestions?refresh=true')],
+    ])
   })
 
   it('suggests cards related to a card just added', async () => {

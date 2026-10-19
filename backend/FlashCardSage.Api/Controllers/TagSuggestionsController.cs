@@ -19,6 +19,7 @@ namespace FlashCardSage.Api.Controllers;
 public class TagSuggestionsController(
     FlashCardDbContext dbContext,
     ITagSuggester suggester,
+    CachedTagSuggester cachedSuggester,
     ILogger<TagSuggestionsController> logger) : ApiControllerBase
 {
     // A few at most, so they fit under the field as small chips.
@@ -99,14 +100,15 @@ public class TagSuggestionsController(
 
     /// <summary>
     /// Suggests new tags the user is likely to want, going by their tags and cards, for them to add on the Tags page.
+    /// They're the ones from the last time the same tags and cards were asked about, unless refresh asks for new ones.
     /// </summary>
     [HttpGet("new")]
     [ProducesResponseType<IEnumerable<string>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<IEnumerable<string>>> SuggestNewTags(CancellationToken cancellationToken)
+    public async Task<ActionResult<IEnumerable<string>>> SuggestNewTags(bool refresh, CancellationToken cancellationToken)
     {
-        if (!suggester.IsAvailable)
+        if (!cachedSuggester.IsAvailable)
         {
             return ServiceUnavailableProblem("Tag suggestions aren't available.");
         }
@@ -128,8 +130,8 @@ public class TagSuggestionsController(
         IReadOnlyList<string> suggested;
         try
         {
-            suggested = await suggester.SuggestNewAsync(
-                tags, untagged, NewSuggestionCount + ExtraRequested, cancellationToken);
+            suggested = await cachedSuggester.SuggestNewAsync(
+                tags, untagged, NewSuggestionCount + ExtraRequested, refresh, cancellationToken);
         }
         catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {

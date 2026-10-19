@@ -22,7 +22,7 @@ export function TagSuggestions({
   onAdd: (name: string) => Promise<boolean>
 }) {
   const { state, refresh, update } = useSuggestions(
-    (signal) => listNewTagSuggestions(signal),
+    (signal, { refresh }) => listNewTagSuggestions({ refresh }, signal),
     [],
     'suggestTags',
   )

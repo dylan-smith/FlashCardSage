@@ -9,7 +9,7 @@ namespace FlashCardSage.Api.Suggestions;
 // the same topics and level, written the same way.
 public class FoundryCardSuggester(HttpClient httpClient, IOptions<FoundryChatOptions> options) : ICardSuggester
 {
-    private const string Instructions = """
+    public const string Instructions = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
         English translation. Given the learner's cards, suggest new cards they don't have yet that they're likely to
         want next: words and phrases on the same topics, at about the same level, and a few that stretch it a little.
@@ -29,15 +29,17 @@ public class FoundryCardSuggester(HttpClient httpClient, IOptions<FoundryChatOpt
         IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, int count, CancellationToken cancellationToken)
     {
         var answer = await chat.AskAsync<Answer>(
-            Instructions, Describe(cards, relatedTo, tag, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
+            Instructions, Request(cards, relatedTo, tag, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
         return answer?.Cards ?? [];
     }
 
     // The request: how many cards to suggest, and the learner's cards one per line, with their tags, which say what
     // the learner groups them by. With relatedTo, the new cards are to be related to that one, and with tag, they're to
-    // go under that tag.
-    private static string Describe(IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, int count)
+    // go under that tag. It's also what the suggestions are cached by (see CachedCardSuggester).
+    public static string Request(IReadOnlyList<FlashCard> cards, FlashCard? relatedTo, Tag? tag, int count)
     {
+        ArgumentNullException.ThrowIfNull(cards);
+
         var text = new StringBuilder();
         if (relatedTo is not null)
         {

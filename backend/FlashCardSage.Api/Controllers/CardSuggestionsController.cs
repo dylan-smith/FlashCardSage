@@ -16,7 +16,7 @@ namespace FlashCardSage.Api.Controllers;
 [Route("api/card-suggestions")]
 public class CardSuggestionsController(
     FlashCardDbContext dbContext,
-    ICardSuggester suggester,
+    CachedCardSuggester suggester,
     ILogger<CardSuggestionsController> logger) : ApiControllerBase
 {
     // A handful, so they fit on the page next to the user's cards.
@@ -28,13 +28,14 @@ public class CardSuggestionsController(
     // A few more than are shown are asked for, since some can turn out to be cards the user already has.
     private const int ExtraRequested = 3;
 
+    // The suggestions are the ones from the last time the same cards were asked about, unless refresh asks for new ones.
     [HttpGet]
     [ProducesResponseType<IEnumerable<CardSuggestion>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<IEnumerable<CardSuggestion>>> Suggest(
-        int? relatedTo, int? tag, CancellationToken cancellationToken)
+        int? relatedTo, int? tag, bool refresh, CancellationToken cancellationToken)
     {
         if (!suggester.IsAvailable)
         {
@@ -85,7 +86,7 @@ public class CardSuggestionsController(
         try
         {
             suggested = await suggester.SuggestAsync(
-                described, related, selectedTag, SuggestionCount + ExtraRequested, cancellationToken);
+                described, related, selectedTag, SuggestionCount + ExtraRequested, refresh, cancellationToken);
         }
         catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
