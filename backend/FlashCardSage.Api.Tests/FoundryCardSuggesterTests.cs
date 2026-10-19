@@ -176,7 +176,7 @@ public class FoundryCardSuggesterTests
 
         try
         {
-            await suggester.SuggestAsync(Cards, null, null, 8, CancellationToken.None);
+            await suggester.SuggestAsync(Cards, null, null, [], 8, CancellationToken.None);
         }
         catch (HttpRequestException)
         {
