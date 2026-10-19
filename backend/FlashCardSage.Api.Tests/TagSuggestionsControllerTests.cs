@@ -179,7 +179,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         var suggester = new FakeSuggester { Result = ["Colors"] };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         var names = ActionResultAssert.Ok<List<string>>(result.Result);
         Assert.Equal(["Colors"], names);
@@ -200,7 +200,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         var suggester = new FakeSuggester();
         await using var dbContext = TestDb.Create(databaseName);
 
-        await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         var described = suggester.Untagged!.Select(card => card.Spanish.Single()).ToList();
         Assert.Equal(TagSuggestionsController.MaxUntaggedCards, described.Count);
@@ -223,10 +223,37 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         };
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         var names = ActionResultAssert.Ok<List<string>>(result.Result);
         Assert.Equal(["Food", "Colors", "Home", "Travel", "Weather"], names);
+        Assert.Empty(suggester.Exclude!);
+    }
+
+    [Fact]
+    public async Task SuggestNewTags_LeavesOutNamesAlreadyShown_AndTellsTheSuggester()
+    {
+        var suggester = new FakeSuggester { Result = ["food", "Colors", "Home"] };
+        await using var dbContext = TestDb.Create();
+
+        var result = await CreateController(dbContext, suggester)
+            .SuggestNewTags([" Food ", "Travel", "food", "", new string('x', Tag.MaxNameLength + 1)], CancellationToken.None);
+
+        var names = ActionResultAssert.Ok<List<string>>(result.Result);
+        Assert.Equal(["Colors", "Home"], names);
+        Assert.Equal(["Food", "Travel"], suggester.Exclude);
+    }
+
+    [Fact]
+    public async Task SuggestNewTags_TellsTheSuggesterOnlyTheNewestNamesShown()
+    {
+        var shown = Enumerable.Range(1, ShownSuggestions.MaxCount + 2).Select(i => $"Tag {i}").ToArray();
+        var suggester = new FakeSuggester();
+        await using var dbContext = TestDb.Create();
+
+        await CreateController(dbContext, suggester).SuggestNewTags(shown, CancellationToken.None);
+
+        Assert.Equal(shown[2..], suggester.Exclude);
     }
 
     [Fact]
@@ -235,7 +262,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         var suggester = new FakeSuggester { IsAvailable = false };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status503ServiceUnavailable);
         Assert.Null(suggester.Count);
@@ -252,7 +279,7 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
         };
         await using var dbContext = TestDb.Create();
 
-        var result = await CreateController(dbContext, suggester).SuggestNewTags(CancellationToken.None);
+        var result = await CreateController(dbContext, suggester).SuggestNewTags(null, CancellationToken.None);
 
         ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway);
     }
@@ -305,16 +332,20 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
 
         public IReadOnlyList<FlashCard>? Untagged { get; private set; }
 
+        public IReadOnlyList<string>? Exclude { get; private set; }
+
         public int? Count { get; private set; }
 
         public Task<IReadOnlyList<string>> SuggestNewAsync(
             IReadOnlyList<Tag> tags,
             IReadOnlyList<FlashCard> untagged,
+            IReadOnlyList<string> exclude,
             int count,
             CancellationToken cancellationToken)
         {
             Tags = tags;
             Untagged = untagged;
+            Exclude = exclude;
             Count = count;
             return Failure is null ? Task.FromResult(Result) : Task.FromException<IReadOnlyList<string>>(Failure);
         }

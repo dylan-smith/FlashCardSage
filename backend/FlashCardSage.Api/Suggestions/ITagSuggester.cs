@@ -17,11 +17,13 @@ public interface ITagSuggester
         CancellationToken cancellationToken);
 
     // The names of about count new tags the user is likely to want, going by their tags, each with some of its cards,
-    // and some of their cards that have no tag. As the service answers, they can include names the user already has.
-    // Throws HttpRequestException if the service fails.
+    // and some of their cards that have no tag, and not the names in exclude, which were already suggested. As the
+    // service answers, they can include names the user already has or that were excluded. Throws HttpRequestException
+    // if the service fails.
     Task<IReadOnlyList<string>> SuggestNewAsync(
         IReadOnlyList<Tag> tags,
         IReadOnlyList<FlashCard> untagged,
+        IReadOnlyList<string> exclude,
         int count,
         CancellationToken cancellationToken);
 }

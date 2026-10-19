@@ -99,12 +99,16 @@ public class TagSuggestionsController(
 
     /// <summary>
     /// Suggests new tags the user is likely to want, going by their tags and cards, for them to add on the Tags page.
+    /// The names in exclude, ones the page has already shown, aren't suggested again, so asking for more gives
+    /// different ones.
     /// </summary>
     [HttpGet("new")]
     [ProducesResponseType<IEnumerable<string>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
-    public async Task<ActionResult<IEnumerable<string>>> SuggestNewTags(CancellationToken cancellationToken)
+    public async Task<ActionResult<IEnumerable<string>>> SuggestNewTags(
+        [FromQuery] string[]? exclude,
+        CancellationToken cancellationToken)
     {
         if (!suggester.IsAvailable)
         {
@@ -124,12 +128,13 @@ public class TagSuggestionsController(
             .WithWords()
             .AsSplitQuery()
             .ToListAsync(cancellationToken);
+        var shown = ShownSuggestions.From(exclude, Tag.MaxNameLength);
 
         IReadOnlyList<string> suggested;
         try
         {
             suggested = await suggester.SuggestNewAsync(
-                tags, untagged, NewSuggestionCount + ExtraRequested, cancellationToken);
+                tags, untagged, shown, NewSuggestionCount + ExtraRequested, cancellationToken);
         }
         catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
@@ -137,16 +142,16 @@ public class TagSuggestionsController(
             return BadGatewayProblem("Tag suggestions failed.");
         }
 
-        // Each name once, and none the user already has or that's too long to save.
-        var seen = new HashSet<string>(tags.Select(tag => tag.Name), TextRules.Comparer);
+        // Each name once, and none the user already has, that was already shown or that's too long to save.
+        var seen = new HashSet<string>(tags.Select(tag => tag.Name).Concat(shown), TextRules.Comparer);
         var suggestions = suggested
             .Select(TextRules.Clean)
             .Where(name => name.Length is > 0 and <= Tag.MaxNameLength && seen.Add(name))
             .Take(NewSuggestionCount)
             .ToList();
         logger.LogInformation(
-            "Suggested {Count} new tags from {TagCount} tags and {UntaggedCount} untagged cards",
-            suggestions.Count, tags.Count, untagged.Count);
+            "Suggested {Count} new tags from {TagCount} tags and {UntaggedCount} untagged cards, leaving out {ShownCount}",
+            suggestions.Count, tags.Count, untagged.Count, shown.Count);
 
         return Ok(suggestions);
     }

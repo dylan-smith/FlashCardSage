@@ -718,25 +718,40 @@ describe('tags', () => {
         ).toBeEnabled()
       })
 
-      it('asks for more suggestions', async () => {
+      it('asks for more suggestions, leaving out the ones already shown', async () => {
         const user = userEvent.setup()
         const { background, routes } = await showTags({
-          'GET /tag-suggestions/new': ['Animals'],
+          'GET /tag-suggestions/new': ['Animals', 'Colors'],
         })
         await screen.findByRole('button', { name: 'Add tag "Animals"' })
 
-        routes['GET /tag-suggestions/new'] = ['Colors']
+        routes['GET /tag-suggestions/new'] = ['Weather']
         await user.click(
           screen.getByRole('button', { name: 'More suggestions' }),
         )
 
         expect(
-          await screen.findByRole('button', { name: 'Add tag "Colors"' }),
+          await screen.findByRole('button', { name: 'Add tag "Weather"' }),
         ).toBeInTheDocument()
         expect(
           screen.queryByRole('button', { name: 'Add tag "Animals"' }),
         ).not.toBeInTheDocument()
-        expect(suggestionRequests(background)).toBe(2)
+
+        routes['GET /tag-suggestions/new'] = ['Numbers']
+        await user.click(
+          screen.getByRole('button', { name: 'More suggestions' }),
+        )
+
+        expect(
+          await screen.findByRole('button', { name: 'Add tag "Numbers"' }),
+        ).toBeInTheDocument()
+        const requests = background.filter('GET', '/tag-suggestions/new')
+        expect(requests.map((call) => call.query.getAll('exclude'))).toEqual([
+          [],
+          ['Animals', 'Colors'],
+          ['Animals', 'Colors', 'Weather'],
+        ])
+        expect(suggestionRequests(background)).toBe(3)
       })
 
       it('says when suggesting failed, and tries again', async () => {
