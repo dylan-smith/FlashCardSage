@@ -331,13 +331,6 @@ test.describe('Flash card management', () => {
     // Where the E2E backend keeps the pictures it's given (see Images/LocalFileImageStore.cs).
     const pictureUrlPrefix = `${apiOrigin}/card-images/`
 
-    test.beforeEach(async ({ page }) => {
-      // The E2E backend has no image generator, so stand in for Azure OpenAI.
-      await page.route('**/api/flashcards/images/generate', async (route) => {
-        await route.fulfill({ json: { id: 1, ...onePixelPng } })
-      })
-    })
-
     test('discards the picture when the user asks', async ({ page }) => {
       await page.getByLabel('Spanish').fill('nadar')
       await page.getByLabel('English').fill('to swim')
@@ -357,9 +350,10 @@ test.describe('Flash card management', () => {
       ).toBeHidden()
     })
 
-    test("puts the picture on the card when it's saved", async ({
+    test("puts the picture on the card when it's saved, sharing the cached one", async ({
       page,
       request,
+      api,
     }) => {
       await page.getByLabel('Spanish').fill('nadar')
       await page.getByLabel('English').fill('to swim')
@@ -383,6 +377,12 @@ test.describe('Flash card management', () => {
       await expect(
         page.getByRole('img', { name: 'Picture for "nadar"' }),
       ).toHaveAttribute('src', src!)
+
+      // The card points at the picture in the cache, which outlives it for whoever asks for the words next.
+      const [card] = await api.list('flashcards')
+      await api.deleteCard(card.id)
+      const kept = await request.get(src!, { headers: { Authorization: '' } })
+      expect(kept.status()).toBe(200)
     })
 
     test("puts an uploaded picture on the card when it's saved", async ({

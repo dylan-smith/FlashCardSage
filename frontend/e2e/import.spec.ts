@@ -1,4 +1,4 @@
-import { onePixelPng, openSection, test, expect } from './fixtures'
+import { openSection, test, expect } from './fixtures'
 
 // The backend started by playwright.config.ts adds the built-in decks when it starts.
 test.describe('Import cards', () => {
@@ -276,7 +276,7 @@ test.describe('Import cards', () => {
   test('puts the picture made for a scanned card on it once it’s added', async ({
     page,
   }) => {
-    // The E2E backend has no Foundry endpoint, key or image generator, so stand in for the scan and the picture.
+    // The E2E backend has no Foundry endpoint or key, so stand in for the scan. Its pictures are a sample one.
     await page.route('**/api/document-scans', async (route) => {
       await route.fulfill({
         json: {
@@ -287,9 +287,6 @@ test.describe('Import cards', () => {
           truncated: false,
         },
       })
-    })
-    await page.route('**/api/flashcards/images/generate', async (route) => {
-      await route.fulfill({ json: { id: 1, ...onePixelPng } })
     })
     await page.goto('/import?from=document')
     await page.getByLabel('Choose a document').setInputFiles({

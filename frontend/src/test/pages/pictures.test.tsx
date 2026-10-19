@@ -108,7 +108,7 @@ describe('pictures', () => {
     ).toHaveAttribute('src', imageUrl)
     const put = calls.find('PUT')
     expect(put?.url).toBe(api('/flashcards/7/image'))
-    expect(put?.init?.body).toBe(JSON.stringify(picture))
+    expect(put?.init?.body).toBe(JSON.stringify({ generatedImageId: 1 }))
     expect(
       screen.queryByRole('img', { name: 'Generated picture' }),
     ).not.toBeInTheDocument()
@@ -409,7 +409,7 @@ describe('pictures', () => {
       ).not.toBeInTheDocument()
     })
     const put = calls.find('PUT', '/flashcards/7/image')
-    expect(put?.init?.body).toBe(JSON.stringify(picture))
+    expect(put?.init?.body).toBe(JSON.stringify({ generatedImageId: 1 }))
     expect(calls.some('DELETE')).toBe(false)
   })
 

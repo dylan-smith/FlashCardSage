@@ -141,10 +141,10 @@ public class FlashCardService(
         dbContext.FlashCards.Remove(card);
         await dbContext.SaveChangesAsync();
 
-        // Once the card is gone, so nothing points at the picture, it's removed too.
+        // Once the card is gone, so nothing points at the picture, it's removed too, unless it's a cached one.
         if (card.ImageUrl is { } imageUrl)
         {
-            await imageStore.TryDeleteAsync(imageUrl, logger, CancellationToken.None);
+            await imageStore.TryDeleteCardPicturesAsync(dbContext, [imageUrl], logger, CancellationToken.None);
         }
 
         logger.LogInformation("Deleted flash card {FlashCardId}", id);
@@ -219,7 +219,8 @@ public class FlashCardService(
         dbContext.FlashCards.RemoveRange(cards);
         await dbContext.SaveChangesAsync();
 
-        await imageStore.TryDeleteAllAsync(cards.Select(card => card.ImageUrl), logger, CancellationToken.None);
+        await imageStore.TryDeleteCardPicturesAsync(
+            dbContext, cards.Select(card => card.ImageUrl), logger, CancellationToken.None);
 
         logger.LogInformation("Deleted {Count} flash cards", cards.Count);
 

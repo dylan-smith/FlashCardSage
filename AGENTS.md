@@ -96,7 +96,8 @@ npm run test:e2e
 - Cached translations (`Translations`, read and written by `CachedTranslator`) and generated pictures
   (`GeneratedImages`, read and written by `CachedImageGenerator`) are the only things that belong to no user: a text
   translates the same way for everyone and a picture of some words suits anyone, so there's no owner and no query
-  filter. A cached picture's file is never put on a card: a card always gets its own copy.
+  filter. A card given a generated picture points at the cached file, which every card with it shares, so card code
+  must delete pictures through `TryDeleteCardPicturesAsync`, which leaves cached ones alone.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
 
 ### Database

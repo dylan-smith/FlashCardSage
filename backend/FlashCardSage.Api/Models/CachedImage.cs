@@ -12,7 +12,7 @@ public class CachedImage
     // The SHA-256, as lowercase hex, of the lowercased prompt (see CachedImageGenerator.PromptHash).
     public string PromptHash { get; set; } = string.Empty;
 
-    // The picture in the image store. No card shares it, since a card is given its own copy.
+    // The picture in the image store, which every card given it shares, so it's never removed.
     public string ImageUrl { get; set; } = string.Empty;
 
     public DateTimeOffset CreatedAt { get; set; }

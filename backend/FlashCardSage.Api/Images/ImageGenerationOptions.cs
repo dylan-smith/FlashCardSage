@@ -17,6 +17,10 @@ public class ImageGenerationOptions
 
     public string ApiVersion { get; set; } = "preview";
 
+    // Makes every picture the same one-pixel PNG instead of calling Foundry (see SampleImageGenerator), for the E2E
+    // tests, which set it in playwright.config.ts. Nothing deployed sets it.
+    public bool UseSamplePicture { get; set; }
+
     // False when no image generation service is set up, e.g. in local development and E2E tests.
     public bool IsAvailable => !string.IsNullOrWhiteSpace(Endpoint) && !string.IsNullOrWhiteSpace(Key);
 }

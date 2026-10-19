@@ -40,6 +40,8 @@ export default defineConfig({
         UseInMemoryDatabase: 'true',
         // Development turns it on already; set here too since the tests depend on it (see e2e/fixtures.ts).
         Authentication__AllowTestSignIn: 'true',
+        // There's no Foundry, so every picture is the same sample one, which still goes through the real cache.
+        ImageGeneration__UseSamplePicture: 'true',
       },
     },
     {
