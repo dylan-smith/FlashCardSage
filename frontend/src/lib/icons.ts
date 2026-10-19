@@ -15,7 +15,7 @@ export const icons = {
   // A cross.
   close:
     'M19 6.41 17.59 5 12 10.59 6.41 5 5 6.41 10.59 12 5 17.59 6.41 19 12 13.41 17.59 19 19 17.59 13.41 12z',
-  // The Preply import's steps: a bookmark being added, a page opening, a mouse, and a list being checked.
+  // The bookmarklet steps of the Preply and Duolingo imports: a bookmark being added, a page opening, a mouse, and a list being checked.
   bookmarkAdd:
     'M21 7h-2v2h-2V7h-2V5h2V3h2v2h2v2zm-2 14-7-3-7 3V5c0-1.1.9-2 2-2h7c-.64.84-1 1.87-1 3 0 2.76 2.24 5 5 5 .34 0 .68-.03 1-.08V21z',
   open: 'M19 19H5V5h7V3H5c-1.11 0-2 .9-2 2v14c0 1.1.89 2 2 2h14c1.1 0 2-.9 2-2v-7h-2v7zM14 3v2h3.59l-9.83 9.83 1.41 1.41L19 6.41V10h2V3h-7z',

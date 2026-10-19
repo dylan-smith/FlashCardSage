@@ -7,12 +7,12 @@ import './index.css'
 import App from './App'
 import ErrorBoundary from './components/common/ErrorBoundary'
 import { initTelemetry, trackException } from './telemetry'
-import { startPreplyHandoff } from './preply/preplyHandoff'
+import { startHandoff } from './wordSources/handoff'
 import { theme } from './theme'
 
 initTelemetry()
-// Before rendering, since the user may need to sign in before they see the words the bookmarklet sends.
-startPreplyHandoff()
+// Before rendering, since the user may need to sign in before they see the words a bookmarklet sends.
+startHandoff()
 
 // Setting these replaces React's default console logging, so keep logging as well as reporting.
 function reportRootError(kind: string) {
