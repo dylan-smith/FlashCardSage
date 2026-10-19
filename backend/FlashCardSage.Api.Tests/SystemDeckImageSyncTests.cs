@@ -76,11 +76,12 @@ public sealed class SystemDeckImageSyncTests : IDisposable
         var monday = (await checkContext.FlashCards.Include(card => card.Words).ToListAsync())
             .Single(card => card.Spanish[0] == "lunes");
         Assert.Equal(ExpectedUrl(Jpeg3), monday.ImageUrl);
-        Assert.Equal([ExpectedUrl(SampleImages.Jpeg)], store.Deleted);
+        // The old picture is cached, like every built-in one, so users' cards that share it keep it.
+        Assert.Empty(store.Deleted);
     }
 
     [Fact]
-    public async Task SyncAsync_KeepsAReplacedPicture_ThatIsCached()
+    public async Task SyncAsync_CachesEveryBuiltInPicture_OnceEach()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithUsersAsync();
         await SystemDeckTestData.SeedAsync(databaseName, [Days]);
@@ -88,35 +89,23 @@ public sealed class SystemDeckImageSyncTests : IDisposable
         await SyncAsync(databaseName, store, Image("lunes", SampleImages.Jpeg));
         await using (var dbContext = TestDb.Create(databaseName))
         {
-            // Users' cards share the cached picture.
-            dbContext.GeneratedImages.Add(new Models.CachedImage
-            {
-                PromptHash = new string('a', 64),
-                ImageUrl = ExpectedUrl(SampleImages.Jpeg)
-            });
+            // As if Monday's picture was synced before there was a cache.
+            dbContext.GeneratedImages.RemoveRange(dbContext.GeneratedImages);
             await dbContext.SaveChangesAsync();
         }
 
-        Assert.Equal(1, await SyncAsync(databaseName, store, Image("lunes", Jpeg3)));
+        // Monday's is unchanged, and Tuesday's is new.
+        Assert.Equal(1, await SyncAsync(databaseName, store, Image("lunes", SampleImages.Jpeg), Image("martes", Jpeg2)));
+        await SyncAsync(databaseName, store, Image("lunes", SampleImages.Jpeg), Image("martes", Jpeg2));
 
-        Assert.Empty(store.Deleted);
-    }
-
-    [Fact]
-    public async Task SyncAsync_KeepsTheNewPicture_WhenTheOldOneCannotBeRemoved()
-    {
-        var databaseName = await SystemDeckTestData.CreateDatabaseWithUsersAsync();
-        var systemUserId = await SystemDeckTestData.SeedAsync(databaseName, [Days]);
-        await SyncAsync(databaseName, new FakeImageStore(), Image("lunes", SampleImages.Jpeg));
-
-        var store = new FakeImageStore { DeleteFailure = new IOException("Storage is down.") };
-        Assert.Equal(1, await SyncAsync(databaseName, store, Image("lunes", Jpeg3)));
-
-        await using var checkContext = TestDb.Create(databaseName, systemUserId);
-        var monday = (await checkContext.FlashCards.Include(card => card.Words).ToListAsync())
-            .Single(card => card.Spanish[0] == "lunes");
-        Assert.Equal(ExpectedUrl(Jpeg3), monday.ImageUrl);
-        Assert.Equal([ExpectedUrl(SampleImages.Jpeg)], store.Deleted);
+        await using var checkContext = TestDb.Create(databaseName);
+        var cached = await checkContext.GeneratedImages.OrderBy(item => item.Id).ToListAsync();
+        Assert.Equal(
+            [
+                (ExpectedUrl(SampleImages.Jpeg), CachedImageGenerator.PromptHash("lunes", "Monday")),
+                (ExpectedUrl(Jpeg2), CachedImageGenerator.PromptHash("martes / el martes", "Tuesday"))
+            ],
+            cached.Select(item => (item.ImageUrl, item.PromptHash)));
     }
 
     [Fact]

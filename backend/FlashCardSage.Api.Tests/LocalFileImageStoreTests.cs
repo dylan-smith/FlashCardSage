@@ -68,42 +68,6 @@ public sealed class LocalFileImageStoreTests : IDisposable
     }
 
     [Fact]
-    public async Task CopyAsync_WritesTheSamePictureUnderANewName()
-    {
-        var store = CreateStore("pictures");
-        Directory.CreateDirectory(store.Directory);
-        var url = await store.SaveAsync(SampleImages.Jpeg, "image/jpeg", CancellationToken.None);
-
-        var copy = await store.CopyAsync(url, CancellationToken.None);
-
-        Assert.NotNull(copy);
-        Assert.Matches(@"^http://localhost:5269/card-images/[0-9a-f]{32}\.jpg$", copy);
-        Assert.NotEqual(url, copy);
-        // The files are found by listing the folder, like the save test, rather than from the URLs.
-        var files = Directory.GetFiles(store.Directory);
-        Assert.Equal(2, files.Length);
-        Assert.Contains(files, file => copy.EndsWith("/" + Path.GetFileName(file), StringComparison.Ordinal));
-        foreach (var file in files)
-        {
-            Assert.Equal(SampleImages.Jpeg, await File.ReadAllBytesAsync(file));
-        }
-    }
-
-    [Theory]
-    [InlineData("http://localhost:5269/card-images/0123456789abcdef0123456789abcdef.png")]
-    [InlineData("http://localhost:5269/card-images/keep.png")]
-    [InlineData("not a url")]
-    public async Task CopyAsync_ReturnsNull_ForAPictureThatIsGoneOrNotItsOwn(string url)
-    {
-        var store = CreateStore("pictures");
-        Directory.CreateDirectory(store.Directory);
-        await File.WriteAllBytesAsync(Path.Join(store.Directory, "keep.png"), SampleImages.Png);
-
-        Assert.Null(await store.CopyAsync(url, CancellationToken.None));
-        Assert.Single(Directory.GetFiles(store.Directory));
-    }
-
-    [Fact]
     public async Task LoadAsync_ReadsThePictureBack()
     {
         var store = CreateStore("pictures");

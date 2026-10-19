@@ -92,7 +92,8 @@ npm run test:e2e
   only `SystemDeckImporter` reads them past the query filter. Importing copies them, so edit the JSON to change
   them: a deck that's already in the database is left as it is, so a changed deck needs a new name or a script.
   Their pictures are committed in `SystemDecks/images` (made by `scripts/Generate-SystemDeckImages.ps1`), and the API
-  puts them on the cards when it starts (`SystemDeckImageSync`). A new built-in card needs the script run for it too.
+  puts them on the cards, and in the picture cache, when it starts (`SystemDeckImageSync`). Importing a card shares
+  its built-in picture through the cache rather than copying it. A new built-in card needs the script run for it too.
 - Cached translations (`Translations`, read and written by `CachedTranslator`) and generated pictures
   (`GeneratedImages`, read and written by `CachedImageGenerator`) are the only things that belong to no user: a text
   translates the same way for everyone and a picture of some words suits anyone, so there's no owner and no query

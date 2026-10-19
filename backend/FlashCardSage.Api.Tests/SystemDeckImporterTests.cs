@@ -1,4 +1,5 @@
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
 using FlashCardSage.Api.SystemDecks;
@@ -9,7 +10,7 @@ using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
 
-// The clash and taken-card paths, and the picture rollback, which SystemDecksControllerTests covers as responses.
+// The clash and taken-card paths, and how pictures are shared, which SystemDecksControllerTests covers as responses.
 public class SystemDeckImporterTests
 {
     private static readonly SystemDeckDefinition Days = new(
@@ -37,37 +38,44 @@ public class SystemDeckImporterTests
     }
 
     [Fact]
-    public async Task ImportDeckAsync_ReturnsClash_AndRemovesTheCopiedPictures_WhenAUniqueIndexFails()
+    public async Task ImportDeckAsync_ReturnsClash_AndSavesNothing_WhenAUniqueIndexFails()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
-        var store = new FakeImageStore();
-        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
+        await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, new FakeImageStore(), "lunes");
         await using var dbContext = TestDb.Create(databaseName, interceptors: FailingSaveInterceptor.DuplicateKey("Decks"));
-        var importer = CreateImporter(dbContext, store);
+        var importer = CreateImporter(dbContext);
 
         var result = await importer.ImportDeckAsync(await DaysIdAsync(importer), CancellationToken.None);
 
         Assert.IsType<SystemDeckImportResult.Clash>(result);
-        var copy = Assert.Single(store.Saved, item => item.Url != systemUrl);
-        Assert.Equal([copy.Url], store.Deleted);
+        await using var checkContext = TestDb.Create(databaseName);
+        Assert.False(await checkContext.Decks.AnyAsync());
+        Assert.False(await checkContext.GeneratedImages.AnyAsync());
     }
 
-    // Any other failure is rethrown, and the copies are removed all the same.
     [Fact]
-    public async Task ImportDeckAsync_RemovesTheCopiedPictures_AndRethrows_WhenTheSaveFailsOtherwise()
+    public async Task ImportDeckAsync_SharesTheBuiltInPicturesThroughTheCache()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
         var store = new FakeImageStore();
         var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
-        await using var dbContext = TestDb.Create(databaseName, interceptors: new FailingSaveInterceptor(
-            () => new InvalidOperationException("The database is unreachable.")));
-        var importer = CreateImporter(dbContext, store);
-        var daysId = await DaysIdAsync(importer);
+        await using var dbContext = TestDb.Create(databaseName);
+        var importer = CreateImporter(dbContext);
 
-        await Assert.ThrowsAsync<InvalidOperationException>(() => importer.ImportDeckAsync(daysId, CancellationToken.None));
+        await importer.ImportDeckAsync(await DaysIdAsync(importer), CancellationToken.None);
 
-        var copy = Assert.Single(store.Saved, item => item.Url != systemUrl);
-        Assert.Equal([copy.Url], store.Deleted);
+        var lunes = (await dbContext.FlashCards.Include(card => card.Words).ToListAsync())
+            .Single(card => card.Spanish.Single() == "lunes");
+        Assert.Equal(systemUrl, lunes.ImageUrl);
+        var cached = Assert.Single(dbContext.GeneratedImages);
+        Assert.Equal((systemUrl, CachedImageGenerator.PromptHash("lunes", "Monday")), (cached.ImageUrl, cached.PromptHash));
+        Assert.Single(store.Saved);
+
+        // Importing it again, as another deck, doesn't cache the picture again.
+        dbContext.FlashCards.RemoveRange(await dbContext.FlashCards.Include(card => card.Words).ToListAsync());
+        await dbContext.SaveChangesAsync();
+        await importer.ImportDeckAsync(await DaysIdAsync(importer), CancellationToken.None);
+        Assert.Single(dbContext.GeneratedImages);
     }
 
     [Fact]
@@ -88,21 +96,20 @@ public class SystemDeckImporterTests
     }
 
     [Fact]
-    public async Task ImportCardAsync_ReturnsClash_AndRemovesTheCopiedPicture_WhenAUniqueIndexFails()
+    public async Task ImportCardAsync_ReturnsClash_AndSavesNothing_WhenAUniqueIndexFails()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
-        var store = new FakeImageStore();
-        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
+        await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, new FakeImageStore(), "lunes");
         await using var dbContext = TestDb.Create(databaseName, interceptors: FailingSaveInterceptor.DuplicateKey("FlashCardWords"));
-        var importer = CreateImporter(dbContext, store);
+        var importer = CreateImporter(dbContext);
         var days = await importer.SystemDecks().SingleAsync(deck => deck.Name == "Days");
         var lunes = days.FlashCards.Single(card => card.Spanish.Single() == "lunes");
 
         var result = await importer.ImportCardAsync(days.Id, lunes.Id, CancellationToken.None);
 
         Assert.IsType<SystemDeckImportResult.Clash>(result);
-        var copy = Assert.Single(store.Saved, item => item.Url != systemUrl);
-        Assert.Equal([copy.Url], store.Deleted);
+        await using var checkContext = TestDb.Create(databaseName);
+        Assert.False(await checkContext.GeneratedImages.AnyAsync());
     }
 
     // The user's decks named like the built-in one, whatever their case, are skipped over.
@@ -136,9 +143,9 @@ public class SystemDeckImporterTests
         return (await importer.SystemDecks().SingleAsync(deck => deck.Name == "Days")).Id;
     }
 
-    private static SystemDeckImporter CreateImporter(FlashCardDbContext dbContext, FakeImageStore? store = null)
+    private static SystemDeckImporter CreateImporter(FlashCardDbContext dbContext)
     {
-        return new SystemDeckImporter(dbContext, store ?? new FakeImageStore(), NullLogger<SystemDeckImporter>.Instance);
+        return new SystemDeckImporter(dbContext, NullLogger<SystemDeckImporter>.Instance);
     }
 
 }

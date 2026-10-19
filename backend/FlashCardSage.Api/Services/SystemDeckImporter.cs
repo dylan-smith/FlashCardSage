@@ -6,18 +6,16 @@ using Microsoft.EntityFrameworkCore;
 namespace FlashCardSage.Api.Services;
 
 /// <summary>
-/// Imports the built-in decks (see SystemDeckSeeder) for SystemDecksController. Importing copies the deck, its cards,
-/// their tags and their pictures into the user's own, so it's then like a deck they made, and later changes to the
-/// built-in deck don't reach it. A single card can be imported too, into the user's deck with the built-in deck's name.
+/// Imports the built-in decks (see SystemDeckSeeder) for SystemDecksController. Importing copies the deck, its cards
+/// and their tags into the user's own, so it's then like a deck they made, and later changes to the built-in deck don't
+/// reach it. A card shares its built-in card's picture, through the cache of generated pictures, which never removes
+/// one. A single card can be imported too, into the user's deck with the built-in deck's name.
 /// </summary>
 /// <remarks>
 /// The system user's decks are the only rows read past the query filter, and only here. The copies are new rows that
 /// the context gives the current user. Like FlashCardsController, log statements include ids only, never a name.
 /// </remarks>
-public class SystemDeckImporter(
-    FlashCardDbContext dbContext,
-    IImageStore imageStore,
-    ILogger<SystemDeckImporter> logger)
+public class SystemDeckImporter(FlashCardDbContext dbContext, ILogger<SystemDeckImporter> logger)
 {
     // The system user's decks, with their cards and the cards' words and tags.
     public IQueryable<Deck> SystemDecks()
@@ -49,8 +47,6 @@ public class SystemDeckImporter(
         var tags = await dbContext.Tags.ToListAsync(cancellationToken);
 
         var deck = new Deck { Name = await UnusedDeckNameAsync(systemDeck.Name, cancellationToken) };
-        // Each copy's built-in card's picture, if it has one, copied once there's something to import.
-        var pictures = new List<(FlashCard Copy, string Url)>();
         var skipped = 0;
 
         foreach (var systemCard in systemDeck.FlashCards.OrderBy(card => card.Id))
@@ -64,13 +60,7 @@ public class SystemDeckImporter(
 
             taken.Add(systemCard);
 
-            var copy = systemCard.CopyForUser(tags);
-            deck.FlashCards.Add(copy);
-
-            if (systemCard.ImageUrl is { } imageUrl)
-            {
-                pictures.Add((copy, imageUrl));
-            }
+            deck.FlashCards.Add(CopyWithPicture(systemCard, tags));
         }
 
         if (deck.FlashCards.Count == 0)
@@ -79,16 +69,10 @@ public class SystemDeckImporter(
             return new SystemDeckImportResult.NothingToImport();
         }
 
-        // Each card gets a copy of the picture, never the built-in card's own, since deleting the user's card deletes
-        // its picture.
-        foreach (var (copy, url) in pictures)
-        {
-            copy.ImageUrl = await TryCopyPictureAsync(url, cancellationToken);
-        }
-
         dbContext.Decks.Add(deck);
+        await CachedImageGenerator.AddCardPicturesAsync(dbContext, deck.FlashCards, cancellationToken);
 
-        if (!await TrySaveCopiesAsync(deck.FlashCards))
+        if (await dbContext.TrySaveUniqueAsync(CancellationToken.None) is not null)
         {
             logger.LogWarning("Refused to import system deck {DeckId} over cards saved meanwhile", id);
             return new SystemDeckImportResult.Clash();
@@ -126,7 +110,7 @@ public class SystemDeckImporter(
             return new SystemDeckImportResult.CardTaken();
         }
 
-        var copy = systemCard.CopyForUser(await dbContext.Tags.ToListAsync(cancellationToken));
+        var copy = CopyWithPicture(systemCard, await dbContext.Tags.ToListAsync(cancellationToken));
         var deck = await DeckNamedAsync(systemDeck.Name, cancellationToken);
         var deckCreated = deck is null;
         if (deck is null)
@@ -136,13 +120,9 @@ public class SystemDeckImporter(
         }
 
         deck.FlashCards.Add(copy);
+        await CachedImageGenerator.AddCardPicturesAsync(dbContext, [copy], cancellationToken);
 
-        if (systemCard.ImageUrl is { } imageUrl)
-        {
-            copy.ImageUrl = await TryCopyPictureAsync(imageUrl, cancellationToken);
-        }
-
-        if (!await TrySaveCopiesAsync([copy]))
+        if (await dbContext.TrySaveUniqueAsync(CancellationToken.None) is not null)
         {
             logger.LogWarning(
                 "Refused to import card {CardId} of system deck {DeckId} over cards saved meanwhile", cardId, deckId);
@@ -190,48 +170,13 @@ public class SystemDeckImporter(
         return candidate;
     }
 
-    // Saves the import, or returns false when a card or deck saved since the checks failed a unique index. Either way
-    // when nothing was saved, nothing points at the copied pictures, so they're removed rather than left behind.
-    private async Task<bool> TrySaveCopiesAsync(IEnumerable<FlashCard> copies)
+    // The user's copy of a built-in card, with the built-in card's picture, which it shares rather than copies. The
+    // import puts the picture in the cache (it's there already once SystemDeckImageSync has run), so deleting the
+    // user's card never deletes it.
+    private static FlashCard CopyWithPicture(FlashCard systemCard, List<Tag> tags)
     {
-        DbUpdateException? clash;
-        try
-        {
-            clash = await dbContext.TrySaveUniqueAsync(CancellationToken.None);
-        }
-        catch
-        {
-            await DeleteCopiedPicturesAsync(copies);
-            throw;
-        }
-
-        if (clash is not null)
-        {
-            // A card or deck saved since the checks above failed a unique index.
-            await DeleteCopiedPicturesAsync(copies);
-            return false;
-        }
-
-        return true;
-    }
-
-    // A copy of the picture, or null when it's gone or can't be copied. The picture is only a nicety, so the card is
-    // imported without one rather than failing the whole deck.
-    private async Task<string?> TryCopyPictureAsync(string url, CancellationToken cancellationToken)
-    {
-        try
-        {
-            return await imageStore.CopyAsync(url, cancellationToken);
-        }
-        catch (Exception ex) when (ex is not OperationCanceledException)
-        {
-            logger.LogWarning(ex, "A built-in card's picture couldn't be copied, so the card is imported without it");
-            return null;
-        }
-    }
-
-    private Task DeleteCopiedPicturesAsync(IEnumerable<FlashCard> copies)
-    {
-        return imageStore.TryDeleteAllAsync(copies.Select(card => card.ImageUrl), logger, CancellationToken.None);
+        var copy = systemCard.CopyForUser(tags);
+        copy.ImageUrl = systemCard.ImageUrl;
+        return copy;
     }
 }
