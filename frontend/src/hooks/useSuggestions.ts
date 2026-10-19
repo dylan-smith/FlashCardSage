@@ -2,6 +2,10 @@ import { useEffect, useEffectEvent, useState } from 'react'
 import type { DependencyList } from 'react'
 import { trackException } from '../telemetry'
 
+// How many of the suggestions a section has already shown, the newest, it sends to be left out, like the API's
+// ShownSuggestions.MaxCount, which keeps the URL short.
+export const maxShownSuggestions = 50
+
 export type SuggestionsState<T> =
   | { status: 'loading' }
   | { status: 'unavailable' }

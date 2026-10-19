@@ -49,11 +49,12 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOpti
     public async Task<IReadOnlyList<string>> SuggestNewAsync(
         IReadOnlyList<Tag> tags,
         IReadOnlyList<FlashCard> untagged,
+        IReadOnlyList<string> exclude,
         int count,
         CancellationToken cancellationToken)
     {
         var answer = await chat.AskAsync<Answer>(
-            NewTagInstructions, DescribeNew(tags, untagged, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
+            NewTagInstructions, DescribeNew(tags, untagged, exclude, count), AnswerFormat, FoundryChatClient.ShortAnswerTokens, cancellationToken);
         return answer?.Tags ?? [];
     }
 
@@ -75,12 +76,17 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOpti
         return text.ToString();
     }
 
-    // The request for new tags: the learner's tags one per line, each with its cards, then their untagged cards.
-    private static string DescribeNew(IReadOnlyList<Tag> tags, IReadOnlyList<FlashCard> untagged, int count)
+    // The request for new tags: the learner's tags one per line, each with its cards, then their untagged cards, then
+    // the names they've already been shown, if any.
+    private static string DescribeNew(
+        IReadOnlyList<Tag> tags, IReadOnlyList<FlashCard> untagged, IReadOnlyList<string> exclude, int count)
     {
         if (tags.Count == 0 && untagged.Count == 0)
         {
-            return $"The learner has no cards or tags yet. Suggest {count} tags a beginner would want first.";
+            var beginner = new StringBuilder(
+                $"The learner has no cards or tags yet. Suggest {count} tags a beginner would want first.");
+            AppendExcluded(beginner, exclude);
+            return beginner.ToString();
         }
 
         var text = new StringBuilder($"Suggest {count} new tags.").AppendLine();
@@ -96,7 +102,18 @@ public class FoundryTagSuggester(HttpClient httpClient, IOptions<FoundryChatOpti
                 text.Append("- ").AppendLine(PromptText.Card(card));
             }
         }
+        AppendExcluded(text, exclude);
         return text.ToString();
+    }
+
+    // The names the learner has already been shown, so asking again gives different ones.
+    private static void AppendExcluded(StringBuilder text, IReadOnlyList<string> exclude)
+    {
+        if (exclude.Count > 0)
+        {
+            text.AppendLine().Append("The learner has already been shown these, so suggest different ones: ")
+                .AppendJoin(", ", exclude).AppendLine(".");
+        }
     }
 
     private static void AppendTags(StringBuilder text, IReadOnlyList<Tag> tags)

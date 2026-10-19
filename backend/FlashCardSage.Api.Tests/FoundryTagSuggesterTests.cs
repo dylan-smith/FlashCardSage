@@ -72,7 +72,7 @@ public class FoundryTagSuggesterTests
         using var httpClient = new HttpClient(handler);
         List<FlashCard> untagged = [new() { Words = TestDb.Words(["rojo"], ["red", "scarlet"]) }];
 
-        var tags = await CreateSuggester(httpClient).SuggestNewAsync(Tags, untagged, 8, CancellationToken.None);
+        var tags = await CreateSuggester(httpClient).SuggestNewAsync(Tags, untagged, [], 8, CancellationToken.None);
 
         Assert.Equal(["Food", "Colors"], tags);
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
@@ -92,12 +92,28 @@ public class FoundryTagSuggesterTests
     }
 
     [Fact]
+    public async Task SuggestNewAsync_AsksForDifferentTags_ThanTheOnesAlreadyShown()
+    {
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"tags":[]}"""));
+        using var httpClient = new HttpClient(handler);
+
+        await CreateSuggester(httpClient).SuggestNewAsync(Tags, [], ["Food", "Colors"], 8, CancellationToken.None);
+
+        using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
+        var prompt = body.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!
+            .ReplaceLineEndings("\n");
+        Assert.EndsWith(
+            "\nThe learner has already been shown these, so suggest different ones: Food, Colors.\n", prompt,
+            StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task SuggestNewAsync_AsksForBeginnersTags_WithNoTagsOrCards()
     {
         var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"tags":[]}"""));
         using var httpClient = new HttpClient(handler);
 
-        await CreateSuggester(httpClient).SuggestNewAsync([], [], 8, CancellationToken.None);
+        await CreateSuggester(httpClient).SuggestNewAsync([], [], [], 8, CancellationToken.None);
 
         using var body = JsonDocument.Parse(Assert.Single(handler.Requests).Body!);
         Assert.Equal(
@@ -112,7 +128,7 @@ public class FoundryTagSuggesterTests
         using var httpClient = new HttpClient(handler);
 
         var ex = await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSuggester(httpClient).SuggestNewAsync(Tags, [], 8, CancellationToken.None));
+            CreateSuggester(httpClient).SuggestNewAsync(Tags, [], [], 8, CancellationToken.None));
 
         Assert.Equal(HttpStatusCode.TooManyRequests, ex.StatusCode);
     }

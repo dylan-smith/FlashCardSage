@@ -28,13 +28,18 @@ public class CardSuggestionsController(
     // A few more than are shown are asked for, since some can turn out to be cards the user already has.
     private const int ExtraRequested = 3;
 
+    /// <summary>
+    /// Suggests new cards, related to the card relatedTo and under the tag tag when they're given. The Spanish words in
+    /// exclude, of the cards the page has already shown, aren't suggested again, so asking for more gives different
+    /// ones.
+    /// </summary>
     [HttpGet]
     [ProducesResponseType<IEnumerable<CardSuggestion>>(StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     [ProducesResponseType(StatusCodes.Status502BadGateway)]
     [ProducesResponseType(StatusCodes.Status503ServiceUnavailable)]
     public async Task<ActionResult<IEnumerable<CardSuggestion>>> Suggest(
-        int? relatedTo, int? tag, CancellationToken cancellationToken)
+        int? relatedTo, int? tag, [FromQuery] string[]? exclude, CancellationToken cancellationToken)
     {
         if (!suggester.IsAvailable)
         {
@@ -80,12 +85,13 @@ public class CardSuggestionsController(
             .TakeLast(MaxCardsDescribed)
             .OrderBy(card => card.Id)
             .ToList();
+        var shown = ShownSuggestions.From(exclude, FlashCard.MaxWordLength);
 
         IReadOnlyList<CardSuggestion> suggested;
         try
         {
             suggested = await suggester.SuggestAsync(
-                described, related, selectedTag, SuggestionCount + ExtraRequested, cancellationToken);
+                described, related, selectedTag, shown, SuggestionCount + ExtraRequested, cancellationToken);
         }
         catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
         {
@@ -93,9 +99,14 @@ public class CardSuggestionsController(
             return BadGatewayProblem("Card suggestions failed.");
         }
 
-        var suggestions = NewCards.From(suggested, cards).Take(SuggestionCount).ToList();
+        // None the page already showed, as well as none the user has.
+        var suggestions = NewCards.From(suggested, cards)
+            .Where(suggestion => !shown.Contains(suggestion.Spanish, TextRules.Comparer))
+            .Take(SuggestionCount)
+            .ToList();
         logger.LogInformation(
-            "Suggested {Count} of {Requested} cards from {CardCount} cards", suggestions.Count, suggested.Count, cards.Count);
+            "Suggested {Count} of {Requested} cards from {CardCount} cards, leaving out {ShownCount}",
+            suggestions.Count, suggested.Count, cards.Count, shown.Count);
 
         return Ok(suggestions);
     }

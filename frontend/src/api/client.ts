@@ -156,14 +156,18 @@ export async function optional<T>(request: Promise<T>): Promise<T | null> {
   }
 }
 
-// The URL with the parameters that have a value as its query string.
+// The URL with the parameters that have a value as its query string. A list repeats its parameter for each value.
 export function withQuery(
   url: string,
-  params: Record<string, string | number | undefined>,
+  params: Record<string, string | number | string[] | undefined>,
 ) {
   const query = new URLSearchParams()
   for (const [name, value] of Object.entries(params)) {
-    if (value !== undefined) {
+    if (Array.isArray(value)) {
+      for (const item of value) {
+        query.append(name, item)
+      }
+    } else if (value !== undefined) {
       query.set(name, String(value))
     }
   }
