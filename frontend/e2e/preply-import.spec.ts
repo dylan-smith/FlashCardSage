@@ -68,7 +68,7 @@ test.describe('Import from Preply', () => {
   test('the steps have no detectable accessibility violations', async ({
     page,
   }) => {
-    await page.goto('/import?from=preply')
+    await page.goto('/import?from=website&site=preply')
     await expect(
       page.getByRole('link', { name: 'Send to FlashCardSage' }),
     ).toHaveAttribute('href', /^javascript:/)
@@ -83,8 +83,13 @@ test.describe('Import from Preply', () => {
     await context.route('https://preply.com/**', fakePreply)
 
     await page.goto('/import')
-    await page.getByRole('tab', { name: 'From Preply' }).click()
-    await expect(page).toHaveURL(/\/import\?from=preply$/)
+    // Preply is the first of the sites, so it's picked.
+    await page.getByRole('tab', { name: 'From a website' }).click()
+    await expect(page).toHaveURL(/\/import\?from=website$/)
+    await expect(page.getByRole('button', { name: 'Preply' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
     const bookmarklet = page.getByRole('link', {
       name: 'Send to FlashCardSage',
     })
@@ -98,11 +103,14 @@ test.describe('Import from Preply', () => {
     const opened = context.waitForEvent('page')
     await preply.evaluate(source)
     const importPage = await opened
-    // It opens on the Import cards page's Preply tab.
-    await expect(importPage).toHaveURL(/\/import\?from=preply$/)
+    // It opens on the Import cards page's website tab with Preply picked.
+    await expect(importPage).toHaveURL(/\/import\?from=website&site=preply$/)
     await expect(
-      importPage.getByRole('tab', { name: 'From Preply' }),
+      importPage.getByRole('tab', { name: 'From a website' }),
     ).toHaveAttribute('aria-selected', 'true')
+    await expect(
+      importPage.getByRole('button', { name: 'Preply' }),
+    ).toHaveAttribute('aria-pressed', 'true')
 
     // Listed like the cards from a document, leaving out the word the user has a card for, with the two words for
     // "toasted" on one card.
@@ -155,7 +163,7 @@ test.describe('Import from Preply', () => {
     context,
   }) => {
     await context.route('https://preply.com/**', fakePreply)
-    await page.goto('/import?from=preply')
+    await page.goto('/import?from=website&site=preply')
     const bookmarklet = page.getByRole('link', {
       name: 'Send to FlashCardSage',
     })
@@ -195,7 +203,7 @@ test.describe('Import from Preply on a phone', () => {
   })
 
   test('says to bring the words in on a computer', async ({ page }) => {
-    await page.goto('/import?from=preply')
+    await page.goto('/import?from=website&site=preply')
 
     await expect(
       page.getByText(/Bringing in your Preply words needs a computer\./),

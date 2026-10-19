@@ -2,12 +2,9 @@ import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Deck } from '../../api/decks'
-import {
-  clearPreplyHandoff,
-  startPreplyHandoff,
-} from '../../preply/preplyHandoff'
-import { touchOnlyQuery } from '../../components/import/PreplyBookmarklet'
+import { touchOnlyQuery } from '../../components/import/BookmarkletSteps'
 import { trackEvent, trackException } from '../../telemetry'
+import { clearHandoff, startHandoff } from '../../wordSources/handoff'
 import { api, card, deck } from '../support/factories'
 import { jsonResponse, mockApi } from '../support/mockApi'
 import type { Routes } from '../support/mockApi'
@@ -32,7 +29,7 @@ describe('importing from Preply', () => {
   // Ends the wait for the words, as its time limit does, which a test calls when it wants it to.
   let endWait: () => void = () => {}
   const opened = Object.assign(new EventTarget(), {
-    location: { pathname: '/import', search: '?from=preply' },
+    location: { pathname: '/import', search: '?from=website&site=preply' },
     opener: window,
     setTimeout: (handler: () => void) => {
       endWait = handler
@@ -50,24 +47,28 @@ describe('importing from Preply', () => {
 
   beforeEach(() => {
     vi.spyOn(window, 'postMessage').mockImplementation(() => {})
-    startPreplyHandoff(opened)
+    startHandoff(opened)
   })
 
   afterEach(() => {
-    clearPreplyHandoff()
+    clearHandoff()
   })
 
-  // Shows the Import cards page's Preply tab, as the bookmarklet opens it, with the user's cards and decks loaded.
-  // Saving anything is answered from routes. The other tabs' lists are empty.
+  // Shows the Import cards page's website tab with Preply picked, as the bookmarklet opens it, with the user's cards
+  // and decks loaded. Saving anything is answered from routes. The other tabs' lists are empty.
   async function showPreply(routes: Routes = {}, decks: Deck[] = []) {
     const { calls } = mockApi({
       'GET /flashcards': ownCards,
       'GET /decks': decks,
       ...routes,
     })
-    renderAt('/import?from=preply')
-    expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
+    renderAt('/import?from=website&site=preply')
+    expect(screen.getByRole('tab', { name: 'From a website' })).toHaveAttribute(
       'aria-selected',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
+      'aria-pressed',
       'true',
     )
     // The built-in decks load on their hidden tab too.
@@ -145,7 +146,7 @@ describe('importing from Preply', () => {
   it("doesn't say again which words are left out after coming back", async () => {
     const user = userEvent.setup()
     mockApi({ 'GET /flashcards': ownCards })
-    const { unmount } = renderAt('/import?from=preply')
+    const { unmount } = renderAt('/import?from=website&site=preply')
     await receiveWords()
     unmount()
 
@@ -153,7 +154,7 @@ describe('importing from Preply', () => {
     expect(
       await screen.findByText("There aren't any built-in decks yet."),
     ).toBeVisible()
-    await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+    await user.click(screen.getByRole('tab', { name: 'From a website' }))
 
     expect(
       await screen.findByRole('heading', {
@@ -164,11 +165,12 @@ describe('importing from Preply', () => {
     expect(screen.queryByText(/ left out because /)).not.toBeInTheDocument()
   })
 
-  it('waits for the Preply tab to say which words are left out', async () => {
+  // Showing means its tab is open and it's the site picked there.
+  it('waits for Preply to be showing to say which words are left out', async () => {
     mockApi({ 'GET /flashcards': ownCards })
     sendFromPreply({ type: 'flashcardsage:preply-words', words })
     const user = userEvent.setup()
-    renderAt('/import')
+    renderAt('/import?from=website&site=duolingo')
     expect(
       await screen.findByRole('heading', {
         level: 2,
@@ -178,7 +180,7 @@ describe('importing from Preply', () => {
     ).not.toBeVisible()
     expect(screen.queryByText(/ left out because /)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+    await user.click(screen.getByRole('button', { name: 'Preply' }))
 
     expect(
       await screen.findByText(
@@ -410,7 +412,7 @@ describe('importing from Preply', () => {
   })
 
   it('says how to use the bookmarklet when opened some other way', async () => {
-    clearPreplyHandoff()
+    clearHandoff()
     await showPreply()
 
     expect(
@@ -424,7 +426,7 @@ describe('importing from Preply', () => {
   it('tells phone users to bring in their words on a computer', async () => {
     // A touch screen with no mouse, as a phone has.
     stubMatchMedia((query) => query === touchOnlyQuery)
-    clearPreplyHandoff()
+    clearHandoff()
     await showPreply()
 
     expect(
