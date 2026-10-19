@@ -238,8 +238,8 @@ To put some data on the workbook, run the **Generate Load** workflow (`.github/w
 | Service health | Azure reports an incident or planned maintenance for App Service, SQL Database, Storage or Monitor in West US/West US 2 | 2 |
 | API server errors | More than 5 HTTP 5xx responses in 15 minutes | 2 |
 | API dependency failures | More than 10 failed backend dependency calls (mostly SQL) in 15 minutes | 2 |
-| Browser errors | More than 5 frontend exceptions in an hour, not counting automated tests in headless Chrome | 2 |
-| Browser API call failures | More than 5 failed API calls from the frontend in an hour | 2 |
+| Browser errors | More than 5 frontend exceptions in an hour, not counting automated tests in headless Chrome or while a deployment has the API paused | 2 |
+| Browser API call failures | More than 5 failed API calls from the frontend in an hour, not counting while a deployment has the API paused | 2 |
 | CPU quota | More than 45 of the F1 plan's 60 daily CPU minutes used in 24 hours (the app stops when they run out) | 2 |
 | Frontend storage availability | Blob storage less than 99% available over an hour | 2 |
 | Slow API | Average response time over 5 seconds for 30 minutes (at least 10 requests, not counting deployment calls) | 3 |
