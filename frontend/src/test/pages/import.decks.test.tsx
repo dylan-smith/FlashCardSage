@@ -44,7 +44,7 @@ describe('importing cards', () => {
   it('lists the built-in decks with their card counts', async () => {
     await showImport()
 
-    // The built-in decks' tab is open, next to the document's and Preply's.
+    // The built-in decks' tab is open, next to the document's and the websites'.
     expect(screen.getByRole('tab', { name: 'Built-in decks' })).toHaveAttribute(
       'aria-selected',
       'true',
@@ -52,7 +52,7 @@ describe('importing cards', () => {
     expect(
       screen.getByRole('tab', { name: 'From a document' }),
     ).toHaveAttribute('aria-selected', 'false')
-    expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: 'From a website' })).toHaveAttribute(
       'aria-selected',
       'false',
     )
@@ -332,22 +332,31 @@ describe('importing cards', () => {
     )
   })
 
-  it("offers the bookmarklet that brings in Preply words on Preply's tab", async () => {
+  it('offers the bookmarklet that brings in Preply words on the website tab', async () => {
     const user = userEvent.setup()
     await showImport()
     expect(
       screen.queryByRole('link', { name: 'Send to FlashCardSage' }),
     ).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: 'From Preply' }))
+    await user.click(screen.getByRole('tab', { name: 'From a website' }))
 
-    expect(screen.getByRole('tab', { name: 'From Preply' })).toHaveAttribute(
+    expect(screen.getByRole('tab', { name: 'From a website' })).toHaveAttribute(
       'aria-selected',
       'true',
     )
+    // Preply is the first of the sites, so it's picked.
+    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
+      'aria-pressed',
+      'true',
+    )
+    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
+      'aria-pressed',
+      'false',
+    )
     // Four steps, in order, with the bookmarklet in the first and Preply's page in the second.
     const steps = within(
-      screen.getByRole('tabpanel', { name: 'From Preply' }),
+      screen.getByRole('region', { name: 'From Preply' }),
     ).getAllByRole('listitem')
     expect(
       steps.map(
