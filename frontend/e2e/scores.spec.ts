@@ -36,7 +36,10 @@ test.describe('Scores', () => {
     await expect(page.getByText('Total score 80 / 200 (40%)')).toBeVisible()
     await expect(
       page.getByRole('list', { name: 'Card scores' }).getByRole('listitem'),
-    ).toHaveText([/el gato.*0 \/ 100/, /el perro.*80 \/ 100/])
+    ).toHaveText([
+      /el gato.*Practiced 2 times: 1 got it, 1 close, 0 failedLast .*0 \/ 100/,
+      /el perro.*Practiced 2 times: 2 got it, 0 close, 0 failedLast .*80 \/ 100/,
+    ])
   })
 
   test('scores and totals just the cards in the deck picked', async ({
