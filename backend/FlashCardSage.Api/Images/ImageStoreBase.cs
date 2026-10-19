@@ -20,15 +20,6 @@ public abstract class ImageStoreBase : IImageStore
         return url;
     }
 
-    // Reads the picture and saves it again, rather than copying it in storage, so the copy is saved just as a new
-    // picture is. A picture is at most a few megabytes.
-    public async Task<string?> CopyAsync(string url, CancellationToken cancellationToken)
-    {
-        return NameFromUrl(url) is { } name && await ReadAsync(name, cancellationToken) is { } data
-            ? await SaveAsync(data, CardImage.ContentTypeOf(name), cancellationToken)
-            : null;
-    }
-
     public async Task<ReadOnlyMemory<byte>?> LoadAsync(string url, CancellationToken cancellationToken)
     {
         return NameFromUrl(url) is { } name ? await ReadAsync(name, cancellationToken) : null;

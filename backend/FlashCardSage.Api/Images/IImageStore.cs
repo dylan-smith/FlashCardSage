@@ -11,11 +11,6 @@ public interface IImageStore
     // picture's content (see CardImage.ContentName).
     Task<string> SaveAsync(string name, ReadOnlyMemory<byte> data, CancellationToken cancellationToken);
 
-    // Copies a picture, by the URL SaveAsync gave it, to a new name, and returns the copy's URL, so two cards never
-    // share a picture (deleting one card's would take it from the other). Null when the URL isn't this store's or the
-    // picture is gone.
-    Task<string?> CopyAsync(string url, CancellationToken cancellationToken);
-
     // The picture at the URL SaveAsync gave it. Null when the URL isn't this store's or the picture is gone.
     Task<ReadOnlyMemory<byte>?> LoadAsync(string url, CancellationToken cancellationToken);
 

@@ -1,6 +1,7 @@
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
 using FlashCardSage.Api.SystemDecks;
@@ -130,75 +131,46 @@ public class SystemDecksControllerTests
     }
 
     [Fact]
-    public async Task Import_GivesEachCardItsOwnCopyOfThePicture()
+    public async Task Import_SharesTheBuiltInPicture_WhichDeletingTheCardLeaves()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days, Months);
         var store = new FakeImageStore();
         var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateController(dbContext, store)
+        var result = await CreateController(dbContext)
             .Import(await SystemDeckIdAsync(dbContext, "Days"), CancellationToken.None);
 
         Assert.IsType<CreatedAtActionResult>(result.Result);
-        var copy = Assert.Single(store.Saved, item => item.Url != systemUrl);
-        Assert.Equal("image/png", copy.ContentType);
-        Assert.Equal(SampleImages.Png, copy.Data);
+        Assert.Single(store.Saved);
         await using var checkContext = TestDb.Create(databaseName);
         var cards = await UserCardsAsync(checkContext);
-        Assert.Equal(copy.Url, cards.Single(card => card.Spanish.Single() == "lunes").ImageUrl);
+        var lunes = cards.Single(card => card.Spanish.Single() == "lunes");
+        Assert.Equal(systemUrl, lunes.ImageUrl);
         Assert.All(cards.Where(card => card.Spanish.Single() != "lunes"), card => Assert.Null(card.ImageUrl));
-        // The built-in card keeps its own.
-        Assert.Equal(systemUrl, (await SystemDeckTestData.SystemCardAsync(checkContext, "lunes")).ImageUrl);
+        Assert.Equal(systemUrl, Assert.Single(checkContext.GeneratedImages).ImageUrl);
+
+        var flashCards = new FlashCardsController(
+            checkContext,
+            new FlashCardService(checkContext, store, NullLogger<FlashCardService>.Instance),
+            NullLogger<FlashCardsController>.Instance);
+        Assert.IsType<NoContentResult>(await flashCards.Delete(lunes.Id));
         Assert.Empty(store.Deleted);
     }
 
     [Fact]
-    public async Task Import_LeavesThePictureOff_WhenItsGone()
-    {
-        var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days, Months);
-        var store = new FakeImageStore();
-        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
-        await store.DeleteAsync(systemUrl, CancellationToken.None);
-        await using var dbContext = TestDb.Create(databaseName);
-
-        var result = await CreateController(dbContext, store)
-            .Import(await SystemDeckIdAsync(dbContext, "Days"), CancellationToken.None);
-
-        Assert.IsType<CreatedAtActionResult>(result.Result);
-        Assert.Null((await UserCardsAsync(dbContext)).Single(card => card.Spanish.Single() == "lunes").ImageUrl);
-    }
-
-    [Fact]
-    public async Task Import_LeavesThePictureOff_WhenItCannotBeCopied()
+    public async Task Import_SavesNoCachedPictures_WhenTheSaveFails()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days, Months);
         await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, new FakeImageStore(), "lunes");
-        var store = new FakeImageStore { CopyFailure = new InvalidOperationException("Storage is down.") };
-        await using var dbContext = TestDb.Create(databaseName);
-
-        var result = await CreateController(dbContext, store)
-            .Import(await SystemDeckIdAsync(dbContext, "Days"), CancellationToken.None);
-
-        var imported = ActionResultAssert.Created<SystemDeckImportResponse>(result.Result);
-        Assert.Equal(3, imported.ImportedCount);
-        Assert.Null((await UserCardsAsync(dbContext)).Single(card => card.Spanish.Single() == "lunes").ImageUrl);
-    }
-
-    [Fact]
-    public async Task Import_RemovesTheCopiedPictures_WhenTheSaveFails()
-    {
-        var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days, Months);
-        var store = new FakeImageStore();
-        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
         await using var dbContext = TestDb.Create(databaseName, interceptors: FailingSaveInterceptor.DuplicateKey("FlashCardWords"));
         var daysId = await SystemDeckIdAsync(dbContext, "Days");
 
-        var result = await CreateController(dbContext, store).Import(daysId, CancellationToken.None);
+        var result = await CreateController(dbContext).Import(daysId, CancellationToken.None);
 
         ActionResultAssert.Conflict(result.Result, SystemDecksController.ImportClashMessage);
-        var copy = Assert.Single(store.Saved, item => item.Url != systemUrl);
-        Assert.Equal([copy.Url], store.Deleted);
+        await using var checkContext = TestDb.Create(databaseName);
+        Assert.False(await checkContext.GeneratedImages.AnyAsync());
     }
 
     // Any one word the user has, in either language and whatever its case, leaves the card out: martes is a single
@@ -276,13 +248,12 @@ public class SystemDecksControllerTests
     public async Task ImportCard_MakesTheDeck_AndCopiesTheCardIntoIt()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days, Months);
-        var store = new FakeImageStore();
-        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "martes");
+        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, new FakeImageStore(), "martes");
         await using var dbContext = TestDb.Create(databaseName);
         var daysId = await SystemDeckIdAsync(dbContext, "Days");
         var martes = await SystemDeckTestData.SystemCardAsync(dbContext, "martes");
 
-        var result = await CreateController(dbContext, store).ImportCard(daysId, martes.Id, CancellationToken.None);
+        var result = await CreateController(dbContext).ImportCard(daysId, martes.Id, CancellationToken.None);
 
         var created = Assert.IsType<CreatedAtActionResult>(result.Result);
         Assert.Equal((nameof(FlashCardsController.GetById), "FlashCards"), (created.ActionName, created.ControllerName));
@@ -301,9 +272,12 @@ public class SystemDecksControllerTests
         var card = Assert.Single(deck.FlashCards);
         Assert.NotEqual(martes.Id, card.Id);
         Assert.Equal(TestDb.UserId, card.UserId);
-        // The card gets its own copy of the picture.
-        var copy = Assert.Single(store.Saved, item => item.Url != systemUrl);
-        Assert.Equal(copy.Url, card.ImageUrl);
+        // The card shares the built-in card's picture, which is cached under the card's words.
+        Assert.Equal(systemUrl, card.ImageUrl);
+        var cached = Assert.Single(checkContext.GeneratedImages);
+        Assert.Equal(
+            (systemUrl, CachedImageGenerator.PromptHash("martes", "Tuesday / Tues")),
+            (cached.ImageUrl, cached.PromptHash));
     }
 
     [Fact]
@@ -354,21 +328,20 @@ public class SystemDecksControllerTests
     }
 
     [Fact]
-    public async Task ImportCard_RemovesTheCopiedPicture_WhenTheSaveFails()
+    public async Task ImportCard_SavesNoCachedPicture_WhenTheSaveFails()
     {
         var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days, Months);
-        var store = new FakeImageStore();
-        var systemUrl = await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, store, "lunes");
+        await SystemDeckTestData.GiveSystemCardAPictureAsync(databaseName, new FakeImageStore(), "lunes");
         await using var dbContext = TestDb.Create(databaseName, interceptors: FailingSaveInterceptor.DuplicateKey("FlashCardWords"));
 
-        var result = await CreateController(dbContext, store).ImportCard(
+        var result = await CreateController(dbContext).ImportCard(
             await SystemDeckIdAsync(dbContext, "Days"),
             (await SystemDeckTestData.SystemCardAsync(dbContext, "lunes")).Id,
             CancellationToken.None);
 
         ActionResultAssert.Conflict(result.Result, SystemDecksController.CardImportClashMessage);
-        var copy = Assert.Single(store.Saved, item => item.Url != systemUrl);
-        Assert.Equal([copy.Url], store.Deleted);
+        await using var checkContext = TestDb.Create(databaseName);
+        Assert.False(await checkContext.GeneratedImages.AnyAsync());
     }
 
     // The card has to be on that built-in deck, so another deck's card, a user's card or an unknown one isn't found.
@@ -408,11 +381,11 @@ public class SystemDecksControllerTests
         return dbContext.FlashCards.Include(card => card.Words).ToListAsync();
     }
 
-    private static SystemDecksController CreateController(FlashCardDbContext dbContext, FakeImageStore? store = null)
+    private static SystemDecksController CreateController(FlashCardDbContext dbContext)
     {
         return new SystemDecksController(
             dbContext,
-            new SystemDeckImporter(dbContext, store ?? new FakeImageStore(), NullLogger<SystemDeckImporter>.Instance),
+            new SystemDeckImporter(dbContext, NullLogger<SystemDeckImporter>.Instance),
             NullLogger<SystemDecksController>.Instance);
     }
 

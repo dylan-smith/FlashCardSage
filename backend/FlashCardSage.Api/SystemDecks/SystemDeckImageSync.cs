@@ -11,9 +11,9 @@ using Microsoft.EntityFrameworkCore.Storage;
 namespace FlashCardSage.Api.SystemDecks;
 
 /// <summary>
-/// Puts the built-in cards' pictures (see SystemDeckImages) on them, in the image store. A picture is kept under a
-/// name from its content, so a card whose URL already ends with it is left alone, and a changed picture replaces the
-/// old one. Running it again, or on two instances at once, does no harm.
+/// Puts the built-in cards' pictures (see SystemDeckImages) on them, in the image store, and in the cache of generated
+/// pictures, which users' cards share them through. A picture is kept under a name from its content, so a card whose
+/// URL already ends with it is left alone, and a changed picture replaces the old one. Running it again does no harm.
 /// </summary>
 public static class SystemDeckImageSync
 {
@@ -78,6 +78,10 @@ public static class SystemDeckImageSync
             updated++;
         }
 
+        // Every built-in picture is in the cache, so users who add the card share it, and anyone asking for a picture
+        // of its words is shown it first. Cards that had theirs already are added too, for pictures from before the
+        // cache.
+        await CachedImageGenerator.AddCardPicturesAsync(dbContext, cards, cancellationToken);
         await dbContext.SaveChangesAsync(cancellationToken);
 
         // Only once the cards point at their new pictures, so a card never points at one that's gone. An old picture
