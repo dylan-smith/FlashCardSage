@@ -13,8 +13,11 @@ StartupLog.Info($"Environment: {builder.Environment.EnvironmentName}");
 builder.Services.AddFlashCardSageTelemetry(builder.Configuration);
 builder.Services.AddFlashCardSageAuthentication(builder.Configuration);
 builder.Services.AddControllers();
-// The card and built-in deck logic the controllers use.
+// The card, tag, deck, picture and built-in deck logic the controllers use.
 builder.Services.AddScoped<FlashCardService>();
+builder.Services.AddScoped<TagService>();
+builder.Services.AddScoped<DeckService>();
+builder.Services.AddScoped<CardPictureService>();
 builder.Services.AddScoped<SystemDeckImporter>();
 // No database check: the availability test pings /health, and touching SQL would stop the serverless database
 // from auto-pausing.
