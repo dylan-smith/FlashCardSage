@@ -14,6 +14,16 @@ initTelemetry()
 // Before rendering, since the user may need to sign in before they see the words a bookmarklet sends.
 startHandoff()
 
+// The service worker (sw/sw.ts) keeps the app so it opens offline. Only built apps have one: the dev server serves
+// the source, which the service worker would keep stale.
+if (import.meta.env.PROD && 'serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
+      trackException(error, { operation: 'registerServiceWorker' })
+    })
+  })
+}
+
 // Setting these replaces React's default console logging, so keep logging as well as reporting.
 function reportRootError(kind: string) {
   return (error: unknown) => {

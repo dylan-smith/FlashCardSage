@@ -18,6 +18,9 @@ export default defineConfig({
   use: {
     baseURL: process.env.SMOKE_BASE_URL ?? 'http://localhost:4173',
     trace: 'on-first-retry',
+    // The service worker would answer a reload with the copy of the app it kept, so the smoke tests would pass even
+    // if the host had stopped serving the app. Blocking it makes every page come from the host.
+    serviceWorkers: 'block',
   },
   projects: [
     {
