@@ -22,8 +22,8 @@ public sealed class OAuthServerOptions
     // Each refresh gives a refresh token that lasts this long again, so an app used once a month stays connected.
     public static readonly TimeSpan RefreshTokenLifetime = TimeSpan.FromDays(30);
 
-    // A refresh token used again this soon after it was exchanged is probably the app retrying, so it's refused without
-    // revoking the tokens; later, it's probably stolen, and every token from that sign-in is revoked.
+    // A refresh token used again this soon after it was exchanged is probably the app retrying after losing the
+    // response, so it gets a new pair again; later, it's probably stolen, and every token from that sign-in is revoked.
     public static readonly TimeSpan RefreshReuseGrace = TimeSpan.FromSeconds(60);
 
     public string ApiBaseUrl { get; init; } = string.Empty;

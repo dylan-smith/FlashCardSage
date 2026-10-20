@@ -37,10 +37,8 @@ public class OAuthFlowTests(WebApplicationFactory<Program> factory)
             await OAuthFlow.RefreshAsync(anonymous, connected.Tokens.RefreshToken, connected.ClientId));
         Assert.NotEqual(connected.Tokens.AccessToken, refreshed.AccessToken);
         Assert.NotEqual(connected.Tokens.RefreshToken, refreshed.RefreshToken);
-        Assert.Equal(
-            OAuthErrors.InvalidGrant,
-            await OAuthFlow.ReadErrorAsync(
-                await OAuthFlow.RefreshAsync(anonymous, connected.Tokens.RefreshToken, connected.ClientId)));
+        // Reusing the old refresh token after the grace window revokes the family: see OAuthTokenTests, which can move
+        // the clock.
 
         var connection = Assert.Single(
             (await user.GetFromJsonAsync<List<OAuthConnectionResponse>>("/api/oauth/connections"))!);
