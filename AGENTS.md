@@ -16,6 +16,9 @@ document the user uploads for up to 100 new cards, made by the same model.
 
 - `backend/FlashCardSage.Api`: ASP.NET Core Web API (.NET 10) with EF Core, SQL Server and controllers.
   OpenAPI is served at `/openapi/v1.json` and Scalar at `/scalar` in every environment.
+- `backend/FlashCardSage.Api/Mcp` and `Startup/McpSetup.cs`: the MCP server at `/mcp` (ModelContextProtocol.AspNetCore,
+  stateless), whose tools let an AI assistant work with the signed-in user's cards, tags and decks through the same
+  services the controllers use. See the README's "Connect an AI assistant (MCP)" section.
 - `backend/FlashCardSage.Database`: DbUp console app that runs the SQL migrations in `Scripts/`.
 - `backend/FlashCardSage.Api.Tests`: xUnit backend tests.
 - `frontend`: React 19 + TypeScript + Material UI (Vite). Unit tests use Vitest in `src/test`,
@@ -103,6 +106,10 @@ npm run test:e2e
   must delete pictures through `TryDeleteCardPicturesAsync`, which leaves cached ones alone. The OAuth server's
   apps, sign-ins in progress and tokens have no owner or filter either, since they're looked up before anyone is
   signed in; a token reaches its grant (owned like a card) with `IgnoreQueryFilters()`.
+- MCP tools follow the same rules: they act through the services (or the filtered `FlashCardDbContext`), and report
+  problems by throwing `McpException` with the controllers' user-facing messages (`Mcp/ToolErrors.cs`). Register a new
+  tool class with `WithTools<T>()` in `McpSetup` (the assembly-scanning overloads fail the build). A new or renamed
+  tool updates the pinned list in `McpServerTests` and gets tests of its own in `FlashCardSage.Api.Tests/Mcp/`.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
 
 ### Database

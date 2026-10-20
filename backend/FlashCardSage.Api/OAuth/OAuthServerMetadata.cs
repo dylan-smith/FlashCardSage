@@ -14,6 +14,10 @@ public static class OAuthServerMetadata
 
     public const string RegisterPath = "/oauth/register";
 
+    // Where the MCP endpoint's metadata is (RFC 9728 puts the resource's path after the well-known name), which a
+    // 401 from /mcp points MCP clients at.
+    public const string McpProtectedResourcePath = "/.well-known/oauth-protected-resource/mcp";
+
     public static OAuthAuthorizationServerMetadata AuthorizationServer(OAuthServerOptions options)
     {
         ArgumentNullException.ThrowIfNull(options);

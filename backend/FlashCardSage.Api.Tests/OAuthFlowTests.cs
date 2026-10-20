@@ -1,12 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
-using FlashCardSage.Api.Authentication;
+using System.Text;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.OAuth;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Http;
+using FlashCardSage.Api.Tests.Mcp;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -30,8 +28,6 @@ public class OAuthFlowTests(WebApplicationFactory<Program> factory)
         Assert.Equal("Bearer", connected.Tokens.TokenType);
         Assert.Equal(3600, connected.Tokens.ExpiresIn);
         Assert.Equal("flashcards", connected.Tokens.Scope);
-        // PR 4 (the MCP endpoint) adds the assertions that the access token works on /mcp, and stops working once the
-        // app is disconnected. Until then the probe below stands in for it.
 
         var refreshed = await OAuthFlow.ReadTokensAsync(
             await OAuthFlow.RefreshAsync(anonymous, connected.Tokens.RefreshToken, connected.ClientId));
@@ -80,56 +76,46 @@ public class OAuthFlowTests(WebApplicationFactory<Program> factory)
     [Fact]
     public async Task AccessToken_SignsInAsTheUserWhoConnected_OnMcp_UntilDisconnected()
     {
-        var name = $"Alice {Guid.NewGuid()}";
-        using var app = TestApp.CreateFactory(
-            factory, services: services => services.AddTransient<IStartupFilter, McpProbe>());
+        using var app = TestApp.CreateFactory(factory);
         using var anonymous = OAuthFlow.CreateClient(app);
-        using var user = OAuthFlow.CreateClient(app, $"test:{name}");
+        using var user = OAuthFlow.CreateClient(app, $"test:Alice {Guid.NewGuid()}");
+        var created = await user.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("el gato", "the cat"));
+        var cardId = (await created.Content.ReadFromJsonAsync<IdResponse>())!.Id;
         var connected = await OAuthFlow.ConnectAsync(anonymous, user);
-        using var mcpClient = OAuthFlow.CreateClient(app, connected.Tokens.AccessToken);
+        using var mcpHttp = OAuthFlow.CreateClient(app, connected.Tokens.AccessToken);
 
-        var signedInAs = await mcpClient.GetStringAsync("/mcp");
+        await using (var mcpClient = await McpTestClient.ConnectAsync(mcpHttp))
+        {
+            var page = await McpTestClient.CallJsonAsync(mcpClient, "list_cards");
 
-        Assert.Equal($"{OAuthAccessTokenHandler.SchemeName} test:{name.ToLowerInvariant()} {name}", signedInAs);
+            Assert.Equal(1, page.GetProperty("total").GetInt32());
+            Assert.Equal(cardId, page.GetProperty("cards")[0].GetProperty("id").GetInt32());
+        }
+
         var connection = Assert.Single(
             (await user.GetFromJsonAsync<List<OAuthConnectionResponse>>("/api/oauth/connections"))!);
         await user.DeleteAsync($"/api/oauth/connections/{connection.Id}");
-        Assert.Equal(HttpStatusCode.Unauthorized, (await mcpClient.GetAsync("/mcp")).StatusCode);
+        using var afterDisconnect = await mcpHttp.PostAsync("/mcp", InitializeRequest());
+        Assert.Equal(HttpStatusCode.Unauthorized, afterDisconnect.StatusCode);
     }
 
     [Fact]
     public async Task AccessToken_IsRejected_WhenItIsntOneTheServerIssued()
     {
-        using var app = TestApp.CreateFactory(
-            factory, services: services => services.AddTransient<IStartupFilter, McpProbe>());
-        using var mcpClient = OAuthFlow.CreateClient(app, $"{OAuthTokens.AccessTokenPrefix}not-a-real-token");
+        using var app = TestApp.CreateFactory(factory);
+        using var mcpHttp = OAuthFlow.CreateClient(app, $"{OAuthTokens.AccessTokenPrefix}not-a-real-token");
 
-        Assert.Equal(HttpStatusCode.Unauthorized, (await mcpClient.GetAsync("/mcp")).StatusCode);
+        using var response = await mcpHttp.PostAsync("/mcp", InitializeRequest());
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+        Assert.Contains("resource_metadata=", response.Headers.WwwAuthenticate.ToString(), StringComparison.Ordinal);
     }
 
-    // Until PR 4 adds the MCP endpoint, answers /mcp with who signed in, or 401, after the app's own middleware.
-    private sealed class McpProbe : IStartupFilter
+    private static StringContent InitializeRequest()
     {
-        public Action<IApplicationBuilder> Configure(Action<IApplicationBuilder> next)
-        {
-            return app =>
-            {
-                next(app);
-                app.Run(async context =>
-                {
-                    if (context.User.Identity?.IsAuthenticated != true)
-                    {
-                        context.Response.StatusCode = StatusCodes.Status401Unauthorized;
-                        return;
-                    }
-
-                    await context.Response.WriteAsync(string.Join(
-                        ' ',
-                        context.User.Identity.AuthenticationType,
-                        context.User.FindFirst(AuthenticationSetup.SubjectClaim)?.Value,
-                        context.User.FindFirst(AuthenticationSetup.NameClaim)?.Value));
-                });
-            };
-        }
+        return new StringContent(
+            """{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"test","version":"1"}}}""",
+            Encoding.UTF8,
+            "application/json");
     }
 }
