@@ -1,7 +1,7 @@
 // Waits for the deployed API to become healthy before the smoke tests run.
 //
-// Right after a deployment the App Service restarts, and on the free plan the serverless
-// database may still be resuming from auto-pause, so the first requests can be slow or fail.
+// Right after a deployment the App Service restarts, and the serverless database may still be
+// resuming from auto-pause, so the first requests can be slow or fail.
 // Poll the API until it answers a signed-in request with the frontend's Origin (GET /api/me, which reads the
 // signed-in user from the database) with a 200 and a matching CORS header, then let the tests run.
 

@@ -540,22 +540,25 @@ jobs:
           arguments: -v AppUserName=${{ env.PREVIEW_APP_NAME }} AppSid=${{ steps.infra.outputs['api-client-id'] }}
 
       # The Bicep deployment's app settings restart the site's deployment (SCM) container shortly before this,
-      # which can stop the deployment partway (see deploy-backend), so a failed deployment is retried once.
+      # which can stop the deployment partway (see deploy-backend), so a failed deployment is retried once. The
+      # deployment waits for the site to restart (WEBSITE_ENABLE_SYNC_UPDATE_SITE), which on the shared plan can take
+      # up to the 10-minute container start limit (see infra/preview.bicep), hence the longer timeout.
       - name: Deploy API to Azure App Service
         if: steps.current.outputs.current == 'true'
         id: deploy
         continue-on-error: true
-        timeout-minutes: 5
+        timeout-minutes: 15
         uses: azure/webapps-deploy@v3
         with:
           app-name: ${{ env.PREVIEW_APP_NAME }}
           package: ./backend/publish
 
+      # A timed-out deployment carries on in App Service, and a retry while it's still running fails with 409 Conflict.
       - name: Wait before retrying the deployment
         if: steps.deploy.outcome == 'failure'
         run: |
-          echo "::warning::Deployment failed; retrying it once in 60 seconds"
-          sleep 60
+          echo "::warning::Deployment failed; retrying it once in 3 minutes"
+          sleep 180
 
       - name: Retry deploy to Azure App Service
         if: steps.deploy.outcome == 'failure'
@@ -606,7 +609,7 @@ jobs:
         working-directory: frontend
 
       # Checks the preview works end to end before the comment says it's ready. The tests first wait for the API
-      # to answer with the right CORS header (see e2e/smoke.global-setup.ts); on the free plan a new app and a
+      # to answer with the right CORS header (see e2e/smoke.global-setup.ts); on the shared plan a new app and a
       # new database take a while to start, hence the longer wait.
       - name: Run smoke tests against the preview
         if: steps.current.outputs.current == 'true'
@@ -630,9 +633,12 @@ jobs:
       # Replaces the preview's data with the sample flash cards on every deployment, so there's something to try straight
       # away and each push starts from the same data. They belong to the test user "Preview User", the name the
       # preview's sign-in page suggests.
+      # The seed starts over each time, so if the app restarts partway, the whole seed is run again.
       - name: Seed sample data
         if: steps.current.outputs.current == 'true'
-        run: bash .github/scripts/seed-preview.sh
+        run: |
+          source .github/scripts/lib.sh
+          retry 2 30 "Seeding attempt" -- bash .github/scripts/seed-preview.sh
         env:
           API_URL: ${{ steps.infra.outputs['app-service-url'] }}
           API_AUTH_TOKEN: 'test:Preview User'
