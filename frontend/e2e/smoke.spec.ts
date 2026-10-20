@@ -49,7 +49,10 @@ test('smoke: can add, edit and delete a flash card', async ({ page }) => {
   await page.getByLabel('Spanish').fill(title)
   await page.getByLabel('English').fill(`${title} in English`)
   await page.getByRole('button', { name: 'Add flash card' }).click()
-  await expect(page.getByText(title, { exact: true })).toBeVisible()
+  // Saving can take well over 5 seconds too, on a preview's shared plan.
+  await expect(page.getByText(title, { exact: true })).toBeVisible({
+    timeout: 30_000,
+  })
 
   try {
     // Reloading checks the card was saved, and that the host serves the app again.
@@ -60,7 +63,9 @@ test('smoke: can add, edit and delete a flash card', async ({ page }) => {
     await page.getByRole('button', { name: `Edit "${title}"` }).click()
     await page.getByRole('listitem').getByLabel('Spanish').fill(renamed)
     await page.getByRole('button', { name: 'Save' }).click()
-    await expect(page.getByText(renamed, { exact: true })).toBeVisible()
+    await expect(page.getByText(renamed, { exact: true })).toBeVisible({
+      timeout: 30_000,
+    })
   } finally {
     // Best-effort cleanup so we don't leave data behind if the test fails mid-run. Only this run's card is
     // deleted, by whichever name it has by now, so a card an earlier run left behind can't be deleted instead.
