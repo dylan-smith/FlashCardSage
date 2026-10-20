@@ -1,6 +1,6 @@
 import { storageKeys } from '../lib/storageKeys'
 import { createStore } from '../lib/store'
-import { googleSubject } from './google'
+import { disableGoogleAutoSelect, googleSubject } from './google'
 
 // The signed-in user. token is sent to the API as a bearer token: a Google ID token, a "test:<name>" token where
 // test sign-in is enabled, or the service token the production smoke and load tests use.
@@ -45,6 +45,12 @@ export function setSession(session: Session | null) {
     // Storage can be unavailable, for example in a private window. The sign-in still lasts until the page reloads.
   }
   store.set(session)
+}
+
+// Signs the user out, and stops Google signing them straight back in.
+export function signOut() {
+  disableGoogleAutoSelect()
+  setSession(null)
 }
 
 export const subscribeSession = store.subscribe

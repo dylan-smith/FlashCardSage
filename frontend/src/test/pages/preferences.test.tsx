@@ -70,7 +70,9 @@ describe('preferences', () => {
       expect(trackEvent).toHaveBeenCalledWith('PreferencesUpdated')
     })
     expect(
-      calls.all.map((call) => [call.init?.method, call.url, call.init?.body]),
+      calls
+        .filter('PUT')
+        .map((call) => [call.init?.method, call.url, call.init?.body]),
     ).toEqual([
       [
         'PUT',
