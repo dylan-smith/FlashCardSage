@@ -1,3 +1,4 @@
+using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Models;
 
 namespace FlashCardSage.Api.Services;
@@ -16,11 +17,25 @@ public abstract record CardResult
 
     public sealed record Updated(FlashCard Card) : CardResult;
 
-    // The cards that were added, and how many were left out because their words were taken.
-    public sealed record CreatedMany(IReadOnlyList<FlashCard> Cards, int SkippedCount) : CardResult;
+    // The cards that were added, and the requests left out because their words were taken, in the order given.
+    public sealed record CreatedMany(IReadOnlyList<FlashCard> Cards, IReadOnlyList<FlashCardRequest> Skipped)
+        : CardResult
+    {
+        public int SkippedCount => Skipped.Count;
+    }
 
     // A word that's already on another of the user's cards.
-    public sealed record Duplicate(FlashCardWord Word) : CardResult;
+    public sealed record Duplicate(FlashCardWord Word) : CardResult
+    {
+        // What to tell the user. A word with more than one translation belongs on one card, so the user is pointed at
+        // that card.
+        public static string DuplicateMessage(Language language, string word)
+        {
+            return $"You already have a flash card with the {language} \"{word}\". Add this translation to that card instead.";
+        }
+
+        public string Message => DuplicateMessage(Word.Language, Word.Text);
+    }
 
     // The request's problems as (field, message) pairs, in the order they were found.
     public sealed record Invalid(IReadOnlyList<KeyValuePair<string, string>> Errors) : CardResult;

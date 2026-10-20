@@ -1,8 +1,7 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -11,21 +10,19 @@ namespace FlashCardSage.Api.Controllers;
 /// can be renamed or deleted, optionally replacing it with another tag on its cards.
 /// </summary>
 /// <remarks>
-/// Like FlashCardsController, log statements include ids only, never a tag's name.
+/// Like FlashCardsController, log statements include ids only, never a tag's name. The changes are made by TagService,
+/// and this turns what became of them into responses.
 /// </remarks>
 [ApiController]
 [Route("api/tags")]
-public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController> logger) : ControllerBase
+public class TagsController(TagService tagService, ILogger<TagsController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Tag>>> GetAll()
     {
         logger.LogInformation("Retrieving all tags");
 
-        var tags = await dbContext.Tags
-            .AsNoTracking()
-            .OrderBy(tag => tag.Name)
-            .ToListAsync();
+        var tags = await tagService.GetAllAsync();
 
         logger.LogInformation("Retrieved {Count} tags", tags.Count);
 
@@ -36,110 +33,42 @@ public class TagsController(FlashCardDbContext dbContext, ILogger<TagsController
     [HttpPost]
     public async Task<ActionResult<Tag>> Create([FromBody] TagRequest request)
     {
-        var tags = await dbContext.Tags.ToListAsync();
-        var name = ValidateName(request.Name, tags, id: null);
-        if (!ModelState.IsValid)
-        {
-            return ValidationProblem(ModelState);
-        }
-
-        var tag = new Tag { Name = name };
-        dbContext.Tags.Add(tag);
-        await dbContext.SaveChangesAsync();
-
-        logger.LogInformation("Created tag {TagId}", tag.Id);
-
-        return StatusCode(StatusCodes.Status201Created, tag);
+        return ToResponse(await tagService.CreateAsync(request.Name), created: true);
     }
 
     [HttpPut("{id:int}")]
     public async Task<ActionResult<Tag>> Update(int id, [FromBody] TagRequest request)
     {
-        var tags = await dbContext.Tags.ToListAsync();
-        var tag = tags.FirstOrDefault(item => item.Id == id);
-
-        if (tag is null)
-        {
-            logger.LogWarning("Tag {TagId} not found for update", id);
-            return NotFound();
-        }
-
-        var name = ValidateName(request.Name, tags, id);
-        if (!ModelState.IsValid)
-        {
-            return ValidationProblem(ModelState);
-        }
-
-        tag.Name = name;
-        await dbContext.SaveChangesAsync();
-
-        logger.LogInformation("Renamed tag {TagId}", id);
-
-        return Ok(tag);
+        return ToResponse(await tagService.RenameAsync(id, request.Name));
     }
 
     // With replaceWith, that other tag of the user's is put on the deleted tag's cards first, which merges the two.
     [HttpDelete("{id:int}")]
     public async Task<IActionResult> Delete(int id, [FromQuery] int? replaceWith = null)
     {
-        // The tag's cards are loaded so EF removes the tag from them first, which the database leaves to it.
-        var tag = await dbContext.Tags
-            .Include(item => item.FlashCards)
-            .FirstOrDefaultAsync(item => item.Id == id);
-
-        if (tag is null)
-        {
-            logger.LogWarning("Tag {TagId} not found for deletion", id);
-            return NotFound();
-        }
-
-        if (replaceWith is int replacementId)
-        {
-            // The query filter means another user's tag isn't found, the same as one that doesn't exist.
-            var replacement = replacementId == id
-                ? null
-                : await dbContext.Tags
-                    .Include(item => item.FlashCards)
-                    .FirstOrDefaultAsync(item => item.Id == replacementId);
-
-            if (replacement is null)
-            {
-                ModelState.AddModelError(nameof(replaceWith), "Pick another of your tags to replace it with.");
-                return ValidationProblem(ModelState);
-            }
-
-            foreach (var card in tag.FlashCards.Where(card => !replacement.FlashCards.Contains(card)))
-            {
-                replacement.FlashCards.Add(card);
-            }
-
-            logger.LogInformation("Replacing tag {TagId} with tag {ReplacementTagId}", id, replacementId);
-        }
-
-        dbContext.Tags.Remove(tag);
-        await dbContext.SaveChangesAsync();
-
-        logger.LogInformation("Deleted tag {TagId}", id);
-
-        return NoContent();
+        return ToResponse(await tagService.DeleteAsync(id, replaceWith));
     }
 
-    // The trimmed name, adding a model error if it's blank or another of the user's tags (not the one with this id)
-    // has it. A person's tags are few, so they're matched here rather than in SQL.
-    private string ValidateName(string name, List<Tag> tags, int? id)
+    // The response for what became of a change, a 201 for a saved tag that's new.
+    private ActionResult ToResponse(TagResult result, bool created = false)
     {
-        var trimmed = name.Trim();
-
-        if (trimmed.Length == 0)
+        switch (result)
         {
-            ModelState.AddModelError(nameof(TagRequest.Name), "Tag name is required.");
-        }
-        // Names are unique whatever their case, as the database's index is.
-        else if (tags.Any(item => item.Id != id && TextRules.SameText(item.Name, trimmed)))
-        {
-            ModelState.AddModelError(nameof(TagRequest.Name), "There's already a tag with that name.");
-        }
+            case TagResult.Saved(var tag):
+                return created ? StatusCode(StatusCodes.Status201Created, tag) : Ok(tag);
+            case TagResult.Deleted:
+                return NoContent();
+            case TagResult.NotFound:
+                return NotFound();
+            case TagResult.Invalid(var errors):
+                foreach (var (field, message) in errors)
+                {
+                    ModelState.AddModelError(field, message);
+                }
 
-        return trimmed;
+                return ValidationProblem(ModelState);
+            default:
+                throw new InvalidOperationException($"Unexpected tag result {result.GetType().Name}.");
+        }
     }
 }
