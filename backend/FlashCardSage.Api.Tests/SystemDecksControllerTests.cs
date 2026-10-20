@@ -151,7 +151,6 @@ public class SystemDecksControllerTests
         Assert.Equal(systemUrl, Assert.Single(checkContext.GeneratedImages).ImageUrl);
 
         var flashCards = new FlashCardsController(
-            checkContext,
             new FlashCardService(checkContext, store, NullLogger<FlashCardService>.Instance),
             NullLogger<FlashCardsController>.Instance);
         Assert.IsType<NoContentResult>(await flashCards.Delete(lunes.Id));

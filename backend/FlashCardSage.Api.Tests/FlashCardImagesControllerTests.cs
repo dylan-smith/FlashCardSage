@@ -5,6 +5,7 @@ using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Tests.Fakes;
 using FlashCardSage.Api.Tests.TestData;
 using Microsoft.AspNetCore.Http;
@@ -480,10 +481,9 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     {
         store ??= new FakeImageStore();
         return new FlashCardImagesController(
-            dbContext,
             new CachedImageGenerator(
                 generator ?? new FakeImageGenerator(), store, dbContext, NullLogger<CachedImageGenerator>.Instance),
-            store,
+            new CardPictureService(dbContext, store, NullLogger<CardPictureService>.Instance),
             NullLogger<FlashCardImagesController>.Instance);
     }
 }

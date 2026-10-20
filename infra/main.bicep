@@ -182,6 +182,7 @@ module appService 'modules/appservice.bicep' = {
     sqlConnectionString: sqlConnectionString
     // The web endpoint keeps working next to the custom domain. The browser sends the origin without a trailing slash.
     corsAllowedOrigins: union([storage.outputs.frontendOrigin], [replace(storage.outputs.primaryWebEndpoint, '.net/', '.net')])
+    frontendBaseUrl: storage.outputs.frontendOrigin
     googleClientId: googleClientId
     serviceToken: serviceToken
     translatorName: translator.outputs.name

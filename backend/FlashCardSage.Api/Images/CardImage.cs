@@ -56,7 +56,7 @@ public static partial class CardImage
         return Extensions.Single(item => item.Value == extension).Key;
     }
 
-    // Checks and decodes a picture sent as base64. The content type comes back as a store keeps it (lowercase), and
+    // Checks and decodes a picture sent as base64 (see TryValidate). The content type comes back as a store keeps it (lowercase), and
     // the error says what's wrong in words for the user.
     public static bool TryDecode(
         string? contentType,
@@ -94,13 +94,46 @@ public static partial class CardImage
             return false;
         }
 
-        if (length > MaxBytes)
+        if (!TryValidate(buffer.AsMemory(0, length), normalizedContentType, out _, out error))
+        {
+            return false;
+        }
+
+        data = buffer.AsMemory(0, length);
+        return true;
+    }
+
+    // Checks a picture's bytes, however they came: that it's a kind a card can have, within the limit, and starts the
+    // way that kind of file does. The content type comes back as a store keeps it (lowercase), and the error says
+    // what's wrong in words for the user.
+    public static bool TryValidate(
+        ReadOnlyMemory<byte> data,
+        string? contentType,
+        out string normalizedContentType,
+        out string error)
+    {
+        normalizedContentType = (contentType ?? string.Empty).Trim().ToLowerInvariant();
+        error = string.Empty;
+
+        if (!Extensions.ContainsKey(normalizedContentType))
+        {
+            error = "The picture must be a JPEG, PNG or WebP.";
+            return false;
+        }
+
+        if (data.IsEmpty)
+        {
+            error = "The picture is empty.";
+            return false;
+        }
+
+        if (data.Length > MaxBytes)
         {
             error = TooBigMessage;
             return false;
         }
 
-        var bytes = buffer.AsSpan(0, length);
+        var bytes = data.Span;
         var matches = normalizedContentType switch
         {
             "image/jpeg" => bytes.StartsWith(JpegSignature),
@@ -113,7 +146,6 @@ public static partial class CardImage
             return false;
         }
 
-        data = buffer.AsMemory(0, length);
         return true;
     }
 
