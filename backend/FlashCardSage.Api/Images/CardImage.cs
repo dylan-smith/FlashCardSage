@@ -56,6 +56,12 @@ public static partial class CardImage
         return Extensions.Single(item => item.Value == extension).Key;
     }
 
+    // Whether a content type is a kind of picture a card can have, ignoring case and spaces around it.
+    public static bool IsContentType(string? contentType)
+    {
+        return Extensions.ContainsKey((contentType ?? string.Empty).Trim().ToLowerInvariant());
+    }
+
     // Checks and decodes a picture sent as base64 (see TryValidate). The content type comes back as a store keeps it (lowercase), and
     // the error says what's wrong in words for the user.
     public static bool TryDecode(

@@ -29,6 +29,7 @@ builder.Services.AddSingleton<UsageSnapshotService>();
 builder.Services.AddHostedService(services => services.GetRequiredService<UsageSnapshotService>());
 builder.Services.AddAiServices();
 builder.Services.AddImageStore(builder.Configuration);
+builder.Services.AddRemotePictureFetcher();
 
 // Puts the built-in cards' pictures on them once the API has started.
 builder.Services.AddHostedService<SystemDeckImageSyncService>();
