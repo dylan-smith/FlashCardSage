@@ -428,6 +428,29 @@ public sealed class FlashCardImagesControllerTests(WebApplicationFactory<Program
     }
 
     [Fact]
+    public async Task ALocalPicture_CanBeFetchedByTheFrontend()
+    {
+        // The frontend fetches the pictures itself to keep them for offline practice, which needs CORS to run before
+        // the local files are served.
+        var settings = Settings;
+        settings["Cors:AllowedOrigins:0"] = "http://localhost:5173";
+        using var client = TestApp.CreateSignedInClient(factory, settings: settings);
+        var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("nadar", "to swim"));
+        var card = (await created.Content.ReadFromJsonAsync<FlashCard>())!;
+        var put = await client.PutAsJsonAsync(
+            $"/api/flashcards/{card.Id}/image", new { contentType = "image/png", data = Png });
+        var withPicture = (await put.Content.ReadFromJsonAsync<FlashCard>())!;
+
+        using var anyone = TestApp.CreateSignedOutClient(factory, settings);
+        using var request = new HttpRequestMessage(HttpMethod.Get, new Uri(withPicture.ImageUrl!));
+        request.Headers.Add("Origin", "http://localhost:5173");
+        var picture = await anyone.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.OK, picture.StatusCode);
+        Assert.Equal(["http://localhost:5173"], picture.Headers.GetValues("Access-Control-Allow-Origin"));
+    }
+
+    [Fact]
     public async Task Put_TakesAnUploadedPictureAsBigAsTheLimit()
     {
         using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
