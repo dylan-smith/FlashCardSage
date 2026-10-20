@@ -14,6 +14,8 @@ export function ConfirmDelete({
   children,
   options,
   busy,
+  confirmText = 'Delete',
+  busyText = 'Deleting…',
   onCancel,
   onConfirm,
 }: {
@@ -24,6 +26,10 @@ export function ConfirmDelete({
   // Fields that change what deleting does, shown under what will be lost.
   options?: ReactNode
   busy: boolean
+  // The confirm button, and what it says while it waits for the API, for something other than deleting, such as
+  // disconnecting an app.
+  confirmText?: string
+  busyText?: string
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -58,7 +64,7 @@ export function ConfirmDelete({
           disabled={busy}
           onClick={onConfirm}
         >
-          {busy ? 'Deleting…' : 'Delete'}
+          {busy ? busyText : confirmText}
         </Button>
       </DialogActions>
     </Dialog>

@@ -3,6 +3,7 @@ import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import FormControlLabel from '@mui/material/FormControlLabel'
 import FormGroup from '@mui/material/FormGroup'
+import Stack from '@mui/material/Stack'
 import Switch from '@mui/material/Switch'
 import Typography from '@mui/material/Typography'
 import { describeFetchError } from '../api/client'
@@ -16,6 +17,7 @@ import {
 import { trackEvent, trackException } from '../telemetry'
 import { Loading } from '../components/common/Loading'
 import { Section } from '../components/common/Section'
+import { ConnectedApps } from '../components/preferences/ConnectedApps'
 
 const options: {
   key: keyof Preferences
@@ -42,7 +44,7 @@ const options: {
   },
 ]
 
-// The user's preferences, each saved as soon as it's changed.
+// The user's preferences, each saved as soon as it's changed, and the apps they've connected.
 function PreferencesPage() {
   const preferences = usePreferences()
   const [errorMessage, setErrorMessage] = useState('')
@@ -76,43 +78,48 @@ function PreferencesPage() {
   }
 
   return (
-    <Section title="Preferences">
-      {errorMessage && (
-        <Alert severity="error" sx={{ mb: 2 }}>
-          {errorMessage}
-        </Alert>
-      )}
-      {preferences === null ? (
-        <Loading />
-      ) : (
-        <FormGroup sx={{ gap: 2 }}>
-          {options.map(({ key, label, description }) => (
-            <Box key={key}>
-              <FormControlLabel
-                label={label}
-                control={
-                  <Switch
-                    checked={preferences[key]}
-                    onChange={(event) => change(key, event.target.checked)}
-                    slotProps={{
-                      input: { 'aria-describedby': `${key}-description` },
-                    }}
-                  />
-                }
-              />
-              <Typography
-                id={`${key}-description`}
-                variant="body2"
-                color="text.secondary"
-                sx={{ ml: 6 }}
-              >
-                {description}
-              </Typography>
-            </Box>
-          ))}
-        </FormGroup>
-      )}
-    </Section>
+    <Stack spacing={2}>
+      <Section title="Preferences">
+        {errorMessage && (
+          <Alert severity="error" sx={{ mb: 2 }}>
+            {errorMessage}
+          </Alert>
+        )}
+        {preferences === null ? (
+          <Loading />
+        ) : (
+          <FormGroup sx={{ gap: 2 }}>
+            {options.map(({ key, label, description }) => (
+              <Box key={key}>
+                <FormControlLabel
+                  label={label}
+                  control={
+                    <Switch
+                      checked={preferences[key]}
+                      onChange={(event) => change(key, event.target.checked)}
+                      slotProps={{
+                        input: { 'aria-describedby': `${key}-description` },
+                      }}
+                    />
+                  }
+                />
+                <Typography
+                  id={`${key}-description`}
+                  variant="body2"
+                  color="text.secondary"
+                  sx={{ ml: 6 }}
+                >
+                  {description}
+                </Typography>
+              </Box>
+            ))}
+          </FormGroup>
+        )}
+      </Section>
+      <Section title="Connected apps">
+        <ConnectedApps />
+      </Section>
+    </Stack>
   )
 }
 

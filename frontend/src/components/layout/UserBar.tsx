@@ -6,15 +6,9 @@ import SvgIcon from '@mui/material/SvgIcon'
 import Tooltip from '@mui/material/Tooltip'
 import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
-import { disableGoogleAutoSelect } from '../../auth/google'
-import { setSession } from '../../auth/session'
+import { signOut } from '../../auth/session'
 import type { Session } from '../../auth/session'
 import { icons } from '../../lib/icons'
-
-function signOut() {
-  disableGoogleAutoSelect()
-  setSession(null)
-}
 
 // The signed-in user, with a link to their preferences and a button to sign out.
 export function UserBar({
