@@ -19,6 +19,7 @@ A flash card app for learning a language, with:
 - Scan a document (.txt, .md, .srt, .vtt, .docx or .pdf) for words and phrases to make cards for: gpt-5-mini makes up to 100 cards from it, leaving out ones you have, and you change or remove any before adding them all at once; scan it again for more
 - Ask for a picture of what a card means, made by FLUX.2-pro on Azure AI Foundry, or upload your own (a JPEG, PNG or WebP of up to 5 MB), which goes on the card when you save it unless you discard it; practice mode shows it once the card is revealed
 - A Preferences page, where each user can turn off pictures, suggested cards and translation as they type
+- Opens with no connection once it's been opened online, and can be installed as an app (on a phone, Add to Home Screen): a service worker keeps the app itself on the device
 - RESTful API with OpenAPI support
 
 ## Prerequisites
@@ -56,6 +57,8 @@ npm run dev
 ```
 
 The frontend dev server starts at `http://localhost:5173`. Set the `VITE_API_BASE_URL` environment variable if your backend runs on a different URL.
+
+Built apps (`npm run build`, then `npm run preview` at `http://localhost:4173`, and every deployment) register a service worker, `sw.js`, built from `frontend/sw/sw.ts`, so the app opens offline. It keeps `index.html`, the build's files under `assets/` and the icons and web manifest from `public/` (the build puts their list in `sw.js`), answers every page with the kept `index.html`, and serves pictures from other origins from its `flashcardsage-pictures` cache when they're there (it only ever stores a picture that came back with CORS, so not the ones `<img>` loads itself); the API and Google sign-in always go to the network. `public/manifest.webmanifest` lets browsers install the app, opening on Practice. The dev server doesn't register it. A browser that has opened `localhost:4173` keeps the service worker across builds, and it serves the previous build until it finds the new `sw.js`, so a reload can show the build before; when that's confusing, unregister it under DevTools → Application → Service workers.
 
 ### Sign-in
 
@@ -128,7 +131,7 @@ The image deployment allows 6 pictures a minute. For a big run, raise its capaci
 
    **Application Insights** — The API automatically sends telemetry to Azure Application Insights when a connection string is available. Set the `APPLICATIONINSIGHTS_CONNECTION_STRING` environment variable (or the `AzureMonitor:ConnectionString` app setting) to your Application Insights connection string. When using Azure App Service, you can connect Application Insights directly from the Azure Portal, which sets `APPLICATIONINSIGHTS_CONNECTION_STRING` automatically. Telemetry is silently disabled when neither value is configured (e.g. during local development).
 
-2. **Frontend** — Run `npm run build` in `frontend` and serve the contents of `frontend/dist` with any static file host (Azure Storage Account static website, Nginx, etc.). Set `VITE_API_BASE_URL` to the production API URL and `VITE_GOOGLE_CLIENT_ID` to the Google OAuth client ID before building. When using a different origin for the frontend, make sure the backend `Cors:AllowedOrigins` setting includes that frontend URL. Serve `index.html` with `Cache-Control: no-cache` so browsers pick up new versions; the hashed files under `assets/` can be cached for a long time. `npm run deploy` (`.github/scripts/deploy-frontend.sh`) does this for the Azure Storage static website.
+2. **Frontend** — Run `npm run build` in `frontend` and serve the contents of `frontend/dist` with any static file host (Azure Storage Account static website, Nginx, etc.). Set `VITE_API_BASE_URL` to the production API URL and `VITE_GOOGLE_CLIENT_ID` to the Google OAuth client ID before building. When using a different origin for the frontend, make sure the backend `Cors:AllowedOrigins` setting includes that frontend URL. Serve `index.html` and `sw.js` (the service worker) with `Cache-Control: no-cache` so browsers pick up new versions, and `manifest.webmanifest` as `application/manifest+json`; the hashed files under `assets/` can be cached for a long time. `npm run deploy` (`.github/scripts/deploy-frontend.sh`) does this for the Azure Storage static website.
 
    **Application Insights** — The frontend sends page views, exceptions, API calls and flash card events to Application Insights using the Application Insights JavaScript SDK when `VITE_APPINSIGHTS_CONNECTION_STRING` is set at build time (CI reads it from the API's `APPLICATIONINSIGHTS_CONNECTION_STRING` app setting, so both report to the same resource). API calls carry a W3C `traceparent` header, so each browser request and the API request it triggers share one operation in Application Insights. The SDK sets `ai_user` and `ai_session` cookies to count users and sessions. Telemetry is disabled when the variable isn't set (local development, unit tests and E2E runs).
 
