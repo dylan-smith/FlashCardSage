@@ -9,11 +9,14 @@ using Microsoft.Extensions.DependencyInjection;
 namespace FlashCardSage.Api.Tests;
 
 public class RemotePictureFetcherTests(WebApplicationFactory<Program> factory)
-    : IClassFixture<WebApplicationFactory<Program>>
+    : IClassFixture<WebApplicationFactory<Program>>, IDisposable
 {
     private const string PictureUrl = "https://pictures.example/cat.png";
 
     private readonly RecordingLogger<RemotePictureFetcher> logger = new();
+
+    // The clients CreateFetcher made, disposed after each test.
+    private readonly List<HttpClient> httpClients = [];
 
     [Theory]
     [InlineData("93.184.216.34", true)]
@@ -403,7 +406,7 @@ public class RemotePictureFetcherTests(WebApplicationFactory<Program> factory)
     public async Task FetchAsync_RefusesAConnectionToAPrivateAddress()
     {
         // Something listening on loopback, which the connection would reach if it weren't refused.
-        var listener = new TcpListener(IPAddress.Loopback, 0);
+        using var listener = new TcpListener(IPAddress.Loopback, 0);
         listener.Start();
         try
         {
@@ -461,6 +464,17 @@ public class RemotePictureFetcherTests(WebApplicationFactory<Program> factory)
             ["nowhere.example"] = []
         });
         var httpClient = new HttpClient(handler) { Timeout = timeout ?? RemotePictureFetcher.Timeout };
+        httpClients.Add(httpClient);
         return new RemotePictureFetcher(httpClient, resolver, logger);
+    }
+
+    public void Dispose()
+    {
+        foreach (var httpClient in httpClients)
+        {
+            httpClient.Dispose();
+        }
+
+        GC.SuppressFinalize(this);
     }
 }
