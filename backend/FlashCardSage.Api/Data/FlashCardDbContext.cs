@@ -173,6 +173,10 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
 
         result.HasIndex(item => item.FlashCardId);
 
+        // Filtered to the results that have one in the database (0014-*.sql).
+        result.HasIndex(item => item.ClientId)
+            .IsUnique();
+
         result.Property(item => item.Outcome)
             .HasConversion<string>()
             .HasMaxLength(20);
