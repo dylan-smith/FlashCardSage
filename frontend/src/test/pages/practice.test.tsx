@@ -480,9 +480,12 @@ describe('practicing', () => {
       const { calls, random } = await practice([cat, dog])
       const goOnline = goOffline()
       const status = screen.getByRole('status')
-      expect(status).toHaveTextContent(
-        "Offline – your answers will be saved when you're back online.",
-      )
+      // The note subscribes to the online state in an effect, which may run after the event.
+      await waitFor(() => {
+        expect(status).toHaveTextContent(
+          "Offline – your answers will be saved when you're back online.",
+        )
+      })
 
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
       random.mockReturnValue(0.6)
