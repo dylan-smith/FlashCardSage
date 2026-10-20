@@ -1,9 +1,7 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -15,7 +13,6 @@ namespace FlashCardSage.Api.Controllers;
 [ApiController]
 [Route("api/flashcards")]
 public class FlashCardsController(
-    FlashCardDbContext dbContext,
     FlashCardService flashCards,
     ILogger<FlashCardsController> logger) : ApiControllerBase
 {
@@ -33,11 +30,7 @@ public class FlashCardsController(
     {
         logger.LogInformation("Retrieving all flash cards");
 
-        var cards = await dbContext.FlashCards
-            .AsNoTracking()
-            .WithWordsAndTags()
-            .OrderBy(card => card.Id)
-            .ToListAsync();
+        var cards = await flashCards.GetAllAsync();
 
         logger.LogInformation("Retrieved {Count} flash cards", cards.Count);
 
@@ -49,10 +42,7 @@ public class FlashCardsController(
     {
         logger.LogInformation("Retrieving flash card {FlashCardId}", id);
 
-        var card = await dbContext.FlashCards
-            .AsNoTracking()
-            .WithWordsAndTags()
-            .FirstOrDefaultAsync(item => item.Id == id);
+        var card = await flashCards.GetAsync(id);
 
         if (card is null)
         {

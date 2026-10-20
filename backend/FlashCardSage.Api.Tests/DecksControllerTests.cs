@@ -266,7 +266,6 @@ public class DecksControllerTests
         await using (var dbContext = TestDb.Create(databaseName))
         {
             var controller = new FlashCardsController(
-                dbContext,
                 new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance),
                 NullLogger<FlashCardsController>.Instance);
             Assert.IsType<NoContentResult>(await controller.Delete(catId));
@@ -297,7 +296,6 @@ public class DecksControllerTests
     private static DecksController CreateController(FlashCardDbContext dbContext)
     {
         return new DecksController(
-            dbContext,
             new DeckService(dbContext, NullLogger<DeckService>.Instance),
             NullLogger<DecksController>.Instance);
     }

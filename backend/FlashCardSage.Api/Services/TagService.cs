@@ -13,6 +13,15 @@ namespace FlashCardSage.Api.Services;
 /// </remarks>
 public class TagService(FlashCardDbContext dbContext, ILogger<TagService> logger)
 {
+    // The user's tags, by name.
+    public Task<List<Tag>> GetAllAsync()
+    {
+        return dbContext.Tags
+            .AsNoTracking()
+            .OrderBy(tag => tag.Name)
+            .ToListAsync();
+    }
+
     // A tag with no cards yet.
     public async Task<TagResult> CreateAsync(string name)
     {

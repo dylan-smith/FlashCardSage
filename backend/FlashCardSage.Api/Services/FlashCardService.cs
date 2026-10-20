@@ -19,6 +19,26 @@ public class FlashCardService(
     IImageStore imageStore,
     ILogger<FlashCardService> logger)
 {
+    // The user's cards with their words and tags, in the order they were made, so a list of words stays in the order
+    // it was typed in.
+    public Task<List<FlashCard>> GetAllAsync()
+    {
+        return dbContext.FlashCards
+            .AsNoTracking()
+            .WithWordsAndTags()
+            .OrderBy(card => card.Id)
+            .ToListAsync();
+    }
+
+    // The user's card with this id, with its words and tags, or null if they have no such card.
+    public Task<FlashCard?> GetAsync(int id)
+    {
+        return dbContext.FlashCards
+            .AsNoTracking()
+            .WithWordsAndTags()
+            .FirstOrDefaultAsync(card => card.Id == id);
+    }
+
     public async Task<CardResult> CreateAsync(FlashCardRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);

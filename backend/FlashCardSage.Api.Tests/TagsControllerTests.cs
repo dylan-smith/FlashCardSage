@@ -254,7 +254,6 @@ public class TagsControllerTests
     private static TagsController CreateController(FlashCardDbContext dbContext)
     {
         return new TagsController(
-            dbContext,
             new TagService(dbContext, NullLogger<TagService>.Instance),
             NullLogger<TagsController>.Instance);
     }

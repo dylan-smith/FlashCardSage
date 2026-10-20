@@ -1,8 +1,6 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -16,19 +14,14 @@ namespace FlashCardSage.Api.Controllers;
 /// </remarks>
 [ApiController]
 [Route("api/decks")]
-public class DecksController(FlashCardDbContext dbContext, DeckService deckService, ILogger<DecksController> logger)
-    : ControllerBase
+public class DecksController(DeckService deckService, ILogger<DecksController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<DeckResponse>>> GetAll()
     {
         logger.LogInformation("Retrieving all decks");
 
-        var decks = await dbContext.Decks
-            .AsNoTracking()
-            .WithCards()
-            .OrderBy(deck => deck.Name)
-            .ToListAsync();
+        var decks = await deckService.GetAllAsync();
 
         logger.LogInformation("Retrieved {Count} decks", decks.Count);
 
@@ -40,10 +33,7 @@ public class DecksController(FlashCardDbContext dbContext, DeckService deckServi
     {
         logger.LogInformation("Retrieving deck {DeckId}", id);
 
-        var deck = await dbContext.Decks
-            .AsNoTracking()
-            .WithCards()
-            .FirstOrDefaultAsync(item => item.Id == id);
+        var deck = await deckService.GetAsync(id);
 
         if (deck is null)
         {

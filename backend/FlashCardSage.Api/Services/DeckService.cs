@@ -13,6 +13,25 @@ namespace FlashCardSage.Api.Services;
 /// </remarks>
 public class DeckService(FlashCardDbContext dbContext, ILogger<DeckService> logger)
 {
+    // The user's decks with their cards, by name.
+    public Task<List<Deck>> GetAllAsync()
+    {
+        return dbContext.Decks
+            .AsNoTracking()
+            .WithCards()
+            .OrderBy(deck => deck.Name)
+            .ToListAsync();
+    }
+
+    // The user's deck with this id, with its cards, or null if they have no such deck.
+    public Task<Deck?> GetAsync(int id)
+    {
+        return dbContext.Decks
+            .AsNoTracking()
+            .WithCards()
+            .FirstOrDefaultAsync(item => item.Id == id);
+    }
+
     public async Task<DeckResult> CreateAsync(string name, IReadOnlyCollection<int> cardIds)
     {
         ArgumentNullException.ThrowIfNull(cardIds);

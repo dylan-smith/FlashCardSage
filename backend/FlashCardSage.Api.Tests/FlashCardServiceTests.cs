@@ -159,6 +159,34 @@ public class FlashCardServiceTests
         Assert.False(await dbContext.FlashCards.AnyAsync());
     }
 
+    [Fact]
+    public async Task GetAllAsync_ReturnsTheUsersCardsInTheOrderTheyWereMade_WithoutAnotherUsers()
+    {
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"));
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
+        await TestDb.SeedAsOtherUserAsync(databaseName, other => other.FlashCards.Add(TestDb.Card("la casa", "the house")));
+        await using var dbContext = TestDb.Create(databaseName);
+
+        var cards = await CreateService(dbContext).GetAllAsync();
+
+        Assert.Equal(["el perro", "el gato"], cards.Select(card => card.Spanish.Single()));
+    }
+
+    [Fact]
+    public async Task GetAsync_ReturnsNull_ForAnotherUsersCard()
+    {
+        var databaseName = TestDb.NewDatabaseName();
+        var mineId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"));
+        var theirs = TestDb.Card("la casa", "the house");
+        await TestDb.SeedAsOtherUserAsync(databaseName, other => other.FlashCards.Add(theirs));
+        await using var dbContext = TestDb.Create(databaseName);
+        var service = CreateService(dbContext);
+
+        Assert.Equal("el perro", (await service.GetAsync(mineId))?.Spanish.Single());
+        Assert.Null(await service.GetAsync(theirs.Id));
+    }
+
     private static FlashCardService CreateService(FlashCardDbContext dbContext)
     {
         return new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance);

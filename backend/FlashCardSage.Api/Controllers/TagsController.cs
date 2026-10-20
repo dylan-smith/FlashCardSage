@@ -1,9 +1,7 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -17,18 +15,14 @@ namespace FlashCardSage.Api.Controllers;
 /// </remarks>
 [ApiController]
 [Route("api/tags")]
-public class TagsController(FlashCardDbContext dbContext, TagService tagService, ILogger<TagsController> logger)
-    : ControllerBase
+public class TagsController(TagService tagService, ILogger<TagsController> logger) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<IEnumerable<Tag>>> GetAll()
     {
         logger.LogInformation("Retrieving all tags");
 
-        var tags = await dbContext.Tags
-            .AsNoTracking()
-            .OrderBy(tag => tag.Name)
-            .ToListAsync();
+        var tags = await tagService.GetAllAsync();
 
         logger.LogInformation("Retrieved {Count} tags", tags.Count);
 
