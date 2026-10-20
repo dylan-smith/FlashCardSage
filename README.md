@@ -96,7 +96,7 @@ The API is a remote [MCP](https://modelcontextprotocol.io) server (Streamable HT
 - list, read, add, rename and delete decks, and add cards to them or take cards out: `list_decks`, `get_deck`, `create_deck`, `rename_deck`, `add_cards_to_deck`, `remove_cards_from_deck`, `delete_deck`
 - read counts and practice scores and history: `get_counts`, `get_practice_stats`, `get_practice_history`
 
-They follow the same rules as the web app (one meaning per card, a word on only one card per language, and so on), which the server also tells the assistant when it connects. They can't suggest cards, translate, scan documents, import built-in decks or practice; putting a picture on a card is coming.
+They follow the same rules as the web app (one meaning per card, a word on only one card per language, and so on), which the server also tells the assistant when it connects. They can't suggest cards, translate, scan documents, import built-in decks, practice, or put a picture on a card (use the web app for that).
 
 A request without a token gets a 401 whose `WWW-Authenticate` header points at `/.well-known/oauth-protected-resource/mcp`, and the assistant signs in through the OAuth server above, showing the user the consent page. To add it:
 
