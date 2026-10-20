@@ -131,11 +131,12 @@ internal static class OAuthFlow
         return new Uri(redirect!.RedirectUrl);
     }
 
-    public static Task<HttpResponseMessage> TokenAsync(HttpClient client, Dictionary<string, string> form)
+    public static async Task<HttpResponseMessage> TokenAsync(HttpClient client, Dictionary<string, string> form)
     {
         ArgumentNullException.ThrowIfNull(client);
 
-        return client.PostAsync("/oauth/token", new FormUrlEncodedContent(form));
+        using var content = new FormUrlEncodedContent(form);
+        return await client.PostAsync("/oauth/token", content);
     }
 
     public static Task<HttpResponseMessage> ExchangeAsync(
