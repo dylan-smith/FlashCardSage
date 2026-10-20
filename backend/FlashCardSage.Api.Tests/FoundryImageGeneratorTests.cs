@@ -110,7 +110,20 @@ public class FoundryImageGeneratorTests
     [Theory]
     [InlineData("""{"created":1,"data":[]}""")]
     [InlineData("""{"created":1,"data":[{"b64_json":""}]}""")]
+    [InlineData("""{"created":1,"data":[{"b64_json":null}]}""")]
+    public async Task GenerateAsync_Throws_WhenASafetySystemLeavesOutThePicture(string body)
+    {
+        var handler = new RecordingHttpHandler(_ => (HttpStatusCode.OK, body));
+        using var httpClient = new HttpClient(handler);
+
+        await Assert.ThrowsAsync<ImageContentFilteredException>(() =>
+            CreateGenerator(httpClient).GenerateAsync("x", "y", CancellationToken.None));
+    }
+
+    [Theory]
     [InlineData("""{"created":1}""")]
+    [InlineData("""{"created":1,"data":null}""")]
+    [InlineData("null")]
     public async Task GenerateAsync_Throws_WhenThereIsNoPicture(string body)
     {
         var handler = new RecordingHttpHandler(_ => (HttpStatusCode.OK, body));

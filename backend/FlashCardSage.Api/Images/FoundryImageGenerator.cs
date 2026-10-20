@@ -53,10 +53,13 @@ public class FoundryImageGenerator(HttpClient httpClient, IOptions<ImageGenerati
         }
 
         var result = await response.Content.ReadFromJsonAsync<GenerationResult>(cancellationToken);
-        var image = result?.Data is [{ Base64: { Length: > 0 } base64 }, ..] ? Convert.FromBase64String(base64) : null;
-        return image is null
-            ? throw new HttpRequestException("The image generator returned no picture.")
-            : new GeneratedImage(ContentType, image);
+        return result?.Data switch
+        {
+            [{ Base64: { Length: > 0 } base64 }, ..] => new GeneratedImage(ContentType, Convert.FromBase64String(base64)),
+            // The safety system sometimes answers with success but leaves the picture out (e.g. "to cut").
+            not null => throw new ImageContentFilteredException("The image generator's safety system left out the picture."),
+            null => throw new HttpRequestException("The image generator returned no picture.")
+        };
     }
 
     // What the model is asked for. The English side describes the idea best, and the model tends to write any
