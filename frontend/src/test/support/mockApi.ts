@@ -40,8 +40,8 @@ export function unreachable(): Promise<Response> {
   throw new TypeError('Failed to fetch')
 }
 
-// What the pages load, answered as for a new user: no cards, tags, decks or built-in decks, the default preferences,
-// and nothing from the services that aren't there locally (suggestions and translation).
+// What the pages load, answered as for a new user: no cards, tags, decks, built-in decks or connected apps, the default
+// preferences, and nothing from the services that aren't there locally (suggestions and translation).
 const defaultRoutes: Routes = {
   'GET /flashcards': [],
   'GET /tags': [],
@@ -49,6 +49,7 @@ const defaultRoutes: Routes = {
   'GET /system-decks': [],
   'GET /counts': { cards: 0, decks: 0, tags: 0 },
   'GET /preferences': defaultPreferences,
+  'GET /oauth/connections': [],
   'GET /flashcards/practice/pack': { cards: [], decks: [], tags: [] },
   'GET /card-suggestions': emptyResponse(503),
   'POST /tag-suggestions': emptyResponse(503),

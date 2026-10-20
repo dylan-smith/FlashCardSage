@@ -42,6 +42,8 @@ export default defineConfig({
         Authentication__AllowTestSignIn: 'true',
         // There's no Foundry, so every picture is the same sample one, which still goes through the real cache.
         ImageGeneration__UseSamplePicture: 'true',
+        // Where the API sends an app's sign-in for the user's consent: the frontend below.
+        Frontend__BaseUrl: 'http://localhost:4173',
       },
     },
     {

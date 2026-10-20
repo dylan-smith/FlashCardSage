@@ -4,6 +4,7 @@ import { Route, Routes, useLocation } from 'react-router'
 import { useSession } from './auth/session'
 import SignInPage from './auth/SignInPage'
 import { useSignedInUserData } from './hooks/useSignedInUserData'
+import AuthorizePage from './pages/AuthorizePage'
 import DeckPage from './pages/DeckPage'
 import DecksPage from './pages/DecksPage'
 import FlashCardsPage from './pages/FlashCardsPage'
@@ -25,6 +26,8 @@ function App() {
   const { pathname } = useLocation()
   const session = useSession()
   const currentMode = modeAt(pathname)
+  // The consent page an app's sign-in comes to stands alone, with nothing to lead the user off to another page.
+  const consenting = pathname === '/authorize'
 
   // One page view for the first load and one for each route change after it, including back and forward.
   useEffect(() => {
@@ -35,14 +38,16 @@ function App() {
 
   return (
     <Container maxWidth="md" component="main" sx={{ py: 4 }}>
-      {session && <UserBar session={session} pathname={pathname} />}
+      {session && !consenting && (
+        <UserBar session={session} pathname={pathname} />
+      )}
       <Brand />
 
       {session === null ? (
         <SignInPage />
       ) : (
         <>
-          <ModeNav current={currentMode} />
+          {!consenting && <ModeNav current={currentMode} />}
           {currentMode?.sections && (
             <SectionNav
               label={currentMode.label}
@@ -59,6 +64,7 @@ function App() {
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
             <Route path="/preferences" element={<PreferencesPage />} />
+            <Route path="/authorize" element={<AuthorizePage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </>
