@@ -5,6 +5,9 @@ public static class CorsSetup
     // The policy for endpoints anyone's browser may call (see EnableCorsAttribute).
     public const string PublicPolicy = "Public";
 
+    // The policy for the MCP endpoint (see McpSetup).
+    public const string McpPolicy = "Mcp";
+
     // Lets the frontend's origins, from Cors:AllowedOrigins, call the API. With none, no cross-origin call is allowed.
     public static IServiceCollection AddFlashCardSageCors(this IServiceCollection services, IConfiguration configuration)
     {
@@ -40,6 +43,15 @@ public static class CorsSetup
                 .AllowAnyOrigin()
                 .WithMethods("GET", "POST")
                 .AllowAnyHeader()
+                .SetPreflightMaxAge(TimeSpan.FromMinutes(10)));
+
+            // The MCP endpoint, for the same browser-based MCP clients. It takes a bearer token, not cookies, and the
+            // client reads the 401's WWW-Authenticate header to find the OAuth server.
+            options.AddPolicy(McpPolicy, policy => policy
+                .AllowAnyOrigin()
+                .WithMethods("GET", "POST", "DELETE")
+                .AllowAnyHeader()
+                .WithExposedHeaders("WWW-Authenticate", "Mcp-Session-Id")
                 .SetPreflightMaxAge(TimeSpan.FromMinutes(10)));
         });
 
