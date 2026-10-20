@@ -1,5 +1,7 @@
 import { defaultPreferences, getPreferences } from '../api/preferences'
 import type { Preferences } from '../api/preferences'
+import { readJson, writeJson } from '../lib/localJson'
+import { storageKeys, userStorageKey } from '../lib/storageKeys'
 import { createStore } from '../lib/store'
 import { trackException } from '../telemetry'
 
@@ -16,18 +18,33 @@ export function usePreferences() {
   return store.use()
 }
 
-// Loads the signed-in user's preferences. When they can't be loaded, the app works as it does for a new user.
-export function loadPreferences(signal: AbortSignal) {
+function isPreferences(value: unknown): value is Preferences {
+  const preferences = value as Partial<Preferences> | null
+  return (
+    typeof preferences === 'object' &&
+    preferences !== null &&
+    typeof preferences.showPictures === 'boolean' &&
+    typeof preferences.showSuggestions === 'boolean' &&
+    typeof preferences.autoTranslate === 'boolean'
+  )
+}
+
+// Loads the preferences of the signed-in user, whose subject (see sessionSubject) they're kept on the device under, so
+// they still apply offline. When they can't be loaded, the ones last kept are used, and otherwise the app works as it
+// does for a new user.
+export function loadPreferences(subject: string, signal: AbortSignal) {
+  const key = userStorageKey(storageKeys.preferences, subject)
   getPreferences(signal)
     .then((preferences) => {
       if (!signal.aborted) {
+        writeJson(key, preferences)
         setPreferences(preferences)
       }
     })
     .catch((error: unknown) => {
       if (!signal.aborted) {
         trackException(error, { operation: 'loadPreferences' })
-        setPreferences(defaultPreferences)
+        setPreferences(readJson(key, isPreferences) ?? defaultPreferences)
       }
     })
 }

@@ -120,4 +120,36 @@ describe('preferences', () => {
       operation: 'loadPreferences',
     })
   })
+
+  // Kept for the signed-in user (see sessionSubject), so they apply offline.
+  const storedKey = 'flashcardsage.preferences:test:tester'
+
+  it("keeps the preferences on the device once they're loaded", async () => {
+    const preferences = { ...defaultPreferences, showPictures: false }
+    mockPreferences(200, { 'GET /preferences': preferences })
+    renderAt('/')
+
+    await waitFor(() => {
+      expect(localStorage.getItem(storedKey)).toBe(JSON.stringify(preferences))
+    })
+  })
+
+  it("uses the preferences kept on the device when they can't be loaded", async () => {
+    localStorage.setItem(
+      storedKey,
+      JSON.stringify({ ...defaultPreferences, showPictures: false }),
+    )
+    mockPreferences(200, { 'GET /preferences': emptyResponse(500) })
+    renderAt('/')
+
+    await screen.findByText('el gato')
+    await waitFor(() => {
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'loadPreferences',
+      })
+    })
+    expect(
+      screen.queryByRole('img', { name: 'Picture for "el gato"' }),
+    ).not.toBeInTheDocument()
+  })
 })

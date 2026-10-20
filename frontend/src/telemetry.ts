@@ -70,8 +70,9 @@ export function initTelemetry() {
 
 export function trackException(error: unknown, properties?: Properties) {
   // A fetch the browser cancelled because the user (or a test) navigated away or closed the page fails with a
-  // TypeError ("Failed to fetch"). Nothing went wrong, so it isn't reported.
-  if (leavingPage && error instanceof TypeError) {
+  // TypeError ("Failed to fetch"). Nothing went wrong, so it isn't reported. Nor is one while the browser is offline,
+  // when the app works from what's on the device and loads the rest once it's back.
+  if ((leavingPage || !navigator.onLine) && error instanceof TypeError) {
     return
   }
   appInsights?.trackException({

@@ -1,4 +1,12 @@
-import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  afterEach,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  onTestFinished,
+  vi,
+} from 'vitest'
 import {
   initTelemetry,
   resetTelemetry,
@@ -60,6 +68,14 @@ vi.mock('@microsoft/applicationinsights-web', () => ({
     trackEvent = sdk.trackEvent
   },
 }))
+
+// The browser says it's offline until the test ends.
+function goOffline() {
+  const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+  onTestFinished(() => {
+    onLine.mockRestore()
+  })
+}
 
 // The config the SDK was created with.
 function sdkConfig() {
@@ -245,6 +261,26 @@ describe('telemetry', () => {
     it('still reports other errors while the page is going away', () => {
       initTelemetry()
       window.dispatchEvent(new Event('pagehide'))
+      const error = new Error('boom')
+      trackException(error)
+
+      expect(sdk.trackException).toHaveBeenCalledWith({
+        exception: error,
+        properties: undefined,
+      })
+    })
+
+    it('ignores failed fetches while the browser is offline', () => {
+      initTelemetry()
+      goOffline()
+      trackException(new TypeError('Failed to fetch'), { operation: 'load' })
+
+      expect(sdk.trackException).not.toHaveBeenCalled()
+    })
+
+    it('still reports other errors while the browser is offline', () => {
+      initTelemetry()
+      goOffline()
       const error = new Error('boom')
       trackException(error)
 
