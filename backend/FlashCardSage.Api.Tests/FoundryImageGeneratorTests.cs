@@ -111,7 +111,20 @@ public class FoundryImageGeneratorTests
     [Theory]
     [InlineData("""{"created":1,"data":[]}""")]
     [InlineData("""{"created":1,"data":[{"b64_json":""}]}""")]
+    [InlineData("""{"created":1,"data":[{"b64_json":null}]}""")]
+    public async Task GenerateAsync_Throws_WhenASafetySystemLeavesOutThePicture(string body)
+    {
+        var handler = new RecordingHttpHandler(_ => (HttpStatusCode.OK, body));
+        using var httpClient = new HttpClient(handler);
+
+        await Assert.ThrowsAsync<ImageContentFilteredException>(() =>
+            CreateGenerator(httpClient).GenerateAsync("x", "y", CancellationToken.None));
+    }
+
+    [Theory]
     [InlineData("""{"created":1}""")]
+    [InlineData("""{"created":1,"data":null}""")]
+    [InlineData("null")]
     public async Task GenerateAsync_Throws_WhenThereIsNoPicture(string body)
     {
         var handler = new RecordingHttpHandler(_ => (HttpStatusCode.OK, body));
@@ -144,7 +157,8 @@ public class FoundryImageGeneratorTests
     [Theory]
     [InlineData(HttpStatusCode.BadRequest, """{"error":{"code":"content_moderation"}}""", "The image generator's safety system refused the words.")]
     [InlineData(HttpStatusCode.TooManyRequests, "", "The image generator answered 429.")]
-    [InlineData(HttpStatusCode.OK, """{"created":1,"data":[]}""", "The image generator returned no picture.")]
+    [InlineData(HttpStatusCode.OK, """{"created":1,"data":[]}""", "The image generator's safety system left out the picture.")]
+    [InlineData(HttpStatusCode.OK, """{"created":1}""", "The image generator returned no picture.")]
     public async Task GenerateAsync_RecordsAFailedCall(HttpStatusCode status, string body, string error)
     {
         var handler = new RecordingHttpHandler(_ => (status, body));

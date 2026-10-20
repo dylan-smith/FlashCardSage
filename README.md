@@ -21,6 +21,7 @@ A flash card app for learning a language, with:
 - A Preferences page, where each user can turn off pictures, suggested cards and translation as they type
 - Opens with no connection once it's been opened online, and can be installed as an app (on a phone, Add to Home Screen): a service worker keeps the app itself on the device
 - Practice offline: practice picks the next card on the device from your cards and scores as last loaded, and keeps your answers there until they can be saved
+- Connect an AI assistant such as Claude, ChatGPT or Claude Code to your cards: the API's MCP server lets it list, add, change and delete your cards, tags and decks and read your practice scores, after you approve it (see [Connect an AI assistant (MCP)](#connect-an-ai-assistant-mcp))
 - RESTful API with OpenAPI support
 
 ## Prerequisites
@@ -63,13 +64,46 @@ Built apps (`npm run build`, then `npm run preview` at `http://localhost:4173`, 
 
 ### Sign-in
 
-Every API endpoint except `/health`, `/openapi/v1.json` and `/scalar` needs a signed-in user, sent as a bearer token. Flash cards belong to the user who created them, and nobody else can see or change them. The API knows three kinds of token:
+Every API endpoint except `/health`, `/openapi/v1.json`, `/scalar` and the OAuth server's (below) needs a signed-in user, sent as a bearer token. Flash cards belong to the user who created them, and nobody else can see or change them. The API knows four kinds of token:
 
 - **Google ID tokens**: the frontend signs in with [Google Identity Services](https://developers.google.com/identity/gsi/web) and sends the ID token Google gives it. The API checks it against Google's keys and the OAuth client ID in `Authentication:Google:ClientId`. The frontend shows the Google button when `VITE_GOOGLE_CLIENT_ID` is set at build time. Google only accepts the origins registered on the OAuth client, so this is used in production (and locally if you set both values and `http://localhost:5173` is registered).
 - **Test sign-in** (`test:<name>`): signs in as any name with no password, each name with its own data. It's on when `Authentication:AllowTestSignIn` is `true`, which `appsettings.Development.json`, the E2E tests and PR previews set; production never does. The frontend shows the test sign-in form in the Vite dev server and in builds with `VITE_ENABLE_TEST_SIGN_IN=true`.
 - **The service token**: the secret in `Authentication:ServiceToken` signs in as one service user, so the production smoke tests and the Generate Load workflow can use the API. It's off when empty.
+- **MCP access tokens** (`fcs_at_...`): the API is also a small OAuth 2.1 authorization server, so AI assistants such as Claude, ChatGPT and Claude Code can act on a user's cards through the MCP endpoint, `/mcp`. These tokens only work there; every other endpoint, including the ones that list and disconnect apps, needs the user's own sign-in.
+
+The OAuth server's endpoints need no sign-in, and the metadata, token and registration ones allow any origin (the `Public` CORS policy), for MCP clients that run in a browser:
+
+- `GET /.well-known/oauth-protected-resource` (also at `/.well-known/oauth-protected-resource/mcp`) names the MCP endpoint and this server, and `GET /.well-known/oauth-authorization-server` lists the endpoints below.
+- `POST /oauth/register` registers an app (dynamic client registration, which ChatGPT and most MCP clients use). Apps can instead use an https URL of a client ID metadata document as their client ID, as Claude does; the API fetches it (https only, no redirects, 64 KB at most) and keeps it for an hour.
+- `GET /oauth/authorize` starts a sign-in (authorization code with PKCE S256 only) and sends the browser to the frontend's `/authorize` consent page, where the user signs in as usual and approves or denies the app through `/api/oauth/authorizations/{id}`.
+- `POST /oauth/token` redeems the code, and refresh tokens, for an access token that lasts an hour and a refresh token that lasts 30 days from its last use. Each refresh token works once; using one again more than a minute later revokes every token from that sign-in.
+
+Codes and tokens are random values kept only as SHA-256 hashes. The user's connected apps are listed, and can be disconnected, through `/api/oauth/connections` (Preferences → Connected apps). The server needs two settings, which Bicep sets from the app's and the frontend's URLs (`infra/modules/appservice.bicep` and `infra/preview.bicep`); `appsettings.Development.json` sets them for local development, and `infra/Setup-Environment.ps1` needs nothing new, as there's no identity or secret:
+
+- `Api:BaseUrl`: the API's public URL, which is the issuer, with the MCP endpoint at `{Api:BaseUrl}/mcp`. It's never taken from the request's (forwarded) host.
+- `Frontend:BaseUrl`: the frontend's origin, which hosts the consent page.
+
+With either empty, the OAuth endpoints answer 503. The consent page should also be sent with `Content-Security-Policy: frame-ancestors 'none'`, so no other site can frame it; the static website can't set headers, so that's a follow-up for the Cloudflare layer.
 
 Locally, `dotnet run` and `npm run dev` need nothing more: sign in with the test sign-in form. To call the API from Scalar or curl, add a header such as `Authorization: Bearer test:Me`.
+
+### Connect an AI assistant (MCP)
+
+The API is a remote [MCP](https://modelcontextprotocol.io) server (Streamable HTTP, stateless) at `https://<api>/mcp`, so an AI assistant can work with the signed-in user's flash cards. It's built with the `ModelContextProtocol.AspNetCore` SDK in `backend/FlashCardSage.Api/Mcp/` and `Startup/McpSetup.cs`, and isn't in the OpenAPI document. Its 20 tools can:
+
+- list, search (ignoring case and accents), read, add (one, or up to 100 at once), change and delete cards: `list_cards`, `get_card`, `create_card`, `create_cards`, `update_card`, `delete_cards`
+- list, add, rename and delete tags, optionally merging one into another: `list_tags`, `create_tag`, `rename_tag`, `delete_tag`
+- list, read, add, rename and delete decks, and add cards to them or take cards out: `list_decks`, `get_deck`, `create_deck`, `rename_deck`, `add_cards_to_deck`, `remove_cards_from_deck`, `delete_deck`
+- read counts and practice scores and history: `get_counts`, `get_practice_stats`, `get_practice_history`
+
+They follow the same rules as the web app (one meaning per card, a word on only one card per language, and so on), which the server also tells the assistant when it connects. They can't suggest cards, translate, scan documents, import built-in decks, practice, or put a picture on a card (use the web app for that).
+
+A request without a token gets a 401 whose `WWW-Authenticate` header points at `/.well-known/oauth-protected-resource/mcp`, and the assistant signs in through the OAuth server above, showing the user the consent page. To add it:
+
+- **Claude** (claude.ai or Claude Desktop): Settings → Connectors → Add custom connector, with the URL `https://<api>/mcp`.
+- **ChatGPT**: Settings → Connectors → Create, with the same URL.
+- **Claude Code**: `claude mcp add --transport http flashcardsage https://<api>/mcp`, then `/mcp` in Claude Code to sign in.
+- **Locally**, with test sign-in instead of OAuth: `claude mcp add --transport http flashcardsage-local http://localhost:5269/mcp --header "Authorization: Bearer test:Me"`. `/mcp` also takes the service token and, in development, E2E and previews, test sign-in tokens, but not Google ID tokens.
 
 ### Dev Container
 
@@ -144,7 +178,7 @@ The code is in `backend/FlashCardSage.Api/Observability`: `FoundryChatClient` an
 
 ## Deployment
 
-1. **Backend** — Publish the API with `dotnet publish -c Release` from `backend/FlashCardSage.Api`. Deploy the output to any host that supports .NET 10 (Azure App Service, Docker, etc.). Configure the `ConnectionStrings:FlashCardSage` setting to point to your production SQL Server instance and set `UseInMemoryDatabase` to `false`. Set `Authentication:Google:ClientId` to your Google OAuth client ID (see [Sign-in](#sign-in)), and `Authentication:ServiceToken` if anything needs to call the API without a person signing in. If the frontend will be served from a different origin than the API, also configure `Cors:AllowedOrigins` to include the production frontend URL(s) so the browser can call the API.
+1. **Backend** — Publish the API with `dotnet publish -c Release` from `backend/FlashCardSage.Api`. Deploy the output to any host that supports .NET 10 (Azure App Service, Docker, etc.). Configure the `ConnectionStrings:FlashCardSage` setting to point to your production SQL Server instance and set `UseInMemoryDatabase` to `false`. Set `Authentication:Google:ClientId` to your Google OAuth client ID (see [Sign-in](#sign-in)), and `Authentication:ServiceToken` if anything needs to call the API without a person signing in. Set `Api:BaseUrl` and `Frontend:BaseUrl` to the API's and the frontend's public URLs so AI assistants can connect (see [Sign-in](#sign-in)). If the frontend will be served from a different origin than the API, also configure `Cors:AllowedOrigins` to include the production frontend URL(s) so the browser can call the API.
 
    **Application Insights** — The API automatically sends telemetry to Azure Application Insights when a connection string is available. Set the `APPLICATIONINSIGHTS_CONNECTION_STRING` environment variable (or the `AzureMonitor:ConnectionString` app setting) to your Application Insights connection string. When using Azure App Service, you can connect Application Insights directly from the Azure Portal, which sets `APPLICATIONINSIGHTS_CONNECTION_STRING` automatically. Telemetry is silently disabled when neither value is configured (e.g. during local development).
 

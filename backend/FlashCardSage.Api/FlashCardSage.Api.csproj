@@ -11,6 +11,7 @@
     </PackageReference>
     <PackageReference Include="Microsoft.EntityFrameworkCore.InMemory" Version="10.0.13" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.SqlServer" Version="10.0.13" />
+    <PackageReference Include="ModelContextProtocol.AspNetCore" Version="2.2.0" />
     <PackageReference Include="PdfPig" Version="0.1.16" />
     <PackageReference Include="PostHog" Version="2.15.8" />
     <PackageReference Include="Scalar.AspNetCore" Version="2.18.0" />

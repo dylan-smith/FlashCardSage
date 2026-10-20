@@ -1,13 +1,17 @@
 using System.Security.Claims;
+using FlashCardSage.Api.OAuth;
 using FlashCardSage.Api.Startup;
+using Microsoft.AspNetCore.Authentication;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.AspNetCore.Authorization;
+using ModelContextProtocol.AspNetCore.Authentication;
 
 namespace FlashCardSage.Api.Authentication;
 
 /// <remarks>
-/// Every request carries a bearer token: a Google ID token from Google sign-in on the frontend, or one of the tokens
-/// <see cref="LocalTokenHandler"/> accepts. Whichever it is, the signed-in user gets the same claims: "sub" is the
+/// Every request carries a bearer token: a Google ID token from Google sign-in on the frontend, one of the tokens
+/// <see cref="LocalTokenHandler"/> accepts, or, on /mcp only, an access token the API's OAuth server gave an MCP client
+/// (see <see cref="OAuthAccessTokenHandler"/>). Whichever it is, the signed-in user gets the same claims: "sub" is the
 /// identity prefixed with where it came from (e.g. "google:&lt;sub&gt;"), plus "name" and "email" when known.
 /// </remarks>
 public static class AuthenticationSetup
@@ -17,6 +21,9 @@ public static class AuthenticationSetup
     public const string NameClaim = "name";
 
     public const string EmailClaim = "email";
+
+    // The authorization policy for the MCP endpoint.
+    public const string McpPolicy = "Mcp";
 
     private const string SelectorScheme = "FlashCardSage";
 
@@ -45,19 +52,43 @@ public static class AuthenticationSetup
             StartupLog.Info("Authentication: Service token enabled.");
         }
 
+        var oauthOptions = services.AddOAuthServer(configuration);
+
         var authentication = services.AddAuthentication(SelectorScheme)
             // Picks the handler from the token, so each request is only checked by the one that can read it.
             .AddPolicyScheme(SelectorScheme, SelectorScheme, options => options.ForwardDefaultSelector = context =>
-                useGoogle
-                    && ReadBearerToken(context.Request) is { } token
-                    && !token.StartsWith(LocalTokenHandler.TestTokenPrefix, StringComparison.Ordinal)
-                    && !LocalTokenHandler.IsServiceToken(token, serviceToken)
-                    ? GoogleScheme
-                    : LocalTokenHandler.SchemeName)
+                ReadBearerToken(context.Request) switch
+                {
+                    { } token when OAuthTokens.IsAccessToken(token) => OAuthAccessTokenHandler.SchemeName,
+                    { } token when useGoogle
+                        && !token.StartsWith(LocalTokenHandler.TestTokenPrefix, StringComparison.Ordinal)
+                        && !LocalTokenHandler.IsServiceToken(token, serviceToken) => GoogleScheme,
+                    _ => LocalTokenHandler.SchemeName
+                })
             .AddScheme<LocalTokenOptions, LocalTokenHandler>(LocalTokenHandler.SchemeName, options =>
             {
                 options.AllowTestSignIn = allowTestSignIn;
                 options.ServiceToken = serviceToken;
+            })
+            .AddScheme<AuthenticationSchemeOptions, OAuthAccessTokenHandler>(OAuthAccessTokenHandler.SchemeName, null)
+            // The MCP endpoint's scheme: it signs in as the others do, and answers a request without a token with a
+            // 401 whose WWW-Authenticate header points at the endpoint's metadata, which is how MCP clients find the
+            // OAuth server. The metadata documents themselves are served only by OAuthMetadataController, with the
+            // others: the SDK's handler would serve one at the same path, built from the request's host, so it's told
+            // to pass those requests on. Its header names the configured issuer rather than the request's host too.
+            .AddMcp(options =>
+            {
+                options.ForwardAuthenticate = SelectorScheme;
+                if (oauthOptions.IsConfigured)
+                {
+                    options.ResourceMetadataUri = new Uri(oauthOptions.Issuer + OAuthServerMetadata.McpProtectedResourcePath);
+                }
+
+                options.Events.OnResourceMetadataRequest = context =>
+                {
+                    context.SkipHandler();
+                    return Task.CompletedTask;
+                };
             });
 
         if (useGoogle)
@@ -93,8 +124,15 @@ public static class AuthenticationSetup
         }
 
         // Every endpoint needs a signed-in user unless it allows anonymous access, as /health does.
+        // The MCP endpoint takes the OAuth server's access tokens, and test sign-in and the service token for local
+        // development, E2E tests, previews and smoke tests, but not a Google ID token, which was issued to the frontend.
         services.AddAuthorizationBuilder()
-            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build());
+            .SetFallbackPolicy(new AuthorizationPolicyBuilder().RequireAuthenticatedUser().Build())
+            .AddPolicy(McpPolicy, policy => policy
+                .AddAuthenticationSchemes(McpAuthenticationDefaults.AuthenticationScheme)
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => context.User.Identity?.AuthenticationType
+                    is OAuthAccessTokenHandler.SchemeName or LocalTokenHandler.SchemeName));
 
         services.AddScoped<CurrentUser>();
 

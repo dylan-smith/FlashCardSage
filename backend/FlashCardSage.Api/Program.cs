@@ -19,6 +19,8 @@ builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<DeckService>();
 builder.Services.AddScoped<CardPictureService>();
 builder.Services.AddScoped<SystemDeckImporter>();
+// The MCP server AI assistants connect to, which uses the services above.
+builder.Services.AddFlashCardSageMcp();
 // No database check: the availability test pings /health, and touching SQL would stop the serverless database
 // from auto-pausing.
 builder.Services.AddHealthChecks();
@@ -52,6 +54,7 @@ app.UseAuthentication();
 app.UseMiddleware<CurrentUserMiddleware>();
 app.UseAuthorization();
 app.MapControllers();
+app.MapFlashCardSageMcp();
 app.MapHealthChecks("/health").AllowAnonymous();
 
 StartupLog.Info("Application startup complete. Listening for requests...");
