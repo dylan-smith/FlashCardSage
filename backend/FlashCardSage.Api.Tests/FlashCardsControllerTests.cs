@@ -739,7 +739,6 @@ public class FlashCardsControllerTests
     private static FlashCardsController CreateController(FlashCardDbContext dbContext, FakeImageStore? store = null)
     {
         return new FlashCardsController(
-            dbContext,
             new FlashCardService(dbContext, store ?? new FakeImageStore(), NullLogger<FlashCardService>.Instance),
             NullLogger<FlashCardsController>.Instance);
     }

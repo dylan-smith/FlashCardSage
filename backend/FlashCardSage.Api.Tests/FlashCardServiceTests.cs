@@ -114,16 +114,19 @@ public class FlashCardServiceTests
         await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateService(dbContext).CreateManyAsync(
+        FlashCardRequest[] requests =
         [
             new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] },
             new FlashCardRequest { Spanish = ["el gatito"], English = ["THE CAT"] },
             new FlashCardRequest { Spanish = ["EL PERRO"], English = ["the hound"] }
-        ]);
+        ];
+
+        var result = await CreateService(dbContext).CreateManyAsync(requests);
 
         var created = Assert.IsType<CardResult.CreatedMany>(result);
         Assert.Equal(["el perro"], created.Cards.Select(card => card.Spanish.Single()));
         Assert.Equal(2, created.SkippedCount);
+        Assert.Equal([requests[1], requests[2]], created.Skipped);
     }
 
     [Fact]
@@ -154,6 +157,34 @@ public class FlashCardServiceTests
             [new("Cards[0].Spanish", "Spanish is required."), new("Cards[1].English", "English is required.")],
             Assert.IsType<CardResult.Invalid>(result).Errors);
         Assert.False(await dbContext.FlashCards.AnyAsync());
+    }
+
+    [Fact]
+    public async Task GetAllAsync_ReturnsTheUsersCardsInTheOrderTheyWereMade_WithoutAnotherUsers()
+    {
+        var databaseName = TestDb.NewDatabaseName();
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"));
+        await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
+        await TestDb.SeedAsOtherUserAsync(databaseName, other => other.FlashCards.Add(TestDb.Card("la casa", "the house")));
+        await using var dbContext = TestDb.Create(databaseName);
+
+        var cards = await CreateService(dbContext).GetAllAsync();
+
+        Assert.Equal(["el perro", "el gato"], cards.Select(card => card.Spanish.Single()));
+    }
+
+    [Fact]
+    public async Task GetAsync_ReturnsNull_ForAnotherUsersCard()
+    {
+        var databaseName = TestDb.NewDatabaseName();
+        var mineId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"));
+        var theirs = TestDb.Card("la casa", "the house");
+        await TestDb.SeedAsOtherUserAsync(databaseName, other => other.FlashCards.Add(theirs));
+        await using var dbContext = TestDb.Create(databaseName);
+        var service = CreateService(dbContext);
+
+        Assert.Equal("el perro", (await service.GetAsync(mineId))?.Spanish.Single());
+        Assert.Null(await service.GetAsync(theirs.Id));
     }
 
     private static FlashCardService CreateService(FlashCardDbContext dbContext)

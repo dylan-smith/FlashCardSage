@@ -19,6 +19,26 @@ public class FlashCardService(
     IImageStore imageStore,
     ILogger<FlashCardService> logger)
 {
+    // The user's cards with their words and tags, in the order they were made, so a list of words stays in the order
+    // it was typed in.
+    public Task<List<FlashCard>> GetAllAsync()
+    {
+        return dbContext.FlashCards
+            .AsNoTracking()
+            .WithWordsAndTags()
+            .OrderBy(card => card.Id)
+            .ToListAsync();
+    }
+
+    // The user's card with this id, with its words and tags, or null if they have no such card.
+    public Task<FlashCard?> GetAsync(int id)
+    {
+        return dbContext.FlashCards
+            .AsNoTracking()
+            .WithWordsAndTags()
+            .FirstOrDefaultAsync(card => card.Id == id);
+    }
+
     public async Task<CardResult> CreateAsync(FlashCardRequest request)
     {
         ArgumentNullException.ThrowIfNull(request);
@@ -172,10 +192,12 @@ public class FlashCardService(
         var tags = await dbContext.Tags.ToListAsync();
 
         var cards = new List<FlashCard>();
-        foreach (var (spanish, english, tagNames) in trimmed)
+        var skipped = new List<FlashCardRequest>();
+        foreach (var ((spanish, english, tagNames), request) in trimmed.Zip(requests))
         {
             if (taken.FirstClash(spanish, english) is not null)
             {
+                skipped.Add(request);
                 continue;
             }
 
@@ -196,9 +218,9 @@ public class FlashCardService(
         }
 
         logger.LogInformation(
-            "Created {Count} flash cards, skipping {SkippedCount}", cards.Count, trimmed.Count - cards.Count);
+            "Created {Count} flash cards, skipping {SkippedCount}", cards.Count, skipped.Count);
 
-        return new CardResult.CreatedMany(cards, trimmed.Count - cards.Count);
+        return new CardResult.CreatedMany(cards, skipped);
     }
 
     // Deletes many cards at once, such as all the ones picked on the cards page, returning how many were deleted. A

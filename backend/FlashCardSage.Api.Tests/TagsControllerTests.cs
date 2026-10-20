@@ -2,6 +2,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -252,6 +253,8 @@ public class TagsControllerTests
 
     private static TagsController CreateController(FlashCardDbContext dbContext)
     {
-        return new TagsController(dbContext, NullLogger<TagsController>.Instance);
+        return new TagsController(
+            new TagService(dbContext, NullLogger<TagService>.Instance),
+            NullLogger<TagsController>.Instance);
     }
 }
