@@ -196,15 +196,10 @@ public class OAuthTokenService(
     // can still pause.
     public async Task CleanupIfDueAsync(CancellationToken cancellationToken)
     {
-        var ticks = Environment.TickCount64;
-        var next = Interlocked.Read(ref nextCleanupTicks);
-        if (ticks < next
-            || Interlocked.CompareExchange(ref nextCleanupTicks, ticks + (long)CleanupInterval.TotalMilliseconds, next) != next)
+        if (TryStartCleanup())
         {
-            return;
+            await CleanupAsync(cancellationToken);
         }
-
-        await CleanupAsync(cancellationToken);
     }
 
     // Deletes expired tokens and requests, and apps nobody has connected for a month. One by one rather than with
@@ -268,6 +263,16 @@ public class OAuthTokenService(
             (int)OAuthServerOptions.AccessTokenLifetime.TotalSeconds,
             refreshToken,
             grant.Scope);
+    }
+
+    // Whether it's this process's turn to clean up, claiming the next hour's turn if so. Only one request gets it.
+    private static bool TryStartCleanup()
+    {
+        var ticks = Environment.TickCount64;
+        var next = Interlocked.Read(ref nextCleanupTicks);
+        return ticks >= next
+            && Interlocked.CompareExchange(
+                ref nextCleanupTicks, ticks + (long)CleanupInterval.TotalMilliseconds, next) == next;
     }
 
     private static OAuthTokenResult InvalidGrant(string description)
