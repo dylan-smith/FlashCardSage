@@ -10,7 +10,8 @@ namespace FlashCardSage.Api.Controllers;
 /// <summary>
 /// The metadata MCP clients discover the OAuth server from, at the well-known URLs RFC 8414 and RFC 9728 give them. The
 /// protected resource metadata is served both at the root and with the MCP endpoint's path after it, as clients try
-/// either.
+/// either. These are the only place the documents are served: the MCP SDK's authentication handler, which points
+/// a 401 from /mcp at the second URL, is told to leave them to this (see AuthenticationSetup).
 /// </summary>
 [ApiController]
 [AllowAnonymous]
