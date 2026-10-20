@@ -28,7 +28,8 @@ public static class McpSetup
             .WithTools<CardTools>()
             .WithTools<TagTools>()
             .WithTools<DeckTools>()
-            .WithTools<StatsTools>();
+            .WithTools<StatsTools>()
+            .WithTools<PictureTools>();
 
         return services;
     }

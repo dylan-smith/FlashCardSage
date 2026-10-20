@@ -23,6 +23,9 @@ public class RemotePictureFetcher(
     // to the body too).
     public static readonly TimeSpan Timeout = TimeSpan.FromSeconds(10);
 
+    // What the typed client says it is.
+    public const string UserAgent = "FlashCardSage/1.0 (+https://flashcardsage.com)";
+
     // The most redirects followed for one picture.
     public const int MaxRedirects = 3;
 

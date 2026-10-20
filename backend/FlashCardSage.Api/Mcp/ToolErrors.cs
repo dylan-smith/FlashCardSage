@@ -56,6 +56,16 @@ public static class ToolErrors
         };
     }
 
+    public static McpException For(PictureResult result)
+    {
+        return result switch
+        {
+            PictureResult.NotFound => Error(CardNotFound),
+            PictureResult.Invalid(_, var message) => Error(message),
+            _ => throw new InvalidOperationException($"Unexpected picture result {result.GetType().Name}.")
+        };
+    }
+
     // The messages, in order. One about a card in a list (a field like "Cards[2].Spanish") says which card it is.
     public static McpException Invalid(IReadOnlyList<KeyValuePair<string, string>> errors)
     {

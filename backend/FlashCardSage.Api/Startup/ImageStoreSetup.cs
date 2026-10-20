@@ -31,11 +31,16 @@ public static class ImageStoreSetup
     }
 
     // Downloads pictures from URLs users give, only from the public internet (see RemotePictureFetcher). Its handler
-    // checks where each connection goes, and the factory's request logging is off, since it would log the URLs.
+    // checks where each connection goes, and the factory's request logging is off, since it would log the URLs. It says
+    // who it is, since some sites (such as Wikimedia's) refuse requests that don't.
     public static IServiceCollection AddRemotePictureFetcher(this IServiceCollection services)
     {
         services.TryAddSingleton<IHostAddressResolver, DnsHostAddressResolver>();
-        services.AddHttpClient<RemotePictureFetcher>(client => client.Timeout = RemotePictureFetcher.Timeout)
+        services.AddHttpClient<RemotePictureFetcher>(client =>
+            {
+                client.Timeout = RemotePictureFetcher.Timeout;
+                client.DefaultRequestHeaders.UserAgent.ParseAdd(RemotePictureFetcher.UserAgent);
+            })
             .ConfigurePrimaryHttpMessageHandler(provider =>
                 RemotePictureFetcher.CreateHandler(provider.GetRequiredService<IHostAddressResolver>()))
             .RemoveAllLoggers();

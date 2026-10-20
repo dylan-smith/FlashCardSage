@@ -27,9 +27,11 @@ public class McpServerTests(WebApplicationFactory<Program> factory) : IClassFixt
         "list_cards",
         "list_decks",
         "list_tags",
+        "remove_card_picture",
         "remove_cards_from_deck",
         "rename_deck",
         "rename_tag",
+        "set_card_picture",
         "update_card"
     ];
 
@@ -45,7 +47,10 @@ public class McpServerTests(WebApplicationFactory<Program> factory) : IClassFixt
         Assert.Equal(McpInstructions.Text, client.ServerInstructions);
         Assert.Equal(ToolNames, tools.Select(tool => tool.Name).Order(StringComparer.Ordinal));
         Assert.All(tools, tool => Assert.False(string.IsNullOrWhiteSpace(tool.Description), tool.Name));
-        Assert.All(tools, tool => Assert.False(tool.ProtocolTool.Annotations?.OpenWorldHint, tool.Name));
+        // Only set_card_picture reaches outside the app, to download a picture from a URL.
+        Assert.All(
+            tools,
+            tool => Assert.Equal(tool.Name == "set_card_picture", tool.ProtocolTool.Annotations?.OpenWorldHint));
         Assert.True(tools.Single(tool => tool.Name == "list_cards").ProtocolTool.Annotations?.ReadOnlyHint);
         Assert.True(tools.Single(tool => tool.Name == "delete_cards").ProtocolTool.Annotations?.DestructiveHint);
         Assert.False(tools.Single(tool => tool.Name == "create_card").ProtocolTool.Annotations?.DestructiveHint);

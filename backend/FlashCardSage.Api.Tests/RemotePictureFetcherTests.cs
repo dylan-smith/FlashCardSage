@@ -445,9 +445,12 @@ public class RemotePictureFetcherTests(WebApplicationFactory<Program> factory)
         using var app = TestApp.CreateFactory(factory);
 
         var fetcher = app.Services.GetRequiredService<RemotePictureFetcher>();
+        using var client = app.Services.GetRequiredService<IHttpClientFactory>().CreateClient(nameof(RemotePictureFetcher));
 
         Assert.NotNull(fetcher);
         Assert.IsType<DnsHostAddressResolver>(app.Services.GetRequiredService<IHostAddressResolver>());
+        Assert.Equal(RemotePictureFetcher.Timeout, client.Timeout);
+        Assert.Equal(RemotePictureFetcher.UserAgent, client.DefaultRequestHeaders.UserAgent.ToString());
     }
 
     // A fetcher that sends through the handler and resolves names with the fake resolver: internal.example to a private

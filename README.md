@@ -21,7 +21,7 @@ A flash card app for learning a language, with:
 - A Preferences page, where each user can turn off pictures, suggested cards and translation as they type
 - Opens with no connection once it's been opened online, and can be installed as an app (on a phone, Add to Home Screen): a service worker keeps the app itself on the device
 - Practice offline: practice picks the next card on the device from your cards and scores as last loaded, and keeps your answers there until they can be saved
-- Connect an AI assistant such as Claude, ChatGPT or Claude Code to your cards: the API's MCP server lets it list, add, change and delete your cards, tags and decks and read your practice scores, after you approve it (see [Connect an AI assistant (MCP)](#connect-an-ai-assistant-mcp))
+- Connect an AI assistant such as Claude, ChatGPT or Claude Code to your cards: the API's MCP server lets it list, add, change and delete your cards, tags and decks, put pictures on cards and read your practice scores, after you approve it (see [Connect an AI assistant (MCP)](#connect-an-ai-assistant-mcp))
 - RESTful API with OpenAPI support
 
 ## Prerequisites
@@ -89,14 +89,15 @@ Locally, `dotnet run` and `npm run dev` need nothing more: sign in with the test
 
 ### Connect an AI assistant (MCP)
 
-The API is a remote [MCP](https://modelcontextprotocol.io) server (Streamable HTTP, stateless) at `https://<api>/mcp`, so an AI assistant can work with the signed-in user's flash cards. It's built with the `ModelContextProtocol.AspNetCore` SDK in `backend/FlashCardSage.Api/Mcp/` and `Startup/McpSetup.cs`, and isn't in the OpenAPI document. Its 20 tools can:
+The API is a remote [MCP](https://modelcontextprotocol.io) server (Streamable HTTP, stateless) at `https://<api>/mcp`, so an AI assistant can work with the signed-in user's flash cards. It's built with the `ModelContextProtocol.AspNetCore` SDK in `backend/FlashCardSage.Api/Mcp/` and `Startup/McpSetup.cs`, and isn't in the OpenAPI document. Its 22 tools can:
 
 - list, search (ignoring case and accents), read, add (one, or up to 100 at once), change and delete cards: `list_cards`, `get_card`, `create_card`, `create_cards`, `update_card`, `delete_cards`
 - list, add, rename and delete tags, optionally merging one into another: `list_tags`, `create_tag`, `rename_tag`, `delete_tag`
 - list, read, add, rename and delete decks, and add cards to them or take cards out: `list_decks`, `get_deck`, `create_deck`, `rename_deck`, `add_cards_to_deck`, `remove_cards_from_deck`, `delete_deck`
 - read counts and practice scores and history: `get_counts`, `get_practice_stats`, `get_practice_history`
+- put a picture on a card, downloaded from a public https URL or given as base64 data, or take it off: `set_card_picture`, `remove_card_picture`
 
-They follow the same rules as the web app (one meaning per card, a word on only one card per language, and so on), which the server also tells the assistant when it connects. They can't suggest cards, translate, scan documents, import built-in decks or practice; putting a picture on a card is coming.
+They follow the same rules as the web app (one meaning per card, a word on only one card per language, and so on), which the server also tells the assistant when it connects. They can't suggest cards, translate, scan documents, import built-in decks, generate pictures or practice.
 
 A request without a token gets a 401 whose `WWW-Authenticate` header points at `/.well-known/oauth-protected-resource/mcp`, and the assistant signs in through the OAuth server above, showing the user the consent page. To add it:
 
