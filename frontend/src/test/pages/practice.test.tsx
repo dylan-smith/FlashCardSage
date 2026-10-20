@@ -1,73 +1,109 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { Deck } from '../../api/decks'
 import type { Tag } from '../../api/flashCards'
+import type { PackCard, PracticePack } from '../../api/practice'
 import { defaultPreferences } from '../../api/preferences'
+import { writeStoredPack } from '../../practice/pack'
+import { enqueueResult, readQueue } from '../../practice/queue'
 import { trackEvent, trackException } from '../../telemetry'
-import { api, cat, deck, dog, pets } from '../support/factories'
-import { emptyResponse, jsonResponse, mockApi } from '../support/mockApi'
-import type { CallLog, Routes } from '../support/mockApi'
+import { deck, packCard, pets } from '../support/factories'
+import {
+  emptyResponse,
+  jsonResponse,
+  mockApi,
+  unreachable,
+} from '../support/mockApi'
+import type { Call, CallLog, Routes } from '../support/mockApi'
 import { renderAt, renderLoaded, signInForEachTest } from '../support/render'
 
 signInForEachTest()
 
+// Whose cards and answers the device keeps for the signed-in Tester.
+const subject = 'test:tester'
+
+const cat = packCard(1, 'el gato', 'the cat')
+const dog = packCard(2, 'el perro', 'the dog')
+
+function packOf(
+  cards: PackCard[],
+  { decks = [], tags = [] }: { decks?: Deck[]; tags?: Tag[] } = {},
+): PracticePack {
+  return { cards, decks, tags }
+}
+
+// Makes every roll the picker gets this, until it's changed: 0 picks the first card and its Spanish side, and 0.6 the
+// second of two cards that are as likely as each other and its English side.
+function stubRandom(roll: number) {
+  return vi.spyOn(Math, 'random').mockReturnValue(roll)
+}
+
+// The browser says it's offline until the returned function says it's online again.
+function goOffline() {
+  const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
+  act(() => {
+    window.dispatchEvent(new Event('offline'))
+  })
+  onTestFinished(() => {
+    window.dispatchEvent(new Event('online'))
+  })
+  return () => {
+    onLine.mockReturnValue(true)
+    act(() => {
+      window.dispatchEvent(new Event('online'))
+    })
+  }
+}
+
+// The answers sent to be saved.
+function sentResults(calls: CallLog) {
+  return calls
+    .filter('POST', '/flashcards/practice-results')
+    .flatMap((call) => (call.body as { results: unknown[] }).results)
+}
+
 describe('practicing', () => {
-  // Starts on the first card the API picks, then answers each saved result with the next card it picks, or with
-  // the status when it isn't saved.
+  // Starts practicing the cards, picked with the roll (see stubRandom), and answers each request to save answers with
+  // the status.
   async function practice(
-    first: unknown,
+    cards: PackCard[],
     {
-      next = { ...dog, side: 'Spanish' },
+      roll = 0,
       status = 200,
-      scoreChanges = [0],
       path = '/practice',
       tags = [],
       decks = [],
       routes = {},
     }: {
-      next?: unknown
+      roll?: number
       status?: number
-      scoreChanges?: number[]
       path?: string
       tags?: Tag[]
       decks?: Deck[]
       routes?: Routes
     } = {},
   ) {
-    let answers = 0
+    const random = stubRandom(roll)
     const { calls } = await renderLoaded(path, {
       'GET /tags': tags,
       'GET /decks': decks,
-      'GET /flashcards/practice/next':
-        first === null ? emptyResponse(204) : first,
-      'POST /flashcards/:id/practice-results': () => {
-        // Each answer gets the next score change, and the last one after that.
-        const scoreChange =
-          scoreChanges[Math.min(answers++, scoreChanges.length - 1)]
-        return status === 200
-          ? jsonResponse({ next, scoreChange })
-          : emptyResponse(status)
-      },
+      'GET /flashcards/practice/pack': packOf(cards, { decks, tags }),
+      'POST /flashcards/practice-results': (call: Call) =>
+        status === 200
+          ? jsonResponse({
+              accepted: (call.body as { results: unknown[] }).results.length,
+            })
+          : emptyResponse(status),
       ...routes,
     })
-    return calls
-  }
-
-  // The urls the page asked for its practice cards from, in order.
-  function nextUrls(calls: CallLog) {
-    return calls
-      .filter('GET', '/flashcards/practice/next')
-      .map((call) => call.url)
+    return { calls, random }
   }
 
   it('shows every word on each side of a card with more than one translation', async () => {
     const user = userEvent.setup()
-    await practice({
-      id: 3,
-      spanish: ['solo', 'únicamente'],
-      english: ['only'],
-      side: 'English',
+    await practice([packCard(3, ['solo', 'únicamente'], 'only')], {
+      roll: 0.6,
     })
 
     expect(screen.getByText('only')).toHaveAttribute('lang', 'en')
@@ -78,11 +114,11 @@ describe('practicing', () => {
     expect(screen.getByText('solo / únicamente')).toHaveAttribute('lang', 'es')
   })
 
-  it('shows the Spanish of the card the API picks until it is revealed', async () => {
+  it('shows the Spanish of the card picked until it is revealed', async () => {
     const user = userEvent.setup()
-    const calls = await practice({ ...cat, side: 'Spanish' })
+    const { calls } = await practice([cat])
 
-    expect(nextUrls(calls)).toEqual([api('/flashcards/practice/next')])
+    expect(calls.some('GET', '/flashcards/practice/next')).toBe(false)
     expect(screen.getByText('el gato')).toHaveAttribute('lang', 'es')
     expect(screen.queryByText('the cat')).not.toBeInTheDocument()
     expect(
@@ -107,7 +143,7 @@ describe('practicing', () => {
 
   it('can show the English side first', async () => {
     const user = userEvent.setup()
-    await practice({ ...dog, side: 'English' })
+    await practice([cat, dog], { roll: 0.6 })
 
     expect(screen.getByText('the dog')).toBeInTheDocument()
     expect(screen.queryByText('el perro')).not.toBeInTheDocument()
@@ -119,11 +155,7 @@ describe('practicing', () => {
 
   it("shows the card's picture only once it's revealed", async () => {
     const user = userEvent.setup()
-    await practice({
-      ...cat,
-      side: 'Spanish',
-      imageUrl: 'http://images.test/1.png',
-    })
+    await practice([{ ...cat, imageUrl: 'http://images.test/1.png' }])
 
     expect(
       screen.queryByRole('img', { name: 'Picture for "el gato"' }),
@@ -138,7 +170,7 @@ describe('practicing', () => {
 
   it('shows no picture for a card without one', async () => {
     const user = userEvent.setup()
-    await practice({ ...cat, side: 'Spanish', imageUrl: null })
+    await practice([cat])
 
     await user.click(screen.getByRole('button', { name: 'Reveal' }))
 
@@ -149,18 +181,11 @@ describe('practicing', () => {
 
   it('shows no picture when the user turned pictures off', async () => {
     const user = userEvent.setup()
-    await practice(
-      {
-        ...cat,
-        side: 'Spanish',
-        imageUrl: 'http://images.test/1.png',
+    await practice([{ ...cat, imageUrl: 'http://images.test/1.png' }], {
+      routes: {
+        'GET /preferences': { ...defaultPreferences, showPictures: false },
       },
-      {
-        routes: {
-          'GET /preferences': { ...defaultPreferences, showPictures: false },
-        },
-      },
-    )
+    })
 
     await user.click(screen.getByRole('button', { name: 'Reveal' }))
 
@@ -175,24 +200,30 @@ describe('practicing', () => {
     ['I was close', 'WasClose'],
     ['Failed :(', 'Failed'],
   ])(
-    'records "%s" for the card, then shows the one the API picks next',
+    'records "%s" for the card, then shows another one',
     async (label, outcome) => {
       const user = userEvent.setup()
-      const calls = await practice(
-        { ...cat, side: 'Spanish' },
-        { next: { ...dog, side: 'English' } },
-      )
+      const { calls, random } = await practice([cat, dog])
 
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      random.mockReturnValue(0.6)
       await user.click(screen.getByRole('button', { name: label }))
 
       expect(await screen.findByText('the dog')).toBeInTheDocument()
       expect(screen.queryByText('el perro')).not.toBeInTheDocument()
       expect(screen.queryByText('el gato')).not.toBeInTheDocument()
       expect(screen.getByRole('button', { name: 'Reveal' })).toHaveFocus()
-      const post = calls.find('POST')
-      expect(post?.url).toBe(api('/flashcards/1/practice-results'))
-      expect(post?.init?.body).toBe(JSON.stringify({ outcome }))
+      await waitFor(() => {
+        expect(sentResults(calls)).toEqual([
+          {
+            id: expect.any(String) as string,
+            flashCardId: cat.id,
+            outcome,
+            practicedAt: expect.any(String) as string,
+          },
+        ])
+      })
+      expect(readQueue(subject)).toEqual([])
       expect(trackEvent).toHaveBeenCalledWith('PracticeResultRecorded', {
         outcome,
       })
@@ -201,10 +232,7 @@ describe('practicing', () => {
 
   it('can be given the same card again', async () => {
     const user = userEvent.setup()
-    await practice(
-      { ...cat, side: 'Spanish' },
-      { next: { ...cat, side: 'Spanish' } },
-    )
+    await practice([cat])
 
     await user.click(screen.getByRole('button', { name: 'Reveal' }))
     await user.click(screen.getByRole('button', { name: 'Got it!' }))
@@ -218,20 +246,18 @@ describe('practicing', () => {
 
   it('adds up how much each answer changes the score into a session score', async () => {
     const user = userEvent.setup()
-    await practice(
-      { ...cat, side: 'Spanish' },
-      { next: { ...cat, side: 'Spanish' }, scoreChanges: [50, 30, -80] },
-    )
+    await practice([{ ...cat, score: 50 }])
 
     expect(screen.getByText(/^Session score/)).toHaveTextContent(
       'Session score 0',
     )
 
+    // 50 goes to 80, then 90, then 0, then 50.
     for (const [label, expected] of [
-      ['Got it!', '+50'],
-      ['Got it!', '+80'],
-      ['Failed :(', '0'],
-      ['Failed :(', '-80'],
+      ['Got it!', '+30'],
+      ['Got it!', '+40'],
+      ['Failed :(', '-50'],
+      ['Got it!', '0'],
     ]) {
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
       await user.click(screen.getByRole('button', { name: label }))
@@ -243,9 +269,37 @@ describe('practicing', () => {
     }
   })
 
+  it('practices the answers on the device that are not saved yet', async () => {
+    // The pack says the cat has never been got right, but an answer on the device has.
+    enqueueResult(subject, cat.id, 'GotIt', new Date().toISOString())
+    const user = userEvent.setup()
+    await practice([cat], {
+      // Keeps the answer on the device, so it's still not saved.
+      routes: { 'POST /flashcards/practice-results': unreachable },
+    })
+
+    await user.click(screen.getByRole('button', { name: 'Reveal' }))
+    await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+    // 50 to 80, rather than 0 to 50.
+    await waitFor(() => {
+      expect(screen.getByText(/^Session score/)).toHaveTextContent(
+        'Session score +30',
+      )
+    })
+  })
+
+  // The answer couldn't be kept on the device, such as when its storage is full.
+  function failSaving() {
+    vi.spyOn(Storage.prototype, 'setItem').mockImplementation(() => {
+      throw new Error('QuotaExceededError')
+    })
+  }
+
   it('keeps the session score when saving the answer fails', async () => {
     const user = userEvent.setup()
-    await practice({ ...cat, side: 'Spanish' }, { status: 500 })
+    await practice([cat])
+    failSaving()
 
     await user.click(screen.getByRole('button', { name: 'Reveal' }))
     await user.click(screen.getByRole('button', { name: 'Got it!' }))
@@ -258,7 +312,8 @@ describe('practicing', () => {
 
   it('shows an error and keeps the card when saving the answer fails', async () => {
     const user = userEvent.setup()
-    await practice({ ...cat, side: 'Spanish' }, { status: 500 })
+    const { calls } = await practice([cat])
+    failSaving()
 
     await user.click(screen.getByRole('button', { name: 'Reveal' }))
     await user.click(screen.getByRole('button', { name: 'Got it!' }))
@@ -272,10 +327,15 @@ describe('practicing', () => {
     expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
       operation: 'practice',
     })
+    expect(trackEvent).not.toHaveBeenCalledWith(
+      'PracticeResultRecorded',
+      expect.anything(),
+    )
+    expect(calls.some('POST', '/flashcards/practice-results')).toBe(false)
   })
 
   it('links to adding cards when there are none', async () => {
-    await practice(null)
+    await practice([])
 
     expect(
       screen.getByText('There are no flash cards to practice yet.'),
@@ -286,14 +346,11 @@ describe('practicing', () => {
   })
 
   describe('picking what to practice', () => {
-    const animals = deck(3, 'Animals', [1, 2])
+    const animals = deck(3, 'Animals', [dog.id])
 
     it('offers every card, the decks and the tags, and practices the one picked', async () => {
       const user = userEvent.setup()
-      const calls = await practice(
-        { ...cat, side: 'Spanish' },
-        { decks: [animals], tags: [pets], scoreChanges: [50] },
-      )
+      await practice([cat, dog], { decks: [animals], tags: [pets] })
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
       await user.click(screen.getByRole('button', { name: 'Got it!' }))
       await waitFor(() => {
@@ -313,13 +370,9 @@ describe('practicing', () => {
         within(listbox).getByRole('option', { name: 'Deck: Animals' }),
       )
 
-      await waitFor(() => {
-        expect(nextUrls(calls)).toContain(
-          api('/flashcards/practice/next?deckId=3'),
-        )
-      })
-      // A new session for the deck.
-      expect(await screen.findByText(/^Session score/)).toHaveTextContent(
+      // A new session for the deck, which only has the dog.
+      expect(await screen.findByText('el perro')).toBeInTheDocument()
+      expect(screen.getByText(/^Session score/)).toHaveTextContent(
         'Session score 0',
       )
       expect(
@@ -327,53 +380,55 @@ describe('practicing', () => {
       ).toHaveTextContent('Deck: Animals')
     })
 
-    it('practices the deck in the URL, and records answers with it', async () => {
+    it('practices the deck in the URL', async () => {
       const user = userEvent.setup()
-      const calls = await practice(
-        { ...cat, side: 'Spanish' },
-        { path: '/practice?deck=3', decks: [animals] },
-      )
+      const { calls } = await practice([cat, dog], {
+        path: '/practice?deck=3',
+        decks: [animals],
+      })
 
-      expect(nextUrls(calls)).toEqual([
-        api('/flashcards/practice/next?deckId=3'),
-      ])
+      expect(screen.getByText('el perro')).toBeInTheDocument()
       await user.click(screen.getByRole('button', { name: 'Reveal' }))
       await user.click(screen.getByRole('button', { name: 'Got it!' }))
 
-      expect(await screen.findByText('el perro')).toBeInTheDocument()
-      expect(calls.find('POST')?.url).toBe(
-        api('/flashcards/1/practice-results?deckId=3'),
-      )
+      // The deck's only card, again.
+      await waitFor(() => {
+        expect(sentResults(calls)).toEqual([
+          expect.objectContaining({ flashCardId: dog.id }),
+        ])
+      })
+      expect(screen.getByText('el perro')).toBeInTheDocument()
     })
 
     it('practices the tag in the URL', async () => {
-      const calls = await practice(
-        { ...cat, side: 'Spanish' },
-        { path: '/practice?tag=4', tags: [pets] },
-      )
+      await practice([cat, { ...dog, tagIds: [pets.id] }], {
+        path: '/practice?tag=4',
+        tags: [pets],
+      })
 
-      expect(nextUrls(calls)).toEqual([
-        api('/flashcards/practice/next?tagId=4'),
-      ])
+      expect(screen.getByText('el perro')).toBeInTheDocument()
       expect(
         screen.getByRole('combobox', { name: 'Practice' }),
       ).toHaveTextContent('Tag: Pets')
     })
 
     it('practices every card when the deck in the URL is gone', async () => {
-      const calls = await practice(
-        { ...cat, side: 'Spanish' },
-        { path: '/practice?deck=99', decks: [animals] },
-      )
+      await practice([cat, dog], {
+        path: '/practice?deck=99',
+        decks: [animals],
+      })
 
-      expect(nextUrls(calls)).toEqual([api('/flashcards/practice/next')])
+      expect(screen.getByText('el gato')).toBeInTheDocument()
       expect(
         screen.getByRole('combobox', { name: 'Practice' }),
       ).toHaveTextContent('All cards')
     })
 
     it('links to the decks when the deck has no cards', async () => {
-      await practice(null, { path: '/practice?deck=3', decks: [animals] })
+      await practice([cat], {
+        path: '/practice?deck=3',
+        decks: [deck(3, 'Animals')],
+      })
 
       expect(
         screen.getByText('There are no cards in this deck.'),
@@ -385,39 +440,154 @@ describe('practicing', () => {
     })
 
     it('says so when the tag has no cards', async () => {
-      await practice(null, { path: '/practice?tag=4', tags: [pets] })
+      await practice([cat], { path: '/practice?tag=4', tags: [pets] })
 
       expect(
         screen.getByText('There are no cards with this tag.'),
       ).toBeInTheDocument()
     })
 
-    it('says so when the deck runs out of cards during practice', async () => {
-      const user = userEvent.setup()
-      await practice(
-        { ...cat, side: 'Spanish' },
-        { path: '/practice?deck=3', decks: [animals], next: null },
-      )
-
-      await user.click(screen.getByRole('button', { name: 'Reveal' }))
-      await user.click(screen.getByRole('button', { name: 'Got it!' }))
-
-      expect(
-        await screen.findByText('There are no cards in this deck.'),
-      ).toBeInTheDocument()
-    })
-
     it('leaves out the picker when there are no decks or tags', async () => {
-      await practice({ ...cat, side: 'Spanish' })
+      await practice([cat])
 
       expect(
         screen.queryByRole('combobox', { name: 'Practice' }),
       ).not.toBeInTheDocument()
     })
+
+    it("offers the decks and tags on the device when the API can't be reached", async () => {
+      writeStoredPack(subject, packOf([cat, dog], { decks: [animals] }))
+      const user = userEvent.setup()
+      await practice([cat, dog], {
+        decks: [animals],
+        routes: { 'GET /decks': unreachable, 'GET /tags': unreachable },
+      })
+
+      await user.click(screen.getByRole('combobox', { name: 'Practice' }))
+
+      expect(
+        within(screen.getByRole('listbox'))
+          .getAllByRole('option')
+          .map((option) => option.textContent),
+      ).toEqual(['All cards', 'Deck: Animals'])
+      expect(trackException).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('offline', () => {
+    it('keeps the answers on the device, and saves them once back online', async () => {
+      const user = userEvent.setup()
+      const { calls, random } = await practice([cat, dog])
+      const goOnline = goOffline()
+      const status = screen.getByRole('status')
+      // The note subscribes to the online state in an effect, which may run after the event.
+      await waitFor(() => {
+        expect(status).toHaveTextContent(
+          "Offline – your answers will be saved when you're back online.",
+        )
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      random.mockReturnValue(0.6)
+      await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+      expect(await screen.findByText('the dog')).toBeInTheDocument()
+      expect(screen.getByText(/^Session score/)).toHaveTextContent(
+        'Session score +50',
+      )
+      await waitFor(() => {
+        expect(status).toHaveTextContent(
+          "Offline – 1 answer will be saved when you're back online.",
+        )
+      })
+      expect(readQueue(subject)).toEqual([
+        expect.objectContaining({ flashCardId: cat.id, outcome: 'GotIt' }),
+      ])
+      expect(calls.some('POST', '/flashcards/practice-results')).toBe(false)
+
+      goOnline()
+
+      await waitFor(() => {
+        expect(sentResults(calls)).toEqual([
+          expect.objectContaining({ flashCardId: cat.id, outcome: 'GotIt' }),
+        ])
+      })
+      await waitFor(() => {
+        expect(status).toHaveTextContent(/^$/)
+      })
+      expect(readQueue(subject)).toEqual([])
+    })
+
+    it('says how many answers are waiting when they could not be saved', async () => {
+      const user = userEvent.setup()
+      await practice([cat], { status: 500 })
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+      await waitFor(() => {
+        expect(screen.getByRole('status')).toHaveTextContent(
+          "1 answer couldn't be saved yet. They'll be saved when FlashCardSage can be reached.",
+        )
+      })
+      expect(readQueue(subject)).toHaveLength(1)
+    })
+
+    it('practices the cards on the device', async () => {
+      writeStoredPack(
+        subject,
+        packOf([cat, dog], { decks: [deck(3, 'Animals', [dog.id])] }),
+      )
+      goOffline()
+      stubRandom(0)
+      const { background } = await renderLoaded('/practice?deck=3', {
+        'GET /decks': unreachable,
+        'GET /tags': unreachable,
+        'GET /flashcards/practice/pack': unreachable,
+      })
+
+      expect(screen.getByText('el perro')).toBeInTheDocument()
+      expect(
+        screen.getByRole('combobox', { name: 'Practice' }),
+      ).toHaveTextContent('Deck: Animals')
+      expect(background.some('GET', '/flashcards/practice/pack')).toBe(false)
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it("says so when the cards aren't on the device", async () => {
+      goOffline()
+      await renderLoaded('/practice', {
+        'GET /decks': unreachable,
+        'GET /tags': unreachable,
+        'GET /flashcards/practice/pack': unreachable,
+      })
+
+      expect(
+        screen.getByText(
+          "Your cards aren't on this device yet. Open Practice once while you're online, and you can practice offline after that.",
+        ),
+      ).toBeInTheDocument()
+      expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+    })
+
+    it('keeps the answers on the device when the sign-in has expired', async () => {
+      const user = userEvent.setup()
+      const { calls } = await practice([cat], { status: 401 })
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+      await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+      await waitFor(() => {
+        expect(sentResults(calls)).toHaveLength(1)
+      })
+      expect(readQueue(subject)).toEqual([
+        expect.objectContaining({ flashCardId: cat.id, outcome: 'GotIt' }),
+      ])
+    })
   })
 
   it('shows an error when loading fails', async () => {
-    mockApi({ 'GET /flashcards/practice/next': emptyResponse(500) })
+    mockApi({ 'GET /flashcards/practice/pack': emptyResponse(500) })
     renderAt('/practice')
 
     expect(await screen.findByRole('alert')).toHaveTextContent(

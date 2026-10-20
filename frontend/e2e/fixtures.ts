@@ -103,15 +103,35 @@ export class Api {
     return (await response.json()) as Created
   }
 
+  // Saves an answer the way the practice page does once it's back online.
   async recordPractice(
     cardId: number,
     outcome: 'GotIt' | 'WasClose' | 'Failed',
   ) {
     await this.ok(
-      this.request.post(`${apiUrl}/flashcards/${cardId}/practice-results`, {
-        data: { outcome },
+      this.request.post(`${apiUrl}/flashcards/practice-results`, {
+        data: {
+          results: [
+            {
+              id: crypto.randomUUID(),
+              flashCardId: cardId,
+              outcome,
+              practicedAt: new Date().toISOString(),
+            },
+          ],
+        },
       }),
     )
+  }
+
+  // Every card's score, and how many times it was answered with each outcome.
+  async scores() {
+    const response = await this.ok(
+      this.request.get(`${apiUrl}/flashcards/scores`),
+    )
+    return (await response.json()) as {
+      cards: (Created & { gotIt: number; wasClose: number; failed: number })[]
+    }
   }
 
   // Deletes a card or deck a test made, without checking, as a test cleans up after itself.

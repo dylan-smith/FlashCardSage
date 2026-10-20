@@ -45,9 +45,7 @@ describe('modes', () => {
   it('links to each mode and marks the current one', async () => {
     const user = userEvent.setup()
     // No cards, so there's nothing to practice either.
-    await renderLoaded('/', {
-      'GET /flashcards/practice/next': emptyResponse(204),
-    })
+    await renderLoaded('/')
     const nav = screen.getByRole('navigation', { name: 'Mode' })
     const hrefs = (links: HTMLElement[]) =>
       links.map((link) => link.getAttribute('href'))

@@ -3,6 +3,9 @@ import { listDecks } from '../api/decks'
 import type { Deck } from '../api/decks'
 import type { Tag } from '../api/flashCards'
 import { listTags } from '../api/tags'
+import { getSession, sessionSubject } from '../auth/session'
+import { storedChoices } from '../practice/pack'
+import { trackException } from '../telemetry'
 import { useLoad } from './useLoad'
 
 // Which cards a page is about: every card, a deck's or a tag's.
@@ -24,8 +27,21 @@ export function useCardSelection() {
   // Null until they've loaded.
   const { data: choices, failed: choicesFailed } = useLoad(
     async (): Promise<CardSelectionChoices | null> => {
-      const [decks, tags] = await Promise.all([listDecks(), listTags()])
-      return { decks, tags }
+      try {
+        const [decks, tags] = await Promise.all([listDecks(), listTags()])
+        return { decks, tags }
+      } catch (error) {
+        // The ones in the practice pack on the device, so they can be picked offline.
+        const stored = storedChoices(sessionSubject(getSession()!))
+        if (stored === null) {
+          throw error
+        }
+        // A TypeError is the API not being reachable, which the stored ones are for.
+        if (!(error instanceof TypeError)) {
+          trackException(error, { operation: 'loadChoices' })
+        }
+        return stored
+      }
     },
     [],
     { operation: 'loadChoices', initial: null },

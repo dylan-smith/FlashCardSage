@@ -40,26 +40,28 @@ Authorization: Bearer {{token}}
 
 ###
 
-GET {{FlashCardSage.Api_HostAddress}}/api/flashcards/practice/next
+# Everything the device needs to practice on its own: the cards with their scores, and the decks and tags.
+GET {{FlashCardSage.Api_HostAddress}}/api/flashcards/practice/pack
 Accept: {{contentType}}
 Authorization: Bearer {{token}}
 
 ###
 
-# Practice a deck's cards, or a tag's with ?tagId=1. The practice result POST takes the same query.
-GET {{FlashCardSage.Api_HostAddress}}/api/flashcards/practice/next?deckId=1
-Accept: {{contentType}}
-Authorization: Bearer {{token}}
-
-###
-
-POST {{FlashCardSage.Api_HostAddress}}/api/flashcards/1/practice-results
+# The answers the device kept, oldest first. Each id is the device's, so an answer sent again isn't recorded twice.
+POST {{FlashCardSage.Api_HostAddress}}/api/flashcards/practice-results
 Content-Type: {{contentType}}
 Accept: {{contentType}}
 Authorization: Bearer {{token}}
 
 {
-  "outcome": "GotIt"
+  "results": [
+    {
+      "id": "8a1f0c6e-3b7d-4c55-9a43-5f0e2d6b7c11",
+      "flashCardId": 1,
+      "outcome": "GotIt",
+      "practicedAt": "2026-10-01T09:00:00Z"
+    }
+  ]
 }
 
 ###

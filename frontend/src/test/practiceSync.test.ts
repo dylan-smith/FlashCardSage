@@ -253,29 +253,32 @@ describe('syncing answers', () => {
 
   it('loads the pack again once answers are saved', async () => {
     answer()
-    const { calls } = mockApi({
+    const { calls, background } = mockApi({
       'POST /flashcards/practice-results': { accepted: 1 },
-      'GET /flashcards/practice/pack': pack,
+      'GET /flashcards/practice/pack': () => {
+        // Only once the answers are saved.
+        expect(calls.some('POST', '/flashcards/practice-results')).toBe(true)
+        return jsonResponse(pack)
+      },
     })
 
     await syncPracticeResults()
 
-    expect(calls.all.map((call) => `${call.method} ${call.pathname}`)).toEqual([
-      'POST /flashcards/practice-results',
-      'GET /flashcards/practice/pack',
-    ])
+    expect(background.filter('GET', '/flashcards/practice/pack')).toHaveLength(
+      1,
+    )
     expect(readStoredPack(subject)).toEqual(pack)
   })
 
   it("doesn't load the pack again when the API already had every answer", async () => {
     answer()
-    const { calls } = mockApi({
+    const { background } = mockApi({
       'POST /flashcards/practice-results': { accepted: 0 },
     })
 
     await syncPracticeResults()
 
-    expect(calls.some('GET', '/flashcards/practice/pack')).toBe(false)
+    expect(background.some('GET', '/flashcards/practice/pack')).toBe(false)
   })
 
   it('does nothing when no one is signed in', async () => {
@@ -348,22 +351,24 @@ describe('starting to sync', () => {
   })
 
   it('loads the pack when there is none on the device', async () => {
-    const { calls } = mockApi({ 'GET /flashcards/practice/pack': pack })
+    const { background } = mockApi({ 'GET /flashcards/practice/pack': pack })
 
     startPracticeSync()
 
     await vi.waitFor(() => expect(readStoredPack(subject)).toEqual(pack))
-    expect(calls.filter('GET', '/flashcards/practice/pack')).toHaveLength(1)
+    expect(background.filter('GET', '/flashcards/practice/pack')).toHaveLength(
+      1,
+    )
   })
 
   it("doesn't load the pack when there is one on the device", async () => {
     writeStoredPack(subject, pack)
-    const { calls } = mockApi()
+    const { calls, background } = mockApi()
 
     startPracticeSync()
     await syncPracticeResults()
 
-    expect(calls.all).toEqual([])
+    expect([...calls.all, ...background.all]).toEqual([])
   })
 })
 
@@ -400,10 +405,10 @@ describe('the practice pack', () => {
   it('comes from the device without asking the API while offline', async () => {
     writeStoredPack(subject, stored)
     goOffline()
-    const { calls } = mockApi()
+    const { calls, background } = mockApi()
 
     expect(await loadPracticePack(subject)).toEqual(stored)
-    expect(calls.all).toEqual([])
+    expect([...calls.all, ...background.all]).toEqual([])
   })
 
   it("is null when there's none on the device and the API can't be reached", async () => {
