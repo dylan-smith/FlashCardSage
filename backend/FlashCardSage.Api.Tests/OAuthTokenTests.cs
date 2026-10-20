@@ -162,17 +162,38 @@ public class OAuthTokenTests(WebApplicationFactory<Program> factory)
     }
 
     [Fact]
-    public async Task Refresh_UsedAgainWithinTheGrace_IsRefused_ButKeepsTheNewTokens()
+    public async Task Refresh_UsedAgainWithinTheGrace_GivesANewPair_AndKeepsTheFirst()
     {
         await using var server = new OAuthTestServer();
         var (clientId, tokens) = await server.ConnectAsync();
         var refreshed = (await server.RefreshAsync(tokens.RefreshToken, clientId)).Tokens!;
 
         server.Time.Advance(OAuthServerOptions.RefreshReuseGrace);
+        var retried = (await server.RefreshAsync(tokens.RefreshToken, clientId)).Tokens!;
+
+        Assert.NotEqual(refreshed.AccessToken, retried.AccessToken);
+        Assert.NotEqual(refreshed.RefreshToken, retried.RefreshToken);
+        var families = await server.Db.OAuthTokens.Select(token => token.FamilyId).Distinct().ToListAsync();
+        Assert.Single(families);
+        Assert.Equal(server.Time.Now, (await server.Db.OAuthGrants.SingleAsync()).LastUsedAt);
+        Assert.NotNull((await server.RefreshAsync(retried.RefreshToken, clientId)).Tokens);
+        Assert.NotNull((await server.RefreshAsync(refreshed.RefreshToken, clientId)).Tokens);
+    }
+
+    [Fact]
+    public async Task Refresh_RetriedWithinTheGrace_StillRevokesOnceTheGraceFromTheFirstUseHasPassed()
+    {
+        await using var server = new OAuthTestServer();
+        var (clientId, tokens) = await server.ConnectAsync();
+        await server.RefreshAsync(tokens.RefreshToken, clientId);
+        server.Time.Advance(TimeSpan.FromSeconds(30));
+        Assert.NotNull((await server.RefreshAsync(tokens.RefreshToken, clientId)).Tokens);
+
+        server.Time.Advance(TimeSpan.FromSeconds(31));
         var reused = await server.RefreshAsync(tokens.RefreshToken, clientId);
 
         Assert.Equal(OAuthErrors.InvalidGrant, reused.Error!.Code);
-        Assert.NotNull((await server.RefreshAsync(refreshed.RefreshToken, clientId)).Tokens);
+        Assert.Empty(await server.Db.OAuthTokens.ToListAsync());
     }
 
     [Fact]

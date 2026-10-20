@@ -149,15 +149,12 @@ public class OAuthTokenService(
         }
 
         var now = timeProvider.GetUtcNow();
-        if (token.UsedAt is { } usedAt)
+        // Used again soon after, it's probably the app retrying after losing the response, so it gets a new pair too;
+        // later, it's probably stolen, so every token from the sign-in is revoked.
+        if (token.UsedAt is { } usedAt && now - usedAt > OAuthServerOptions.RefreshReuseGrace)
         {
-            // Probably the app retrying, so the tokens it got are left alone; later, probably stolen.
-            if (now - usedAt > OAuthServerOptions.RefreshReuseGrace)
-            {
-                await RevokeFamilyAsync(token.FamilyId, cancellationToken);
-                logger.LogWarning("An OAuth refresh token was used again, so its family was revoked");
-            }
-
+            await RevokeFamilyAsync(token.FamilyId, cancellationToken);
+            logger.LogWarning("An OAuth refresh token was used again, so its family was revoked");
             return InvalidGrant("The refresh token has been used already.");
         }
 
@@ -176,7 +173,8 @@ public class OAuthTokenService(
             return OAuthTokenResult.Refused(OAuthErrors.InvalidTarget, $"The only resource is {options.McpResource}.");
         }
 
-        token.UsedAt = now;
+        // A retry keeps the first use's time, so the grace runs from when the token was first exchanged.
+        token.UsedAt ??= now;
         grant.LastUsedAt = now;
         var tokens = Issue(grant, token.FamilyId, now);
         await dbContext.SaveChangesAsync(cancellationToken);
