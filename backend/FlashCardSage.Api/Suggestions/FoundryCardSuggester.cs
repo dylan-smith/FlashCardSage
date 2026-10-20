@@ -1,5 +1,6 @@
 using System.Text;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Observability;
 using FlashCardSage.Api.Suggestions.Foundry;
 using Microsoft.Extensions.Options;
 
@@ -8,7 +9,10 @@ namespace FlashCardSage.Api.Suggestions;
 // Asks a chat model (gpt-5-mini) on an Azure AI Foundry resource for new cards that build on the ones the user has:
 // the same topics and level, written the same way.
 public class FoundryCardSuggester(
-    HttpClient httpClient, IOptions<FoundryChatOptions> options, ILogger<FoundryCardSuggester> logger) : ICardSuggester
+    HttpClient httpClient,
+    IOptions<FoundryChatOptions> options,
+    ILogger<FoundryCardSuggester> logger,
+    IAiUsage aiUsage) : ICardSuggester
 {
     public const string Instructions = """
         You help an English speaker learn Spanish with flash cards. Each card has a Spanish word or phrase and its
@@ -22,7 +26,7 @@ public class FoundryCardSuggester(
     // Defines the answer as a list of cards.
     private static readonly object AnswerFormat = FoundrySchemas.Cards("card_suggestions");
 
-    private readonly FoundryChatClient chat = new(httpClient, options.Value, logger);
+    private readonly FoundryChatClient chat = new(httpClient, options.Value, logger, aiUsage, "card_suggestions");
 
     public bool IsAvailable => chat.IsAvailable;
 

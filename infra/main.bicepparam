@@ -60,6 +60,11 @@ param sqlConnectionString = readEnvironmentVariable('AZURE_SQL_CONNECTION_STRING
 param googleClientId = readEnvironmentVariable('GOOGLE_CLIENT_ID')
 param serviceToken = readEnvironmentVariable('FLASHCARDSAGE_SERVICE_TOKEN')
 
+// PostHog AI observability, from the POSTHOG_PROJECT_TOKEN and POSTHOG_HOST variables; without a token the API sends
+// PostHog nothing
+param posthogProjectToken = readEnvironmentVariable('POSTHOG_PROJECT_TOKEN', '')
+param posthogHost = readEnvironmentVariable('POSTHOG_HOST', 'https://us.i.posthog.com')
+
 // Monitoring
 param logAnalyticsWorkspaceName = 'FlashCardSage'
 param appInsightsName = 'FlashCardSage'

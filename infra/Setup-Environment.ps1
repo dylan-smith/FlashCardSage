@@ -57,6 +57,12 @@ param(
     # and the secret doesn't exist yet.
     [string]$ServiceToken,
 
+    # Optional PostHog project token and ingestion host the API sends its AI model calls to (the
+    # POSTHOG_PROJECT_TOKEN and POSTHOG_HOST variables). Omitted ones are left as they are; without a token the API
+    # sends PostHog nothing.
+    [string]$PostHogProjectToken,
+    [string]$PostHogHost,
+
     # Optional repository secrets. Omitted ones are left as they are. See the README's "Required GitHub Secrets".
     [string]$SlackWebhookUrl,
     [string]$ClaudeCodeOAuthToken,
@@ -438,6 +444,8 @@ function Invoke-InitialStage {
     elseif ((Get-GhNames 'variable') -notcontains 'GOOGLE_CLIENT_ID') {
         Write-Note 'GOOGLE_CLIENT_ID is not set. Pass -GoogleClientId, or sign-in will not work.'
     }
+    if ($PostHogProjectToken) { Set-GhValue 'variable' 'POSTHOG_PROJECT_TOKEN' $PostHogProjectToken }
+    if ($PostHogHost) { Set-GhValue 'variable' 'POSTHOG_HOST' $PostHogHost }
     if ($principals.deploy) { Set-GhValue 'variable' 'AZURE_CLIENT_ID' $principals.deploy.clientId 'production' }
     Set-GhValue 'variable' 'AZURE_BACKEND_APP_NAME' $appName 'production'
     Set-GhValue 'variable' 'AZURE_STORAGE_ACCOUNT_NAME' $storageAccountName 'production'

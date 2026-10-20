@@ -1,5 +1,7 @@
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Serialization;
+using FlashCardSage.Api.Observability;
 
 namespace FlashCardSage.Api.Suggestions.Foundry;
 
@@ -7,8 +9,10 @@ namespace FlashCardSage.Api.Suggestions.Foundry;
 // suggesters. It calls the resource's Azure OpenAI v1 chat completions API, which needs no API version.
 //
 // Every answer's token usage is logged, for the FlashCardSage AI workbook (infra/workbooks/ai.workbook.json), which
-// finds the feature it was for by the request that asked.
-public class FoundryChatClient(HttpClient httpClient, FoundryChatOptions options, ILogger logger)
+// finds the feature it was for by the request that asked. Every call, with its prompt and answer, is also recorded
+// for PostHog's AI observability, under the feature's name (e.g. card_suggestions).
+public class FoundryChatClient(
+    HttpClient httpClient, FoundryChatOptions options, ILogger logger, IAiUsage aiUsage, string feature)
 {
     // Enough for a handful of suggestions and the reasoning behind them.
     public const int ShortAnswerTokens = 4096;
@@ -44,18 +48,47 @@ public class FoundryChatClient(HttpClient httpClient, FoundryChatOptions options
         };
         message.Headers.Add("api-key", options.Key);
 
-        using var response = await httpClient.SendAsync(message, cancellationToken);
+        var started = Stopwatch.GetTimestamp();
+        AiGeneration Generation()
+        {
+            return new(
+                feature,
+                options.Deployment,
+                options.Endpoint,
+                [new AiMessage("developer", instructions), new AiMessage("user", request)],
+                Stopwatch.GetElapsedTime(started))
+            {
+                MaxTokens = maxCompletionTokens
+            };
+        }
+
+        using var response = await aiUsage.SendAsync(httpClient, message, Generation, cancellationToken);
         if (!response.IsSuccessStatusCode)
         {
             // The service's error code says what went wrong (its message might echo the cards, so it's left out).
             var code = FoundryErrors.Code(await response.Content.ReadAsStringAsync(cancellationToken)) is { } errorCode
                 ? $" ({errorCode})"
                 : string.Empty;
-            throw new HttpRequestException(
+            var failure = new HttpRequestException(
                 $"The suggestion model answered {(int)response.StatusCode}{code}.", null, response.StatusCode);
+            aiUsage.Record(Generation() with { HttpStatus = (int)response.StatusCode, Error = failure.Message });
+            throw failure;
         }
 
         var completion = await response.Content.ReadFromJsonAsync<Completion>(cancellationToken);
+        var answered = completion?.Choices is [{ Message: var answer }, ..] ? answer : null;
+        var generation = Generation() with
+        {
+            Model = completion?.Model ?? options.Deployment,
+            Output = answered?.Content ?? answered?.Refusal,
+            InputTokens = completion?.Usage?.PromptTokens,
+            CachedInputTokens = completion?.Usage?.PromptTokensDetails?.CachedTokens,
+            OutputTokens = completion?.Usage?.CompletionTokens,
+            ReasoningTokens = completion?.Usage?.CompletionTokensDetails?.ReasoningTokens,
+            FinishReason = completion?.Choices is [var only, ..] ? only.FinishReason : null,
+            HttpStatus = (int)response.StatusCode
+        };
+
         // An answer that can't be used is paid for all the same, so it's logged before it's checked.
         if (completion?.Usage is { } usage)
         {
@@ -72,17 +105,26 @@ public class FoundryChatClient(HttpClient httpClient, FoundryChatOptions options
         if (completion?.Choices is not [{ FinishReason: "stop", Message: { Refusal: null, Content: { } content } }, ..])
         {
             var reason = completion?.Choices is [var choice, ..] ? choice.FinishReason : null;
-            throw new HttpRequestException($"The suggestion model gave no suggestions ({reason ?? "no answer"}).");
+            var unusable = new HttpRequestException(
+                $"The suggestion model gave no suggestions ({reason ?? "no answer"}).");
+            aiUsage.Record(generation with { Error = unusable.Message });
+            throw unusable;
         }
 
+        T? result;
         try
         {
-            return JsonSerializer.Deserialize<T>(content, JsonSerializerOptions.Web);
+            result = JsonSerializer.Deserialize<T>(content, JsonSerializerOptions.Web);
         }
         catch (JsonException ex)
         {
-            throw new HttpRequestException("The suggestion model's answer couldn't be read.", ex);
+            var unreadable = new HttpRequestException("The suggestion model's answer couldn't be read.", ex);
+            aiUsage.Record(generation with { Error = unreadable.Message });
+            throw unreadable;
         }
+
+        aiUsage.Record(generation);
+        return result;
     }
 
     private sealed record Completion(

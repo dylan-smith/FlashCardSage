@@ -52,6 +52,12 @@ param googleClientId string
 @minLength(32)
 param serviceToken string
 
+@description('Token of the PostHog project the API sends its AI model calls to, for PostHog\'s AI observability. Empty sends nothing.')
+param posthogProjectToken string = ''
+
+@description('PostHog\'s ingestion host for the project: https://us.i.posthog.com or https://eu.i.posthog.com.')
+param posthogHost string = 'https://us.i.posthog.com'
+
 @description('Name of the Azure AI Translator resource that translates one side of a card into the other.')
 param translatorName string
 
@@ -184,6 +190,8 @@ module appService 'modules/appservice.bicep' = {
     corsAllowedOrigins: union([storage.outputs.frontendOrigin], [replace(storage.outputs.primaryWebEndpoint, '.net/', '.net')])
     googleClientId: googleClientId
     serviceToken: serviceToken
+    posthogProjectToken: posthogProjectToken
+    posthogHost: posthogHost
     translatorName: translator.outputs.name
     // By name rather than from the module's outputs, which there aren't when it isn't deployed.
     foundryName: deployFoundry ? foundryName : ''

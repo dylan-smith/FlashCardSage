@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Observability;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -66,9 +67,25 @@ public class FoundryDocumentScannerTests
         Assert.Equal(HttpStatusCode.TooManyRequests, ex.StatusCode);
     }
 
-    private static FoundryDocumentScanner CreateScanner(HttpClient httpClient)
+    [Fact]
+    public async Task ScanAsync_RecordsTheCall_AsADocumentScan()
     {
-        return new FoundryDocumentScanner(httpClient, FoundryTestOptions.Default, NullLogger<FoundryDocumentScanner>.Instance);
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}"""));
+        using var httpClient = new HttpClient(handler);
+        var aiUsage = new RecordingAiUsage();
+
+        await CreateScanner(httpClient, aiUsage).ScanAsync("Hola.", [], 110, CancellationToken.None);
+
+        var generation = Assert.Single(aiUsage.Generations);
+        Assert.Equal("document_scan", generation.Feature);
+        Assert.Contains("Hola.", generation.Input[1].Content, StringComparison.Ordinal);
+        Assert.Equal(8192, generation.MaxTokens);
+    }
+
+    private static FoundryDocumentScanner CreateScanner(HttpClient httpClient, IAiUsage? aiUsage = null)
+    {
+        return new FoundryDocumentScanner(
+            httpClient, FoundryTestOptions.Default, NullLogger<FoundryDocumentScanner>.Instance, aiUsage ?? new NullAiUsage());
     }
 
 }

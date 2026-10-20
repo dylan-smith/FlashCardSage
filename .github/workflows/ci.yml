@@ -339,6 +339,8 @@ jobs:
           AZURE_SQL_CONNECTION_STRING: what-if-placeholder
           GOOGLE_CLIENT_ID: what-if-placeholder
           FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
+          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
           AZURE_CORE_NO_COLOR: 'true'
 
       # A deployment doesn't delete resources removed from the template, so the comment also lists what's in the
@@ -352,6 +354,8 @@ jobs:
           AZURE_SQL_CONNECTION_STRING: what-if-placeholder
           GOOGLE_CLIENT_ID: what-if-placeholder
           FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
+          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
 
       # If this fails (say main's templates are broken), the comment shows every change instead of failing the PR.
       - name: Preview main's infrastructure changes
@@ -371,6 +375,8 @@ jobs:
           AZURE_SQL_CONNECTION_STRING: what-if-placeholder
           GOOGLE_CLIENT_ID: what-if-placeholder
           FLASHCARDSAGE_SERVICE_TOKEN: what-if-placeholder-that-is-at-least-32-chars
+          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
           AZURE_CORE_NO_COLOR: 'true'
 
       - name: Comment infrastructure changes on PR
@@ -416,6 +422,8 @@ jobs:
       PR_NUMBER: ${{ github.event.pull_request.number }}
       # Read by infra/preview.bicepparam.
       PREVIEW_PR_NUMBER: ${{ github.event.pull_request.number }}
+      POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+      POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
       PREVIEW_RESOURCE_GROUP: FlashCardSage-Preview
       PREVIEW_SQL_SERVER: flashcardsage-preview-sql
       # The per-PR resource names, as infra/preview.bicep derives them. The storage account's name has a suffix
@@ -692,6 +700,8 @@ jobs:
           ALERT_INVESTIGATION_TOKEN: ${{ secrets.ALERT_INVESTIGATION_TOKEN }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           FLASHCARDSAGE_SERVICE_TOKEN: ${{ secrets.FLASHCARDSAGE_SERVICE_TOKEN }}
+          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
 
       # The deployment doesn't delete resources removed from the template. Delete the alert rules it left behind,
       # which would otherwise keep firing, and warn about anything else. Never holds up the deployment.
@@ -708,6 +718,8 @@ jobs:
           ALERT_INVESTIGATION_TOKEN: ${{ secrets.ALERT_INVESTIGATION_TOKEN }}
           GOOGLE_CLIENT_ID: ${{ vars.GOOGLE_CLIENT_ID }}
           FLASHCARDSAGE_SERVICE_TOKEN: ${{ secrets.FLASHCARDSAGE_SERVICE_TOKEN }}
+          POSTHOG_PROJECT_TOKEN: ${{ vars.POSTHOG_PROJECT_TOKEN }}
+          POSTHOG_HOST: ${{ vars.POSTHOG_HOST }}
 
       # Static website hosting is a data-plane setting that ARM templates can't manage.
       - name: Enable static website hosting

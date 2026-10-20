@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FlashCardSage.Api.Images;
+using FlashCardSage.Api.Observability;
 using FlashCardSage.Api.Tests.Fakes;
 using FlashCardSage.Api.Tests.TestData;
 using Microsoft.Extensions.Options;
@@ -53,7 +54,7 @@ public class FoundryImageGeneratorTests
             ApiVersion = "2026-01-01"
         };
 
-        await new FoundryImageGenerator(httpClient, Options.Create(options)).GenerateAsync("x", "y", CancellationToken.None);
+        await new FoundryImageGenerator(httpClient, Options.Create(options), new NullAiUsage()).GenerateAsync("x", "y", CancellationToken.None);
 
         var request = Assert.Single(handler.Requests);
         Assert.Equal("https://foundry.example/providers/blackforestlabs/v1/flux-2-flex?api-version=2026-01-01", request.Url);
@@ -120,6 +121,58 @@ public class FoundryImageGeneratorTests
             CreateGenerator(httpClient).GenerateAsync("x", "y", CancellationToken.None));
     }
 
+    [Fact]
+    public async Task GenerateAsync_RecordsTheCall_WithItsPromptAndThePicturesSize()
+    {
+        var handler = new RecordingHttpHandler(_ => (HttpStatusCode.OK, $$"""{"created":1,"data":[{"b64_json":"{{Picture}}"}]}"""));
+        using var httpClient = new HttpClient(handler);
+        var aiUsage = new RecordingAiUsage();
+
+        await CreateGenerator(httpClient, aiUsage).GenerateAsync("nadar", "to swim", CancellationToken.None);
+
+        var generation = Assert.Single(aiUsage.Generations);
+        Assert.Equal("card_picture", generation.Feature);
+        Assert.Equal("flux-2-pro", generation.Model);
+        Assert.Equal("https://foundry.example/", generation.BaseUrl);
+        var input = Assert.Single(generation.Input);
+        Assert.Equal(new AiMessage("user", FoundryImageGenerator.Prompt("nadar", "to swim")), input);
+        Assert.Equal(SampleImages.Jpeg.Length, generation.ImageBytes);
+        Assert.Equal(200, generation.HttpStatus);
+        Assert.Null(generation.Error);
+    }
+
+    [Theory]
+    [InlineData(HttpStatusCode.BadRequest, """{"error":{"code":"content_moderation"}}""", "The image generator's safety system refused the words.")]
+    [InlineData(HttpStatusCode.TooManyRequests, "", "The image generator answered 429.")]
+    [InlineData(HttpStatusCode.OK, """{"created":1,"data":[]}""", "The image generator returned no picture.")]
+    public async Task GenerateAsync_RecordsAFailedCall(HttpStatusCode status, string body, string error)
+    {
+        var handler = new RecordingHttpHandler(_ => (status, body));
+        using var httpClient = new HttpClient(handler);
+        var aiUsage = new RecordingAiUsage();
+
+        await Assert.ThrowsAnyAsync<Exception>(() =>
+            CreateGenerator(httpClient, aiUsage).GenerateAsync("x", "y", CancellationToken.None));
+
+        var generation = Assert.Single(aiUsage.Generations);
+        Assert.Equal((int)status, generation.HttpStatus);
+        Assert.Equal(error, generation.Error);
+        Assert.Null(generation.ImageBytes);
+    }
+
+    [Fact]
+    public async Task GenerateAsync_RecordsNothing_WhenTheRequestIsCancelled()
+    {
+        using var httpClient = new HttpClient(new SlowHttpHandler());
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        var aiUsage = new RecordingAiUsage();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            CreateGenerator(httpClient, aiUsage).GenerateAsync("x", "y", cancellation.Token));
+
+        Assert.Empty(aiUsage.Generations);
+    }
+
     [Theory]
     [InlineData("", "", false)]
     [InlineData("https://foundry.example/", "", false)]
@@ -130,13 +183,13 @@ public class FoundryImageGeneratorTests
         using var httpClient = new HttpClient();
         var options = new ImageGenerationOptions { Endpoint = endpoint, Key = key };
 
-        Assert.Equal(expected, new FoundryImageGenerator(httpClient, Options.Create(options)).IsAvailable);
+        Assert.Equal(expected, new FoundryImageGenerator(httpClient, Options.Create(options), new NullAiUsage()).IsAvailable);
     }
 
-    private static FoundryImageGenerator CreateGenerator(HttpClient httpClient)
+    private static FoundryImageGenerator CreateGenerator(HttpClient httpClient, IAiUsage? aiUsage = null)
     {
         var options = new ImageGenerationOptions { Endpoint = "https://foundry.example/", Key = "secret-key" };
-        return new FoundryImageGenerator(httpClient, Options.Create(options));
+        return new FoundryImageGenerator(httpClient, Options.Create(options), aiUsage ?? new NullAiUsage());
     }
 
 }

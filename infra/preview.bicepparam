@@ -16,6 +16,11 @@ param translatorName = readEnvironmentVariable('PREVIEW_TRANSLATOR_NAME', '')
 // empty turns pictures off
 param foundryName = readEnvironmentVariable('PREVIEW_FOUNDRY_NAME', '')
 
+// PostHog AI observability, from the POSTHOG_PROJECT_TOKEN and POSTHOG_HOST variables, as production's; without a
+// token the preview sends PostHog nothing
+param posthogProjectToken = readEnvironmentVariable('POSTHOG_PROJECT_TOKEN', '')
+param posthogHost = readEnvironmentVariable('POSTHOG_HOST', 'https://us.i.posthog.com')
+
 // The free offer covers 10 databases per subscription, one of which is production's. Turn this off if a
 // deployment fails because they're used up (an existing database keeps the setting it was created with).
 param useFreeLimit = true

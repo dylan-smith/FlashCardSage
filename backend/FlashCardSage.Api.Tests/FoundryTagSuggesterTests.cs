@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Observability;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
 using FlashCardSage.Api.Tests.Fakes;
@@ -156,14 +157,30 @@ public class FoundryTagSuggesterTests
         var suggester = new FoundryTagSuggester(
             httpClient,
             Options.Create(new FoundryChatOptions { Endpoint = endpoint, Key = key }),
-            NullLogger<FoundryTagSuggester>.Instance);
+            NullLogger<FoundryTagSuggester>.Instance,
+            new NullAiUsage());
 
         Assert.Equal(expected, suggester.IsAvailable);
     }
 
-    private static FoundryTagSuggester CreateSuggester(HttpClient httpClient)
+    [Fact]
+    public async Task SuggestAsync_RecordsTheCall_AsTagSuggestions()
     {
-        return new FoundryTagSuggester(httpClient, FoundryTestOptions.Default, NullLogger<FoundryTagSuggester>.Instance);
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"tags":["Animals"]}"""));
+        using var httpClient = new HttpClient(handler);
+        var aiUsage = new RecordingAiUsage();
+
+        await CreateSuggester(httpClient, aiUsage).SuggestAsync(["el perro"], ["the dog"], Tags, CancellationToken.None);
+
+        var generation = Assert.Single(aiUsage.Generations);
+        Assert.Equal("tag_suggestions", generation.Feature);
+        Assert.Equal("""{"tags":["Animals"]}""", generation.Output);
+    }
+
+    private static FoundryTagSuggester CreateSuggester(HttpClient httpClient, IAiUsage? aiUsage = null)
+    {
+        return new FoundryTagSuggester(
+            httpClient, FoundryTestOptions.Default, NullLogger<FoundryTagSuggester>.Instance, aiUsage ?? new NullAiUsage());
     }
 
 }

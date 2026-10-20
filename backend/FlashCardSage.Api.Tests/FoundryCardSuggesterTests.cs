@@ -1,6 +1,7 @@
 using System.Net;
 using System.Text.Json;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Observability;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
 using FlashCardSage.Api.Tests.Fakes;
@@ -172,7 +173,7 @@ public class FoundryCardSuggesterTests
         var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json("""{"cards":[]}""", finishReason));
         using var httpClient = new HttpClient(handler);
         var logger = new RecordingLogger<FoundryCardSuggester>();
-        var suggester = new FoundryCardSuggester(httpClient, FoundryTestOptions.Default, logger);
+        var suggester = new FoundryCardSuggester(httpClient, FoundryTestOptions.Default, logger, new NullAiUsage());
 
         try
         {
@@ -192,6 +193,99 @@ public class FoundryCardSuggesterTests
         Assert.Equal(finishReason, entry["FinishReason"]);
     }
 
+    [Fact]
+    public async Task SuggestAsync_RecordsTheCall_WithItsPromptAnswerAndTokens()
+    {
+        const string answer = """{"cards":[{"spanish":"el perro","english":"the dog"}]}""";
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json(answer));
+        using var httpClient = new HttpClient(handler);
+        var aiUsage = new RecordingAiUsage();
+
+        await CreateSuggester(httpClient, aiUsage).SuggestAsync(Cards, null, null, [], 8, CancellationToken.None);
+
+        var generation = Assert.Single(aiUsage.Generations);
+        Assert.Equal("card_suggestions", generation.Feature);
+        Assert.Equal("gpt-5-mini-2025-08-07", generation.Model);
+        Assert.Equal("https://foundry.example/", generation.BaseUrl);
+        Assert.Equal(["developer", "user"], generation.Input.Select(message => message.Role));
+        Assert.Equal(FoundryCardSuggester.Instructions, generation.Input[0].Content);
+        Assert.Contains("- el gato = the cat [animals, home]", generation.Input[1].Content, StringComparison.Ordinal);
+        Assert.Equal(answer, generation.Output);
+        Assert.Equal(1200, generation.InputTokens);
+        Assert.Equal(256, generation.CachedInputTokens);
+        Assert.Equal(300, generation.OutputTokens);
+        Assert.Equal(192, generation.ReasoningTokens);
+        Assert.Equal(FoundryChatClient.ShortAnswerTokens, generation.MaxTokens);
+        Assert.Equal("stop", generation.FinishReason);
+        Assert.Equal(200, generation.HttpStatus);
+        Assert.Null(generation.Error);
+        Assert.True(generation.Latency >= TimeSpan.Zero);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_RecordsAFailedCall_WhenTheServiceFails()
+    {
+        var handler = new RecordingHttpHandler(HttpStatusCode.NotFound, """{"error":{"code":"DeploymentNotFound"}}""");
+        using var httpClient = new HttpClient(handler);
+        var aiUsage = new RecordingAiUsage();
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            CreateSuggester(httpClient, aiUsage).SuggestAsync(Cards, null, null, [], 8, CancellationToken.None));
+
+        var generation = Assert.Single(aiUsage.Generations);
+        Assert.Equal("gpt-test", generation.Model);
+        Assert.Equal(404, generation.HttpStatus);
+        Assert.Equal("The suggestion model answered 404 (DeploymentNotFound).", generation.Error);
+        Assert.Null(generation.Output);
+        Assert.Null(generation.InputTokens);
+    }
+
+    [Theory]
+    [InlineData("""{"cards":[""", "length")]
+    [InlineData("Here are some cards!", "stop")]
+    public async Task SuggestAsync_RecordsAFailedCall_WithItsTokens_WhenTheAnswerCantBeUsed(string answer, string finishReason)
+    {
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, ChatCompletion.Json(answer, finishReason));
+        using var httpClient = new HttpClient(handler);
+        var aiUsage = new RecordingAiUsage();
+
+        await Assert.ThrowsAsync<HttpRequestException>(() =>
+            CreateSuggester(httpClient, aiUsage).SuggestAsync(Cards, null, null, [], 8, CancellationToken.None));
+
+        var generation = Assert.Single(aiUsage.Generations);
+        Assert.NotNull(generation.Error);
+        Assert.Equal(answer, generation.Output);
+        Assert.Equal(finishReason, generation.FinishReason);
+        Assert.Equal(1200, generation.InputTokens);
+        Assert.Equal(300, generation.OutputTokens);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_RecordsAFailedCall_WhenTheModelTakesTooLong()
+    {
+        using var httpClient = new HttpClient(new SlowHttpHandler()) { Timeout = TimeSpan.FromMilliseconds(50) };
+        var aiUsage = new RecordingAiUsage();
+
+        await Assert.ThrowsAsync<TaskCanceledException>(() =>
+            CreateSuggester(httpClient, aiUsage).SuggestAsync(Cards, null, null, [], 8, CancellationToken.None));
+
+        var generation = Assert.Single(aiUsage.Generations);
+        Assert.Equal("No answer within 0.05 seconds.", generation.Error);
+    }
+
+    [Fact]
+    public async Task SuggestAsync_RecordsNothing_WhenTheRequestIsCancelled()
+    {
+        using var httpClient = new HttpClient(new SlowHttpHandler());
+        using var cancellation = new CancellationTokenSource(TimeSpan.FromMilliseconds(50));
+        var aiUsage = new RecordingAiUsage();
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() =>
+            CreateSuggester(httpClient, aiUsage).SuggestAsync(Cards, null, null, [], 8, cancellation.Token));
+
+        Assert.Empty(aiUsage.Generations);
+    }
+
     [Theory]
     [InlineData("", "secret-key", false)]
     [InlineData("https://foundry.example/", "", false)]
@@ -203,14 +297,16 @@ public class FoundryCardSuggesterTests
         var suggester = new FoundryCardSuggester(
             httpClient,
             Options.Create(new FoundryChatOptions { Endpoint = endpoint, Key = key }),
-            NullLogger<FoundryCardSuggester>.Instance);
+            NullLogger<FoundryCardSuggester>.Instance,
+            new NullAiUsage());
 
         Assert.Equal(expected, suggester.IsAvailable);
     }
 
-    private static FoundryCardSuggester CreateSuggester(HttpClient httpClient)
+    private static FoundryCardSuggester CreateSuggester(HttpClient httpClient, IAiUsage? aiUsage = null)
     {
-        return new FoundryCardSuggester(httpClient, FoundryTestOptions.Default, NullLogger<FoundryCardSuggester>.Instance);
+        return new FoundryCardSuggester(
+            httpClient, FoundryTestOptions.Default, NullLogger<FoundryCardSuggester>.Instance, aiUsage ?? new NullAiUsage());
     }
 
 }

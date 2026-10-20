@@ -27,6 +27,7 @@ builder.Services.AddOpenApi();
 builder.Services.AddSingleton(TimeProvider.System);
 builder.Services.AddSingleton<UsageSnapshotService>();
 builder.Services.AddHostedService(services => services.GetRequiredService<UsageSnapshotService>());
+builder.Services.AddAiUsageTracking(builder.Configuration);
 builder.Services.AddAiServices();
 builder.Services.AddImageStore(builder.Configuration);
 

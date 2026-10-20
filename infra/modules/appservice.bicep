@@ -36,6 +36,12 @@ param googleClientId string
 @secure()
 param serviceToken string
 
+@description('Token of the PostHog project the API sends its AI model calls to. Empty sends nothing.')
+param posthogProjectToken string = ''
+
+@description('PostHog\'s ingestion host for the project.')
+param posthogHost string = 'https://us.i.posthog.com'
+
 @description('Name of the Azure AI Translator resource the API translates cards with.')
 param translatorName string
 
@@ -137,6 +143,14 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
           CardSuggestions__Endpoint: 'https://${foundry!.name}.openai.azure.com/'
           CardSuggestions__Key: foundry!.listKeys().key1
           CardSuggestions__Deployment: suggestionDeploymentName
+        },
+    // Without a project token the API sends PostHog nothing.
+    empty(posthogProjectToken)
+      ? {}
+      : {
+          PostHog__ProjectToken: posthogProjectToken
+          PostHog__HostUrl: posthogHost
+          PostHog__Environment: 'production'
         }
   )
 }
