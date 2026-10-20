@@ -25,6 +25,19 @@ public class CardImageTests
         Assert.Equal(string.Empty, error);
     }
 
+    [Theory]
+    [InlineData("image/jpeg", true)]
+    [InlineData(" Image/PNG ", true)]
+    [InlineData("image/webp", true)]
+    [InlineData("image/gif", false)]
+    [InlineData("text/html", false)]
+    [InlineData("", false)]
+    [InlineData(null, false)]
+    public void IsContentType_IsTrueForTheKindsOfPictureACardCanHave(string? contentType, bool expected)
+    {
+        Assert.Equal(expected, CardImage.IsContentType(contentType));
+    }
+
     [Fact]
     public void TryDecode_TidiesTheContentType()
     {

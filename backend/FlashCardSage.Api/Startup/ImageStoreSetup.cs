@@ -1,4 +1,5 @@
 using FlashCardSage.Api.Images;
+using Microsoft.Extensions.DependencyInjection.Extensions;
 using Microsoft.Extensions.FileProviders;
 
 namespace FlashCardSage.Api.Startup;
@@ -25,6 +26,19 @@ public static class ImageStoreSetup
             StartupLog.Info("Image store: Azure Blob Storage.");
             services.AddSingleton<IImageStore, BlobImageStore>();
         }
+
+        return services;
+    }
+
+    // Downloads pictures from URLs users give, only from the public internet (see RemotePictureFetcher). Its handler
+    // checks where each connection goes, and the factory's request logging is off, since it would log the URLs.
+    public static IServiceCollection AddRemotePictureFetcher(this IServiceCollection services)
+    {
+        services.TryAddSingleton<IHostAddressResolver, DnsHostAddressResolver>();
+        services.AddHttpClient<RemotePictureFetcher>(client => client.Timeout = RemotePictureFetcher.Timeout)
+            .ConfigurePrimaryHttpMessageHandler(provider =>
+                RemotePictureFetcher.CreateHandler(provider.GetRequiredService<IHostAddressResolver>()))
+            .RemoveAllLoggers();
 
         return services;
     }
