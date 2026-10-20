@@ -82,8 +82,10 @@ npm run test:e2e
 
 ### Sign-in and data ownership
 
-- Every API endpoint needs a signed-in user unless it's marked `AllowAnonymous` (`/health`, OpenAPI, Scalar).
-  See `backend/FlashCardSage.Api/Authentication/` and the README's "Sign-in" section.
+- Every API endpoint needs a signed-in user unless it's marked `AllowAnonymous` (`/health`, OpenAPI, Scalar, and the
+  OAuth server's `/.well-known/*` and `/oauth/*`). See `backend/FlashCardSage.Api/Authentication/`,
+  `backend/FlashCardSage.Api/OAuth/` and the README's "Sign-in" section. The OAuth server's `fcs_at_` access tokens
+  only sign in on `/mcp`.
 - Flash cards belong to a user. `FlashCardDbContext` filters them to the current user and sets the owner on new
   ones. Anything added later that hangs off a card must be reached through its card, so a new endpoint must look
   that up first, or it can reach another user's data.
@@ -98,7 +100,9 @@ npm run test:e2e
   (`GeneratedImages`, read and written by `CachedImageGenerator`) are the only things that belong to no user: a text
   translates the same way for everyone and a picture of some words suits anyone, so there's no owner and no query
   filter. A card given a generated picture points at the cached file, which every card with it shares, so card code
-  must delete pictures through `TryDeleteCardPicturesAsync`, which leaves cached ones alone.
+  must delete pictures through `TryDeleteCardPicturesAsync`, which leaves cached ones alone. The OAuth server's
+  apps, sign-ins in progress and tokens have no owner or filter either, since they're looked up before anyone is
+  signed in; a token reaches its grant (owned like a card) with `IgnoreQueryFilters()`.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
 
 ### Database

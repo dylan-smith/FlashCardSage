@@ -44,6 +44,17 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     }
 
     [Fact]
+    public async Task Api_ReturnsUnauthorized_ForAnMcpAccessToken()
+    {
+        using var app = TestApp.CreateFactory(factory, Settings());
+        using var client = TestApp.CreateClient(app, "fcs_at_garbage");
+
+        var response = await client.GetAsync("/api/flashcards");
+
+        Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    [Fact]
     public async Task TestSignIn_CreatesTheUserOnce_AndReturnsThem()
     {
         var name = $"Alice {Guid.NewGuid()}";

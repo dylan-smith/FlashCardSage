@@ -29,6 +29,9 @@ param sqlConnectionString string
 @description('Origins allowed to call the API via CORS (the frontend static website).')
 param corsAllowedOrigins string[]
 
+@description('Origin the frontend is served on, where the API\'s OAuth server sends users to approve an AI assistant.')
+param frontendBaseUrl string
+
 @description('Google OAuth client ID whose ID tokens the API accepts for sign-in.')
 param googleClientId string
 
@@ -115,6 +118,9 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       ConnectionStrings__FlashCardSage: sqlConnectionString
       Authentication__Google__ClientId: googleClientId
       Authentication__ServiceToken: serviceToken
+      // The OAuth server MCP clients sign in with: the API's own URL is its issuer, and users approve on the frontend.
+      Api__BaseUrl: 'https://${appService.properties.defaultHostName}'
+      Frontend__BaseUrl: frontendBaseUrl
       Translator__Key: translator.listKeys().key1
       // The API writes pictures with the account's key: the web app's identity can't be given a role here, since
       // the deployment identity isn't allowed to assign roles.

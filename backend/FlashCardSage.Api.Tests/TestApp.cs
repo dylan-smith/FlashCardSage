@@ -1,16 +1,20 @@
 using System.Net.Http.Headers;
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
+using Microsoft.AspNetCore.TestHost;
+using Microsoft.Extensions.DependencyInjection;
 
 namespace FlashCardSage.Api.Tests;
 
 // Copies of the whole app for the tests that send it requests, and clients for them.
 internal static class TestApp
 {
-    // A copy of the app with these settings on top. Development uses the in-memory database and allows test sign-in, so
-    // the app starts without SQL Server. The caller disposes it.
+    // A copy of the app with these settings on top, and these changes to its services. Development uses the in-memory
+    // database and allows test sign-in, so the app starts without SQL Server. The caller disposes it.
     public static WebApplicationFactory<Program> CreateFactory(
-        WebApplicationFactory<Program> factory, IReadOnlyDictionary<string, string>? settings = null)
+        WebApplicationFactory<Program> factory,
+        IReadOnlyDictionary<string, string>? settings = null,
+        Action<IServiceCollection>? services = null)
     {
         ArgumentNullException.ThrowIfNull(factory);
 
@@ -20,6 +24,11 @@ internal static class TestApp
             foreach (var (key, value) in settings ?? new Dictionary<string, string>())
             {
                 builder.UseSetting(key, value);
+            }
+
+            if (services is not null)
+            {
+                builder.ConfigureTestServices(services);
             }
         });
     }

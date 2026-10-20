@@ -187,6 +187,9 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       // Google only accepts the origins registered with it, and every preview has its own, so previews use test
       // sign-in instead: anyone can sign in as any name. Never set this in main.bicep.
       Authentication__AllowTestSignIn: 'true'
+      // The OAuth server MCP clients sign in with (see modules/appservice.bicep).
+      Api__BaseUrl: 'https://${appService.properties.defaultHostName}'
+      Frontend__BaseUrl: frontendOrigin
       // The API writes pictures with the account's key (see modules/appservice.bicep).
       ImageStore__StorageConnectionString: 'DefaultEndpointsProtocol=https;AccountName=${storageAccount.name};AccountKey=${storageAccount.listKeys().keys[0].value};EndpointSuffix=${environment().suffixes.storage}'
       ImageStore__ContainerName: cardImagesContainer.name
