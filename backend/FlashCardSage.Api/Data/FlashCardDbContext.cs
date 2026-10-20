@@ -16,7 +16,9 @@ namespace FlashCardSage.Api.Data;
 /// cached card suggestions are owned like cards, since they're made from the user's cards. The
 /// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDeckImporter reads them past
 /// the filter. Cached translations and generated pictures are the exception: they're shared by every user, so they
-/// have no owner and no filter.
+/// have no owner and no filter. So are the OAuth server's apps, sign-ins in progress and tokens: they're looked up
+/// before anyone is signed in, and a token reaches its grant, which is owned like a card (one for each app a user has
+/// connected), past the grants' filter.
 /// </remarks>
 public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
 {
@@ -42,6 +44,14 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public DbSet<CachedCardSuggestions> CardSuggestions => Set<CachedCardSuggestions>();
 
     public DbSet<CachedTagSuggestions> TagSuggestions => Set<CachedTagSuggestions>();
+
+    public DbSet<OAuthClient> OAuthClients => Set<OAuthClient>();
+
+    public DbSet<OAuthAuthorizationRequest> OAuthAuthorizationRequests => Set<OAuthAuthorizationRequest>();
+
+    public DbSet<OAuthGrant> OAuthGrants => Set<OAuthGrant>();
+
+    public DbSet<OAuthToken> OAuthTokens => Set<OAuthToken>();
 
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
@@ -79,6 +89,10 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
         ConfigureCachedImage(modelBuilder.Entity<CachedImage>());
         ConfigureCachedCardSuggestions(OwnedBy<CachedCardSuggestions>(modelBuilder));
         ConfigureCachedSuggestions<CachedTagSuggestions, string>(OwnedBy<CachedTagSuggestions>(modelBuilder));
+        ConfigureOAuthClient(modelBuilder.Entity<OAuthClient>());
+        ConfigureOAuthAuthorizationRequest(modelBuilder.Entity<OAuthAuthorizationRequest>());
+        ConfigureOAuthGrant(OwnedBy<OAuthGrant>(modelBuilder));
+        ConfigureOAuthToken(modelBuilder.Entity<OAuthToken>());
     }
 
     // Only the current user's rows are found, and deleting a user deletes theirs.
@@ -284,5 +298,105 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
                     value => value.Aggregate(0, (hash, item) => HashCode.Combine(hash, item)),
                     value => value.ToList()))
             .IsRequired();
+    }
+
+    // The OAuth server's tables (0015-*.sql). Codes and tokens are kept as SHA-256 hashes in lowercase hex.
+    private static void ConfigureOAuthClient(EntityTypeBuilder<OAuthClient> client)
+    {
+        client.HasIndex(item => item.ClientId)
+            .IsUnique();
+
+        client.Property(item => item.ClientId)
+            .HasMaxLength(OAuthClient.MaxClientIdLength)
+            .IsRequired();
+
+        client.Property(item => item.Name)
+            .HasMaxLength(OAuthClient.MaxNameLength);
+
+        // A list of strings is kept as a JSON array.
+        client.Property(item => item.RedirectUris)
+            .IsRequired();
+    }
+
+    private static void ConfigureOAuthAuthorizationRequest(EntityTypeBuilder<OAuthAuthorizationRequest> request)
+    {
+        request.Property(item => item.Id)
+            .ValueGeneratedNever();
+
+        request.HasOne(item => item.Client)
+            .WithMany()
+            .HasForeignKey(item => item.OAuthClientId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        request.HasOne<User>()
+            .WithMany()
+            .HasForeignKey(item => item.UserId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        // Filtered to the approved requests in the database.
+        request.HasIndex(item => item.CodeHash)
+            .IsUnique();
+
+        request.Property(item => item.CodeHash)
+            .HasMaxLength(OAuth.OAuthTokens.HashLength)
+            .IsFixedLength()
+            .IsUnicode(false);
+
+        request.Property(item => item.RedirectUri)
+            .HasMaxLength(OAuthClient.MaxRedirectUriLength)
+            .IsRequired();
+
+        request.Property(item => item.Scope)
+            .HasMaxLength(200)
+            .IsRequired();
+
+        request.Property(item => item.State)
+            .HasMaxLength(OAuthAuthorizationRequest.MaxStateLength);
+
+        request.Property(item => item.CodeChallenge)
+            .HasMaxLength(128)
+            .IsUnicode(false)
+            .IsRequired();
+
+        request.Property(item => item.Resource)
+            .HasMaxLength(OAuthClient.MaxRedirectUriLength);
+    }
+
+    private static void ConfigureOAuthGrant(EntityTypeBuilder<OAuthGrant> grant)
+    {
+        grant.HasIndex(item => new { item.UserId, item.OAuthClientId })
+            .IsUnique();
+
+        grant.HasOne(item => item.Client)
+            .WithMany()
+            .HasForeignKey(item => item.OAuthClientId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        grant.Property(item => item.Scope)
+            .HasMaxLength(200)
+            .IsRequired();
+    }
+
+    private static void ConfigureOAuthToken(EntityTypeBuilder<OAuthToken> token)
+    {
+        token.HasOne<OAuthGrant>()
+            .WithMany()
+            .HasForeignKey(item => item.GrantId)
+            .OnDelete(DeleteBehavior.Cascade);
+
+        token.HasIndex(item => item.TokenHash)
+            .IsUnique();
+
+        token.HasIndex(item => item.FamilyId);
+
+        token.Property(item => item.TokenHash)
+            .HasMaxLength(OAuth.OAuthTokens.HashLength)
+            .IsFixedLength()
+            .IsUnicode(false)
+            .IsRequired();
+
+        token.Property(item => item.Kind)
+            .HasConversion<string>()
+            .HasMaxLength(10);
     }
 }
