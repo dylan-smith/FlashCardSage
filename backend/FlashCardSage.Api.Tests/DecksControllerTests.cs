@@ -296,6 +296,9 @@ public class DecksControllerTests
 
     private static DecksController CreateController(FlashCardDbContext dbContext)
     {
-        return new DecksController(dbContext, NullLogger<DecksController>.Instance);
+        return new DecksController(
+            dbContext,
+            new DeckService(dbContext, NullLogger<DeckService>.Instance),
+            NullLogger<DecksController>.Instance);
     }
 }

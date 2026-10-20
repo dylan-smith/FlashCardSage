@@ -19,11 +19,10 @@ public class FlashCardsController(
     FlashCardService flashCards,
     ILogger<FlashCardsController> logger) : ApiControllerBase
 {
-    // The 409 for a word that's already on another of the user's cards. A word with more than one translation
-    // belongs on one card, so the user is pointed at that card.
+    // The 409 for a word that's already on another of the user's cards (see CardResult.Duplicate).
     public static string DuplicateMessage(Language language, string word)
     {
-        return $"You already have a flash card with the {language} \"{word}\". Add this translation to that card instead.";
+        return CardResult.Duplicate.DuplicateMessage(language, word);
     }
 
     public const string BatchClashMessage = "Your cards changed while these were being added. Try again.";
@@ -89,7 +88,7 @@ public class FlashCardsController(
     {
         return await flashCards.CreateManyAsync(request.Cards) switch
         {
-            CardResult.CreatedMany(var cards, var skippedCount) => Ok(new FlashCardBatchResponse(cards, skippedCount)),
+            CardResult.CreatedMany created => Ok(new FlashCardBatchResponse(created.Cards, created.SkippedCount)),
             var result => ToResponse(result)
         };
     }
@@ -121,8 +120,8 @@ public class FlashCardsController(
 
                 return ValidationProblem(ModelState);
             // A 409 that says which word is taken.
-            case CardResult.Duplicate(var word):
-                return ConflictProblem(DuplicateMessage(word.Language, word.Text));
+            case CardResult.Duplicate duplicate:
+                return ConflictProblem(duplicate.Message);
             case CardResult.Clash:
                 return ConflictProblem(BatchClashMessage);
             default:

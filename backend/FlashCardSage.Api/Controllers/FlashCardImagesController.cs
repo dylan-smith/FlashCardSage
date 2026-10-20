@@ -1,9 +1,8 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -16,15 +15,15 @@ namespace FlashCardSage.Api.Controllers;
 /// when the card's done with it.
 /// </summary>
 /// <remarks>
-/// A card is always looked up first, since that's what limits it to the current user's cards. The words a
-/// picture is made from are user-provided, so they're never logged (log-forging).
+/// Pictures are put on cards and taken off by CardPictureService, which always looks the card up first, since that's
+/// what limits it to the current user's cards. The words a picture is made from are user-provided, so they're never
+/// logged (log-forging).
 /// </remarks>
 [ApiController]
 [Route("api/flashcards")]
 public class FlashCardImagesController(
-    FlashCardDbContext dbContext,
     CachedImageGenerator imageGenerator,
-    IImageStore imageStore,
+    CardPictureService pictures,
     ILogger<FlashCardImagesController> logger) : ApiControllerBase
 {
     [HttpPost("images/generate")]
@@ -77,82 +76,20 @@ public class FlashCardImagesController(
     public async Task<ActionResult<FlashCard>> Put(
         int id, [FromBody] CardImageRequest request, CancellationToken cancellationToken)
     {
-        var card = await FindCardAsync(id, cancellationToken);
-        if (card is null)
-        {
-            logger.LogWarning("Flash card {FlashCardId} not found for a picture", id);
-            return NotFound();
-        }
+        // A generated picture by its ID in the cache, or else one of the user's own, decoded from base64.
+        var result = request.GeneratedImageId is { } generatedImageId
+            ? await pictures.PutGeneratedAsync(id, generatedImageId, cancellationToken)
+            : CardImage.TryDecode(request.ContentType, request.Data, out var data, out var contentType, out var error)
+                ? await pictures.PutAsync(id, data, contentType, cancellationToken)
+                : new PictureResult.Invalid(nameof(request.Data), error);
 
-        var previousUrl = card.ImageUrl;
-        if (request.GeneratedImageId is { } generatedImageId)
-        {
-            // A generated picture is in the cache already, so the card points at it there rather than keeping a copy.
-            var cached = await dbContext.GeneratedImages
-                .AsNoTracking()
-                .FirstOrDefaultAsync(item => item.Id == generatedImageId, cancellationToken);
-            if (cached is null)
-            {
-                ModelState.AddModelError(nameof(request.GeneratedImageId), "That picture is gone.");
-                return ValidationProblem(ModelState);
-            }
-
-            card.ImageUrl = cached.ImageUrl;
-            await dbContext.SaveChangesAsync(cancellationToken);
-            logger.LogInformation(
-                "Put generated picture {GeneratedImageId} on flash card {FlashCardId}", generatedImageId, id);
-        }
-        else
-        {
-            if (!CardImage.TryDecode(request.ContentType, request.Data, out var data, out var contentType, out var error))
-            {
-                ModelState.AddModelError(nameof(request.Data), error);
-                return ValidationProblem(ModelState);
-            }
-
-            var url = await imageStore.SaveAsync(data, contentType, cancellationToken);
-            card.ImageUrl = url;
-            try
-            {
-                await dbContext.SaveChangesAsync(cancellationToken);
-            }
-            catch
-            {
-                // The picture isn't on the card, so it isn't kept either.
-                await imageStore.TryDeleteAsync(url, logger, CancellationToken.None);
-                throw;
-            }
-
-            logger.LogInformation("Put a {Length} byte picture on flash card {FlashCardId}", data.Length, id);
-        }
-
-        if (previousUrl is not null && previousUrl != card.ImageUrl)
-        {
-            await imageStore.TryDeleteCardPicturesAsync(dbContext, [previousUrl], logger, cancellationToken);
-        }
-
-        return Ok(card);
+        return ToResponse(result);
     }
 
     [HttpDelete("{id:int}/image")]
     public async Task<ActionResult<FlashCard>> Delete(int id, CancellationToken cancellationToken)
     {
-        var card = await FindCardAsync(id, cancellationToken);
-        if (card is null)
-        {
-            logger.LogWarning("Flash card {FlashCardId} not found for removing its picture", id);
-            return NotFound();
-        }
-
-        if (card.ImageUrl is { } url)
-        {
-            card.ImageUrl = null;
-            await dbContext.SaveChangesAsync(cancellationToken);
-            await imageStore.TryDeleteCardPicturesAsync(dbContext, [url], logger, cancellationToken);
-            logger.LogInformation("Removed the picture from flash card {FlashCardId}", id);
-        }
-
-        return Ok(card);
+        return ToResponse(await pictures.RemoveAsync(id, cancellationToken));
     }
 
     private static CardImageResponse ToResponse(CachedGeneratedImage picture)
@@ -161,11 +98,20 @@ public class FlashCardImagesController(
             picture.Id, picture.Image.ContentType, Convert.ToBase64String(picture.Image.Data.Span));
     }
 
-    // The card with its words and tags, as the other endpoints return it.
-    private Task<FlashCard?> FindCardAsync(int id, CancellationToken cancellationToken)
+    // The response for what became of putting a picture on a card or taking it off.
+    private ActionResult ToResponse(PictureResult result)
     {
-        return dbContext.FlashCards
-            .WithWordsAndTags()
-            .FirstOrDefaultAsync(card => card.Id == id, cancellationToken);
+        switch (result)
+        {
+            case PictureResult.Changed(var card):
+                return Ok(card);
+            case PictureResult.NotFound:
+                return NotFound();
+            case PictureResult.Invalid(var field, var message):
+                ModelState.AddModelError(field, message);
+                return ValidationProblem(ModelState);
+            default:
+                throw new InvalidOperationException($"Unexpected picture result {result.GetType().Name}.");
+        }
     }
 }

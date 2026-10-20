@@ -172,10 +172,12 @@ public class FlashCardService(
         var tags = await dbContext.Tags.ToListAsync();
 
         var cards = new List<FlashCard>();
-        foreach (var (spanish, english, tagNames) in trimmed)
+        var skipped = new List<FlashCardRequest>();
+        foreach (var ((spanish, english, tagNames), request) in trimmed.Zip(requests))
         {
             if (taken.FirstClash(spanish, english) is not null)
             {
+                skipped.Add(request);
                 continue;
             }
 
@@ -196,9 +198,9 @@ public class FlashCardService(
         }
 
         logger.LogInformation(
-            "Created {Count} flash cards, skipping {SkippedCount}", cards.Count, trimmed.Count - cards.Count);
+            "Created {Count} flash cards, skipping {SkippedCount}", cards.Count, skipped.Count);
 
-        return new CardResult.CreatedMany(cards, trimmed.Count - cards.Count);
+        return new CardResult.CreatedMany(cards, skipped);
     }
 
     // Deletes many cards at once, such as all the ones picked on the cards page, returning how many were deleted. A

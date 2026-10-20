@@ -114,16 +114,19 @@ public class FlashCardServiceTests
         await TestDb.SeedCardAsync(databaseName, TestDb.Card("el gato", "the cat"));
         await using var dbContext = TestDb.Create(databaseName);
 
-        var result = await CreateService(dbContext).CreateManyAsync(
+        FlashCardRequest[] requests =
         [
             new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] },
             new FlashCardRequest { Spanish = ["el gatito"], English = ["THE CAT"] },
             new FlashCardRequest { Spanish = ["EL PERRO"], English = ["the hound"] }
-        ]);
+        ];
+
+        var result = await CreateService(dbContext).CreateManyAsync(requests);
 
         var created = Assert.IsType<CardResult.CreatedMany>(result);
         Assert.Equal(["el perro"], created.Cards.Select(card => card.Spanish.Single()));
         Assert.Equal(2, created.SkippedCount);
+        Assert.Equal([requests[1], requests[2]], created.Skipped);
     }
 
     [Fact]
