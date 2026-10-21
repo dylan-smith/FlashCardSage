@@ -4,6 +4,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
@@ -184,7 +185,9 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
         });
 
         await using var dbContext = TestDb.Create(databaseName);
-        var controller = new FlashCardScoresController(dbContext, NullLogger<FlashCardScoresController>.Instance);
+        var controller = new FlashCardScoresController(
+            new PracticeService(dbContext, NullLogger<PracticeService>.Instance),
+            NullLogger<FlashCardScoresController>.Instance);
 
         Assert.IsType<NotFoundResult>((await controller.Get(new PracticeSelection { DeckId = otherDeck.Id })).Result);
         Assert.IsType<NotFoundResult>((await controller.Get(new PracticeSelection { TagId = otherTag.Id })).Result);
@@ -236,7 +239,9 @@ public class FlashCardScoresControllerTests(WebApplicationFactory<Program> facto
     private static async Task<FlashCardScoresResponse> GetAsync(
         FlashCardDbContext dbContext, PracticeSelection? selection = null)
     {
-        var controller = new FlashCardScoresController(dbContext, NullLogger<FlashCardScoresController>.Instance);
+        var controller = new FlashCardScoresController(
+            new PracticeService(dbContext, NullLogger<PracticeService>.Instance),
+            NullLogger<FlashCardScoresController>.Instance);
         var result = await controller.Get(selection ?? new PracticeSelection());
         return ActionResultAssert.Ok<FlashCardScoresResponse>(result.Result);
     }

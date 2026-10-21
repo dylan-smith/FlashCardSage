@@ -1,9 +1,7 @@
-using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -13,32 +11,19 @@ namespace FlashCardSage.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/preferences")]
-public class PreferencesController(
-    FlashCardDbContext dbContext,
-    CurrentUser currentUser,
-    ILogger<PreferencesController> logger) : ControllerBase
+public class PreferencesController(PreferencesService preferencesService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<PreferencesResponse>> Get()
     {
-        var user = await dbContext.Users
-            .AsNoTracking()
-            .SingleAsync(item => item.Id == currentUser.UserId);
-
-        return Ok(ToResponse(user));
+        return Ok(ToResponse(await preferencesService.GetAsync()));
     }
 
     [HttpPut]
     public async Task<ActionResult<PreferencesResponse>> Update([FromBody] PreferencesRequest request)
     {
-        var user = await dbContext.Users.SingleAsync(item => item.Id == currentUser.UserId);
-
-        user.ShowPictures = request.ShowPictures!.Value;
-        user.ShowSuggestions = request.ShowSuggestions!.Value;
-        user.AutoTranslate = request.AutoTranslate!.Value;
-        await dbContext.SaveChangesAsync();
-
-        logger.LogInformation("Updated user {UserId}'s preferences", user.Id);
+        var user = await preferencesService.UpdateAsync(
+            request.ShowPictures!.Value, request.ShowSuggestions!.Value, request.AutoTranslate!.Value);
 
         return Ok(ToResponse(user));
     }

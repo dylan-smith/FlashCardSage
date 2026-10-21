@@ -1,5 +1,7 @@
 using FlashCardSage.Api.Mcp;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
+using Microsoft.Extensions.Logging.Abstractions;
 using ModelContextProtocol;
 
 namespace FlashCardSage.Api.Tests.Mcp;
@@ -21,7 +23,7 @@ public class StatsToolsTests
         });
         await using var dbContext = TestDb.Create(databaseName);
 
-        Assert.Equal(new Counts(2, 0, 1), await new StatsTools(dbContext).GetCountsAsync());
+        Assert.Equal(new Counts(2, 0, 1), await CreateTools(dbContext).GetCountsAsync());
     }
 
     [Fact]
@@ -34,7 +36,7 @@ public class StatsToolsTests
         AddResults(dbContext, ids[0], PracticeOutcome.Failed, PracticeOutcome.GotIt, PracticeOutcome.GotIt);
         AddResults(dbContext, ids[2], PracticeOutcome.GotIt, PracticeOutcome.WasClose);
         await dbContext.SaveChangesAsync();
-        var tools = new StatsTools(dbContext);
+        var tools = CreateTools(dbContext);
 
         var stats = await tools.GetPracticeStatsAsync();
         var page = await tools.GetPracticeStatsAsync(limit: 1, offset: 1);
@@ -57,7 +59,7 @@ public class StatsToolsTests
         var deck = new Deck { Name = "Week 1", FlashCards = [.. dbContext.FlashCards.Where(card => card.Id != ids[2])] };
         dbContext.Decks.Add(deck);
         await dbContext.SaveChangesAsync();
-        var tools = new StatsTools(dbContext);
+        var tools = CreateTools(dbContext);
 
         Assert.Equal([ids[0], ids[1]], (await tools.GetPracticeStatsAsync(deckId: deck.Id)).Cards.Select(card => card.Id));
         Assert.Equal(
@@ -71,7 +73,7 @@ public class StatsToolsTests
         var otherDeck = new Deck { Name = "Theirs" };
         await TestDb.SeedAsOtherUserAsync(databaseName, dbContext => dbContext.Decks.Add(otherDeck));
         await using var dbContext = TestDb.Create(databaseName);
-        var tools = new StatsTools(dbContext);
+        var tools = CreateTools(dbContext);
 
         var both = await Assert.ThrowsAsync<McpException>(() => tools.GetPracticeStatsAsync(deckId: 1, tagId: 1));
         var other = await Assert.ThrowsAsync<McpException>(() => tools.GetPracticeStatsAsync(deckId: otherDeck.Id));
@@ -89,7 +91,7 @@ public class StatsToolsTests
         AddResults(dbContext, ids[0], PracticeOutcome.WasClose, PracticeOutcome.GotIt, PracticeOutcome.GotIt);
         await dbContext.SaveChangesAsync();
 
-        var history = await new StatsTools(dbContext).GetPracticeHistoryAsync(ids[0], limit: 2);
+        var history = await CreateTools(dbContext).GetPracticeHistoryAsync(ids[0], limit: 2);
 
         Assert.Equal((ids[0], 80, 3), (history.CardId, history.Score, history.TotalAttempts));
         Assert.Equal(
@@ -104,7 +106,7 @@ public class StatsToolsTests
         var otherId = await TestDb.SeedCardAsync(databaseName, TestDb.Card("el perro", "the dog"), TestDb.OtherUserId);
         await using var dbContext = TestDb.Create(databaseName);
 
-        var error = await Assert.ThrowsAsync<McpException>(() => new StatsTools(dbContext).GetPracticeHistoryAsync(otherId));
+        var error = await Assert.ThrowsAsync<McpException>(() => CreateTools(dbContext).GetPracticeHistoryAsync(otherId));
 
         Assert.Equal(ToolErrors.CardNotFound, error.Message);
     }
@@ -114,5 +116,12 @@ public class StatsToolsTests
     {
         dbContext.PracticeResults.AddRange(outcomes.Select((outcome, index) =>
             new PracticeResult { FlashCardId = cardId, Outcome = outcome, PracticedAt = Start.AddMinutes(index) }));
+    }
+
+    private static StatsTools CreateTools(Data.FlashCardDbContext dbContext)
+    {
+        return new StatsTools(
+            new PracticeService(dbContext, NullLogger<PracticeService>.Instance),
+            new CountsService(dbContext));
     }
 }

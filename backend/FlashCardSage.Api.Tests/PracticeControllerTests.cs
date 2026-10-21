@@ -4,6 +4,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Logging.Abstractions;
 
@@ -136,6 +137,6 @@ public class PracticeControllerTests(WebApplicationFactory<Program> factory)
 
     private static PracticeController CreateController(FlashCardDbContext dbContext)
     {
-        return new PracticeController(dbContext, NullLogger<PracticeController>.Instance);
+        return new PracticeController(new PracticeService(dbContext, NullLogger<PracticeService>.Instance));
     }
 }
