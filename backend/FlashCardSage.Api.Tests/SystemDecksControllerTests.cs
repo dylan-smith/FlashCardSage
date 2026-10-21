@@ -383,7 +383,6 @@ public class SystemDecksControllerTests
     private static SystemDecksController CreateController(FlashCardDbContext dbContext)
     {
         return new SystemDecksController(
-            dbContext,
             new SystemDeckImporter(dbContext, NullLogger<SystemDeckImporter>.Instance),
             NullLogger<SystemDecksController>.Instance);
     }

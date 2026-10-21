@@ -1,8 +1,6 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -16,7 +14,6 @@ namespace FlashCardSage.Api.Controllers;
 [ApiController]
 [Route("api/system-decks")]
 public class SystemDecksController(
-    FlashCardDbContext dbContext,
     SystemDeckImporter importer,
     ILogger<SystemDecksController> logger) : ApiControllerBase
 {
@@ -33,14 +30,11 @@ public class SystemDecksController(
     {
         logger.LogInformation("Retrieving all system decks");
 
-        var decks = await importer.SystemDecks()
-            .OrderBy(deck => deck.Name)
-            .ToListAsync();
+        var decks = await importer.GetAllAsync();
 
         logger.LogInformation("Retrieved {Count} system decks", decks.Count);
 
-        var taken = await TakenWords.LoadAsync(dbContext, exceptCardId: null, CancellationToken.None);
-        return Ok(decks.Select(deck => SystemDeckResponse.From(deck, taken.ContainsAny)).ToList());
+        return Ok(decks);
     }
 
     // Copies the deck into the user's decks, leaving out any card whose words they already have.

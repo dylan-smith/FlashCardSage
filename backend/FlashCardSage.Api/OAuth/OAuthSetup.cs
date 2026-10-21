@@ -17,6 +17,7 @@ public static class OAuthSetup
         services.AddScoped<OAuthClientRegistry>();
         services.AddScoped<OAuthAuthorizationService>();
         services.AddScoped<OAuthTokenService>();
+        services.AddScoped<OAuthConnectionService>();
         // An app's metadata document is fetched while the user waits to sign in, and it must be at that exact URL.
         services.AddHttpClient<ClientMetadataFetcher>(client => client.Timeout = TimeSpan.FromSeconds(5))
             .ConfigurePrimaryHttpMessageHandler(() => new SocketsHttpHandler { AllowAutoRedirect = false, UseCookies = false });
