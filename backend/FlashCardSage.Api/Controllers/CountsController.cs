@@ -1,7 +1,6 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -10,14 +9,11 @@ namespace FlashCardSage.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/counts")]
-public class CountsController(FlashCardDbContext dbContext) : ControllerBase
+public class CountsController(CountsService countsService) : ControllerBase
 {
     [HttpGet]
     public async Task<ActionResult<CountsResponse>> Get()
     {
-        return Ok(new CountsResponse(
-            await dbContext.FlashCards.CountAsync(),
-            await dbContext.Decks.CountAsync(),
-            await dbContext.Tags.CountAsync()));
+        return Ok(await countsService.GetAsync());
     }
 }

@@ -13,11 +13,14 @@ StartupLog.Info($"Environment: {builder.Environment.EnvironmentName}");
 builder.Services.AddFlashCardSageTelemetry(builder.Configuration);
 builder.Services.AddFlashCardSageAuthentication(builder.Configuration);
 builder.Services.AddControllers();
-// The card, tag, deck, picture and built-in deck logic the controllers use.
+// The card, tag, deck, picture, practice, counts, preferences and built-in deck logic the controllers use.
 builder.Services.AddScoped<FlashCardService>();
 builder.Services.AddScoped<TagService>();
 builder.Services.AddScoped<DeckService>();
 builder.Services.AddScoped<CardPictureService>();
+builder.Services.AddScoped<PracticeService>();
+builder.Services.AddScoped<CountsService>();
+builder.Services.AddScoped<PreferencesService>();
 builder.Services.AddScoped<SystemDeckImporter>();
 // The MCP server AI assistants connect to, which uses the services above.
 builder.Services.AddFlashCardSageMcp();

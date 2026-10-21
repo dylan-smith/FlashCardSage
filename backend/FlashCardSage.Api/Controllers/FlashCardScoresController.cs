@@ -1,6 +1,6 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FlashCardSage.Api.Controllers;
@@ -11,7 +11,7 @@ namespace FlashCardSage.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/flashcards/scores")]
-public class FlashCardScoresController(FlashCardDbContext dbContext, ILogger<FlashCardScoresController> logger)
+public class FlashCardScoresController(PracticeService practiceService, ILogger<FlashCardScoresController> logger)
     : ControllerBase
 {
     // All the user's cards, or a deck's or a tag's, totalling just those. Not found when the deck or tag isn't the
@@ -23,13 +23,13 @@ public class FlashCardScoresController(FlashCardDbContext dbContext, ILogger<Fla
     {
         logger.LogInformation("Scoring flash cards");
 
-        if (!await dbContext.SelectionExistsAsync(selection))
+        if (await practiceService.ScoreAsync(selection) is not { } scored)
         {
             logger.LogWarning("Deck {DeckId} or tag {TagId} not found to score", selection.DeckId, selection.TagId);
             return NotFound();
         }
 
-        var scores = (await dbContext.ScoreFlashCardsAsync(selection))
+        var scores = scored
             .OrderBy(score => score.Score)
             .ThenBy(score => score.Id)
             .ToList();
