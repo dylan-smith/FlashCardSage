@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Services;
-using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
 
 namespace FlashCardSage.Api.Mcp;
@@ -11,28 +9,21 @@ namespace FlashCardSage.Api.Mcp;
 /// so a big one stays small; list_cards with its id pages through the cards.
 /// </summary>
 [McpServerToolType]
-public class DeckTools(FlashCardDbContext dbContext, DeckService decks)
+public class DeckTools(DeckService decks)
 {
     [McpServerTool(Name = "list_decks", Title = "List decks", ReadOnly = true, OpenWorld = false)]
     [Description("Lists the user's decks by name, with how many cards each has.")]
     public async Task<IReadOnlyList<DeckSummary>> ListDecksAsync()
     {
-        return await dbContext.Decks
-            .AsNoTracking()
-            .OrderBy(deck => deck.Name)
-            .Select(deck => new DeckSummary(deck.Id, deck.Name, deck.FlashCards.Count))
-            .ToListAsync();
+        return [.. (await decks.GetCardCountsAsync())
+            .Select(item => new DeckSummary(item.Deck.Id, item.Deck.Name, item.CardCount))];
     }
 
     [McpServerTool(Name = "get_deck", Title = "Get a deck", ReadOnly = true, OpenWorld = false)]
     [Description("Gets a deck with its cards' ids. Use list_cards with the deck's id to read the cards.")]
     public async Task<DeckDetail> GetDeckAsync([Description("The deck's id.")] int id)
     {
-        var deck = await dbContext.Decks
-            .AsNoTracking()
-            .WithCards()
-            .FirstOrDefaultAsync(item => item.Id == id)
-            ?? throw ToolErrors.Error(ToolErrors.DeckNotFound);
+        var deck = await decks.GetAsync(id) ?? throw ToolErrors.Error(ToolErrors.DeckNotFound);
 
         return DeckDetail.From(deck);
     }

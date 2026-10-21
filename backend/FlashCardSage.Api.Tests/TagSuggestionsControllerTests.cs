@@ -4,6 +4,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.AspNetCore.Http;
@@ -341,7 +342,8 @@ public class TagSuggestionsControllerTests(WebApplicationFactory<Program> factor
     private static TagSuggestionsController CreateController(FlashCardDbContext dbContext, ITagSuggester suggester)
     {
         return new TagSuggestionsController(
-            dbContext,
+            new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance),
+            new TagService(dbContext, NullLogger<TagService>.Instance),
             suggester,
             new CachedTagSuggester(suggester, dbContext, NullLogger<CachedTagSuggester>.Instance),
             NullLogger<TagSuggestionsController>.Instance);

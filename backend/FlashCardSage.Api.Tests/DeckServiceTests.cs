@@ -40,6 +40,27 @@ public class DeckServiceTests
         Assert.Null(await CreateService(dbContext).GetAsync(theirs.Id));
     }
 
+    [Fact]
+    public async Task GetCardCountsAsync_CountsTheUsersDecksCards_ByName_WithoutAnotherUsers()
+    {
+        var databaseName = TestDb.NewDatabaseName();
+        await using (var setupContext = TestDb.Create(databaseName))
+        {
+            setupContext.Decks.Add(new Deck { Name = "Verbs" });
+            var animals = new Deck { Name = "Animals" };
+            animals.FlashCards.AddRange([TestDb.Card("el perro", "the dog"), TestDb.Card("el gato", "the cat")]);
+            setupContext.Decks.Add(animals);
+            await setupContext.SaveChangesAsync();
+        }
+
+        await TestDb.SeedAsOtherUserAsync(databaseName, other => other.Decks.Add(new Deck { Name = "Food" }));
+        await using var dbContext = TestDb.Create(databaseName);
+
+        var decks = await CreateService(dbContext).GetCardCountsAsync();
+
+        Assert.Equal([("Animals", 2), ("Verbs", 0)], decks.Select(item => (item.Deck.Name, item.CardCount)));
+    }
+
     private static DeckService CreateService(FlashCardDbContext dbContext)
     {
         return new DeckService(dbContext, NullLogger<DeckService>.Instance);

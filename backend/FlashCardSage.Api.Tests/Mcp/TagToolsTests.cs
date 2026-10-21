@@ -116,6 +116,6 @@ public class TagToolsTests
 
     private static TagTools CreateTools(FlashCardDbContext dbContext)
     {
-        return new TagTools(dbContext, new TagService(dbContext, NullLogger<TagService>.Instance));
+        return new TagTools(new TagService(dbContext, NullLogger<TagService>.Instance));
     }
 }
