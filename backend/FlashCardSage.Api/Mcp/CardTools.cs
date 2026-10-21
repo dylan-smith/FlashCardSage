@@ -1,10 +1,8 @@
 using System.ComponentModel;
 using System.Globalization;
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
-using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
 
 namespace FlashCardSage.Api.Mcp;
@@ -17,7 +15,7 @@ namespace FlashCardSage.Api.Mcp;
 /// the assistant leaves out is taken as empty, so it gets the same message as one it sends empty.
 /// </remarks>
 [McpServerToolType]
-public class CardTools(FlashCardDbContext dbContext, FlashCardService flashCards)
+public class CardTools(FlashCardService flashCards, DeckService deckService)
 {
     public const int DefaultPageSize = 50;
 
@@ -35,25 +33,11 @@ public class CardTools(FlashCardDbContext dbContext, FlashCardService flashCards
         [Description("How many cards to return, 1 to 200. Defaults to 50.")] int? limit = null,
         [Description("How many matching cards to skip, for the next page.")] int? offset = null)
     {
-        if (!await dbContext.SelectionExistsAsync(new PracticeSelection { DeckId = deckId, TagId = tagId }))
-        {
-            throw ToolErrors.Error(deckId is null ? ToolErrors.TagNotFound : ToolErrors.DeckNotFound);
-        }
-
-        var query = dbContext.FlashCards.AsNoTracking();
-        if (deckId is { } deck)
-        {
-            query = query.Where(card => card.Decks.Any(item => item.Id == deck));
-        }
-
-        if (tagId is { } tag)
-        {
-            query = query.Where(card => card.Tags.Any(item => item.Id == tag));
-        }
+        var cards = await flashCards.ListAsync(deckId, tagId)
+            ?? throw ToolErrors.Error(deckId is null ? ToolErrors.TagNotFound : ToolErrors.DeckNotFound);
 
         // Searched here rather than in SQL, as the in-memory database can't ignore accents. A person's cards already
         // come back in one go on the cards page.
-        var cards = await query.WithWordsAndTags().OrderBy(card => card.Id).ToListAsync();
         var term = search?.Trim() ?? string.Empty;
         if (term.Length > 0)
         {
@@ -71,17 +55,10 @@ public class CardTools(FlashCardDbContext dbContext, FlashCardService flashCards
     [Description("Gets one of the user's flash cards, with its tags and the decks it's in.")]
     public async Task<CardDetail> GetCardAsync([Description("The card's id.")] int id)
     {
-        var card = await dbContext.FlashCards
-            .AsNoTracking()
-            .WithWordsAndTags()
-            .FirstOrDefaultAsync(item => item.Id == id)
-            ?? throw ToolErrors.Error(ToolErrors.CardNotFound);
-        var decks = await dbContext.Decks
-            .AsNoTracking()
-            .Where(deck => deck.FlashCards.Any(item => item.Id == id))
-            .OrderBy(deck => deck.Name)
+        var card = await flashCards.GetAsync(id) ?? throw ToolErrors.Error(ToolErrors.CardNotFound);
+        var decks = (await deckService.GetContainingAsync(id))
             .Select(deck => new DeckReference(deck.Id, deck.Name))
-            .ToListAsync();
+            .ToList();
 
         return new CardDetail(card.Id, card.Spanish, card.English, CardSummary.TagNames(card), card.ImageUrl, decks);
     }
@@ -125,11 +102,7 @@ public class CardTools(FlashCardDbContext dbContext, FlashCardService flashCards
         [Description("The card's new English words or phrases, 1 to 10.")] string[]? english = null,
         [Description("The names of the card's tags. A name the user hasn't used yet makes a new tag.")] string[]? tags = null)
     {
-        var card = await dbContext.FlashCards
-            .AsNoTracking()
-            .WithWordsAndTags()
-            .FirstOrDefaultAsync(item => item.Id == id)
-            ?? throw ToolErrors.Error(ToolErrors.CardNotFound);
+        var card = await flashCards.GetAsync(id) ?? throw ToolErrors.Error(ToolErrors.CardNotFound);
 
         var result = await flashCards.UpdateAsync(id, new FlashCardRequest
         {

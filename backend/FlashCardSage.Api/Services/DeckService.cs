@@ -32,6 +32,28 @@ public class DeckService(FlashCardDbContext dbContext, ILogger<DeckService> logg
             .FirstOrDefaultAsync(item => item.Id == id);
     }
 
+    // The user's decks by name, each with how many cards it has, counted in SQL rather than by loading the cards.
+    public async Task<List<(Deck Deck, int CardCount)>> GetCardCountsAsync()
+    {
+        var counts = await dbContext.Decks
+            .AsNoTracking()
+            .OrderBy(deck => deck.Name)
+            .Select(deck => new { Deck = deck, CardCount = deck.FlashCards.Count })
+            .ToListAsync();
+
+        return [.. counts.Select(item => (item.Deck, item.CardCount))];
+    }
+
+    // The user's decks the card with this id is in, by name, without their cards.
+    public Task<List<Deck>> GetContainingAsync(int cardId)
+    {
+        return dbContext.Decks
+            .AsNoTracking()
+            .Where(deck => deck.FlashCards.Any(item => item.Id == cardId))
+            .OrderBy(deck => deck.Name)
+            .ToListAsync();
+    }
+
     public async Task<DeckResult> CreateAsync(string name, IReadOnlyCollection<int> cardIds)
     {
         ArgumentNullException.ThrowIfNull(cardIds);

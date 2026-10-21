@@ -1,8 +1,7 @@
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Suggestions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -15,7 +14,8 @@ namespace FlashCardSage.Api.Controllers;
 [ApiController]
 [Route("api/card-suggestions")]
 public class CardSuggestionsController(
-    FlashCardDbContext dbContext,
+    FlashCardService flashCards,
+    TagService tags,
     CachedCardSuggester suggester,
     ILogger<CardSuggestionsController> logger) : ApiControllerBase
 {
@@ -46,11 +46,7 @@ public class CardSuggestionsController(
             return ServiceUnavailableProblem("Card suggestions aren't available.");
         }
 
-        var cards = await dbContext.FlashCards
-            .AsNoTracking()
-            .WithWordsAndTags()
-            .OrderBy(card => card.Id)
-            .ToListAsync(cancellationToken);
+        var cards = await flashCards.GetAllAsync(cancellationToken);
 
         // The card the suggestions are to be related to, e.g. one just added. It's looked up in the user's cards, so
         // it can't be another user's.
@@ -69,9 +65,7 @@ public class CardSuggestionsController(
         Tag? selectedTag = null;
         if (tag is { } tagId)
         {
-            selectedTag = await dbContext.Tags
-                .AsNoTracking()
-                .SingleOrDefaultAsync(item => item.Id == tagId, cancellationToken);
+            selectedTag = await tags.GetAsync(tagId, cancellationToken);
             if (selectedTag is null)
             {
                 return NotFound();

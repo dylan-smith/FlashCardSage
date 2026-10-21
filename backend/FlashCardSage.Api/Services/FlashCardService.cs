@@ -21,13 +21,49 @@ public class FlashCardService(
 {
     // The user's cards with their words and tags, in the order they were made, so a list of words stays in the order
     // it was typed in.
-    public Task<List<FlashCard>> GetAllAsync()
+    public Task<List<FlashCard>> GetAllAsync(CancellationToken cancellationToken = default)
     {
         return dbContext.FlashCards
             .AsNoTracking()
             .WithWordsAndTags()
             .OrderBy(card => card.Id)
-            .ToListAsync();
+            .ToListAsync(cancellationToken);
+    }
+
+    // The user's newest cards with no tags, at most max of them, with their words.
+    public Task<List<FlashCard>> GetUntaggedAsync(int max, CancellationToken cancellationToken = default)
+    {
+        return dbContext.FlashCards
+            .AsNoTracking()
+            .Where(card => card.Tags.Count == 0)
+            .OrderByDescending(card => card.Id)
+            .Take(max)
+            .WithWords()
+            .AsSplitQuery()
+            .ToListAsync(cancellationToken);
+    }
+
+    // The user's cards with their words and tags, in the order they were made, only those in the deck and with the
+    // tag when they're given, or null if the deck or tag isn't one of the user's.
+    public async Task<List<FlashCard>?> ListAsync(int? deckId, int? tagId)
+    {
+        if (!await dbContext.SelectionExistsAsync(new PracticeSelection { DeckId = deckId, TagId = tagId }))
+        {
+            return null;
+        }
+
+        var query = dbContext.FlashCards.AsNoTracking();
+        if (deckId is { } deck)
+        {
+            query = query.Where(card => card.Decks.Any(item => item.Id == deck));
+        }
+
+        if (tagId is { } tag)
+        {
+            query = query.Where(card => card.Tags.Any(item => item.Id == tag));
+        }
+
+        return await query.WithWordsAndTags().OrderBy(card => card.Id).ToListAsync();
     }
 
     // The user's card with this id, with its words and tags, or null if they have no such card.

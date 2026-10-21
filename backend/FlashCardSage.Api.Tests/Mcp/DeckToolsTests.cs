@@ -138,6 +138,6 @@ public class DeckToolsTests
 
     private static DeckTools CreateTools(FlashCardDbContext dbContext)
     {
-        return new DeckTools(dbContext, new DeckService(dbContext, NullLogger<DeckService>.Instance));
+        return new DeckTools(new DeckService(dbContext, NullLogger<DeckService>.Instance));
     }
 }

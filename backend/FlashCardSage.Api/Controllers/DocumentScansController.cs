@@ -1,9 +1,8 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Documents;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Suggestions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -17,7 +16,7 @@ namespace FlashCardSage.Api.Controllers;
 [ApiController]
 [Route("api/document-scans")]
 public class DocumentScansController(
-    FlashCardDbContext dbContext,
+    FlashCardService flashCards,
     IDocumentScanner scanner,
     ILogger<DocumentScansController> logger) : ApiControllerBase
 {
@@ -99,11 +98,7 @@ public class DocumentScansController(
             text = text[..MaxCharacters];
         }
 
-        var cards = await dbContext.FlashCards
-            .AsNoTracking()
-            .WithWords()
-            .OrderBy(card => card.Id)
-            .ToListAsync(cancellationToken);
+        var cards = await flashCards.GetAllAsync(cancellationToken);
 
         // The model is only told about the cards for words in the document, which are the ones it could make again, so
         // a long list of cards doesn't make a long request. Any it makes anyway are left out below.

@@ -22,6 +22,42 @@ public class TagService(FlashCardDbContext dbContext, ILogger<TagService> logger
             .ToListAsync();
     }
 
+    // The user's tag with this id, or null if they have no such tag.
+    public Task<Tag?> GetAsync(int id, CancellationToken cancellationToken = default)
+    {
+        return dbContext.Tags
+            .AsNoTracking()
+            .SingleOrDefaultAsync(tag => tag.Id == id, cancellationToken);
+    }
+
+    // The user's tags by name, each with its newest cards, at most cardsPerTag of them.
+    public Task<List<Tag>> GetAllWithRecentCardsAsync(int cardsPerTag, CancellationToken cancellationToken = default)
+    {
+        return dbContext.Tags
+            .AsNoTracking()
+            .WithRecentCards(cardsPerTag)
+            .OrderBy(tag => tag.Name)
+            .ToListAsync(cancellationToken);
+    }
+
+    // The user's tags by name, each with how many cards it's on, counted in SQL rather than by loading the cards.
+    public async Task<List<(Tag Tag, int CardCount)>> GetAllWithCardCountsAsync()
+    {
+        var counts = await dbContext.Tags
+            .AsNoTracking()
+            .OrderBy(tag => tag.Name)
+            .Select(tag => new { Tag = tag, CardCount = tag.FlashCards.Count })
+            .ToListAsync();
+
+        return [.. counts.Select(item => (item.Tag, item.CardCount))];
+    }
+
+    // How many of the user's cards have the tag with this id.
+    public Task<int> CountCardsAsync(int tagId)
+    {
+        return dbContext.FlashCards.CountAsync(card => card.Tags.Any(item => item.Id == tagId));
+    }
+
     // A tag with no cards yet.
     public async Task<TagResult> CreateAsync(string name)
     {
