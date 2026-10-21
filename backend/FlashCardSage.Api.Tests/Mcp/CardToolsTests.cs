@@ -283,6 +283,7 @@ public class CardToolsTests
     private static CardTools CreateTools(FlashCardDbContext dbContext)
     {
         return new CardTools(
-            dbContext, new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance));
+            new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance),
+            new DeckService(dbContext, NullLogger<DeckService>.Instance));
     }
 }

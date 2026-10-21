@@ -1,9 +1,8 @@
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Suggestions;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Controllers;
 
@@ -17,7 +16,8 @@ namespace FlashCardSage.Api.Controllers;
 [ApiController]
 [Route("api/tag-suggestions")]
 public class TagSuggestionsController(
-    FlashCardDbContext dbContext,
+    FlashCardService flashCards,
+    TagService tagService,
     ITagSuggester suggester,
     CachedTagSuggester cachedSuggester,
     ILogger<TagSuggestionsController> logger) : ApiControllerBase
@@ -62,11 +62,7 @@ public class TagSuggestionsController(
         // The user's tags the card doesn't have yet, each with its newest cards. Like the cards, the tags are only ever
         // the user's own.
         var onCard = new HashSet<string>(request.Tags.Select(name => name.Trim()), TextRules.Comparer);
-        var tags = (await dbContext.Tags
-                .AsNoTracking()
-                .WithRecentCards(CardsPerTag)
-                .OrderBy(tag => tag.Name)
-                .ToListAsync(cancellationToken))
+        var tags = (await tagService.GetAllWithRecentCardsAsync(CardsPerTag, cancellationToken))
             .Where(tag => !onCard.Contains(tag.Name))
             .ToList();
         if (tags.Count == 0)
@@ -116,19 +112,8 @@ public class TagSuggestionsController(
             return ServiceUnavailableProblem("Tag suggestions aren't available.");
         }
 
-        var tags = await dbContext.Tags
-            .AsNoTracking()
-            .WithRecentCards(CardsPerTag)
-            .OrderBy(tag => tag.Name)
-            .ToListAsync(cancellationToken);
-        var untagged = await dbContext.FlashCards
-            .AsNoTracking()
-            .Where(card => card.Tags.Count == 0)
-            .OrderByDescending(card => card.Id)
-            .Take(MaxUntaggedCards)
-            .WithWords()
-            .AsSplitQuery()
-            .ToListAsync(cancellationToken);
+        var tags = await tagService.GetAllWithRecentCardsAsync(CardsPerTag, cancellationToken);
+        var untagged = await flashCards.GetUntaggedAsync(MaxUntaggedCards, cancellationToken);
         var shown = ShownSuggestions.From(exclude, Tag.MaxNameLength);
 
         IReadOnlyList<string> suggested;

@@ -1,7 +1,5 @@
 using System.ComponentModel;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Services;
-using Microsoft.EntityFrameworkCore;
 using ModelContextProtocol.Server;
 
 namespace FlashCardSage.Api.Mcp;
@@ -11,17 +9,14 @@ namespace FlashCardSage.Api.Mcp;
 /// name on a card (see CardTools).
 /// </summary>
 [McpServerToolType]
-public class TagTools(FlashCardDbContext dbContext, TagService tags)
+public class TagTools(TagService tags)
 {
     [McpServerTool(Name = "list_tags", Title = "List tags", ReadOnly = true, OpenWorld = false)]
     [Description("Lists the user's tags by name, with how many cards each is on.")]
     public async Task<IReadOnlyList<TagSummary>> ListTagsAsync()
     {
-        return await dbContext.Tags
-            .AsNoTracking()
-            .OrderBy(tag => tag.Name)
-            .Select(tag => new TagSummary(tag.Id, tag.Name, tag.FlashCards.Count))
-            .ToListAsync();
+        return [.. (await tags.GetAllWithCardCountsAsync())
+            .Select(item => new TagSummary(item.Tag.Id, item.Tag.Name, item.CardCount))];
     }
 
     [McpServerTool(Name = "create_tag", Title = "Add a tag", Destructive = false, Idempotent = false, OpenWorld = false)]
@@ -45,7 +40,7 @@ public class TagTools(FlashCardDbContext dbContext, TagService tags)
             throw ToolErrors.For(result);
         }
 
-        var cardCount = await dbContext.FlashCards.CountAsync(card => card.Tags.Any(item => item.Id == id));
+        var cardCount = await tags.CountCardsAsync(id);
         return new TagSummary(tag.Id, tag.Name, cardCount);
     }
 

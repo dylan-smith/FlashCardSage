@@ -5,7 +5,9 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Suggestions;
+using FlashCardSage.Api.Tests.Fakes;
 using FlashCardSage.Api.Tests.TestData;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc.Testing;
@@ -206,7 +208,9 @@ public class DocumentScansControllerTests(WebApplicationFactory<Program> factory
     private static DocumentScansController CreateController(FlashCardDbContext dbContext, IDocumentScanner scanner)
     {
         return new DocumentScansController(
-            dbContext, scanner, NullLogger<DocumentScansController>.Instance);
+            new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance),
+            scanner,
+            NullLogger<DocumentScansController>.Instance);
     }
 
     private sealed class FakeScanner : IDocumentScanner

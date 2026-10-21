@@ -81,6 +81,8 @@ npm run test:e2e
   `TreatWarningsAsErrors` (`backend/Directory.Build.props`). Frontend ESLint uses type-checked
   typescript-eslint rules plus the jsx-a11y, Vitest, Testing Library and Playwright plugins, with
   `--max-warnings 0`.
+- Controllers and MCP tools don't use `FlashCardDbContext`. Their data access goes in a service in `Services/` (or
+  `OAuth/`), which `LayeringTests` enforces.
 - Add or update tests for new or changed behavior.
 
 ### Sign-in and data ownership
@@ -106,9 +108,8 @@ npm run test:e2e
   must delete pictures through `TryDeleteCardPicturesAsync`, which leaves cached ones alone. The OAuth server's
   apps, sign-ins in progress and tokens have no owner or filter either, since they're looked up before anyone is
   signed in; a token reaches its grant (owned like a card) with `IgnoreQueryFilters()`.
-- MCP tools follow the same rules: they act through the services (or the filtered `FlashCardDbContext`), and report
-  problems by throwing `McpException` with the controllers' user-facing messages (`Mcp/ToolErrors.cs`). Register a new
-  tool class with `WithTools<T>()` in `McpSetup` (the assembly-scanning overloads fail the build). A new or renamed
+- MCP tools follow the same rules: they act only through the services, and report problems by throwing
+  `McpException` with the controllers' user-facing messages (`Mcp/ToolErrors.cs`). Register a new tool class with `WithTools<T>()` in `McpSetup` (the assembly-scanning overloads fail the build). A new or renamed
   tool updates the pinned list in `McpServerTests` and gets tests of its own in `FlashCardSage.Api.Tests/Mcp/`.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
 

@@ -1,3 +1,4 @@
+using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
 using FlashCardSage.Api.Models;
@@ -29,6 +30,17 @@ public class SystemDeckImporter(FlashCardDbContext dbContext, ILogger<SystemDeck
             .Include(deck => deck.FlashCards)
             .ThenInclude(card => card.Tags.OrderBy(tag => tag.Name))
             .AsSplitQuery();
+    }
+
+    // The system decks by name, each saying which of its cards the user already has a word of.
+    public async Task<List<SystemDeckResponse>> GetAllAsync(CancellationToken cancellationToken = default)
+    {
+        var decks = await SystemDecks()
+            .OrderBy(deck => deck.Name)
+            .ToListAsync(cancellationToken);
+
+        var taken = await TakenWords.LoadAsync(dbContext, exceptCardId: null, cancellationToken);
+        return decks.Select(deck => SystemDeckResponse.From(deck, taken.ContainsAny)).ToList();
     }
 
     // Copies the deck into the user's decks, leaving out any card whose Spanish or English is already on one of their

@@ -2,6 +2,7 @@ using System.Net;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.AspNetCore.Http;
@@ -326,7 +327,8 @@ public class CardSuggestionsControllerTests(WebApplicationFactory<Program> facto
     private static CardSuggestionsController CreateController(FlashCardDbContext dbContext, ICardSuggester suggester)
     {
         return new CardSuggestionsController(
-            dbContext,
+            new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance),
+            new TagService(dbContext, NullLogger<TagService>.Instance),
             new CachedCardSuggester(suggester, dbContext, NullLogger<CachedCardSuggester>.Instance),
             NullLogger<CardSuggestionsController>.Instance);
     }
