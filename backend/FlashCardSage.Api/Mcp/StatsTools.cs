@@ -1,8 +1,7 @@
 using System.ComponentModel;
 using FlashCardSage.Api.Contracts;
-using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
-using Microsoft.EntityFrameworkCore;
+using FlashCardSage.Api.Services;
 using ModelContextProtocol.Server;
 
 namespace FlashCardSage.Api.Mcp;
@@ -12,7 +11,7 @@ namespace FlashCardSage.Api.Mcp;
 /// scores them (see FlashCardScoring).
 /// </summary>
 [McpServerToolType]
-public class StatsTools(FlashCardDbContext dbContext)
+public class StatsTools(PracticeService practiceService, CountsService countsService)
 {
     public const int DefaultStatsPageSize = 100;
 
@@ -26,10 +25,8 @@ public class StatsTools(FlashCardDbContext dbContext)
     [Description("Counts the user's flash cards, decks and tags.")]
     public async Task<Counts> GetCountsAsync()
     {
-        return new Counts(
-            await dbContext.FlashCards.CountAsync(),
-            await dbContext.Decks.CountAsync(),
-            await dbContext.Tags.CountAsync());
+        var counts = await countsService.GetAsync();
+        return new Counts(counts.Cards, counts.Decks, counts.Tags);
     }
 
     [McpServerTool(Name = "get_practice_stats", Title = "Get practice scores", ReadOnly = true, OpenWorld = false)]
@@ -47,12 +44,8 @@ public class StatsTools(FlashCardDbContext dbContext)
             throw ToolErrors.Error("Practice a deck or a tag, not both.");
         }
 
-        if (!await dbContext.SelectionExistsAsync(selection))
-        {
-            throw ToolErrors.Error(deckId is null ? ToolErrors.TagNotFound : ToolErrors.DeckNotFound);
-        }
-
-        var scores = await dbContext.ScoreFlashCardsAsync(selection);
+        var scores = await practiceService.ScoreAsync(selection)
+            ?? throw ToolErrors.Error(deckId is null ? ToolErrors.TagNotFound : ToolErrors.DeckNotFound);
         if (cardIds is { Length: > 0 })
         {
             var wanted = cardIds.ToHashSet();
@@ -84,18 +77,11 @@ public class StatsTools(FlashCardDbContext dbContext)
         [Description("The card's id.")] int cardId,
         [Description("How many answers to return, 1 to 200. Defaults to 20.")] int? limit = null)
     {
-        // Looked up first, through the query filter, so another user's card is never found.
-        if (!await dbContext.FlashCards.AnyAsync(card => card.Id == cardId))
-        {
-            throw ToolErrors.Error(ToolErrors.CardNotFound);
-        }
-
-        var attempts = await dbContext.PracticeResults
-            .AsNoTracking()
-            .Where(result => result.FlashCardId == cardId)
-            .OrderByDescending(result => result.Id)
+        var history = await practiceService.GetHistoryAsync(cardId)
+            ?? throw ToolErrors.Error(ToolErrors.CardNotFound);
+        var attempts = history
             .Select(result => new PracticeAttempt(result.Outcome, result.PracticedAt))
-            .ToListAsync();
+            .ToList();
 
         return new PracticeHistory(
             cardId,

@@ -5,6 +5,7 @@ using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
@@ -266,7 +267,7 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
     private static PracticeResultsController CreateController(FlashCardDbContext dbContext)
     {
-        return new PracticeResultsController(dbContext, NullLogger<PracticeResultsController>.Instance);
+        return new PracticeResultsController(new PracticeService(dbContext, NullLogger<PracticeService>.Instance));
     }
 
     private static async Task<IdResponse> CreateCardAsync(HttpClient client)

@@ -1,6 +1,7 @@
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Models;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FlashCardSage.Api.Tests;
@@ -23,7 +24,7 @@ public class CountsControllerTests
         dbContext.Tags.Add(new Tag { Name = "Travel" });
         dbContext.Decks.Add(new Deck { Name = "Week 1" });
         await dbContext.SaveChangesAsync();
-        var controller = new CountsController(dbContext);
+        var controller = new CountsController(new CountsService(dbContext));
 
         var result = await controller.Get();
 
@@ -35,7 +36,7 @@ public class CountsControllerTests
     public async Task Get_ReturnsZeros_ForANewUser()
     {
         await using var dbContext = TestDb.Create();
-        var controller = new CountsController(dbContext);
+        var controller = new CountsController(new CountsService(dbContext));
 
         var result = await controller.Get();
 
