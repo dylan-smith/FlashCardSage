@@ -35,6 +35,12 @@ param imageDeploymentName string = 'flux-2-pro'
 @description('Name of the chat model\'s deployment on the shared Azure AI Foundry resource, which suggests new cards.')
 param suggestionDeploymentName string = 'gpt-5-mini'
 
+@description('Token of the PostHog project the API sends its AI model calls to, tagged with the preview (pr-<number>). Empty sends nothing.')
+param posthogProjectToken string = ''
+
+@description('PostHog\'s ingestion host for the project.')
+param posthogHost string = 'https://us.i.posthog.com'
+
 @description('Use the Azure SQL free offer for the database. The offer covers a limited number of databases per subscription, and can\'t be turned on for an existing database.')
 param useFreeLimit bool = true
 
@@ -212,6 +218,14 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
           CardSuggestions__Endpoint: 'https://${foundry!.name}.openai.azure.com/'
           CardSuggestions__Key: foundry!.listKeys().key1
           CardSuggestions__Deployment: suggestionDeploymentName
+        },
+    // Without a project token the API sends PostHog nothing.
+    empty(posthogProjectToken)
+      ? {}
+      : {
+          PostHog__ProjectToken: posthogProjectToken
+          PostHog__HostUrl: posthogHost
+          PostHog__Environment: 'pr-${prNumber}'
         }
   )
 }

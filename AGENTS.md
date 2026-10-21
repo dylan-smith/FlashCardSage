@@ -12,7 +12,9 @@ FLUX.2-pro on Azure AI Foundry on request and kept in Azure Blob Storage (or as 
 The cards page also suggests a handful of new cards, which gpt-5-mini on the same Foundry resource picks from the
 user's cards, and which of the user's tags fit a card being added or edited. The Tags page suggests a handful of new
 tags the same way. The Import cards page can also scan a
-document the user uploads for up to 100 new cards, made by the same model.
+document the user uploads for up to 100 new cards, made by the same model. Every AI model call, with its prompt and
+answer, is sent to PostHog's AI observability when a PostHog project token is set (see the README's "PostHog AI
+observability"), so a new model call should be recorded through `IAiUsage` too.
 
 - `backend/FlashCardSage.Api`: ASP.NET Core Web API (.NET 10) with EF Core, SQL Server and controllers.
   OpenAPI is served at `/openapi/v1.json` and Scalar at `/scalar` in every environment.

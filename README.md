@@ -160,6 +160,22 @@ Each built-in card's picture is committed in `backend/FlashCardSage.Api/SystemDe
 
 The image deployment allows 6 pictures a minute. For a big run, raise its capacity for a while (`az cognitiveservices account deployment create ... --sku-capacity <n>`, within the subscription's FLUX.2-pro quota) and pass `-RequestsPerMinute`. The next deployment puts the capacity back.
 
+### PostHog AI observability
+
+The API sends every call it makes to an AI model to [PostHog's AI observability](https://posthog.com/docs/ai-observability) as an `$ai_generation` event: card suggestions, tag suggestions and document scans (gpt-5-mini), and card pictures (FLUX.2-pro). Each event names the feature (`$ai_span_name`), the model, the tokens, the latency and any error, and is the signed-in user's, by their internal user ID. Its trace ID is the request's operation ID in Application Insights. PostHog works out the cost of the chat calls from the model and tokens; it doesn't know FLUX's price.
+
+The events carry the **prompt and the answer**, so PostHog keeps the cards and tags the suggestions were asked about and the text of every scanned document. Translation isn't an AI model call and isn't sent.
+
+It's on when there's a `PostHog:ProjectToken` setting, which the deployments set from the `POSTHOG_PROJECT_TOKEN` GitHub variable, with `PostHog:HostUrl` from `POSTHOG_HOST`. They also set `PostHog:Environment` (`production`, or `pr-<number>` for a preview), sent as the `environment` property. Without a token nothing is sent, as in local development and the tests. To try it locally, run the API with a token, and with Foundry settings so there are calls to send:
+
+```powershell
+$env:PostHog__ProjectToken = 'phc_...'
+$env:PostHog__Environment = 'local'
+dotnet run --project backend/FlashCardSage.Api
+```
+
+The code is in `backend/FlashCardSage.Api/Observability`: `FoundryChatClient` and `FoundryImageGenerator` record each call with `IAiUsage`, and `PostHogAiUsage` hands it to the PostHog SDK, which sends events in batches in the background. A call the user cancels isn't recorded.
+
 ## Deployment
 
 1. **Backend** — Publish the API with `dotnet publish -c Release` from `backend/FlashCardSage.Api`. Deploy the output to any host that supports .NET 10 (Azure App Service, Docker, etc.). Configure the `ConnectionStrings:FlashCardSage` setting to point to your production SQL Server instance and set `UseInMemoryDatabase` to `false`. Set `Authentication:Google:ClientId` to your Google OAuth client ID (see [Sign-in](#sign-in)), and `Authentication:ServiceToken` if anything needs to call the API without a person signing in. Set `Api:BaseUrl` and `Frontend:BaseUrl` to the API's and the frontend's public URLs so AI assistants can connect (see [Sign-in](#sign-in)). If the frontend will be served from a different origin than the API, also configure `Cors:AllowedOrigins` to include the production frontend URL(s) so the browser can call the API.
@@ -429,6 +445,8 @@ The `infrastructure-what-if` and `deploy-preview` PR jobs (and `preview-cleanup.
 | `AZURE_TENANT_ID` | Azure Active Directory tenant ID |
 | `AZURE_SUBSCRIPTION_ID` | Azure subscription ID |
 | `AZURE_RESOURCE_GROUP` | Azure resource group containing all resources |
+| `POSTHOG_PROJECT_TOKEN` | Optional. Token (`phc_...`) of the PostHog project that production and the previews send their AI model calls to (see [PostHog AI observability](#posthog-ai-observability)). It can only send events, so it isn't secret. Without it nothing is sent |
+| `POSTHOG_HOST` | Optional. The PostHog project's ingestion host, `https://us.i.posthog.com` (the default) or `https://eu.i.posthog.com` |
 
 The what-if identity is a user-assigned managed identity with a federated credential for this repository's `pull_request` tokens and a custom role on the resource group limited to `*/read`, `Microsoft.Resources/deployments/validate/action`, `Microsoft.Resources/deployments/whatIf/action` and `Microsoft.Resources/deployments/write` (needed for nested module deployments; it can't write any resource).
 
