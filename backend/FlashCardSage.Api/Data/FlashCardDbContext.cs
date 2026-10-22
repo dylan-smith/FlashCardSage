@@ -20,7 +20,8 @@ namespace FlashCardSage.Api.Data;
 /// before anyone is signed in, and a token reaches its grant, which is owned like a card (one for each app a user has
 /// connected), past the grants' filter.
 /// </remarks>
-public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser) : DbContext(options)
+public class FlashCardDbContext(
+    DbContextOptions<FlashCardDbContext> options, CurrentUser currentUser, TimeProvider timeProvider) : DbContext(options)
 {
     // Read by the query filter each time a query runs, so it's this request's user.
     private int? CurrentUserId => currentUser.UserId;
@@ -56,12 +57,14 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
     public override int SaveChanges(bool acceptAllChangesOnSuccess)
     {
         AssignOwner();
+        StampCreated();
         return base.SaveChanges(acceptAllChangesOnSuccess);
     }
 
     public override Task<int> SaveChangesAsync(bool acceptAllChangesOnSuccess, CancellationToken cancellationToken = default)
     {
         AssignOwner();
+        StampCreated();
         return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
     }
 
@@ -74,6 +77,21 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
             entry.Entity.UserId = CurrentUserId
                 ?? throw new InvalidOperationException(
                     $"A {entry.Metadata.ClrType.Name} can only be saved for a signed-in user.");
+        }
+    }
+
+    // New cards and decks are given the time they're saved, however they were made.
+    private void StampCreated()
+    {
+        var now = timeProvider.GetUtcNow();
+        foreach (var entry in ChangeTracker.Entries<FlashCard>().Where(entry => entry.State == EntityState.Added))
+        {
+            entry.Entity.CreatedAt ??= now;
+        }
+
+        foreach (var entry in ChangeTracker.Entries<Deck>().Where(entry => entry.State == EntityState.Added))
+        {
+            entry.Entity.CreatedAt ??= now;
         }
     }
 
@@ -133,6 +151,10 @@ public class FlashCardDbContext(DbContextOptions<FlashCardDbContext> options, Cu
 
         card.Property(item => item.ImageUrl)
             .HasMaxLength(FlashCard.MaxImageUrlLength);
+
+        card.Property(item => item.Source)
+            .HasConversion<string>()
+            .HasMaxLength(20);
 
         // The database's foreign key also includes the owner, so a word's owner is always its card's
         // (0009-*.sql). EF only needs the card.

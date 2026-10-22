@@ -187,6 +187,26 @@ public class FlashCardServiceTests
         Assert.Null(await service.GetAsync(theirs.Id));
     }
 
+    [Fact]
+    public async Task CreateAsync_And_CreateManyAsync_RecordWhenTheCardsWereMade()
+    {
+        await using var dbContext = TestDb.Create();
+        var service = CreateService(dbContext);
+        var before = DateTimeOffset.UtcNow;
+
+        await service.CreateAsync(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
+        await service.CreateManyAsync(
+        [
+            new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] },
+            new FlashCardRequest { Spanish = ["la casa"], English = ["the house"] }
+        ]);
+
+        var after = DateTimeOffset.UtcNow;
+        var createdAt = await dbContext.FlashCards.Select(card => card.CreatedAt).ToListAsync();
+        Assert.Equal(3, createdAt.Count);
+        Assert.All(createdAt, value => Assert.InRange(value!.Value, before, after));
+    }
+
     private static FlashCardService CreateService(FlashCardDbContext dbContext)
     {
         return new FlashCardService(dbContext, new FakeImageStore(), NullLogger<FlashCardService>.Instance);

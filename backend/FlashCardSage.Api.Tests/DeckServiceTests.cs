@@ -61,6 +61,18 @@ public class DeckServiceTests
         Assert.Equal([("Animals", 2), ("Verbs", 0)], decks.Select(item => (item.Deck.Name, item.CardCount)));
     }
 
+    [Fact]
+    public async Task CreateAsync_RecordsWhenTheDeckWasMade()
+    {
+        await using var dbContext = TestDb.Create();
+        var before = DateTimeOffset.UtcNow;
+
+        var result = await CreateService(dbContext).CreateAsync("Animals", []);
+
+        var deck = Assert.IsType<DeckResult.Saved>(result).Deck;
+        Assert.InRange(deck.CreatedAt!.Value, before, DateTimeOffset.UtcNow);
+    }
+
     private static DeckService CreateService(FlashCardDbContext dbContext)
     {
         return new DeckService(dbContext, NullLogger<DeckService>.Instance);

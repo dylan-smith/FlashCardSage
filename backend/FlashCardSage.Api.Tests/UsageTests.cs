@@ -67,6 +67,7 @@ public class UsageTests(WebApplicationFactory<Program> factory) : IClassFixture<
 
         var services = new ServiceCollection()
             .AddScoped<CurrentUser>()
+            .AddSingleton(TimeProvider.System)
             .AddDbContext<FlashCardDbContext>(options => options.UseInMemoryDatabase(databaseName))
             .BuildServiceProvider();
         var clock = new FakeTimeProvider();

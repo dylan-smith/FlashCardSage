@@ -21,6 +21,12 @@ public class User
 
     public DateTimeOffset CreatedAt { get; set; }
 
+    /// <summary>
+    /// When the user last sent a request, to within <see cref="Authentication.UserAccounts.LastSeenPrecision"/>, or
+    /// null if they haven't since it was recorded.
+    /// </summary>
+    public DateTimeOffset? LastSeenAt { get; set; }
+
     // The user's preferences (see PreferencesController), all on for a new user.
     public bool ShowPictures { get; set; } = true;
 
