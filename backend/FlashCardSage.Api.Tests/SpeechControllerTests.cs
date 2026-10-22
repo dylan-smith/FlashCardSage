@@ -166,9 +166,9 @@ public sealed class SpeechControllerTests(WebApplicationFactory<Program> factory
     public async Task Speak_ReturnsBadRequest_ForTheWrongNumberOfTexts(string body)
     {
         using var client = TestApp.CreateSignedInClient(factory, settings: Settings);
+        using var content = new StringContent(body, System.Text.Encoding.UTF8, "application/json");
 
-        var response = await client.PostAsync(
-            "/api/speech", new StringContent(body, System.Text.Encoding.UTF8, "application/json"));
+        var response = await client.PostAsync("/api/speech", content);
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
