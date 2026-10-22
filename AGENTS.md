@@ -112,6 +112,8 @@ npm run test:e2e
   `McpException` with the controllers' user-facing messages (`Mcp/ToolErrors.cs`). Register a new tool class with `WithTools<T>()` in `McpSetup` (the assembly-scanning overloads fail the build). A new or renamed
   tool updates the pinned list in `McpServerTests` and gets tests of its own in `FlashCardSage.Api.Tests/Mcp/`.
 - Local dev, E2E and PR previews use test sign-in (`Bearer test:<name>`); production never turns it on.
+- Admin endpoints use `[Authorize(Policy = AuthenticationSetup.AdminPolicy)]`, which lets in only the users whose email
+  or subject is in the `Admin:Users` allow-list (`Admin/AdminUsers.cs`; production's comes from `ADMIN_USERS`).
 
 ### Database
 

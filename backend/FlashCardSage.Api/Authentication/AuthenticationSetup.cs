@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using FlashCardSage.Api.Admin;
 using FlashCardSage.Api.OAuth;
 using FlashCardSage.Api.Startup;
 using Microsoft.AspNetCore.Authentication;
@@ -24,6 +25,9 @@ public static class AuthenticationSetup
 
     // The authorization policy for the MCP endpoint.
     public const string McpPolicy = "Mcp";
+
+    // The authorization policy for the admin endpoints: signed in as one of the users in Admin:Users.
+    public const string AdminPolicy = "Admin";
 
     private const string SelectorScheme = "FlashCardSage";
 
@@ -51,6 +55,11 @@ public static class AuthenticationSetup
         {
             StartupLog.Info("Authentication: Service token enabled.");
         }
+
+        // Only how many, since the entries are emails.
+        var adminUsers = AdminUsers.FromConfiguration(configuration);
+        StartupLog.Info($"Authentication: {adminUsers.Count} admin user(s) configured.");
+        services.AddSingleton(adminUsers);
 
         var oauthOptions = services.AddOAuthServer(configuration);
 
@@ -132,7 +141,12 @@ public static class AuthenticationSetup
                 .AddAuthenticationSchemes(McpAuthenticationDefaults.AuthenticationScheme)
                 .RequireAuthenticatedUser()
                 .RequireAssertion(context => context.User.Identity?.AuthenticationType
-                    is OAuthAccessTokenHandler.SchemeName or LocalTokenHandler.SchemeName));
+                    is OAuthAccessTokenHandler.SchemeName or LocalTokenHandler.SchemeName))
+            // A policy given to an endpoint replaces the fallback policy rather than adding to it, so it asks for a
+            // signed-in user itself: a signed-out request gets a 401, and a signed-in user who isn't an admin a 403.
+            .AddPolicy(AdminPolicy, policy => policy
+                .RequireAuthenticatedUser()
+                .RequireAssertion(context => adminUsers.Contains(context.User)));
 
         services.AddScoped<CurrentUser>();
 

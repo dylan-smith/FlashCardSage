@@ -60,6 +60,9 @@ param sqlConnectionString = readEnvironmentVariable('AZURE_SQL_CONNECTION_STRING
 param googleClientId = readEnvironmentVariable('GOOGLE_CLIENT_ID')
 param serviceToken = readEnvironmentVariable('FLASHCARDSAGE_SERVICE_TOKEN')
 
+// Admins: the comma-separated emails in the ADMIN_USERS variable. Without it nobody can use the admin pages.
+param adminUsers = readEnvironmentVariable('ADMIN_USERS', '')
+
 // Monitoring
 param logAnalyticsWorkspaceName = 'FlashCardSage'
 param appInsightsName = 'FlashCardSage'
