@@ -1,5 +1,6 @@
 using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Images;
+using FlashCardSage.Api.Speech;
 using FlashCardSage.Api.Suggestions;
 using FlashCardSage.Api.Suggestions.Foundry;
 using FlashCardSage.Api.Translation;
@@ -9,8 +10,8 @@ namespace FlashCardSage.Api.Startup;
 
 public static class AiServicesSetup
 {
-    // Translation, card and tag suggestions, document scans and pictures, each a typed HttpClient with a timeout that
-    // suits how long the user waits for it.
+    // Translation, card and tag suggestions, document scans, pictures and spoken audio, each a typed HttpClient with a
+    // timeout that suits how long the user waits for it.
     public static IServiceCollection AddAiServices(this IServiceCollection services)
     {
         services.AddOptions<TranslatorOptions>().BindConfiguration(TranslatorOptions.SectionName);
@@ -43,6 +44,16 @@ public static class AiServicesSetup
                 : provider.GetRequiredService<FoundryImageGenerator>());
         // Every picture is kept, so the same words are only paid for once the user has seen every picture of them.
         services.AddScoped<CachedImageGenerator>();
+        services.AddOptions<SpeechOptions>().BindConfiguration(SpeechOptions.SectionName);
+        // A phrase is read in well under a second, and the user is waiting with a finger on the button.
+        services.AddHttpClient<AzureSpeechSynthesizer>(client => client.Timeout = TimeSpan.FromSeconds(15));
+        // The E2E tests have no Foundry, so they ask for a sample silence instead.
+        services.AddScoped<ISpeechSynthesizer>(provider =>
+            provider.GetRequiredService<IOptions<SpeechOptions>>().Value.UseSampleAudio
+                ? new SampleSpeechSynthesizer()
+                : provider.GetRequiredService<AzureSpeechSynthesizer>());
+        // Every phrase's audio is kept, so a phrase is only paid for the first time anyone asks to hear it.
+        services.AddScoped<CachedSpeechSynthesizer>();
 
         return services;
     }

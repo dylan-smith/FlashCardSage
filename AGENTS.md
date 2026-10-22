@@ -12,7 +12,9 @@ FLUX.2-pro on Azure AI Foundry on request and kept in Azure Blob Storage (or as 
 The cards page also suggests a handful of new cards, which gpt-5-mini on the same Foundry resource picks from the
 user's cards, and which of the user's tags fit a card being added or edited. The Tags page suggests a handful of new
 tags the same way. The Import cards page can also scan a
-document the user uploads for up to 100 new cards, made by the same model.
+document the user uploads for up to 100 new cards, made by the same model. In practice mode a Listen button reads a
+card's Spanish aloud with an Azure Speech neural voice on the same Foundry resource; the MP3s are kept in the same
+store as the pictures and cached per phrase (`GeneratedAudio`, read and written by `CachedSpeechSynthesizer`).
 
 - `backend/FlashCardSage.Api`: ASP.NET Core Web API (.NET 10) with EF Core, SQL Server and controllers.
   OpenAPI is served at `/openapi/v1.json` and Scalar at `/scalar` in every environment.
@@ -101,10 +103,11 @@ npm run test:e2e
   Their pictures are committed in `SystemDecks/images` (made by `scripts/Generate-SystemDeckImages.ps1`), and the API
   puts them on the cards, and in the picture cache, when it starts (`SystemDeckImageSync`). Importing a card shares
   its built-in picture through the cache rather than copying it. A new built-in card needs the script run for it too.
-- Cached translations (`Translations`, read and written by `CachedTranslator`) and generated pictures
-  (`GeneratedImages`, read and written by `CachedImageGenerator`) are the only things that belong to no user: a text
-  translates the same way for everyone and a picture of some words suits anyone, so there's no owner and no query
-  filter. A card given a generated picture points at the cached file, which every card with it shares, so card code
+- Cached translations (`Translations`, read and written by `CachedTranslator`), generated pictures
+  (`GeneratedImages`, read and written by `CachedImageGenerator`) and spoken audio (`GeneratedAudio`, read and written
+  by `CachedSpeechSynthesizer`) are the only things that belong to no user: a text translates the same way for
+  everyone, a picture of some words suits anyone and a phrase sounds the same for everyone, so there's no owner and no
+  query filter. A card given a generated picture points at the cached file, which every card with it shares, so card code
   must delete pictures through `TryDeleteCardPicturesAsync`, which leaves cached ones alone. The OAuth server's
   apps, sign-ins in progress and tokens have no owner or filter either, since they're looked up before anyone is
   signed in; a token reaches its grant (owned like a card) with `IgnoreQueryFilters()`.

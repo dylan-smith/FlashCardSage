@@ -56,6 +56,7 @@ const defaultRoutes: Routes = {
   'POST /tag-suggestions': emptyResponse(503),
   'GET /tag-suggestions/new': emptyResponse(503),
   'POST /translations': emptyResponse(503),
+  'POST /speech': emptyResponse(503),
 }
 
 // What the app asks for in the background, which mockApi keeps apart from the calls a test checks.
@@ -68,6 +69,8 @@ const backgroundRequests = new Set([
   'GET /card-suggestions',
   'POST /tag-suggestions',
   'GET /tag-suggestions/new',
+  // Asked for as soon as a card comes up in practice, before the user presses Listen.
+  'POST /speech',
 ])
 
 function matches(call: Call, method?: string, path?: string) {

@@ -100,10 +100,36 @@ public class CardImageTests
         Assert.Equal(CardImage.MaxBytes, data.Length);
     }
 
+    [Fact]
+    public void TryValidate_RefusesAudio()
+    {
+        var valid = CardImage.TryValidate(new byte[] { 0xFF, 0xFB, 0x90, 0xC0 }, "audio/mpeg", out _, out var error);
+
+        Assert.False(valid);
+        Assert.Equal("The picture must be a JPEG, PNG or WebP.", error);
+    }
+
     [Theory]
     [InlineData("image/jpeg", "jpg")]
     [InlineData("image/png", "png")]
     [InlineData("image/webp", "webp")]
+    [InlineData("audio/mpeg", "mp3")]
+    public void ContentName_IsTheContentsHashWithTheKindsExtension(string contentType, string extension)
+    {
+        var name = CardImage.ContentName([1, 2, 3], contentType);
+
+        Assert.Equal(name, CardImage.ContentName([1, 2, 3], contentType));
+        Assert.NotEqual(name, CardImage.ContentName([1, 2, 4], contentType));
+        Assert.Matches($@"^[0-9a-f]{{32}}\.{extension}$", name);
+        Assert.True(CardImage.IsName(name));
+        Assert.Equal(contentType, CardImage.ContentTypeOf(name));
+    }
+
+    [Theory]
+    [InlineData("image/jpeg", "jpg")]
+    [InlineData("image/png", "png")]
+    [InlineData("image/webp", "webp")]
+    [InlineData("audio/mpeg", "mp3")]
     public void NewName_IsRandomWithTheKindsExtension(string contentType, string extension)
     {
         var first = CardImage.NewName(contentType);

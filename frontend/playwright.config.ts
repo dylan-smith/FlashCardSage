@@ -42,8 +42,10 @@ export default defineConfig({
         Authentication__AllowTestSignIn: 'true',
         // Development makes the test user "Admin" an admin already; set here too since the admin tests depend on it.
         Admin__Users__0: 'test:admin',
-        // There's no Foundry, so every picture is the same sample one, which still goes through the real cache.
+        // There's no Foundry, so every picture is the same sample one, and every phrase's audio the same short
+        // silence, which still go through the real caches.
         ImageGeneration__UseSamplePicture: 'true',
+        Speech__UseSampleAudio: 'true',
         // Where the API sends an app's sign-in for the user's consent: the frontend below.
         Frontend__BaseUrl: 'http://localhost:4173',
       },
