@@ -8,9 +8,11 @@ import Typography from '@mui/material/Typography'
 import { Link } from 'react-router'
 import { signOut } from '../../auth/session'
 import type { Session } from '../../auth/session'
+import { useIsAdmin } from '../../hooks/useAdmin'
 import { icons } from '../../lib/icons'
+import { isAt } from './nav'
 
-// The signed-in user, with a link to their preferences and a button to sign out.
+// The signed-in user, with links to the admin pages (for an admin) and their preferences, and a button to sign out.
 export function UserBar({
   session,
   pathname,
@@ -18,6 +20,8 @@ export function UserBar({
   session: Session
   pathname: string
 }) {
+  const isAdmin = useIsAdmin()
+  const atAdmin = isAt(pathname, { to: '/admin', label: 'Admin' })
   return (
     <Box
       sx={{
@@ -38,6 +42,23 @@ export function UserBar({
       <Typography variant="body2" noWrap sx={{ minWidth: 0 }}>
         {session.name}
       </Typography>
+      {isAdmin && (
+        <Tooltip title="Admin">
+          <IconButton
+            size="small"
+            component={Link}
+            to="/admin"
+            aria-label="Admin"
+            aria-current={atAdmin ? 'page' : undefined}
+            color={atAdmin ? 'primary' : 'default'}
+            sx={{ flexShrink: 0 }}
+          >
+            <SvgIcon fontSize="small">
+              <path d={icons.admin} />
+            </SvgIcon>
+          </IconButton>
+        </Tooltip>
+      )}
       <Tooltip title="Preferences">
         <IconButton
           size="small"
