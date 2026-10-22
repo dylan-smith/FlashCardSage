@@ -204,8 +204,9 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
     },
     // Without a key the API answers translations with a 503 and the user types both sides.
     empty(translatorName) ? {} : { Translator__Key: translator!.listKeys().key1 },
-    // Without an endpoint and key the API answers picture and suggestion requests with a 503, and cards go without
-    // pictures and the page without suggestions (see modules/appservice.bicep for the endpoints).
+    // Without an endpoint and key the API answers picture, suggestion and audio requests with a 503, and cards go
+    // without pictures, the page without suggestions and practice without a Listen button (see
+    // modules/appservice.bicep for the endpoints).
     empty(foundryName)
       ? {}
       : {
@@ -215,6 +216,8 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
           CardSuggestions__Endpoint: 'https://${foundry!.name}.openai.azure.com/'
           CardSuggestions__Key: foundry!.listKeys().key1
           CardSuggestions__Deployment: suggestionDeploymentName
+          Speech__Endpoint: 'https://${foundry!.location}.tts.speech.microsoft.com/'
+          Speech__Key: foundry!.listKeys().key1
         }
   )
 }

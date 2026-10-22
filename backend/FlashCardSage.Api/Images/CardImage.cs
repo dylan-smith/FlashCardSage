@@ -3,7 +3,8 @@ using System.Text.RegularExpressions;
 
 namespace FlashCardSage.Api.Images;
 
-// The pictures a card can have: the kinds of image, how big one can be, and the names they're kept under.
+// The pictures a card can have: the kinds of image, how big one can be, and the names they're kept under. The names
+// also cover the spoken audio of cards' Spanish (see Speech), which the image store keeps alongside the pictures.
 public static partial class CardImage
 {
     // Room for a photo the user uploads. A compressed JPEG from the generator is around a hundred kilobytes. The
@@ -15,12 +16,18 @@ public static partial class CardImage
     // The most characters the base64 of a picture within the limit can take.
     private const int MaxBase64Length = (MaxBytes + 2) / 3 * 4;
 
-    // Each kind's file extension.
+    // Each kind of picture's file extension.
     private static readonly Dictionary<string, string> Extensions = new(StringComparer.Ordinal)
     {
         ["image/jpeg"] = "jpg",
         ["image/png"] = "png",
         ["image/webp"] = "webp"
+    };
+
+    // The extension of every kind of file the store keeps: the pictures, and the MP3s the Spanish is read into.
+    private static readonly Dictionary<string, string> StoredExtensions = new(Extensions, StringComparer.Ordinal)
+    {
+        ["audio/mpeg"] = "mp3"
     };
 
     // The bytes each kind of file starts with, so a file is what its content type says it is.
@@ -33,14 +40,15 @@ public static partial class CardImage
     // picture gets a new URL (browsers keep the old one).
     public static string NewName(string contentType)
     {
-        return $"{Guid.NewGuid():N}.{Extensions[contentType]}";
+        return $"{Guid.NewGuid():N}.{StoredExtensions[contentType]}";
     }
 
-    // A name for a picture from its content, for one kept under the same name everywhere (a built-in card's): the
-    // same picture always gets the same name, and a changed one a new name and so a new URL.
+    // A name for a file from its content, for one kept under the same name everywhere (a built-in card's picture, or
+    // the audio of a phrase): the same content always gets the same name, and changed content a new name and so a
+    // new URL.
     public static string ContentName(ReadOnlySpan<byte> data, string contentType)
     {
-        return $"{Convert.ToHexStringLower(SHA256.HashData(data))[..32]}.{Extensions[contentType]}";
+        return $"{Convert.ToHexStringLower(SHA256.HashData(data))[..32]}.{StoredExtensions[contentType]}";
     }
 
     // Whether a name is one NewName or ContentName made, so a store only touches its own files.
@@ -49,11 +57,11 @@ public static partial class CardImage
         return Name().IsMatch(name);
     }
 
-    // The content type of a picture by a name NewName or ContentName made, from its extension.
+    // The content type of a file by a name NewName or ContentName made, from its extension.
     public static string ContentTypeOf(string name)
     {
         var extension = Path.GetExtension(name).TrimStart('.');
-        return Extensions.Single(item => item.Value == extension).Key;
+        return StoredExtensions.Single(item => item.Value == extension).Key;
     }
 
     // Checks and decodes a picture sent as base64 (see TryValidate). The content type comes back as a store keeps it (lowercase), and
@@ -149,6 +157,6 @@ public static partial class CardImage
         return true;
     }
 
-    [GeneratedRegex(@"^[0-9a-f]{32}\.(jpg|png|webp)$")]
+    [GeneratedRegex(@"^[0-9a-f]{32}\.(jpg|png|webp|mp3)$")]
     private static partial Regex Name();
 }

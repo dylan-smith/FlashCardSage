@@ -1,12 +1,13 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, onTestFinished, vi } from 'vitest'
+import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
 import type { Deck } from '../../api/decks'
 import type { Tag } from '../../api/flashCards'
 import type { PackCard, PracticePack } from '../../api/practice'
 import { defaultPreferences } from '../../api/preferences'
 import { writeStoredPack } from '../../practice/pack'
 import { enqueueResult, readQueue } from '../../practice/queue'
+import { forgetSpeech } from '../../practice/speech'
 import { trackEvent, trackException } from '../../telemetry'
 import { deck, packCard, pets } from '../support/factories'
 import {
@@ -85,7 +86,7 @@ describe('practicing', () => {
     } = {},
   ) {
     const random = stubRandom(roll)
-    const { calls } = await renderLoaded(path, {
+    const { calls, background } = await renderLoaded(path, {
       'GET /tags': tags,
       'GET /decks': decks,
       'GET /flashcards/practice/pack': packOf(cards, { decks, tags }),
@@ -97,7 +98,7 @@ describe('practicing', () => {
           : emptyResponse(status),
       ...routes,
     })
-    return { calls, random }
+    return { calls, background, random }
   }
 
   it('shows every word on each side of a card with more than one translation', async () => {
@@ -471,6 +472,164 @@ describe('practicing', () => {
           .map((option) => option.textContent),
       ).toEqual(['All cards', 'Deck: Animals'])
       expect(trackException).not.toHaveBeenCalled()
+    })
+  })
+
+  describe('listening', () => {
+    const gatoUrl = 'https://audio.test/gato.mp3'
+    const soloUrls = [
+      'https://audio.test/solo.mp3',
+      'https://audio.test/unicamente.mp3',
+    ]
+
+    // The audio elements the page has played, in order. jsdom has no playing of its own, so it's stood in for.
+    function stubAudio() {
+      const played: HTMLMediaElement[] = []
+      vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (
+        this: HTMLMediaElement,
+      ) {
+        played.push(this)
+        return Promise.resolve()
+      })
+      const pause = vi
+        .spyOn(HTMLMediaElement.prototype, 'pause')
+        .mockImplementation(() => {})
+      return { played, pause }
+    }
+
+    // The clip finishes, or can't be played.
+    function finish(audio: HTMLMediaElement, event = 'ended') {
+      act(() => {
+        audio.dispatchEvent(new Event(event))
+      })
+    }
+
+    beforeEach(() => {
+      // Each test's audio is its own, not what an earlier test asked for.
+      forgetSpeech()
+    })
+
+    it('asks for the audio as soon as the card comes up, and has Listen beside the Spanish', async () => {
+      const { background } = await practice([cat], {
+        routes: { 'POST /speech': { urls: [gatoUrl] } },
+      })
+
+      expect(screen.getByRole('button', { name: 'Listen' })).toBeEnabled()
+      await waitFor(() => {
+        expect(
+          background.filter('POST', '/speech').map((call) => call.body),
+        ).toEqual([{ texts: ['el gato'] }])
+      })
+    })
+
+    it('plays each Spanish word or phrase in turn when Listen is pressed', async () => {
+      const { played } = stubAudio()
+      const user = userEvent.setup()
+      const { background } = await practice(
+        [packCard(3, ['solo', 'únicamente'], 'only')],
+        { routes: { 'POST /speech': { urls: soloUrls } } },
+      )
+
+      await user.click(screen.getByRole('button', { name: 'Listen' }))
+
+      await waitFor(() => {
+        expect(played.map((audio) => audio.src)).toEqual([soloUrls[0]])
+      })
+      expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
+      finish(played[0])
+      await waitFor(() => {
+        expect(played.map((audio) => audio.src)).toEqual(soloUrls)
+      })
+      finish(played[1])
+      expect(
+        await screen.findByRole('button', { name: 'Listen' }),
+      ).toBeInTheDocument()
+      // Asked for once, when the card came up, not again for the press.
+      expect(background.filter('POST', '/speech')).toHaveLength(1)
+    })
+
+    it('shows Listen for a card that starts in English once it is revealed', async () => {
+      const user = userEvent.setup()
+      const { background } = await practice([cat, dog], {
+        roll: 0.6,
+        routes: { 'POST /speech': { urls: [gatoUrl] } },
+      })
+
+      expect(
+        screen.queryByRole('button', { name: 'Listen' }),
+      ).not.toBeInTheDocument()
+      // Asked for all the same, so it's ready when the card is revealed.
+      await waitFor(() => {
+        expect(background.some('POST', '/speech')).toBe(true)
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+      expect(screen.getByRole('button', { name: 'Listen' })).toBeInTheDocument()
+    })
+
+    it('stops the audio when Stop is pressed', async () => {
+      const { played, pause } = stubAudio()
+      const user = userEvent.setup()
+      await practice([packCard(3, ['solo', 'únicamente'], 'only')], {
+        routes: { 'POST /speech': { urls: soloUrls } },
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Listen' }))
+      await user.click(await screen.findByRole('button', { name: 'Stop' }))
+
+      expect(
+        await screen.findByRole('button', { name: 'Listen' }),
+      ).toBeInTheDocument()
+      expect(played).toHaveLength(1)
+      expect(pause).toHaveBeenCalledTimes(1)
+    })
+
+    it("says when audio isn't available", async () => {
+      stubAudio()
+      const user = userEvent.setup()
+      await practice([cat])
+
+      await user.click(screen.getByRole('button', { name: 'Listen' }))
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        "Audio isn't available.",
+      )
+      expect(screen.getByRole('button', { name: 'Listen' })).toBeInTheDocument()
+      expect(trackException).not.toHaveBeenCalled()
+    })
+
+    it("says when the audio can't be played", async () => {
+      const { played } = stubAudio()
+      const user = userEvent.setup()
+      await practice([cat], {
+        routes: { 'POST /speech': { urls: [gatoUrl] } },
+      })
+
+      await user.click(screen.getByRole('button', { name: 'Listen' }))
+      await waitFor(() => {
+        expect(played).toHaveLength(1)
+      })
+      finish(played[0], 'error')
+
+      expect(await screen.findByRole('alert')).toHaveTextContent(
+        'Unable to play the audio.',
+      )
+      expect(trackException).toHaveBeenCalledWith(expect.any(Error), {
+        operation: 'speech',
+      })
+    })
+
+    it('turns Listen off while offline', async () => {
+      await practice([cat], {
+        routes: { 'POST /speech': { urls: [gatoUrl] } },
+      })
+
+      const backOnline = goOffline()
+
+      expect(screen.getByRole('button', { name: 'Listen' })).toBeDisabled()
+      backOnline()
+      expect(screen.getByRole('button', { name: 'Listen' })).toBeEnabled()
     })
   })
 

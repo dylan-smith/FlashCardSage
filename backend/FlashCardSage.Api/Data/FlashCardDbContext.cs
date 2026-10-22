@@ -42,6 +42,8 @@ public class FlashCardDbContext(
 
     public DbSet<CachedImage> GeneratedImages => Set<CachedImage>();
 
+    public DbSet<CachedAudio> GeneratedAudio => Set<CachedAudio>();
+
     public DbSet<CachedCardSuggestions> CardSuggestions => Set<CachedCardSuggestions>();
 
     public DbSet<CachedTagSuggestions> TagSuggestions => Set<CachedTagSuggestions>();
@@ -105,6 +107,7 @@ public class FlashCardDbContext(
         ConfigureDeck(OwnedBy<Deck>(modelBuilder));
         ConfigureCachedTranslation(modelBuilder.Entity<CachedTranslation>());
         ConfigureCachedImage(modelBuilder.Entity<CachedImage>());
+        ConfigureCachedAudio(modelBuilder.Entity<CachedAudio>());
         ConfigureCachedCardSuggestions(OwnedBy<CachedCardSuggestions>(modelBuilder));
         ConfigureCachedSuggestions<CachedTagSuggestions, string>(OwnedBy<CachedTagSuggestions>(modelBuilder));
         ConfigureOAuthClient(modelBuilder.Entity<OAuthClient>());
@@ -284,6 +287,28 @@ public class FlashCardDbContext(
             .IsRequired();
 
         image.Property(item => item.ImageUrl)
+            .HasMaxLength(FlashCard.MaxImageUrlLength)
+            .IsRequired();
+    }
+
+    // Not owned either: a phrase sounds the same for everyone in a given voice, so there's one row for it, shared by
+    // every user (0017-*.sql).
+    private static void ConfigureCachedAudio(EntityTypeBuilder<CachedAudio> audio)
+    {
+        // The voice might read "Madrid" and "madrid" differently, so the text is compared case-sensitively.
+        audio.HasIndex(item => new { item.Voice, item.Text })
+            .IsUnique();
+
+        audio.Property(item => item.Voice)
+            .HasMaxLength(CachedAudio.MaxVoiceLength)
+            .IsRequired();
+
+        audio.Property(item => item.Text)
+            .HasMaxLength(FlashCard.MaxWordLength)
+            .UseCollation("Latin1_General_CS_AS")
+            .IsRequired();
+
+        audio.Property(item => item.AudioUrl)
             .HasMaxLength(FlashCard.MaxImageUrlLength)
             .IsRequired();
     }

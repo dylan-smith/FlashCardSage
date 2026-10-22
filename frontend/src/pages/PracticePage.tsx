@@ -1,11 +1,16 @@
 import { useEffect, useRef, useState } from 'react'
+import type { ReactNode } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
+import IconButton from '@mui/material/IconButton'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
+import SvgIcon from '@mui/material/SvgIcon'
 import Typography from '@mui/material/Typography'
+import { describeFetchError } from '../api/client'
 import { formatWords } from '../api/flashCards'
 import type {
   PracticeCard,
@@ -17,6 +22,8 @@ import type { PackCard, PracticePack } from '../api/practice'
 import { getSession, sessionSubject } from '../auth/session'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { usePreferences } from '../hooks/usePreferences'
+import { icons } from '../lib/icons'
+import { reportFailure } from '../lib/reportFailure'
 import { trackEvent } from '../telemetry'
 import { useAction } from '../hooks/useAction'
 import { useLoad } from '../hooks/useLoad'
@@ -29,6 +36,8 @@ import {
 import { pick } from '../practice/picker'
 import { enqueueResult, readQueue } from '../practice/queue'
 import { applyAnswer } from '../practice/score'
+import { loadSpeech, playFailedMessage, playSpeech } from '../practice/speech'
+import type { Playback } from '../practice/speech'
 import { syncPracticeResults, useSyncStatus } from '../practice/sync'
 import { Loading } from '../components/common/Loading'
 import { EmptyText } from '../components/common/EmptyText'
@@ -115,21 +124,99 @@ function SyncNote() {
   )
 }
 
-function CardSide({ side, text }: { side: PracticeSide; text: string }) {
+// One side of the card: its words, with a button beside them when the side has one (Listen, for the Spanish).
+function CardSide({
+  side,
+  text,
+  action,
+}: {
+  side: PracticeSide
+  text: string
+  action?: ReactNode
+}) {
   return (
     <Box>
       <Typography variant="overline" component="p" color="text.secondary">
         {side}
       </Typography>
-      <Typography
-        variant="h4"
-        component="p"
-        lang={sides[side].lang}
-        sx={{ overflowWrap: 'anywhere' }}
+      <Stack
+        direction="row"
+        spacing={1}
+        sx={{ alignItems: 'center', justifyContent: 'center' }}
       >
-        {text}
-      </Typography>
+        <Typography
+          variant="h4"
+          component="p"
+          lang={sides[side].lang}
+          sx={{ overflowWrap: 'anywhere', minWidth: 0 }}
+        >
+          {text}
+        </Typography>
+        {action}
+      </Stack>
     </Box>
+  )
+}
+
+// Plays the card's Spanish: each word or phrase in turn, read by a natural voice. The audio is asked for as soon as
+// the card comes up (see PracticeSession), so pressing Listen usually plays at once; while it's still being fetched
+// the button shows a spinner, and while it plays the button stops it instead. The audio comes from the API, so the
+// button is off while the browser is offline.
+function ListenButton({
+  texts,
+  onError,
+}: {
+  texts: string[]
+  onError: (message: string) => void
+}) {
+  const online = useOnline()
+  const [state, setState] = useState<'idle' | 'loading' | 'playing'>('idle')
+  const playbackRef = useRef<Playback | null>(null)
+
+  // Whatever's playing stops with the card.
+  useEffect(() => () => playbackRef.current?.stop(), [])
+
+  async function handleClick() {
+    if (state === 'playing') {
+      playbackRef.current?.stop()
+      return
+    }
+    if (state === 'loading') {
+      return
+    }
+    setState('loading')
+    try {
+      const playback = playSpeech(await loadSpeech(texts))
+      playbackRef.current = playback
+      setState('playing')
+      await playback.done
+    } catch (error) {
+      reportFailure(error, 'speech')
+      onError(describeFetchError(error, playFailedMessage))
+    } finally {
+      playbackRef.current = null
+      setState('idle')
+    }
+  }
+
+  const playing = state === 'playing'
+  return (
+    <IconButton
+      color="primary"
+      aria-label={playing ? 'Stop' : 'Listen'}
+      aria-busy={state === 'loading'}
+      disabled={!online}
+      onClick={() => void handleClick()}
+      sx={{ flexShrink: 0 }}
+    >
+      {state === 'loading' ? (
+        <CircularProgress size={24} color="inherit" />
+      ) : (
+        <SvgIcon>
+          <path d={icons[playing ? 'stop' : 'volumeUp']} />
+        </SvgIcon>
+      )}
+    </IconButton>
   )
 }
 
@@ -184,6 +271,15 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
   const answeredRef = useRef(false)
   const cardRef = useRef<HTMLDivElement>(null)
   const showPictures = usePreferences()?.showPictures === true
+  const online = useOnline()
+
+  // Asks for the card's audio as soon as it comes up, whichever side is showing, so Listen plays at once. A failure
+  // is left for the button to show, when the user presses it.
+  useEffect(() => {
+    if (prompt !== null && online) {
+      loadSpeech(prompt.spanish).catch(() => {})
+    }
+  }, [prompt, online])
 
   useEffect(() => {
     if (revealed) {
@@ -229,6 +325,29 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
 
   const otherSide: PracticeSide =
     prompt?.side === 'Spanish' ? 'English' : 'Spanish'
+
+  // The side's words, with Listen beside the Spanish. A new button for each card, so one card's playing never
+  // carries over to the next.
+  function cardSide(side: PracticeSide) {
+    if (prompt === null) {
+      return null
+    }
+    return (
+      <CardSide
+        side={side}
+        text={formatWords(prompt[sides[side].field])}
+        action={
+          side === 'Spanish' ? (
+            <ListenButton
+              key={prompt.id}
+              texts={prompt.spanish}
+              onError={setErrorMessage}
+            />
+          ) : undefined
+        }
+      />
+    )
+  }
 
   return (
     <Stack spacing={2}>
@@ -308,17 +427,11 @@ function PracticeSession({ kind, deckId, tagId }: PracticeSessionProps) {
                   width: '100%',
                 }}
               >
-                <CardSide
-                  side={prompt.side}
-                  text={formatWords(prompt[sides[prompt.side].field])}
-                />
+                {cardSide(prompt.side)}
                 {revealed && (
                   <>
                     <Divider />
-                    <CardSide
-                      side={otherSide}
-                      text={formatWords(prompt[sides[otherSide].field])}
-                    />
+                    {cardSide(otherSide)}
                   </>
                 )}
               </Stack>

@@ -135,9 +135,11 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
     },
     toObject(range(0, length(corsAllowedOrigins)), i => 'Cors__AllowedOrigins__${i}', i => corsAllowedOrigins[i]),
     toObject(range(0, length(adminUsers)), i => 'Admin__Users__${i}', i => adminUsers[i]),
-    // Without an endpoint and key the API answers picture and suggestion requests with a 503, and cards go without
-    // pictures and the page without suggestions. The endpoints are the resource's Foundry and Azure OpenAI ones, on
-    // its subdomain (modules/foundry.bicep names it after the resource).
+    // Without an endpoint and key the API answers picture, suggestion and audio requests with a 503, and cards go
+    // without pictures, the page without suggestions and practice without a Listen button. The endpoints are the
+    // resource's Foundry and Azure OpenAI ones, on its subdomain (modules/foundry.bicep names it after the
+    // resource), and Azure Speech's for its region: Speech is part of an AI Services resource, with no deployment,
+    // and its keys only work on their own region's endpoint.
     empty(foundryName)
       ? {}
       : {
@@ -147,6 +149,8 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
           CardSuggestions__Endpoint: 'https://${foundry!.name}.openai.azure.com/'
           CardSuggestions__Key: foundry!.listKeys().key1
           CardSuggestions__Deployment: suggestionDeploymentName
+          Speech__Endpoint: 'https://${foundry!.location}.tts.speech.microsoft.com/'
+          Speech__Key: foundry!.listKeys().key1
         }
   )
 }

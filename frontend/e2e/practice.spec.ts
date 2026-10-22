@@ -65,6 +65,36 @@ test.describe('Practice', () => {
     await expect(page.getByText(shownSide, { exact: true })).toBeHidden()
   })
 
+  test('reads the Spanish aloud when Listen is pressed', async ({ page }) => {
+    // The audio is asked for as soon as the card comes up, whichever side is showing.
+    const asked = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/speech') &&
+        response.request().method() === 'POST',
+    )
+    await page.goto('/practice')
+    await expect(page.getByRole('button', { name: 'Reveal' })).toBeVisible()
+    const spoken = await asked
+    expect(spoken.status()).toBe(200)
+    const { urls } = (await spoken.json()) as { urls: string[] }
+    expect(urls).toHaveLength(1)
+    expect(urls[0]).toMatch(/\/card-images\/[0-9a-f]{32}\.mp3$/)
+    // The audio is played by the browser like any media, without the user's token.
+    const audio = await page.request.get(urls[0])
+    expect(audio.ok()).toBe(true)
+    expect(audio.headers()['content-type']).toBe('audio/mpeg')
+
+    // Listen is beside the Spanish, which the card may keep hidden until it's revealed.
+    await page.getByRole('button', { name: 'Reveal' }).click()
+    const listen = page.getByRole('button', { name: 'Listen' })
+    await listen.click()
+
+    // The sample audio is a short silence: Stop while it plays, then Listen again.
+    await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible()
+    await expect(listen).toBeVisible()
+    await expect(page.getByRole('alert')).toBeHidden()
+  })
+
   test('keeps a running score for the session', async ({ page }) => {
     await page.goto('/practice')
     const sessionScore = page.getByText(/^Session score/)
