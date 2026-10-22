@@ -1,6 +1,10 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Security.Claims;
+using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Tests.Fakes;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
@@ -73,6 +77,65 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     }
 
     [Fact]
+    public async Task Requests_RecordWhenTheUserWasLastSeen_ToWithinTheLastSeenPrecision()
+    {
+        var name = $"Alice {Guid.NewGuid()}";
+        var clock = new FixedTimeProvider();
+        var signedUpAt = clock.Now;
+        using var app = TestApp.CreateFactory(
+            factory, Settings(), services => services.AddSingleton<TimeProvider>(clock));
+        using var client = TestApp.CreateClient(app, $"test:{name}");
+
+        await client.GetAsync("/api/me");
+        Assert.Equal(signedUpAt, await LastSeenAtAsync(app, name));
+
+        clock.Advance(UserAccounts.LastSeenPrecision - TimeSpan.FromMinutes(1));
+        await client.GetAsync("/api/me");
+        Assert.Equal(signedUpAt, await LastSeenAtAsync(app, name));
+
+        clock.Advance(TimeSpan.FromMinutes(1));
+        await client.GetAsync("/api/me");
+        Assert.Equal(clock.Now, await LastSeenAtAsync(app, name));
+    }
+
+    [Fact]
+    public async Task Me_SaysTheUserIsAnAdmin_WhenAdminUsersListsThem()
+    {
+        // Development's Admin:Users lists test:admin.
+        using var app = TestApp.CreateFactory(factory, Settings());
+        using var admin = TestApp.CreateClient(app, "test:Admin");
+        using var other = TestApp.CreateClient(app, $"test:Alice {Guid.NewGuid()}");
+
+        Assert.True((await admin.GetFromJsonAsync<MeResponse>("/api/me"))!.IsAdmin);
+        Assert.False((await other.GetFromJsonAsync<MeResponse>("/api/me"))!.IsAdmin);
+    }
+
+    [Fact]
+    public async Task Me_SaysNobodyIsAnAdmin_WhenAdminUsersIsEmpty()
+    {
+        using var client = TestApp.CreateSignedInClient(
+            factory, "Admin", new Dictionary<string, string>(Settings()) { ["Admin:Users:0"] = "" });
+
+        Assert.False((await client.GetFromJsonAsync<MeResponse>("/api/me"))!.IsAdmin);
+    }
+
+    [Fact]
+    public async Task AdminPolicy_AllowsOnlySignedInAdmins()
+    {
+        using var app = TestApp.CreateFactory(factory, Settings());
+        var authorization = app.Services.GetRequiredService<IAuthorizationService>();
+
+        Assert.True((await authorization.AuthorizeAsync(User("test:admin"), null, AuthenticationSetup.AdminPolicy)).Succeeded);
+        Assert.False((await authorization.AuthorizeAsync(User("test:alice"), null, AuthenticationSetup.AdminPolicy)).Succeeded);
+        Assert.False((await authorization.AuthorizeAsync(new ClaimsPrincipal(new ClaimsIdentity()), null, AuthenticationSetup.AdminPolicy)).Succeeded);
+
+        static ClaimsPrincipal User(string subject)
+        {
+            return new(AuthenticationSetup.CreateIdentity(LocalTokenHandler.SchemeName, subject, name: null, email: null));
+        }
+    }
+
+    [Fact]
     public async Task TestSignIn_IsRejected_WhenNotEnabled()
     {
         using var client = TestApp.CreateSignedInClient(factory, "Alice", Settings(allowTestSignIn: false));
@@ -120,6 +183,18 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
         Assert.Equal(HttpStatusCode.OK, (await alice.GetAsync($"/api/flashcards/{card.Id}")).StatusCode);
     }
 
+    // When the test sign-in user with this name was last seen, read through a context of its own.
+    private static async Task<DateTimeOffset?> LastSeenAtAsync(WebApplicationFactory<Program> app, string name)
+    {
+        using var scope = app.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<FlashCardDbContext>();
+        var subject = $"test:{name.ToLowerInvariant()}";
+        return await dbContext.Users
+            .Where(user => user.Subject == subject)
+            .Select(user => user.LastSeenAt)
+            .SingleAsync();
+    }
+
     // The sign-in settings, with test sign-in on and no service token unless the test says otherwise.
     private static Dictionary<string, string> Settings(bool allowTestSignIn = true, string serviceToken = "")
     {
@@ -130,5 +205,5 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
         };
     }
 
-    private sealed record MeResponse(string? DisplayName, string? Email);
+    private sealed record MeResponse(string? DisplayName, string? Email, bool IsAdmin);
 }

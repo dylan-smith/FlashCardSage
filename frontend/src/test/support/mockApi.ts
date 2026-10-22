@@ -41,7 +41,7 @@ export function unreachable(): Promise<Response> {
 }
 
 // What the pages load, answered as for a new user: no cards, tags, decks, built-in decks or connected apps, the default
-// preferences, and nothing from the services that aren't there locally (suggestions and translation).
+// preferences, not an admin, and nothing from the services that aren't there locally (suggestions and translation).
 const defaultRoutes: Routes = {
   'GET /flashcards': [],
   'GET /tags': [],
@@ -49,6 +49,7 @@ const defaultRoutes: Routes = {
   'GET /system-decks': [],
   'GET /counts': { cards: 0, decks: 0, tags: 0 },
   'GET /preferences': defaultPreferences,
+  'GET /me': { displayName: 'Tester', email: null, isAdmin: false },
   'GET /oauth/connections': [],
   'GET /flashcards/practice/pack': { cards: [], decks: [], tags: [] },
   'GET /card-suggestions': emptyResponse(503),
@@ -61,6 +62,7 @@ const defaultRoutes: Routes = {
 const backgroundRequests = new Set([
   'GET /counts',
   'GET /preferences',
+  'GET /me',
   // Loaded at sign-in too, and after answers are saved (see practice/sync).
   'GET /flashcards/practice/pack',
   'GET /card-suggestions',

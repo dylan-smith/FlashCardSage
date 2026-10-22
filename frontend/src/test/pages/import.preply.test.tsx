@@ -222,6 +222,7 @@ describe('importing from Preply', () => {
       spanish: ['avena'],
       english: ['oatmeal'],
       tags: [],
+      source: 'Preply',
     })
     expect(JSON.parse(posts[1].init?.body as string)).toEqual({
       name: 'Preply',
@@ -275,6 +276,7 @@ describe('importing from Preply', () => {
       cards: [
         { spanish: ['tostado', 'tostada'], english: ['toasted'], tags: [] },
       ],
+      source: 'Preply',
     })
   })
 
@@ -315,6 +317,7 @@ describe('importing from Preply', () => {
         { spanish: ['tostado'], english: ['toasted'], tags: [] },
         { spanish: ['picante'], english: ['spicy'], tags: [] },
       ],
+      source: 'Preply',
     })
     // The cards go in the deck the user already has, whatever its case.
     const patch = calls.find('PATCH')

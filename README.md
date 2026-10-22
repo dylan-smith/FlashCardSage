@@ -85,6 +85,8 @@ Codes and tokens are random values kept only as SHA-256 hashes. The user's conne
 
 With either empty, the OAuth endpoints answer 503. The consent page should also be sent with `Content-Security-Policy: frame-ancestors 'none'`, so no other site can frame it; the static website can't set headers, so that's a follow-up for the Cloudflare layer.
 
+The admin endpoints need the `Admin` policy as well: the user's email or subject (e.g. `google:<sub>` or `test:admin`) must be in `Admin:Users`, compared ignoring case. Production takes the list from the `ADMIN_USERS` [variable](#required-github-variables), `appsettings.Development.json` and the E2E tests make the test user `Admin` an admin, and PR previews the seeded `Preview User`. Anyone else signed in gets a 403, and `/api/me` says whether the user is an admin.
+
 Locally, `dotnet run` and `npm run dev` need nothing more: sign in with the test sign-in form. To call the API from Scalar or curl, add a header such as `Authorization: Bearer test:Me`.
 
 ### Connect an AI assistant (MCP)
@@ -305,6 +307,7 @@ To preview or apply infrastructure changes outside of CI, log in to Azure (`az l
 $env:AZURE_SQL_CONNECTION_STRING = '<connection string>'
 $env:GOOGLE_CLIENT_ID = '<Google OAuth client ID>'
 $env:FLASHCARDSAGE_SERVICE_TOKEN = '<service token>'
+$env:ADMIN_USERS = '<admin emails, comma-separated>'   # optional; without it nobody is an admin
 
 # Preview — should show no Create/Delete against the existing resources
 az deployment group what-if --resource-group FlashCardSage --template-file infra/main.bicep --parameters infra/main.bicepparam
@@ -417,6 +420,7 @@ The Azure SQL built-in point-in-time restore (7 days) is still available for res
 | `AZURE_BACKEND_URL` | Public URL of the backend API (e.g. `https://flashcardsage-<suffix>.westus2-01.azurewebsites.net`) |
 | `AZURE_STORAGE_ACCOUNT_NAME` | Name of the Azure Storage Account used to host the frontend static website |
 | `GOOGLE_CLIENT_ID` | Client ID of the Google OAuth web client used for sign-in. The infrastructure deployment gives it to the API, and the frontend build embeds it (it isn't secret) |
+| `ADMIN_USERS` | Optional, on the `production` environment: comma-separated emails (or `google:<sub>` subjects) of the users who may use the admin pages. The infrastructure deployment gives them to the API as `Admin:Users`. Unset means nobody is an admin |
 
 All other resource names, regions and SKUs live in `infra/main.bicepparam`.
 

@@ -188,6 +188,9 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       // Google only accepts the origins registered with it, and every preview has its own, so previews use test
       // sign-in instead: anyone can sign in as any name. Never set this in main.bicep.
       Authentication__AllowTestSignIn: 'true'
+      // The test user "Preview User" the seed data belongs to (seed-preview.sh) can see the admin pages. Test sign-in
+      // lowercases the name in the subject.
+      Admin__Users__0: 'test:preview user'
       // The OAuth server MCP clients sign in with (see modules/appservice.bicep).
       Api__BaseUrl: 'https://${appService.properties.defaultHostName}'
       Frontend__BaseUrl: frontendOrigin

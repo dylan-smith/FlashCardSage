@@ -5,7 +5,11 @@ import {
   createFlashCards,
   formatWords,
 } from '../api/flashCards'
-import type { FlashCardBatch, FlashCardFields } from '../api/flashCards'
+import type {
+  CardSource,
+  FlashCardBatch,
+  FlashCardFields,
+} from '../api/flashCards'
 import { cardCount, skippedSentence } from '../lib/cardCount'
 import type { Adding, Candidate } from '../lib/candidates'
 import { trackEvent, trackException } from '../telemetry'
@@ -22,6 +26,8 @@ export type CandidateImportOptions = {
   deckName: string
   // Where the cards are from, such as the document's name, said when they're added.
   source?: string
+  // How the cards were added, recorded on each one, such as Document for a scan.
+  cardSource: CardSource
   // The toast for the cards just added, one at a time or all at once, so each replaces the last.
   toastKey: string
   // Tracked when a card is added on its own and when they're added all at once, with how many with countAll.
@@ -47,6 +53,7 @@ export type CandidateImportOptions = {
 export function useCandidateImport({
   deckName,
   source,
+  cardSource,
   toastKey,
   events,
   deckOperation,
@@ -112,7 +119,7 @@ export function useCandidateImport({
   }
 
   async function addOne(fields: FlashCardFields) {
-    const card = await createFlashCard(fields)
+    const card = await createFlashCard(fields, cardSource)
     await putInDeck([card.id])
     return card
   }
@@ -122,6 +129,7 @@ export function useCandidateImport({
     for (let start = 0; start < fields.length; start += batchSize) {
       const part = await createFlashCards(
         fields.slice(start, start + batchSize),
+        cardSource,
       )
       result.cards.push(...part.cards)
       result.skippedCount += part.skippedCount

@@ -227,6 +227,7 @@ describe('importing from Duolingo', () => {
         { spanish: ['a'], english: ['to', 'at', 'for'], tags: [] },
         { spanish: ['para'], english: ['in order to'], tags: [] },
       ],
+      source: 'Duolingo',
     })
     const posted = calls.find('POST', '/decks')
     expect(posted?.url).toBe(api('/decks'))

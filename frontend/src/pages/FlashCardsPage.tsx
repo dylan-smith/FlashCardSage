@@ -214,7 +214,10 @@ function FlashCardsPage() {
     return addingSuggestion.run(
       { operation: 'addSuggestion', fallback: 'Unable to save flash card.' },
       async () => {
-        let card = await createFlashCard({ spanish, english, tags: tagNames })
+        let card = await createFlashCard(
+          { spanish, english, tags: tagNames },
+          'Suggested',
+        )
         trackEvent('SuggestedFlashCardAdded')
         if (picture !== null) {
           card = await withPicture(

@@ -17,14 +17,7 @@ public class OAuthConnectionsController(OAuthConnectionService connectionService
     {
         var grants = await connectionService.GetAllAsync(cancellationToken);
 
-        return Ok(grants.Select(grant => new OAuthConnectionResponse(
-            grant.Id,
-            grant.Client.Name,
-            OAuthClientRegistry.ClientHost(grant.Client),
-            !grant.Client.IsMetadataDocument,
-            grant.Scope.Split(' ', StringSplitOptions.RemoveEmptyEntries),
-            grant.CreatedAt,
-            grant.LastUsedAt)));
+        return Ok(grants.Select(OAuthConnectionResponse.FromGrant));
     }
 
     [HttpDelete("{id:int}")]

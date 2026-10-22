@@ -53,6 +53,10 @@ param(
     # keep the existing value when it's omitted.
     [string]$GoogleClientId,
 
+    # Comma-separated emails of the users who may use the admin pages (the production environment's ADMIN_USERS
+    # variable). Later runs keep the existing value when it's omitted; without one, nobody is an admin.
+    [string]$AdminUsers,
+
     # The service token (at least 32 characters) the smoke and load tests sign in with. Generated when omitted
     # and the secret doesn't exist yet.
     [string]$ServiceToken,
@@ -441,6 +445,12 @@ function Invoke-InitialStage {
     if ($principals.deploy) { Set-GhValue 'variable' 'AZURE_CLIENT_ID' $principals.deploy.clientId 'production' }
     Set-GhValue 'variable' 'AZURE_BACKEND_APP_NAME' $appName 'production'
     Set-GhValue 'variable' 'AZURE_STORAGE_ACCOUNT_NAME' $storageAccountName 'production'
+    if ($AdminUsers) {
+        Set-GhValue 'variable' 'ADMIN_USERS' $AdminUsers 'production'
+    }
+    elseif ((Get-GhNames 'variable' 'production') -notcontains 'ADMIN_USERS') {
+        Write-Note 'ADMIN_USERS is not set. Pass -AdminUsers <email>, or nobody can use the admin pages.'
+    }
     if ($principals.alertInvestigator) {
         Set-GhValue 'variable' 'AZURE_ALERT_INVESTIGATOR_CLIENT_ID' $principals.alertInvestigator.clientId 'alert-investigation'
     }

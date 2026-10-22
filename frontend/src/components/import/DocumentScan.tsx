@@ -45,6 +45,7 @@ export function DocumentScan() {
   const cards = useCandidateImport({
     deckName: documentDeckName(fileName),
     source: fileName,
+    cardSource: 'Document',
     toastKey: 'document-added',
     events: { addedOne: 'DocumentCardAdded', addedAll: 'DocumentCardsAdded' },
     deckOperation: 'documentDeck',

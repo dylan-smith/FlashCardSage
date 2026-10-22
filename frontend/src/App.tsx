@@ -4,6 +4,8 @@ import { Route, Routes, useLocation } from 'react-router'
 import { useSession } from './auth/session'
 import SignInPage from './auth/SignInPage'
 import { useSignedInUserData } from './hooks/useSignedInUserData'
+import AdminPage from './pages/admin/AdminPage'
+import AdminUserPage from './pages/admin/AdminUserPage'
 import AuthorizePage from './pages/AuthorizePage'
 import DeckPage from './pages/DeckPage'
 import DecksPage from './pages/DecksPage'
@@ -20,7 +22,7 @@ import { Brand } from './components/layout/Brand'
 import { ModeNav } from './components/layout/ModeNav'
 import { SectionNav } from './components/layout/SectionNav'
 import { UserBar } from './components/layout/UserBar'
-import { modeAt } from './components/layout/nav'
+import { isAt, modeAt } from './components/layout/nav'
 
 function App() {
   const { pathname } = useLocation()
@@ -28,6 +30,8 @@ function App() {
   const currentMode = modeAt(pathname)
   // The consent page an app's sign-in comes to stands alone, with nothing to lead the user off to another page.
   const consenting = pathname === '/authorize'
+  // The admin pages' tables have a lot of columns, so they get more room.
+  const wide = isAt(pathname, { to: '/admin', label: 'Admin' })
 
   // One page view for the first load and one for each route change after it, including back and forward.
   useEffect(() => {
@@ -37,7 +41,7 @@ function App() {
   useSignedInUserData(session)
 
   return (
-    <Container maxWidth="md" component="main" sx={{ py: 4 }}>
+    <Container maxWidth={wide ? 'lg' : 'md'} component="main" sx={{ py: 4 }}>
       {session && !consenting && (
         <UserBar session={session} pathname={pathname} />
       )}
@@ -64,6 +68,8 @@ function App() {
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
             <Route path="/preferences" element={<PreferencesPage />} />
+            <Route path="/admin" element={<AdminPage />} />
+            <Route path="/admin/users/:id" element={<AdminUserPage />} />
             <Route path="/authorize" element={<AuthorizePage />} />
             <Route path="*" element={<NotFoundPage />} />
           </Routes>

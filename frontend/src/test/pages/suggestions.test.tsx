@@ -101,6 +101,7 @@ describe('suggested cards', () => {
         spanish: ['el perro'],
         english: ['the dog'],
         tags: [],
+        source: 'Suggested',
       }),
     )
     expect(trackEvent).toHaveBeenCalledWith('SuggestedFlashCardAdded')
@@ -180,6 +181,7 @@ describe('suggested cards', () => {
         spanish: ['el perro'],
         english: ['the dog', 'the hound'],
         tags: ['Pets'],
+        source: 'Suggested',
       }),
     )
   })
@@ -333,6 +335,7 @@ describe('suggested cards', () => {
           spanish: ['el queso'],
           english: ['the cheese'],
           tags: ['Food'],
+          source: 'Suggested',
         }),
       )
     })
@@ -411,6 +414,7 @@ describe('suggested cards', () => {
           spanish: ['el verano'],
           english: ['the summer'],
           tags: ['Seasons'],
+          source: 'Suggested',
         }),
       )
     })

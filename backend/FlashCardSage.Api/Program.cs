@@ -22,6 +22,8 @@ builder.Services.AddScoped<PracticeService>();
 builder.Services.AddScoped<CountsService>();
 builder.Services.AddScoped<PreferencesService>();
 builder.Services.AddScoped<SystemDeckImporter>();
+// Reads every user's data for the admin pages.
+builder.Services.AddScoped<AdminService>();
 // The MCP server AI assistants connect to, which uses the services above.
 builder.Services.AddFlashCardSageMcp();
 // No database check: the availability test pings /health, and touching SQL would stop the serverless database

@@ -40,6 +40,8 @@ export default defineConfig({
         UseInMemoryDatabase: 'true',
         // Development turns it on already; set here too since the tests depend on it (see e2e/fixtures.ts).
         Authentication__AllowTestSignIn: 'true',
+        // Development makes the test user "Admin" an admin already; set here too since the admin tests depend on it.
+        Admin__Users__0: 'test:admin',
         // There's no Foundry, so every picture is the same sample one, which still goes through the real cache.
         ImageGeneration__UseSamplePicture: 'true',
         // Where the API sends an app's sign-in for the user's consent: the frontend below.
