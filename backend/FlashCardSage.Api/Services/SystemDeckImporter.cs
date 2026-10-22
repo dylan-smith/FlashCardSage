@@ -184,11 +184,12 @@ public class SystemDeckImporter(FlashCardDbContext dbContext, ILogger<SystemDeck
 
     // The user's copy of a built-in card, with the built-in card's picture, which it shares rather than copies. The
     // import puts the picture in the cache (it's there already once SystemDeckImageSync has run), so deleting the
-    // user's card never deletes it.
+    // user's card never deletes it. The copy records that it came from a built-in deck.
     private static FlashCard CopyWithPicture(FlashCard systemCard, List<Tag> tags)
     {
         var copy = systemCard.CopyForUser(tags);
         copy.ImageUrl = systemCard.ImageUrl;
+        copy.Source = CardSource.SystemDeck;
         return copy;
     }
 }

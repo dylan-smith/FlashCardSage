@@ -16,14 +16,18 @@ public class CurrentUserMiddleware(RequestDelegate next)
     public const string UserIdTag = "enduser.id";
 
     public async Task InvokeAsync(
-        HttpContext context, FlashCardDbContext dbContext, CurrentUser currentUser, UsageSnapshotService usageSnapshots)
+        HttpContext context,
+        FlashCardDbContext dbContext,
+        CurrentUser currentUser,
+        UsageSnapshotService usageSnapshots,
+        TimeProvider timeProvider)
     {
         if (context.User.FindFirst(AuthenticationSetup.SubjectClaim)?.Value is { } subject)
         {
             var name = context.User.FindFirst(AuthenticationSetup.NameClaim)?.Value;
             var email = context.User.FindFirst(AuthenticationSetup.EmailClaim)?.Value;
             currentUser.UserId = await UserAccounts.GetOrCreateUserIdAsync(
-                dbContext, subject, name, email, context.RequestAborted);
+                dbContext, subject, name, email, timeProvider.GetUtcNow(), context.RequestAborted);
 
             if (UsageSnapshot.IsPerson(subject))
             {

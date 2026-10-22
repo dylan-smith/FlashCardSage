@@ -20,7 +20,7 @@ public class FlashCardServiceTests
         await using var dbContext = TestDb.Create(databaseName);
 
         var result = await CreateService(dbContext).CreateAsync(
-            new FlashCardRequest { Spanish = ["la casa", "EL GATO"], English = ["the dog"] });
+            new FlashCardRequest { Spanish = ["la casa", "EL GATO"], English = ["the dog"] }, CardSource.Manual);
 
         var duplicate = Assert.IsType<CardResult.Duplicate>(result);
         Assert.Equal((Language.Spanish, "el gato", catId), (duplicate.Word.Language, duplicate.Word.Text, duplicate.Word.FlashCardId));
@@ -35,7 +35,7 @@ public class FlashCardServiceTests
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
 
         var result = await CreateService(dbContext).CreateAsync(
-            new FlashCardRequest { Spanish = ["El Gato"], English = ["the cat"] });
+            new FlashCardRequest { Spanish = ["El Gato"], English = ["the cat"] }, CardSource.Manual);
 
         var created = Assert.IsType<CardResult.Created>(result);
         Assert.Equal((await dbContext.FlashCards.SingleAsync()).Id, created.Card.Id);
@@ -50,7 +50,7 @@ public class FlashCardServiceTests
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
 
         var result = await CreateService(dbContext).CreateAsync(
-            new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
+            new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] }, CardSource.Manual);
 
         var duplicate = Assert.IsType<CardResult.Duplicate>(result);
         Assert.Equal((Language.Spanish, "el gato"), (duplicate.Word.Language, duplicate.Word.Text));
@@ -62,7 +62,7 @@ public class FlashCardServiceTests
         await using var dbContext = TestDb.Create(interceptors: new UniqueIndexInterceptor(() => Task.CompletedTask));
 
         await Assert.ThrowsAsync<DbUpdateException>(() => CreateService(dbContext).CreateAsync(
-            new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] }));
+            new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] }, CardSource.Manual));
     }
 
     // The card's own words aren't a clash, so it can be saved with them again.
@@ -121,7 +121,7 @@ public class FlashCardServiceTests
             new FlashCardRequest { Spanish = ["EL PERRO"], English = ["the hound"] }
         ];
 
-        var result = await CreateService(dbContext).CreateManyAsync(requests);
+        var result = await CreateService(dbContext).CreateManyAsync(requests, CardSource.Manual);
 
         var created = Assert.IsType<CardResult.CreatedMany>(result);
         Assert.Equal(["el perro"], created.Cards.Select(card => card.Spanish.Single()));
@@ -137,7 +137,7 @@ public class FlashCardServiceTests
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, interceptor);
 
         var result = await CreateService(dbContext).CreateManyAsync(
-            [new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] }]);
+            [new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] }], CardSource.Manual);
 
         Assert.IsType<CardResult.Clash>(result);
     }
@@ -151,7 +151,7 @@ public class FlashCardServiceTests
         [
             new FlashCardRequest { Spanish = [" "], English = ["the dog"] },
             new FlashCardRequest { Spanish = ["la vaca"], English = [] }
-        ]);
+        ], CardSource.Manual);
 
         Assert.Equal(
             [new("Cards[0].Spanish", "Spanish is required."), new("Cards[1].English", "English is required.")],
@@ -185,6 +185,49 @@ public class FlashCardServiceTests
 
         Assert.Equal("el perro", (await service.GetAsync(mineId))?.Spanish.Single());
         Assert.Null(await service.GetAsync(theirs.Id));
+    }
+
+    [Fact]
+    public async Task CreateAsync_And_CreateManyAsync_RecordWhenTheCardsWereMade()
+    {
+        await using var dbContext = TestDb.Create();
+        var service = CreateService(dbContext);
+        var before = DateTimeOffset.UtcNow;
+
+        await service.CreateAsync(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] }, CardSource.Manual);
+        await service.CreateManyAsync(
+        [
+            new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] },
+            new FlashCardRequest { Spanish = ["la casa"], English = ["the house"] }
+        ], CardSource.Manual);
+
+        var after = DateTimeOffset.UtcNow;
+        var createdAt = await dbContext.FlashCards.Select(card => card.CreatedAt).ToListAsync();
+        Assert.Equal(3, createdAt.Count);
+        Assert.All(createdAt, value => Assert.InRange(value!.Value, before, after));
+    }
+
+    // The source given, not the request's own, which only the controller reads.
+    [Fact]
+    public async Task CreateAsync_And_CreateManyAsync_RecordHowTheCardsWereAdded()
+    {
+        await using var dbContext = TestDb.Create();
+        var service = CreateService(dbContext);
+
+        await service.CreateAsync(
+            new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"], Source = CardSource.Preply },
+            CardSource.Suggested);
+        await service.CreateManyAsync(
+        [
+            new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"] },
+            new FlashCardRequest { Spanish = ["la casa"], English = ["the house"], Source = CardSource.Manual }
+        ], CardSource.Document);
+
+        var sources = await dbContext.FlashCards
+            .OrderBy(card => card.Id)
+            .Select(card => card.Source)
+            .ToListAsync();
+        Assert.Equal([CardSource.Suggested, CardSource.Document, CardSource.Document], sources);
     }
 
     private static FlashCardService CreateService(FlashCardDbContext dbContext)

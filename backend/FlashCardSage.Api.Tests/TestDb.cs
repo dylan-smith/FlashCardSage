@@ -26,7 +26,7 @@ internal static class TestDb
             .AddInterceptors(interceptors)
             .Options;
 
-        return new FlashCardDbContext(options, currentUser);
+        return new FlashCardDbContext(options, currentUser, TimeProvider.System);
     }
 
     // The name of a new, empty in-memory database, for a test that opens more than one context on it.

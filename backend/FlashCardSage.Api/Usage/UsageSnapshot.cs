@@ -12,7 +12,7 @@ namespace FlashCardSage.Api.Usage;
 /// telemetry is kept, so totals like these come from the database.
 /// </summary>
 /// <remarks>
-/// It reads every user's rows, so it's the one place besides SystemDeckImporter that reads past the query filters.
+/// It reads every user's rows, so like SystemDeckImporter and AdminService it reads past the query filters.
 /// Users are logged by their ID, never their name or email.
 /// </remarks>
 public static class UsageSnapshot
@@ -72,7 +72,8 @@ public static class UsageSnapshot
         return usage;
     }
 
-    private static async Task<Dictionary<int, int>> CountByUserAsync(
+    // How many of the rows each user has, from their user IDs. AdminService counts with it too.
+    internal static async Task<Dictionary<int, int>> CountByUserAsync(
         IQueryable<int> userIds, CancellationToken cancellationToken)
     {
         return await userIds

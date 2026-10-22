@@ -16,5 +16,8 @@ public class Deck : IUserOwned
     // Like a card's, the owner is set when the deck is saved. DeckResponse is what callers see.
     public int UserId { get; set; }
 
+    // Set when the deck is saved, like a card's, and null for decks made before it was recorded.
+    public DateTimeOffset? CreatedAt { get; set; }
+
     public List<FlashCard> FlashCards { get; set; } = [];
 }

@@ -32,6 +32,12 @@ public class FlashCard : IUserOwned
     // Longer than any URL the image stores make, with room to spare.
     public const int MaxImageUrlLength = 400;
 
+    // Set when the card is saved, and null for cards made before it was recorded (0016-*.sql).
+    public DateTimeOffset? CreatedAt { get; set; }
+
+    // How the card was added, or null when that's unknown, as for cards made before it was recorded.
+    public CardSource? Source { get; set; }
+
     // The card is returned as it is, and callers only ever see their own, so the owner isn't part of it.
     [JsonIgnore]
     public int UserId { get; set; }

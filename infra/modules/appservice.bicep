@@ -35,6 +35,9 @@ param frontendBaseUrl string
 @description('Google OAuth client ID whose ID tokens the API accepts for sign-in.')
 param googleClientId string
 
+@description('Emails or subjects (e.g. google:<sub>) of the users who may use the admin pages. Empty means nobody.')
+param adminUsers string[] = []
+
 @description('Secret token that signs in as the service user, for the smoke and load tests.')
 @secure()
 param serviceToken string
@@ -131,6 +134,7 @@ resource appSettings 'Microsoft.Web/sites/config@2024-11-01' = {
       WEBSITE_ENABLE_SYNC_UPDATE_SITE: 'true'
     },
     toObject(range(0, length(corsAllowedOrigins)), i => 'Cors__AllowedOrigins__${i}', i => corsAllowedOrigins[i]),
+    toObject(range(0, length(adminUsers)), i => 'Admin__Users__${i}', i => adminUsers[i]),
     // Without an endpoint and key the API answers picture and suggestion requests with a 503, and cards go without
     // pictures and the page without suggestions. The endpoints are the resource's Foundry and Azure OpenAI ones, on
     // its subdomain (modules/foundry.bicep names it after the resource).

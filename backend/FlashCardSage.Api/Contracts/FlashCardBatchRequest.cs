@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using FlashCardSage.Api.Models;
 
 namespace FlashCardSage.Api.Contracts;
 
@@ -11,4 +12,8 @@ public class FlashCardBatchRequest
     [Required]
     [MaxLength(MaxCards)]
     public List<FlashCardRequest> Cards { get; set; } = [];
+
+    // How the cards were added, such as from a document scan or a Preply import. Manual when it's left out.
+    [EnumDataType(typeof(CardSource))]
+    public CardSource? Source { get; set; }
 }

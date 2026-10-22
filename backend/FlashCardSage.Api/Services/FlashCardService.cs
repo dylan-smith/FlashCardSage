@@ -75,7 +75,8 @@ public class FlashCardService(
             .FirstOrDefaultAsync(card => card.Id == id);
     }
 
-    public async Task<CardResult> CreateAsync(FlashCardRequest request)
+    // Adds the card, recording how it was added. The request's own Source isn't read: callers decide it.
+    public async Task<CardResult> CreateAsync(FlashCardRequest request, CardSource source)
     {
         ArgumentNullException.ThrowIfNull(request);
 
@@ -92,7 +93,7 @@ public class FlashCardService(
             return new CardResult.Duplicate(clash);
         }
 
-        var card = new FlashCard { Tags = await FindOrMakeTagsAsync(tagNames) };
+        var card = new FlashCard { Tags = await FindOrMakeTagsAsync(tagNames), Source = source };
         card.SetWords(Language.Spanish, spanish);
         card.SetWords(Language.English, english);
 
@@ -210,8 +211,9 @@ public class FlashCardService(
 
     // Adds the cards, such as the ones scanned from a document, leaving out any card whose Spanish or English is
     // already on one of the user's cards or an earlier card in the list, as importing a built-in deck does, rather than
-    // refusing them all. The errors' fields start with "Cards[index].", which says which card it is.
-    public async Task<CardResult> CreateManyAsync(IReadOnlyList<FlashCardRequest> requests)
+    // refusing them all. The errors' fields start with "Cards[index].", which says which card it is. Every card added
+    // records the same source.
+    public async Task<CardResult> CreateManyAsync(IReadOnlyList<FlashCardRequest> requests, CardSource source)
     {
         ArgumentNullException.ThrowIfNull(requests);
 
@@ -237,7 +239,7 @@ public class FlashCardService(
                 continue;
             }
 
-            var card = new FlashCard { Tags = FindOrMakeTags(tags, tagNames) };
+            var card = new FlashCard { Tags = FindOrMakeTags(tags, tagNames), Source = source };
             card.SetWords(Language.Spanish, spanish);
             card.SetWords(Language.English, english);
             taken.Add(card);

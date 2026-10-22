@@ -23,6 +23,8 @@ describe('modeAt', () => {
 
   it('finds none for a page that is in no mode', () => {
     expect(modeAt('/preferences')).toBeUndefined()
+    expect(modeAt('/admin')).toBeUndefined()
+    expect(modeAt('/admin/users/3')).toBeUndefined()
     expect(modeAt('/nowhere')).toBeUndefined()
   })
 })

@@ -47,6 +47,9 @@ param sqlConnectionString string
 @minLength(1)
 param googleClientId string
 
+@description('Comma-separated emails or subjects (e.g. google:<sub>) of the users who may use the admin pages. Empty means nobody.')
+param adminUsers string = ''
+
 @description('Secret token that signs in as the service user, so the production smoke and load tests can use the API.')
 @secure()
 @minLength(32)
@@ -184,6 +187,7 @@ module appService 'modules/appservice.bicep' = {
     corsAllowedOrigins: union([storage.outputs.frontendOrigin], [replace(storage.outputs.primaryWebEndpoint, '.net/', '.net')])
     frontendBaseUrl: storage.outputs.frontendOrigin
     googleClientId: googleClientId
+    adminUsers: empty(adminUsers) ? [] : map(split(adminUsers, ','), u => trim(u))
     serviceToken: serviceToken
     translatorName: translator.outputs.name
     // By name rather than from the module's outputs, which there aren't when it isn't deployed.

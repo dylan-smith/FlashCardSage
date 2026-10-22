@@ -191,6 +191,19 @@ public class CardToolsTests
         Assert.Equal(2, await dbContext.FlashCards.CountAsync());
     }
 
+    [Fact]
+    public async Task CreateCard_And_CreateCards_RecordThatTheCardsCameOverMcp()
+    {
+        await using var dbContext = TestDb.Create();
+        var tools = CreateTools(dbContext);
+
+        await tools.CreateCardAsync(["el gato"], ["the cat"]);
+        await tools.CreateCardsAsync([new CardInput(["el perro"], ["the dog"])]);
+
+        Assert.Equal(
+            [CardSource.Mcp, CardSource.Mcp], await dbContext.FlashCards.Select(card => card.Source).ToListAsync());
+    }
+
     [Theory]
     [InlineData(0)]
     [InlineData(101)]

@@ -67,6 +67,12 @@ describe('importing from a document', () => {
       api('/flashcards'),
       api('/decks'),
     ])
+    expect(JSON.parse(posts[0].init?.body as string)).toEqual({
+      spanish: ['nadar'],
+      english: ['to swim'],
+      tags: [],
+      source: 'Document',
+    })
     expect(JSON.parse(posts[1].init?.body as string)).toEqual({
       name: 'Lección 3',
       flashCardIds: [8],
@@ -98,6 +104,10 @@ describe('importing from a document', () => {
       'href',
       '/decks/50',
     )
+    const batch = calls.find('POST', '/flashcards/batch')
+    expect(JSON.parse(batch?.init?.body as string)).toMatchObject({
+      source: 'Document',
+    })
     // The cards go in the deck the user already has, whatever its case.
     const patch = calls.find('PATCH')
     expect(patch?.url).toBe(api('/decks/50/cards'))
