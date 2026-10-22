@@ -55,6 +55,7 @@ var slowApiName = 'FlashCardSage slow API'
 var slowPageLoadsName = 'FlashCardSage slow page loads'
 var browserErrorsName = 'FlashCardSage browser errors'
 var browserApiFailuresName = 'FlashCardSage browser API call failures'
+var browserSignInRejectionsName = 'FlashCardSage browser sign-in rejections'
 var failureAnomaliesName = 'Failure Anomalies - ${last(split(appInsightsId, '/'))}'
 var resourceHealthName = 'FlashCardSage resource health'
 var serviceHealthName = 'FlashCardSage service health'
@@ -107,6 +108,10 @@ var alertSteps = union(
       'On the *Frontend* tab of the ${workbookLink}, check *Browser calls to the API* for the calls and result codes that failed.'
       'If the *API* tab shows the same failures, follow the steps for *FlashCardSage API server errors*.'
       'If it doesn\'t, the calls never reached the API: look for CORS errors (the allowed origin is set in `infra/modules/appservice.bicep`), network errors, or the API being down or cold-starting.'
+    ]
+    '${browserSignInRejectionsName}': [
+      'On the *Frontend* tab of the ${workbookLink}, check *Browser calls to the API* for the 401s. A few sessions with a 401 followed by a 200 a few seconds later are users whose sign-in expired and who signed in again; if that\'s all it is, close the alert.'
+      'If sessions keep getting 401s after signing in again, the API is rejecting valid sign-ins. Check whether it started with a deployment (${ciRunsLink}), especially a change to `backend/FlashCardSage.Api/Authentication/` or the `Authentication__Google__ClientId` app setting, and revert the change on `main`.'
     ]
     '${failureAnomaliesName}': apiServerErrorSteps
     '${resourceHealthName}': [
@@ -756,13 +761,15 @@ resource browserErrors 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
   }
 }
 
-// A log alert rather than the dependencies/failed metric, which can't leave out the deploy pause.
+// A log alert rather than the dependencies/failed metric, which can't leave out the deploy pause. A 401 means the
+// user's sign-in expired, and one expired session fails every call a page load makes, so a single user passed the
+// threshold on their own; 401s get their own rule below.
 resource browserApiFailures 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
   name: browserApiFailuresName
   location: location
   properties: {
     displayName: browserApiFailuresName
-    description: 'More than 5 API calls from the frontend failed in an hour (network, CORS or server errors), not counting while a deployment has the API paused.'
+    description: 'More than 5 API calls from the frontend failed in an hour (network, CORS or server errors), not counting 401s or while a deployment has the API paused.'
     severity: 2
     enabled: true
     scopes: [workspaceId]
@@ -772,7 +779,41 @@ resource browserApiFailures 'Microsoft.Insights/scheduledQueryRules@2023-12-01' 
     criteria: {
       allOf: [
         {
-          query: '${deployPausesQuery}AppDependencies\n| where AppRoleName == "${frontendRoleName}" and not(Success)\n${outsideDeployPauses}| summarize Failures = sum(ItemCount)\n| where Failures > 5'
+          query: '${deployPausesQuery}AppDependencies\n| where AppRoleName == "${frontendRoleName}" and not(Success) and ResultCode != "401"\n${outsideDeployPauses}| summarize Failures = sum(ItemCount)\n| where Failures > 5'
+          timeAggregation: 'Count'
+          operator: 'GreaterThan'
+          threshold: 0
+          failingPeriods: {
+            numberOfEvaluationPeriods: 1
+            minFailingPeriodsToAlert: 1
+          }
+        }
+      ]
+    }
+    actions: {
+      actionGroups: [actionGroup.id]
+    }
+  }
+}
+
+// Expired sign-ins make a handful of 401s per user, so the threshold is high enough that only the API rejecting
+// valid sign-ins, which fails every call for everyone, reaches it.
+resource browserSignInRejections 'Microsoft.Insights/scheduledQueryRules@2023-12-01' = {
+  name: browserSignInRejectionsName
+  location: location
+  properties: {
+    displayName: browserSignInRejectionsName
+    description: 'The API rejected more than 20 calls from the frontend as not signed in (401) in an hour.'
+    severity: 2
+    enabled: true
+    scopes: [workspaceId]
+    evaluationFrequency: 'PT15M'
+    windowSize: 'PT1H'
+    autoMitigate: true
+    criteria: {
+      allOf: [
+        {
+          query: 'AppDependencies\n| where AppRoleName == "${frontendRoleName}" and ResultCode == "401"\n| summarize Rejections = sum(ItemCount)\n| where Rejections > 20'
           timeAggregation: 'Count'
           operator: 'GreaterThan'
           threshold: 0
