@@ -64,6 +64,8 @@ function user(
     practiceResults: 0,
     lastPracticedAt: null,
     connectedApps: 0,
+    score: 0,
+    maximumScore: 0,
     ...fields,
   }
 }
@@ -78,6 +80,8 @@ const maria = user(2, {
   practiceResults: 12,
   lastPracticedAt: '2026-10-19T08:00:00Z',
   connectedApps: 1,
+  score: 455,
+  maximumScore: 700,
 })
 const tom = user(3, {
   displayName: null,
@@ -85,6 +89,8 @@ const tom = user(3, {
   provider: 'test',
   email: null,
   lastSeenAt: '2026-10-21T10:30:00Z',
+  cards: 1,
+  maximumScore: 100,
 })
 const never = user(4, { displayName: 'Never Seen' })
 
@@ -197,7 +203,8 @@ describe('admin page', () => {
         'test',
         formatDate(tom.createdAt),
         formatDateTime(tom.lastSeenAt),
-        '0',
+        '1',
+        '0 / 100 (0%)',
         '0',
         '0',
         '0',
@@ -211,6 +218,7 @@ describe('admin page', () => {
         formatDate(maria.createdAt),
         formatDateTime(maria.lastSeenAt),
         '7',
+        '455 / 700 (65%)',
         '2',
         '3',
         '12',
@@ -224,6 +232,7 @@ describe('admin page', () => {
         formatDate(never.createdAt),
         'Unknown',
         '0',
+        'No cards',
         '0',
         '0',
         '0',
@@ -411,6 +420,7 @@ describe('admin user page', () => {
         ['Email', 'maria@example.com'],
         ['Sign-in', 'google:2'],
         ['Last seen', formatDateTime(maria.lastSeenAt)],
+        ['Score', '455 / 700 (65%)'],
         ['Show pictures', 'On'],
         ['Suggest cards', 'Off'],
         ['Got it', '7'],

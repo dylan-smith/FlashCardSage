@@ -27,6 +27,7 @@ import {
   formatDate,
   formatDateTime,
   formatDay,
+  formatScore,
   sourceLabel,
   userName,
 } from '../../lib/adminFormat'
@@ -102,6 +103,7 @@ function Profile({ detail }: { detail: AdminUserDetail }) {
           ['Signed up', formatDateTime(user.createdAt)],
           ['Last seen', formatDateTime(user.lastSeenAt)],
           ['Cards', String(user.cards)],
+          ['Score', formatScore(user)],
           ['Decks', String(user.decks)],
           ['Tags', String(user.tags)],
           ...Object.entries(preferenceLabels).map(
