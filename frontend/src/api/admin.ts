@@ -45,6 +45,9 @@ export type AdminUserSummary = {
   practiceResults: number
   lastPracticedAt: string | null
   connectedApps: number
+  // The total of their cards' practice scores, out of the most their cards could score.
+  score: number
+  maximumScore: number
 }
 
 export type AdminPracticeResult = {

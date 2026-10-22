@@ -7,6 +7,14 @@ export function userName(user: AdminUserSummary) {
   return user.displayName ?? user.subject
 }
 
+// The user's total score out of the most their cards could score, and as a percentage, as on their scores page. A
+// user with no cards has nothing to score.
+export function formatScore(user: AdminUserSummary) {
+  return user.maximumScore === 0
+    ? 'No cards'
+    : `${user.score} / ${user.maximumScore} (${Math.round((user.score / user.maximumScore) * 100)}%)`
+}
+
 // A day, in the viewer's own locale, or the fallback when there's none (such as for what was made before it was
 // recorded).
 export function formatDate(date: string | null, fallback = 'Unknown') {
