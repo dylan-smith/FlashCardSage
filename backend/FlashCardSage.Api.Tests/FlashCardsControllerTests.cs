@@ -1,3 +1,5 @@
+using System.Net;
+using System.Net.Http.Json;
 using FlashCardSage.Api.Contracts;
 using FlashCardSage.Api.Controllers;
 using FlashCardSage.Api.Data;
@@ -5,12 +7,14 @@ using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
 
-public class FlashCardsControllerTests
+public class FlashCardsControllerTests(WebApplicationFactory<Program> factory)
+    : IClassFixture<WebApplicationFactory<Program>>
 {
     [Fact]
     public async Task Create_TrimsBothSides_AndPersistsFlashCard()
@@ -736,10 +740,91 @@ public class FlashCardsControllerTests
         ActionResultAssert.Conflict(result.Result, FlashCardsController.BatchClashMessage);
     }
 
+    [Fact]
+    public async Task Create_And_CreateMany_RecordTheSourceSent_OrManual()
+    {
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext);
+
+        await controller.Create(new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"] });
+        await controller.Create(
+            new FlashCardRequest { Spanish = ["el perro"], English = ["the dog"], Source = CardSource.Suggested });
+        await controller.CreateMany(new FlashCardBatchRequest
+        {
+            Cards = [new FlashCardRequest { Spanish = ["la casa"], English = ["the house"] }],
+            Source = CardSource.Preply
+        });
+        await controller.CreateMany(new FlashCardBatchRequest
+        {
+            Cards = [new FlashCardRequest { Spanish = ["la vaca"], English = ["the cow"] }]
+        });
+
+        var sources = await dbContext.FlashCards.OrderBy(card => card.Id).Select(card => card.Source).ToListAsync();
+        Assert.Equal([CardSource.Manual, CardSource.Suggested, CardSource.Preply, CardSource.Manual], sources);
+    }
+
+    [Fact]
+    public async Task Update_KeepsTheCardsSource()
+    {
+        await using var dbContext = TestDb.Create();
+        var controller = CreateController(dbContext);
+        var created = ActionResultAssert.Created<FlashCard>((await controller.Create(
+            new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"], Source = CardSource.Document })).Result);
+
+        await controller.Update(
+            created.Id, new FlashCardRequest { Spanish = ["el gato"], English = ["the cat"], Source = CardSource.Preply });
+
+        Assert.Equal(CardSource.Document, (await dbContext.FlashCards.SingleAsync()).Source);
+    }
+
+    [Fact]
+    public async Task Create_And_CreateMany_TakeTheSourceByName()
+    {
+        using var client = TestApp.CreateSignedInClient(factory);
+
+        var created = await PostJsonAsync(
+            client, "/api/flashcards", """{ "spanish": ["el gato"], "english": ["the cat"], "source": "Document" }""");
+        var batch = await PostJsonAsync(
+            client,
+            "/api/flashcards/batch",
+            """{ "cards": [{ "spanish": ["el perro"], "english": ["the dog"] }], "source": "Duolingo" }""");
+
+        Assert.Equal(HttpStatusCode.Created, created.StatusCode);
+        Assert.Equal(CardSource.Document, (await created.Content.ReadFromJsonAsync<SourceResponse>())?.Source);
+        Assert.Equal(HttpStatusCode.OK, batch.StatusCode);
+        Assert.Equal(CardSource.Duolingo, (await batch.Content.ReadFromJsonAsync<BatchSourceResponse>())?.Cards.Single().Source);
+    }
+
+    [Theory]
+    [InlineData("/api/flashcards", "\"Fax\"")]
+    [InlineData("/api/flashcards", "99")]
+    [InlineData("/api/flashcards/batch", "\"Fax\"")]
+    public async Task Create_ReturnsBadRequest_ForAnUnknownSource(string path, string source)
+    {
+        using var client = TestApp.CreateSignedInClient(factory);
+        var body = path.EndsWith("/batch", StringComparison.Ordinal)
+            ? $$"""{ "cards": [{ "spanish": ["el gato"], "english": ["the cat"] }], "source": {{source}} }"""
+            : $$"""{ "spanish": ["el gato"], "english": ["the cat"], "source": {{source}} }""";
+
+        var response = await PostJsonAsync(client, path, body);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+    }
+
+    private static async Task<HttpResponseMessage> PostJsonAsync(HttpClient client, string path, string json)
+    {
+        using var content = new StringContent(json, System.Text.Encoding.UTF8, "application/json");
+        return await client.PostAsync(path, content);
+    }
+
     private static FlashCardsController CreateController(FlashCardDbContext dbContext, FakeImageStore? store = null)
     {
         return new FlashCardsController(
             new FlashCardService(dbContext, store ?? new FakeImageStore(), NullLogger<FlashCardService>.Instance),
             NullLogger<FlashCardsController>.Instance);
     }
+
+    private sealed record SourceResponse(CardSource? Source);
+
+    private sealed record BatchSourceResponse(List<SourceResponse> Cards);
 }

@@ -112,6 +112,26 @@ public class SystemDeckImporterTests
         Assert.False(await checkContext.GeneratedImages.AnyAsync());
     }
 
+    // The built-in cards themselves have no source.
+    [Fact]
+    public async Task ImportCardAsync_And_ImportDeckAsync_RecordThatTheCardsCameFromABuiltInDeck()
+    {
+        var databaseName = await SystemDeckTestData.CreateDatabaseWithDecksAsync(Days);
+        await using var dbContext = TestDb.Create(databaseName);
+        var importer = CreateImporter(dbContext);
+        var days = await importer.SystemDecks().SingleAsync(deck => deck.Name == "Days");
+        var lunes = days.FlashCards.Single(card => card.Spanish.Single() == "lunes");
+
+        await importer.ImportCardAsync(days.Id, lunes.Id, CancellationToken.None);
+        await importer.ImportDeckAsync(days.Id, CancellationToken.None);
+
+        Assert.Equal(
+            [CardSource.SystemDeck, CardSource.SystemDeck],
+            await dbContext.FlashCards.Select(card => card.Source).ToListAsync());
+        var systemCards = (await importer.SystemDecks().SingleAsync(deck => deck.Name == "Days")).FlashCards;
+        Assert.All(systemCards, card => Assert.Null(card.Source));
+    }
+
     // The user's decks named like the built-in one, whatever their case, are skipped over.
     [Fact]
     public async Task UnusedDeckNameAsync_NumbersTheName_PastTheUsersDecks()

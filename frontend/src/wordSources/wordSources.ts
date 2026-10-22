@@ -1,3 +1,4 @@
+import type { CardSource } from '../api/flashCards'
 import { duolingoGroups } from '../duolingo/duolingoCards'
 import { duolingoBookmarkletHref } from '../duolingo/sendToFlashCardSage'
 import { groupWords } from '../preply/groupWords'
@@ -28,6 +29,8 @@ export type WordSource = {
   id: WordSourceId
   // The site's name, which names its tile, its deck and its telemetry events, and its logo, on the tile.
   name: string
+  // Recorded on the cards brought in from the site.
+  cardSource: CardSource
   logo: Logo
   // Where the bookmarklet runs, and so where its messages come from.
   origin: string
@@ -43,6 +46,7 @@ export type WordSource = {
 export const preplySource: WordSource = {
   id: 'preply',
   name: 'Preply',
+  cardSource: 'Preply',
   logo: preplyLogo,
   origin: 'https://preply.com',
   wordsUrl: 'https://preply.com/en/practice/vocab-bank?subject=spanish',
@@ -54,6 +58,7 @@ export const preplySource: WordSource = {
 export const duolingoSource: WordSource = {
   id: 'duolingo',
   name: 'Duolingo',
+  cardSource: 'Duolingo',
   logo: duolingoLogo,
   origin: 'https://www.duolingo.com',
   wordsUrl: 'https://www.duolingo.com/practice-hub/words',

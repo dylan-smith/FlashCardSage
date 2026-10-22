@@ -108,6 +108,7 @@ export function WordSourceImport({
   // every word's been added or removed, they're forgotten, so a reload doesn't bring them back.
   const cards = useCandidateImport({
     deckName,
+    cardSource: source.cardSource,
     toastKey: `${source.id}-added`,
     events: {
       addedOne: `${source.name}CardAdded`,

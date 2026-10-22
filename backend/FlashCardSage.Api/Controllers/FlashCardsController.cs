@@ -56,7 +56,7 @@ public class FlashCardsController(
     [HttpPost]
     public async Task<ActionResult<FlashCard>> Create([FromBody] FlashCardRequest request)
     {
-        return ToResponse(await flashCards.CreateAsync(request));
+        return ToResponse(await flashCards.CreateAsync(request, request.Source ?? CardSource.Manual));
     }
 
     [HttpPut("{id:int}")]
@@ -76,7 +76,7 @@ public class FlashCardsController(
     [HttpPost("batch")]
     public async Task<ActionResult<FlashCardBatchResponse>> CreateMany([FromBody] FlashCardBatchRequest request)
     {
-        return await flashCards.CreateManyAsync(request.Cards) switch
+        return await flashCards.CreateManyAsync(request.Cards, request.Source ?? CardSource.Manual) switch
         {
             CardResult.CreatedMany created => Ok(new FlashCardBatchResponse(created.Cards, created.SkippedCount)),
             var result => ToResponse(result)

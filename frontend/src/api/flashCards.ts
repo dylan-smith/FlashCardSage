@@ -48,6 +48,11 @@ export type FlashCardFields = {
   tags: string[]
 }
 
+// How a new card was added, by the name the API stores. The API takes Manual when none is sent, and records the others
+// it can be (built-in decks and AI assistants) itself.
+export type CardSource =
+  'Manual' | 'Suggested' | 'Document' | 'Preply' | 'Duolingo'
+
 export const flashCardsUrl = `${apiBaseUrl}/api/flashcards`
 
 export function listFlashCards() {
@@ -57,12 +62,12 @@ export function listFlashCards() {
 async function saveFlashCard(
   url: string,
   method: 'POST' | 'PUT',
-  fields: FlashCardFields,
+  body: FlashCardFields & { source?: CardSource },
 ) {
   const card = await sendJson<FlashCard>(
     method,
     url,
-    fields,
+    body,
     'Unable to save flash card.',
   )
   // A new card, or a new name on a card, adds to the counts.
@@ -70,8 +75,8 @@ async function saveFlashCard(
   return card
 }
 
-export function createFlashCard(fields: FlashCardFields) {
-  return saveFlashCard(flashCardsUrl, 'POST', fields)
+export function createFlashCard(fields: FlashCardFields, source?: CardSource) {
+  return saveFlashCard(flashCardsUrl, 'POST', { ...fields, source })
 }
 
 export function updateFlashCard(id: number, fields: FlashCardFields) {
@@ -86,11 +91,14 @@ export type FlashCardBatch = {
 }
 
 // Adds the cards, such as the ones scanned from a document, in one request.
-export function createFlashCards(cards: FlashCardFields[]) {
+export function createFlashCards(
+  cards: FlashCardFields[],
+  source?: CardSource,
+) {
   return sendJson<FlashCardBatch>(
     'POST',
     `${flashCardsUrl}/batch`,
-    { cards },
+    { cards, source },
     'Unable to add the cards.',
   )
 }

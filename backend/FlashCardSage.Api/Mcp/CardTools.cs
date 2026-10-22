@@ -71,7 +71,8 @@ public class CardTools(FlashCardService flashCards, DeckService deckService)
         [Description("Names of tags to put on the card. A name the user hasn't used yet makes a new tag.")] string[]? tags = null)
     {
         var result = await flashCards.CreateAsync(
-            new FlashCardRequest { Spanish = [.. spanish ?? []], English = [.. english ?? []], Tags = [.. tags ?? []] });
+            new FlashCardRequest { Spanish = [.. spanish ?? []], English = [.. english ?? []], Tags = [.. tags ?? []] },
+            CardSource.Mcp);
 
         return result is CardResult.Created(var card) ? CardSummary.From(card) : throw ToolErrors.For(result);
     }
@@ -86,7 +87,7 @@ public class CardTools(FlashCardService flashCards, DeckService deckService)
             throw ToolErrors.Error($"Give between 1 and {MaxBatchSize} cards to add at once.");
         }
 
-        var result = await flashCards.CreateManyAsync([.. cards.Select(card => card.ToRequest())]);
+        var result = await flashCards.CreateManyAsync([.. cards.Select(card => card.ToRequest())], CardSource.Mcp);
 
         return result is CardResult.CreatedMany created
             ? new CardsCreated(
