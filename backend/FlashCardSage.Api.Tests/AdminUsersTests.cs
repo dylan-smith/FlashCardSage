@@ -58,7 +58,7 @@ public class AdminUsersTests
     private static AdminUsers FromSettings(params string[] entries)
     {
         var configuration = new ConfigurationBuilder()
-            .AddInMemoryCollection(entries.Select((entry, i) => KeyValuePair.Create($"Admin:Users:{i}", (string?)entry)))
+            .AddInMemoryCollection(entries.Select((entry, i) => KeyValuePair.Create<string, string?>($"Admin:Users:{i}", entry)))
             .Build();
 
         return AdminUsers.FromConfiguration(configuration);
