@@ -29,11 +29,12 @@ test('an admin can see every user and what they have', async ({
     .getByRole('row')
     .filter({ hasText: otherName })
   await expect(row).toHaveCount(1)
-  // Their cards, decks, tags and practice results.
+  // Their cards, score (I was close scores nothing), decks, tags and practice results.
   await expect(row.getByRole('cell').nth(5)).toHaveText('1')
-  await expect(row.getByRole('cell').nth(6)).toHaveText('1')
+  await expect(row.getByRole('cell').nth(6)).toHaveText('0 / 100 (0%)')
   await expect(row.getByRole('cell').nth(7)).toHaveText('1')
   await expect(row.getByRole('cell').nth(8)).toHaveText('1')
+  await expect(row.getByRole('cell').nth(9)).toHaveText('1')
   // Move off the admin icon so its tooltip closes: the tooltip sits outside the landmarks, which axe flags.
   await page.mouse.move(0, 0)
   await expect(page.getByRole('tooltip')).toBeHidden()

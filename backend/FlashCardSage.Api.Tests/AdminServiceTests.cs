@@ -5,6 +5,7 @@ using FlashCardSage.Api.Data;
 using FlashCardSage.Api.Models;
 using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Tests.Fakes;
+using Microsoft.EntityFrameworkCore;
 
 namespace FlashCardSage.Api.Tests;
 
@@ -81,19 +82,44 @@ public sealed class AdminServiceTests : IDisposable
 
         var users = await service.ListUsersAsync();
 
+        // Alice's practiced card scores 50 for its last Got it!, and her other card nothing.
         Assert.Equal(
             [
                 new AdminUserSummary(
                     AliceId, "test:alice", "test", "Alice", "alice@example.com", Now.AddDays(-60), Now.AddDays(-1),
-                    Cards: 2, Decks: 1, Tags: 1, PracticeResults: 3, Now.AddDays(-2), ConnectedApps: 1),
+                    Cards: 2, Decks: 1, Tags: 1, PracticeResults: 3, Now.AddDays(-2), ConnectedApps: 1,
+                    Score: 50, MaximumScore: 200),
                 new AdminUserSummary(
                     BobId, "google:123", "google", "Bob", null, Now.AddDays(-5), Now.AddDays(-20),
-                    Cards: 1, Decks: 0, Tags: 0, PracticeResults: 0, null, ConnectedApps: 0),
+                    Cards: 1, Decks: 0, Tags: 0, PracticeResults: 0, null, ConnectedApps: 0,
+                    Score: 0, MaximumScore: 100),
                 new AdminUserSummary(
                     CarolId, "test:carol", "test", "Carol", null, Now.AddDays(-1), null,
-                    Cards: 0, Decks: 0, Tags: 0, PracticeResults: 0, null, ConnectedApps: 0)
+                    Cards: 0, Decks: 0, Tags: 0, PracticeResults: 0, null, ConnectedApps: 0,
+                    Score: 0, MaximumScore: 0)
             ],
             users);
+    }
+
+    [Fact]
+    public async Task ListUsersAndGetUser_TotalEachPersonsCardScores_FromTheirLastRunOfGotIt()
+    {
+        var service = await CreateServiceAsync();
+        var bobsCardId = serviceDbContext!.FlashCards.IgnoreQueryFilters().Single(card => card.UserId == BobId).Id;
+        // Oldest first: a miss, then more Got it! in a row than it takes to score the most.
+        serviceDbContext.PracticeResults.AddRange(
+            new[] { PracticeOutcome.Failed }
+                .Concat(Enumerable.Repeat(PracticeOutcome.GotIt, PracticeScore.MaximumStreak + 1))
+                .Select(outcome => new PracticeResult { FlashCardId = bobsCardId, Outcome = outcome, PracticedAt = Now }));
+        await serviceDbContext.SaveChangesAsync();
+
+        var users = await service.ListUsersAsync();
+
+        Assert.Equal(
+            [(AliceId, 50, 200), (BobId, 100, 100), (CarolId, 0, 0)],
+            users.Select(user => (user.Id, user.Score, user.MaximumScore)));
+        var bob = (await service.GetUserAsync(BobId))!.User;
+        Assert.Equal((100, 100), (bob.Score, bob.MaximumScore));
     }
 
     [Fact]

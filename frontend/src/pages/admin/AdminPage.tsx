@@ -15,6 +15,7 @@ import { matchesSearch } from '../../lib/cardSearch'
 import {
   formatDate,
   formatDateTime,
+  formatScore,
   sourceLabel,
   userName,
 } from '../../lib/adminFormat'
@@ -118,6 +119,7 @@ function UsersTable({ users }: { users: AdminUserSummary[] }) {
           <TableCell>Signed up</TableCell>
           <TableCell>Last seen</TableCell>
           <TableCell align="right">Cards</TableCell>
+          <TableCell align="right">Score</TableCell>
           <TableCell align="right">Decks</TableCell>
           <TableCell align="right">Tags</TableCell>
           <TableCell align="right">Practice results</TableCell>
@@ -144,6 +146,9 @@ function UsersTable({ users }: { users: AdminUserSummary[] }) {
               {formatDateTime(user.lastSeenAt)}
             </TableCell>
             <TableCell align="right">{user.cards}</TableCell>
+            <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+              {formatScore(user)}
+            </TableCell>
             <TableCell align="right">{user.decks}</TableCell>
             <TableCell align="right">{user.tags}</TableCell>
             <TableCell align="right">{user.practiceResults}</TableCell>

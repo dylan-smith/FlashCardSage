@@ -206,6 +206,7 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
             .GroupBy(result => result.FlashCard.UserId)
             .Select(group => new { UserId = group.Key, LastPracticedAt = group.Max(result => result.PracticedAt) })
             .ToDictionaryAsync(item => item.UserId, item => item.LastPracticedAt, cancellationToken);
+        var scores = await ScoresByUserAsync(userId, cancellationToken);
 
         return people
             .Select(user => new AdminUserSummary(
@@ -221,8 +222,30 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
                 tags.GetValueOrDefault(user.Id),
                 practiceResults.GetValueOrDefault(user.Id),
                 lastPracticedAt.TryGetValue(user.Id, out var practicedAt) ? practicedAt : null,
-                connectedApps.GetValueOrDefault(user.Id)))
+                connectedApps.GetValueOrDefault(user.Id),
+                scores.GetValueOrDefault(user.Id),
+                cards.GetValueOrDefault(user.Id) * PracticeScore.Maximum))
             .ToList();
+    }
+
+    // The total of each user's (or just the user with this ID's) card scores, as FlashCardScoring scores them. A card
+    // that's never been practiced scores nothing, so only the practiced ones are needed. Every result's outcome is
+    // loaded, newest first, and grouped in memory, as each person's scores are.
+    private async Task<Dictionary<int, int>> ScoresByUserAsync(int? userId, CancellationToken cancellationToken)
+    {
+        var results = await PracticeResults()
+            .Where(result => userId == null || result.FlashCard.UserId == userId)
+            .OrderByDescending(result => result.Id)
+            .Select(result => new { result.FlashCard.UserId, result.FlashCardId, result.Outcome })
+            .ToListAsync(cancellationToken);
+
+        return results
+            .GroupBy(result => result.UserId)
+            .ToDictionary(
+                user => user.Key,
+                user => user
+                    .GroupBy(result => result.FlashCardId)
+                    .Sum(card => PracticeScore.FromOutcomes(card.Select(result => result.Outcome))));
     }
 
     // The person's practice. A person's results are few enough to group in memory.
