@@ -169,6 +169,7 @@ function DecksPage() {
         <Button
           variant="outlined"
           component="label"
+          role={undefined}
           disabled={creating.busy}
           sx={{ mt: 2 }}
         >
