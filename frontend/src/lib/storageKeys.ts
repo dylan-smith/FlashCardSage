@@ -7,6 +7,8 @@ export const storageKeys = {
   // localStorage, so a suggestions section stays collapsed across reloads once the user collapses it.
   suggestionsCollapsed: 'flashcardsage.suggestionsCollapsed',
   tagSuggestionsCollapsed: 'flashcardsage.tagSuggestionsCollapsed',
+  // localStorage, so practice stays in listening mode across reloads once the user turns it on.
+  practiceListening: 'flashcardsage.practiceListening',
   // sessionStorage, kept for the tab, so the words a site's bookmarklet sent are still here after the user signs in or
   // reloads the page.
   wordHandoff: 'flashcardsage.wordHandoff',

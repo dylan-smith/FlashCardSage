@@ -95,6 +95,42 @@ test.describe('Practice', () => {
     await expect(page.getByRole('alert')).toBeHidden()
   })
 
+  test('hides the Spanish in listening mode until the card is revealed', async ({
+    page,
+  }) => {
+    await page.goto('/practice')
+    await page.getByRole('switch', { name: 'Listening mode' }).click()
+
+    // Only the audio, whichever card it is.
+    await expect(
+      page.getByRole('button', { name: /^(Listen|Stop)$/ }),
+    ).toBeVisible()
+    for (const card of cards) {
+      await expect(page.getByText(card.spanish, { exact: true })).toBeHidden()
+      await expect(page.getByText(card.english, { exact: true })).toBeHidden()
+    }
+
+    await page.getByRole('button', { name: 'Reveal' }).click()
+    await expect(page.getByRole('button', { name: 'Got it!' })).toBeVisible()
+
+    // Both sides of the card, shown with the buttons.
+    const shown = await Promise.all(
+      cards.map(
+        async (card) =>
+          (await page.getByText(card.spanish, { exact: true }).isVisible()) &&
+          (await page.getByText(card.english, { exact: true }).isVisible()),
+      ),
+    )
+    expect(shown.filter(Boolean)).toHaveLength(1)
+    await expect(page.getByRole('alert')).toBeHidden()
+
+    // Still on after a reload.
+    await page.reload()
+    await expect(
+      page.getByRole('switch', { name: 'Listening mode' }),
+    ).toBeChecked()
+  })
+
   test('keeps a running score for the session', async ({ page }) => {
     await page.goto('/practice')
     const sessionScore = page.getByText(/^Session score/)

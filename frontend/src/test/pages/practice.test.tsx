@@ -5,6 +5,7 @@ import type { Deck } from '../../api/decks'
 import type { Tag } from '../../api/flashCards'
 import type { PackCard, PracticePack } from '../../api/practice'
 import { defaultPreferences } from '../../api/preferences'
+import { storageKeys } from '../../lib/storageKeys'
 import { writeStoredPack } from '../../practice/pack'
 import { enqueueResult, readQueue } from '../../practice/queue'
 import { forgetSpeech } from '../../practice/speech'
@@ -485,16 +486,16 @@ describe('practicing', () => {
     // The audio elements the page has played, in order. jsdom has no playing of its own, so it's stood in for.
     function stubAudio() {
       const played: HTMLMediaElement[] = []
-      vi.spyOn(HTMLMediaElement.prototype, 'play').mockImplementation(function (
-        this: HTMLMediaElement,
-      ) {
-        played.push(this)
-        return Promise.resolve()
-      })
+      const play = vi
+        .spyOn(HTMLMediaElement.prototype, 'play')
+        .mockImplementation(function (this: HTMLMediaElement) {
+          played.push(this)
+          return Promise.resolve()
+        })
       const pause = vi
         .spyOn(HTMLMediaElement.prototype, 'pause')
         .mockImplementation(() => {})
-      return { played, pause }
+      return { played, play, pause }
     }
 
     // The clip finishes, or can't be played.
@@ -630,6 +631,139 @@ describe('practicing', () => {
       expect(screen.getByRole('button', { name: 'Listen' })).toBeDisabled()
       backOnline()
       expect(screen.getByRole('button', { name: 'Listen' })).toBeEnabled()
+    })
+
+    describe('listening mode', () => {
+      const dogUrl = 'https://audio.test/perro.mp3'
+      const speech = (call: Call) =>
+        jsonResponse({
+          urls: [
+            (call.body as { texts: string[] }).texts[0] === 'el gato'
+              ? gatoUrl
+              : dogUrl,
+          ],
+        })
+
+      function listeningSwitch() {
+        return screen.getByRole('switch', { name: 'Listening mode' })
+      }
+
+      it('is off at first, and hides the Spanish once turned on', async () => {
+        const user = userEvent.setup()
+        await practice([cat], { routes: { 'POST /speech': speech } })
+
+        expect(listeningSwitch()).not.toBeChecked()
+        expect(screen.getByText('el gato')).toBeInTheDocument()
+
+        await user.click(listeningSwitch())
+
+        expect(listeningSwitch()).toBeChecked()
+        expect(screen.queryByText('el gato')).not.toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Listen' })).toBeEnabled()
+        expect(localStorage.getItem(storageKeys.practiceListening)).toBe('true')
+        expect(trackEvent).toHaveBeenCalledWith(
+          'PracticeListeningModeChanged',
+          { on: 'true' },
+        )
+      })
+
+      it('stays on when the page is opened again', async () => {
+        stubAudio()
+        localStorage.setItem(storageKeys.practiceListening, 'true')
+        await practice([cat], { routes: { 'POST /speech': speech } })
+
+        expect(listeningSwitch()).toBeChecked()
+        expect(screen.queryByText('el gato')).not.toBeInTheDocument()
+      })
+
+      it('plays the Spanish as each card comes up, and shows both sides once revealed', async () => {
+        const { played } = stubAudio()
+        localStorage.setItem(storageKeys.practiceListening, 'true')
+        const user = userEvent.setup()
+        // The second card would start in English without listening mode.
+        const { random } = await practice([cat, dog], {
+          routes: { 'POST /speech': speech },
+        })
+
+        await waitFor(() => {
+          expect(played.map((audio) => audio.src)).toEqual([gatoUrl])
+        })
+        finish(played[0])
+        expect(screen.queryByText('el gato')).not.toBeInTheDocument()
+        expect(screen.queryByText('the cat')).not.toBeInTheDocument()
+
+        await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+        expect(screen.getByText('el gato')).toBeInTheDocument()
+        expect(screen.getByText('the cat')).toBeInTheDocument()
+        expect(screen.getByRole('button', { name: 'Got it!' })).toBeEnabled()
+        // Not played again for the reveal.
+        expect(played).toHaveLength(1)
+
+        random.mockReturnValue(0.6)
+        await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+        expect(screen.queryByText('the dog')).not.toBeInTheDocument()
+        expect(screen.queryByText('el perro')).not.toBeInTheDocument()
+        await waitFor(() => {
+          expect(played.map((audio) => audio.src)).toEqual([gatoUrl, dogUrl])
+        })
+      })
+
+      it("shows no error when the browser won't play the audio by itself", async () => {
+        const { played, play } = stubAudio()
+        play.mockImplementationOnce(() =>
+          Promise.reject(new DOMException('Not allowed', 'NotAllowedError')),
+        )
+        localStorage.setItem(storageKeys.practiceListening, 'true')
+        const user = userEvent.setup()
+        await practice([cat], { routes: { 'POST /speech': speech } })
+
+        const listen = await screen.findByRole('button', { name: 'Listen' })
+        await waitFor(() => {
+          expect(listen).not.toHaveAttribute('aria-busy', 'true')
+        })
+        expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+        expect(trackException).not.toHaveBeenCalled()
+
+        await user.click(listen)
+
+        await waitFor(() => {
+          expect(played.map((audio) => audio.src)).toEqual([gatoUrl])
+        })
+      })
+
+      it('shows the side picked for each card while offline', async () => {
+        const { played } = stubAudio()
+        localStorage.setItem(storageKeys.practiceListening, 'true')
+        await practice([cat, dog], {
+          roll: 0.6,
+          routes: { 'POST /speech': speech },
+        })
+        await waitFor(() => {
+          expect(played).toHaveLength(1)
+        })
+        finish(played[0])
+
+        const backOnline = goOffline()
+
+        expect(screen.getByText('the dog')).toBeInTheDocument()
+        expect(screen.queryByText('el perro')).not.toBeInTheDocument()
+        expect(listeningSwitch()).toBeChecked()
+        expect(
+          screen.getByText(/Listening mode is off while you're offline/),
+        ).toBeInTheDocument()
+
+        backOnline()
+
+        expect(screen.queryByText('the dog')).not.toBeInTheDocument()
+        expect(
+          screen.queryByText(/Listening mode is off while you're offline/),
+        ).not.toBeInTheDocument()
+        await waitFor(() => {
+          expect(played).toHaveLength(2)
+        })
+      })
     })
   })
 
