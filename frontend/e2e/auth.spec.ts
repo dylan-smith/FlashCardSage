@@ -8,9 +8,17 @@ import {
 // These start signed out, unlike the other specs.
 test.use({ storageState: { cookies: [], origins: [] } })
 
-test('shows the sign-in page until the user signs in', async ({ page }) => {
+test('shows the landing page and the sign-in until the user signs in', async ({
+  page,
+}) => {
   await page.goto('/')
 
+  await expect(
+    page.getByRole('heading', {
+      name: 'Spanish flash cards that build themselves',
+    }),
+  ).toBeVisible()
+  await expect(page.locator('video').first()).toBeVisible()
   await expect(
     page.getByRole('heading', { name: 'Sign in', exact: true }),
   ).toBeVisible()

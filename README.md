@@ -24,6 +24,7 @@ A flash card app for learning a language, with:
 - Opens with no connection once it's been opened online, and can be installed as an app (on a phone, Add to Home Screen): a service worker keeps the app itself on the device
 - Practice offline: practice picks the next card on the device from your cards and scores as last loaded, and keeps your answers there until they can be saved
 - Connect an AI assistant such as Claude, ChatGPT or Claude Code to your cards: the API's MCP server lets it list, add, change and delete your cards, tags and decks and read your practice scores, after you approve it (see [Connect an AI assistant (MCP)](#connect-an-ai-assistant-mcp))
+- A landing page for signed-out visitors (`frontend/src/pages/LandingPage.tsx`), with a short silent clip of each feature from `frontend/public/demos/` (cut from the social video's beat clips; a new cut gets a new version in its name, see `.github/scripts/deploy-frontend.sh`), and a social preview image (`og-image.png`) for shared links
 - RESTful API with OpenAPI support
 
 ## Prerequisites
