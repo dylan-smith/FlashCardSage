@@ -50,6 +50,21 @@ public sealed class AdminServiceTests : IDisposable
         Assert.Equal(1, overview.ConnectedApps);
         Assert.Equal(0, overview.CachedTranslations);
         Assert.Equal(0, overview.GeneratedImages);
+        Assert.Equal(0, overview.GeneratedAudio);
+    }
+
+    [Fact]
+    public async Task Overview_CountsCachedAudio()
+    {
+        var service = await CreateServiceAsync();
+        serviceDbContext!.GeneratedAudio.AddRange(
+            new CachedAudio { Voice = "es-MX-DaliaNeural", Text = "gato", AudioUrl = "https://audio.example.com/1.mp3" },
+            new CachedAudio { Voice = "es-MX-DaliaNeural", Text = "perro", AudioUrl = "https://audio.example.com/2.mp3" });
+        await serviceDbContext.SaveChangesAsync();
+
+        var overview = await service.GetOverviewAsync();
+
+        Assert.Equal(2, overview.GeneratedAudio);
     }
 
     [Fact]

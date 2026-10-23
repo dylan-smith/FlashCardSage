@@ -26,6 +26,7 @@ export type AdminOverview = {
   cardsBySource: CardsBySource
   cachedTranslations: number
   generatedImages: number
+  generatedAudio: number
   oAuthClients: number
   connectedApps: number
 }

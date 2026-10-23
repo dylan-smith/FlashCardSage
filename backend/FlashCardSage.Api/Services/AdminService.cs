@@ -53,6 +53,7 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
             CountBySource(sources.Where(item => personIds.Contains(item.UserId))),
             await dbContext.Translations.CountAsync(cancellationToken),
             await dbContext.GeneratedImages.CountAsync(cancellationToken),
+            await dbContext.GeneratedAudio.CountAsync(cancellationToken),
             await dbContext.OAuthClients.CountAsync(cancellationToken),
             summaries.Sum(user => user.ConnectedApps));
     }
