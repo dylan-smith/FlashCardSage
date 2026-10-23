@@ -293,10 +293,15 @@ public class DecksControllerTests
         Assert.Equal("Theirs", (await dbContext.Decks.IgnoreQueryFilters().SingleAsync()).Name);
     }
 
-    private static DecksController CreateController(FlashCardDbContext dbContext)
+    internal static DecksController CreateController(FlashCardDbContext dbContext, FakeImageStore? store = null)
     {
         return new DecksController(
             new DeckService(dbContext, NullLogger<DeckService>.Instance),
+            new DeckSharingService(
+                dbContext,
+                store ?? new FakeImageStore(),
+                new SystemDeckImporter(dbContext, NullLogger<SystemDeckImporter>.Instance),
+                NullLogger<DeckSharingService>.Instance),
             NullLogger<DecksController>.Instance);
     }
 }

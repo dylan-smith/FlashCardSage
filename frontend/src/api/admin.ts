@@ -8,7 +8,7 @@ import type { Preferences } from './preferences'
 // strings, and a day (such as a practice day) is "YYYY-MM-DD".
 
 // How many cards came from each way of adding them, keyed by the API's source names (Manual, Suggested, Document,
-// Preply, Duolingo, SystemDeck, Mcp), with Unknown for cards made before sources were recorded.
+// Preply, Duolingo, SystemDeck, Mcp, Import), with Unknown for cards made before sources were recorded.
 export type CardsBySource = Record<string, number>
 
 // Everyone's totals. Only people count: the built-in decks' system user is left out.
