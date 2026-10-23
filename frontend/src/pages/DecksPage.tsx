@@ -1,17 +1,21 @@
 import { useState } from 'react'
-import type { SubmitEvent } from 'react'
+import type { ChangeEvent, SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Stack from '@mui/material/Stack'
+import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useNavigate } from 'react-router'
 import {
   createDeck,
+  deckFileTypes,
   deckNameMaxLength,
   deckNameRequiredMessage,
   deleteDeck,
+  importDeckFile,
   listDecks,
 } from '../api/decks'
-import type { Deck } from '../api/decks'
+import type { Deck, DeckImport } from '../api/decks'
+import { showToast } from '../toasts'
 import { trackEvent } from '../telemetry'
 import { useAction } from '../hooks/useAction'
 import { useConfirm } from '../hooks/useConfirm'
@@ -28,7 +32,40 @@ import {
 import { cardCount } from '../lib/cardCount'
 import { ConfirmDeleteDeck } from '../components/cards/ConfirmDeleteDeck'
 
-// The user's decks. A new deck opens on its own page, where its cards are picked.
+// What importing a deck file did, such as "Imported Lesson 3 with 12 cards." and how many of them the user had already.
+function describeImport({
+  deck,
+  existingCount,
+  skippedCount,
+  missingPictureCount,
+}: DeckImport) {
+  const sentences = [
+    `Imported ${deck.name} with ${cardCount(deck.flashCardIds.length)}.`,
+  ]
+  if (existingCount > 0) {
+    sentences.push(
+      existingCount === 1
+        ? 'You already had 1 of them.'
+        : `You already had ${existingCount} of them.`,
+    )
+  }
+  if (skippedCount > 0) {
+    sentences.push(
+      `${cardCount(skippedCount)} that repeated others ${skippedCount === 1 ? 'was' : 'were'} left out.`,
+    )
+  }
+  if (missingPictureCount > 0) {
+    sentences.push(
+      missingPictureCount === 1
+        ? "1 picture isn't on this site, so its card has none."
+        : `${missingPictureCount} pictures aren't on this site, so their cards have none.`,
+    )
+  }
+  return sentences.join(' ')
+}
+
+// The user's decks. A new deck opens on its own page, where its cards are picked, and so does one imported from a
+// file someone shared.
 function DecksPage() {
   const navigate = useNavigate()
   const [errorMessage, setErrorMessage] = useState('')
@@ -71,6 +108,34 @@ function DecksPage() {
     )
   }
 
+  // Stays busy once the deck's imported, while its page opens.
+  async function handleImport(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0]
+    // Cleared, so picking the same file again imports it again.
+    event.target.value = ''
+    if (!file) {
+      return
+    }
+
+    await creating.run(
+      {
+        operation: 'import',
+        fallback: 'Unable to import the deck.',
+        keepBusy: true,
+      },
+      async () => {
+        const imported = await importDeckFile(file)
+        trackEvent('DeckFileImported')
+        showToast({
+          key: 'deck-file-imported',
+          severity: 'success',
+          message: describeImport(imported),
+        })
+        await navigate(`/decks/${imported.deck.id}`)
+      },
+    )
+  }
+
   async function handleDelete(deck: Deck) {
     await deleting.run(
       {
@@ -102,6 +167,20 @@ function DecksPage() {
           onChange={setName}
           onSubmit={(event) => void handleCreate(event)}
         />
+        <Typography color="text.secondary" sx={{ mt: 2, mb: 1 }}>
+          Or import a deck someone shared with you, such as your teacher, from
+          its .yml or .zip file. Cards you already have go in it as they are.
+        </Typography>
+        <Button variant="outlined" component="label" disabled={creating.busy}>
+          Import a deck file
+          <input
+            type="file"
+            hidden
+            accept={deckFileTypes}
+            disabled={creating.busy}
+            onChange={(event) => void handleImport(event)}
+          />
+        </Button>
       </Section>
 
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}

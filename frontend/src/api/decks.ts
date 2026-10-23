@@ -1,12 +1,16 @@
 import { apiBaseUrl } from '../config'
 import { sameText } from '../lib/text'
 import { refreshCounts } from '../state/counts'
+import { saveFile } from '../lib/saveFile'
 import {
+  ApiError,
   ResponseError,
   apiFetch,
   deleteGone,
+  fetchOk,
   getJson,
   sendJson,
+  throwIfNotSaved,
 } from './client'
 
 export const deckNameRequiredMessage = 'Deck name is required.'
@@ -90,6 +94,50 @@ export async function addToNamedDeck(name: string, ids: number[]) {
   return existing
     ? changeDeckCards(existing.id, { add: ids })
     : createDeck({ name, flashCardIds: ids })
+}
+
+// The user's new deck from a deck file someone shared, how many of its cards are new, how many they had already (which
+// went in the deck as they are), how many were left out for repeating another card in the file, and how many came
+// without their picture because it isn't on this site.
+export type DeckImport = {
+  deck: Deck
+  importedCount: number
+  existingCount: number
+  skippedCount: number
+  missingPictureCount: number
+}
+
+// The kinds of file a deck is shared as, for the file picker.
+export const deckFileTypes = '.yml,.yaml,.zip'
+
+// The biggest deck file the API takes, in bytes.
+export const maxDeckFileBytes = 50 * 1024 * 1024
+
+// Saves the deck as a file to share: a .yml file, or a .zip of it and the pictures the user put on its cards themselves.
+// Generated pictures are named by their id, so they don't make it a zip.
+export async function exportDeck(deck: Deck) {
+  const response = await fetchOk(
+    `${decksUrl}/${deck.id}/export`,
+    'Unable to export the deck.',
+  )
+  const zip = response.headers.get('Content-Type') === 'application/zip'
+  saveFile(await response.blob(), `${deck.name}.${zip ? 'zip' : 'yml'}`)
+}
+
+// Makes a new deck from a deck file someone shared. A file the API can't import throws an ApiError that says why.
+export async function importDeckFile(file: File) {
+  if (file.size > maxDeckFileBytes) {
+    throw new ApiError(413, 'Choose a deck file under 50 MB.')
+  }
+  const body = new FormData()
+  body.append('file', file)
+  const response = await apiFetch(`${decksUrl}/import`, {
+    method: 'POST',
+    body,
+  })
+  await throwIfNotSaved(response, 'Unable to import the deck.')
+  refreshCounts()
+  return (await response.json()) as DeckImport
 }
 
 // Leaves the deck's cards as they are.

@@ -49,7 +49,7 @@ export type FlashCardFields = {
 }
 
 // How a new card was added, by the name the API stores. The API takes Manual when none is sent, and records the others
-// it can be (built-in decks and AI assistants) itself.
+// it can be (built-in decks, AI assistants and shared deck files) itself.
 export type CardSource =
   'Manual' | 'Suggested' | 'Document' | 'Preply' | 'Duolingo'
 

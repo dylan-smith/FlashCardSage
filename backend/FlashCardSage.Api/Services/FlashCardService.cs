@@ -289,8 +289,9 @@ public class FlashCardService(
 
     // Trims each side's words, leaving out blanks and repeats (ignoring case), and adds an error for a side that's left
     // with none, too many or one that's too long. The tag names are trimmed the same way, with an error if one is too
-    // long. The errors' fields start with prefix, which says which card in a list it is.
-    private static (List<string> Spanish, List<string> English, List<string> TagNames) Trim(
+    // long. The errors' fields start with prefix, which says which card in a list it is. Cards imported from a deck file
+    // are checked the same way (see DeckSharingService).
+    internal static (List<string> Spanish, List<string> English, List<string> TagNames) Trim(
         FlashCardRequest request, List<KeyValuePair<string, string>> errors, string prefix = "")
     {
         var spanish = TextRules.CleanWords(request.Spanish, dedupe: true);

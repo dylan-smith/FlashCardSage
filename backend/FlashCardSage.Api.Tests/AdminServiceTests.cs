@@ -70,6 +70,7 @@ public sealed class AdminServiceTests : IDisposable
                 ["Duolingo"] = 0,
                 ["SystemDeck"] = 0,
                 ["Mcp"] = 0,
+                ["Shared"] = 0,
                 [AdminService.UnknownSource] = 1
             },
             overview.CardsBySource);

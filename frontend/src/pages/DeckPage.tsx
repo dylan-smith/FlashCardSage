@@ -13,6 +13,7 @@ import {
   deckNameMaxLength,
   deckNameRequiredMessage,
   deleteDeck,
+  exportDeck,
   getDeck,
   renameDeck,
 } from '../api/decks'
@@ -208,6 +209,17 @@ function DeckView({
     )
   }
 
+  // Saves the deck as a file to share, such as with a teacher's students, who import it on their decks page.
+  async function handleExport() {
+    await action.run(
+      { operation: 'export', fallback: 'Unable to export the deck.' },
+      async () => {
+        await exportDeck(deck)
+        trackEvent('DeckExported')
+      },
+    )
+  }
+
   // Stays busy once the deck's deleted, while the decks page opens.
   async function handleDelete() {
     const deleted = await action.run(
@@ -325,6 +337,14 @@ function DeckView({
               }}
             >
               Rename
+            </Button>
+            <Button
+              type="button"
+              size="small"
+              disabled={busy || deck.flashCardIds.length === 0}
+              onClick={() => void handleExport()}
+            >
+              Export
             </Button>
             <Button
               type="button"
