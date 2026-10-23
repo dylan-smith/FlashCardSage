@@ -38,9 +38,6 @@ describe('the landing page', () => {
     expect(
       screen.getByRole('link', { name: "Get started, it's free" }),
     ).toHaveAttribute('href', '#sign-in')
-    expect(
-      screen.getByRole('link', { name: 'Source on GitHub' }),
-    ).toHaveAttribute('href', 'https://github.com/dylan-smith/FlashCardSage')
     expect(fetchMock).not.toHaveBeenCalled()
   })
 

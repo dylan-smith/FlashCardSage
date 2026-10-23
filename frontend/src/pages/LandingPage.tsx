@@ -1,6 +1,5 @@
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import Link from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemIcon from '@mui/material/ListItemIcon'
@@ -13,7 +12,6 @@ import {
   features,
   headline,
   highlights,
-  sourceUrl,
   subhead,
   type Feature,
 } from './landingCopy'
@@ -154,10 +152,7 @@ function LandingPage() {
           Get started, it&apos;s free
         </Button>
         <Typography color="text.secondary" align="center">
-          Only you can see your cards.{' '}
-          <Link href={sourceUrl} target="_blank" rel="noopener">
-            Source on GitHub
-          </Link>
+          Only you can see your cards.
         </Typography>
       </Stack>
     </Stack>

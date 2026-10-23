@@ -67,5 +67,3 @@ export const features: Feature[] = [
     demo: '/demos/practice-v1',
   },
 ]
-
-export const sourceUrl = 'https://github.com/dylan-smith/FlashCardSage'
