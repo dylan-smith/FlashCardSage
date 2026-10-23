@@ -2,7 +2,7 @@ import { useEffect } from 'react'
 import Container from '@mui/material/Container'
 import { Route, Routes, useLocation } from 'react-router'
 import { useSession } from './auth/session'
-import SignInPage from './auth/SignInPage'
+import LandingPage from './pages/LandingPage'
 import { useSignedInUserData } from './hooks/useSignedInUserData'
 import AdminPage from './pages/admin/AdminPage'
 import AdminUserPage from './pages/admin/AdminUserPage'
@@ -48,7 +48,7 @@ function App() {
       <Brand />
 
       {session === null ? (
-        <SignInPage />
+        <LandingPage />
       ) : (
         <>
           {!consenting && <ModeNav current={currentMode} />}

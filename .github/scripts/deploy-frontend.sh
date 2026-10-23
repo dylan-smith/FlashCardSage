@@ -6,7 +6,9 @@
 # (sync skips the blobs just uploaded, since they're newer than the local files). index.html, and sw.js (the service
 # worker, which keeps the app for offline use), are what browsers check for a new version, so they're marked no-cache
 # and given the types browsers expect, which sync can't set. So is manifest.webmanifest, whose name and icons
-# browsers read when the app is installed.
+# browsers read when the app is installed. The landing page's demo clips (demos/) are named with a version (-v1), so a
+# new cut gets a new name and they're kept for a year like the hashed files; the social preview image keeps its name,
+# since sites that show it cache it by URL, so it can only be kept for a day.
 set -euo pipefail
 
 cd "$(dirname "$0")/../../frontend"
@@ -15,6 +17,10 @@ common=(--account-name "${AZURE_STORAGE_ACCOUNT_NAME}" --auth-mode login --only-
 
 az storage blob upload-batch "${common[@]}" \
   --destination '$web' --destination-path assets --source dist/assets \
+  --content-cache-control 'public, max-age=31536000, immutable' --overwrite
+
+az storage blob upload-batch "${common[@]}" \
+  --destination '$web' --destination-path demos --source dist/demos \
   --content-cache-control 'public, max-age=31536000, immutable' --overwrite
 
 az storage blob sync "${common[@]}" --container '$web' --source dist --delete-destination true
@@ -27,3 +33,6 @@ az storage blob update "${common[@]}" --container-name '$web' --name sw.js \
 
 az storage blob update "${common[@]}" --container-name '$web' --name manifest.webmanifest \
   --content-cache-control 'no-cache' --content-type 'application/manifest+json'
+
+az storage blob update "${common[@]}" --container-name '$web' --name og-image.png \
+  --content-cache-control 'public, max-age=86400' --content-type 'image/png'
