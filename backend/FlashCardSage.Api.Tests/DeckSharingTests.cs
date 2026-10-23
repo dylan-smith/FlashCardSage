@@ -123,7 +123,7 @@ public sealed class DeckSharingTests : IDisposable
         var cards = await dbContext.FlashCards.WithWordsAndTags().OrderBy(card => card.Id).ToListAsync();
         Assert.Equal(response.Deck.FlashCardIds, cards.Select(card => card.Id));
         Assert.Equal(["el gato", "el perro"], cards.Select(card => card.Spanish.Single()));
-        Assert.All(cards, card => Assert.Equal(CardSource.Shared, card.Source));
+        Assert.All(cards, card => Assert.Equal(CardSource.Import, card.Source));
         Assert.All(cards, card => Assert.Equal("Animals", Assert.Single(card.Tags).Name));
         Assert.Single(await dbContext.Tags.ToListAsync());
         Assert.Equal("https://images.test/card-images/cat.jpg", cards[0].ImageUrl);

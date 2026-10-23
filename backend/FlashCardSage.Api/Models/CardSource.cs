@@ -15,5 +15,5 @@ public enum CardSource
     Duolingo,
     SystemDeck,
     Mcp,
-    Shared
+    Import
 }

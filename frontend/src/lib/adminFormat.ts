@@ -51,7 +51,7 @@ const sourceLabels: Record<string, string> = {
   Duolingo: 'Duolingo',
   SystemDeck: 'Built-in deck',
   Mcp: 'AI assistant',
-  Shared: 'Shared deck file',
+  Import: 'Imported deck file',
   Unknown: 'Unknown',
 }
 

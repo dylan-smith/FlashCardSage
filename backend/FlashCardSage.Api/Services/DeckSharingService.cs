@@ -162,7 +162,7 @@ public class DeckSharingService(
             var card = new FlashCard
             {
                 Tags = item.TagNames.Select(tags.FindOrAdd).OrderedByName(),
-                Source = CardSource.Shared
+                Source = CardSource.Import
             };
             card.SetWords(Language.Spanish, item.Spanish);
             card.SetWords(Language.English, item.English);
