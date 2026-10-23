@@ -751,14 +751,14 @@ describe('practicing', () => {
         expect(screen.queryByText('el perro')).not.toBeInTheDocument()
         expect(listeningSwitch()).toBeChecked()
         expect(
-          screen.getByText(/Listening mode needs a connection/),
+          screen.getByText(/Listening mode is off while you're offline/),
         ).toBeInTheDocument()
 
         backOnline()
 
         expect(screen.queryByText('the dog')).not.toBeInTheDocument()
         expect(
-          screen.queryByText(/Listening mode needs a connection/),
+          screen.queryByText(/Listening mode is off while you're offline/),
         ).not.toBeInTheDocument()
         await waitFor(() => {
           expect(played).toHaveLength(2)

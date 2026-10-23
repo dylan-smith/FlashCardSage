@@ -498,8 +498,8 @@ function PracticeSession({
             color="text.secondary"
           >
             {listening && !online
-              ? "Listening mode needs a connection, so cards show their words while you're offline."
-              : 'Hear the Spanish without seeing it, until you reveal the card.'}
+              ? "Listening mode is off while you're offline."
+              : 'Hear the Spanish before you see it.'}
           </Typography>
           <SyncNote />
         </Box>
