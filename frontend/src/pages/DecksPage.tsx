@@ -3,7 +3,6 @@ import type { ChangeEvent, SubmitEvent } from 'react'
 import Alert from '@mui/material/Alert'
 import Button from '@mui/material/Button'
 import Stack from '@mui/material/Stack'
-import Typography from '@mui/material/Typography'
 import { Link as RouterLink, useNavigate } from 'react-router'
 import {
   createDeck,
@@ -167,11 +166,12 @@ function DecksPage() {
           onChange={setName}
           onSubmit={(event) => void handleCreate(event)}
         />
-        <Typography color="text.secondary" sx={{ mt: 2, mb: 1 }}>
-          Or import a deck someone shared with you, such as your teacher, from
-          its .yml or .zip file. Cards you already have go in it as they are.
-        </Typography>
-        <Button variant="outlined" component="label" disabled={creating.busy}>
+        <Button
+          variant="outlined"
+          component="label"
+          disabled={creating.busy}
+          sx={{ mt: 2 }}
+        >
           Import a deck file
           <input
             type="file"
