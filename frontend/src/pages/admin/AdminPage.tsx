@@ -99,6 +99,7 @@ function OverviewSections({ overview }: { overview: AdminOverview }) {
               value: overview.cachedTranslations,
             },
             { label: 'Generated pictures', value: overview.generatedImages },
+            { label: 'Cached audio', value: overview.generatedAudio },
             { label: 'Registered apps', value: overview.oAuthClients },
             { label: 'Connected apps', value: overview.connectedApps },
           ]}

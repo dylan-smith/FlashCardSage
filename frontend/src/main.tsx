@@ -6,6 +6,8 @@ import { BrowserRouter } from 'react-router'
 import './index.css'
 import App from './App'
 import ErrorBoundary from './components/common/ErrorBoundary'
+import { registerServiceWorker } from './pwa/serviceWorker'
+import UpdatePrompt from './pwa/UpdatePrompt'
 import { initTelemetry, trackException } from './telemetry'
 import { startHandoff } from './wordSources/handoff'
 import { theme } from './theme'
@@ -14,15 +16,7 @@ initTelemetry()
 // Before rendering, since the user may need to sign in before they see the words a bookmarklet sends.
 startHandoff()
 
-// The service worker (sw/sw.ts) keeps the app so it opens offline. Only built apps have one: the dev server serves
-// the source, which the service worker would keep stale.
-if (import.meta.env.PROD && 'serviceWorker' in navigator) {
-  window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch((error: unknown) => {
-      trackException(error, { operation: 'registerServiceWorker' })
-    })
-  })
-}
+registerServiceWorker()
 
 // Setting these replaces React's default console logging, so keep logging as well as reporting.
 function reportRootError(kind: string) {
@@ -45,6 +39,7 @@ createRoot(document.getElementById('root')!, {
           <App />
         </BrowserRouter>
       </ErrorBoundary>
+      <UpdatePrompt />
     </ThemeProvider>
   </StrictMode>,
 )

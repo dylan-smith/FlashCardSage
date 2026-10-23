@@ -42,6 +42,7 @@ const overview: AdminOverview = {
   cardsBySource: bySource,
   cachedTranslations: 40,
   generatedImages: 6,
+  generatedAudio: 9,
   oAuthClients: 1,
   connectedApps: 1,
 }
@@ -192,6 +193,7 @@ describe('admin page', () => {
         ['Built-in deck', '2'],
         ['Unknown', '1'],
         ['Cached translations', '40'],
+        ['Cached audio', '9'],
         ['Registered apps', '1'],
       ]),
     )
