@@ -147,7 +147,9 @@ public sealed class AdminServiceTests : IDisposable
 
         Assert.NotNull(user);
         Assert.Equal(AliceId, user.User.Id);
-        Assert.Equal(new PreferencesResponse(ShowPictures: false, ShowSuggestions: true, AutoTranslate: true), user.Preferences);
+        Assert.Equal(
+            new PreferencesResponse(ShowPictures: false, ShowSuggestions: true, AutoTranslate: true, ShowGettingStarted: false),
+            user.Preferences);
         var deck = Assert.Single(user.Decks);
         Assert.Equal(("Week 1", 2), (deck.Name, deck.CardCount));
         Assert.NotNull(deck.CreatedAt);
@@ -249,7 +251,8 @@ public sealed class AdminServiceTests : IDisposable
                     Email = "alice@example.com",
                     CreatedAt = Now.AddDays(-60),
                     LastSeenAt = Now.AddDays(-1),
-                    ShowPictures = false
+                    ShowPictures = false,
+                    ShowGettingStarted = false
                 },
                 new User
                 {

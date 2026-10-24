@@ -114,7 +114,7 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
 
         return new AdminUserDetail(
             summary,
-            new PreferencesResponse(user.ShowPictures, user.ShowSuggestions, user.AutoTranslate),
+            new PreferencesResponse(user.ShowPictures, user.ShowSuggestions, user.AutoTranslate, user.ShowGettingStarted),
             decks,
             tags,
             await PracticeSummaryAsync(id, cancellationToken),

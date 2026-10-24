@@ -16,7 +16,7 @@ public class PreferencesControllerTests(WebApplicationFactory<Program> factory)
 
         var preferences = await client.GetFromJsonAsync<PreferencesResponse>("/api/preferences");
 
-        Assert.Equal(new PreferencesResponse(true, true, true), preferences);
+        Assert.Equal(new PreferencesResponse(true, true, true, true), preferences);
     }
 
     [Fact]
@@ -29,21 +29,22 @@ public class PreferencesControllerTests(WebApplicationFactory<Program> factory)
 
         var response = await alice.PutAsJsonAsync(
             "/api/preferences",
-            new { showPictures = false, showSuggestions = true, autoTranslate = false });
+            new { showPictures = false, showSuggestions = true, autoTranslate = false, showGettingStarted = false });
 
         response.EnsureSuccessStatusCode();
-        var expected = new PreferencesResponse(false, true, false);
+        var expected = new PreferencesResponse(false, true, false, false);
         Assert.Equal(expected, await response.Content.ReadFromJsonAsync<PreferencesResponse>());
         Assert.Equal(expected, await alice.GetFromJsonAsync<PreferencesResponse>("/api/preferences"));
         Assert.Equal(
-            new PreferencesResponse(true, true, true),
+            new PreferencesResponse(true, true, true, true),
             await bob.GetFromJsonAsync<PreferencesResponse>("/api/preferences"));
     }
 
     [Theory]
     [InlineData("{}")]
-    [InlineData("""{"showPictures":false,"showSuggestions":true}""")]
-    [InlineData("""{"showPictures":"no","showSuggestions":true,"autoTranslate":true}""")]
+    [InlineData("""{"showPictures":false,"showSuggestions":true,"showGettingStarted":true}""")]
+    [InlineData("""{"showPictures":true,"showSuggestions":true,"autoTranslate":true}""")]
+    [InlineData("""{"showPictures":"no","showSuggestions":true,"autoTranslate":true,"showGettingStarted":true}""")]
     public async Task Put_ReturnsBadRequest_ForAMissingOrInvalidPreference(string body)
     {
         using var client = TestApp.CreateSignedInClient(factory);
@@ -53,7 +54,7 @@ public class PreferencesControllerTests(WebApplicationFactory<Program> factory)
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
         Assert.Equal(
-            new PreferencesResponse(true, true, true),
+            new PreferencesResponse(true, true, true, true),
             await client.GetFromJsonAsync<PreferencesResponse>("/api/preferences"));
     }
 }

@@ -3,6 +3,7 @@ import { sendPracticeResults } from '../api/practice'
 import type { PracticeResultToSync } from '../api/practice'
 import { getSession, sessionSubject } from '../auth/session'
 import { createStore } from '../lib/store'
+import { refreshCounts } from '../state/counts'
 import { trackException } from '../telemetry'
 import { readStoredPack, refreshPack } from './pack'
 import { pendingCount, readQueue, removeResults } from './queue'
@@ -73,6 +74,10 @@ async function sync() {
     const outcome = await sendBatch(subject, batch)
     failed = outcome === 'failed' || (outcome === 'waiting' && failed)
     refreshNeeded ||= outcome === 'accepted'
+    if (outcome === 'accepted') {
+      // The getting started guide on the cards page ticks off practicing from the counts.
+      refreshCounts()
+    }
     if (getSession() === session) {
       setStatus(pendingCount(subject), failed)
     }

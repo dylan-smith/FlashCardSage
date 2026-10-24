@@ -36,7 +36,7 @@ for resource in decks flashcards; do
 done
 
 # The seed's user starts with everything on, as a new user does, whatever reviewers turned off.
-api -X PUT --data '{"showPictures":true,"showSuggestions":true,"autoTranslate":true}' "${API_URL}/api/preferences" \
+api -X PUT --data '{"showPictures":true,"showSuggestions":true,"autoTranslate":true,"showGettingStarted":true}' "${API_URL}/api/preferences" \
   --output /dev/null
 echo "Reset the preview's preferences"
 

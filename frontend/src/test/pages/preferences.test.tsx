@@ -50,6 +50,7 @@ describe('preferences', () => {
     expect(preferenceSwitch('Show pictures')).toBeChecked()
     expect(preferenceSwitch('Suggest cards')).not.toBeChecked()
     expect(preferenceSwitch('Translate automatically')).toBeChecked()
+    expect(preferenceSwitch('Show the getting started guide')).toBeChecked()
     expect(
       preferenceSwitch('Translate automatically'),
     ).toHaveAccessibleDescription(/you type both sides/)
@@ -81,6 +82,7 @@ describe('preferences', () => {
           showPictures: false,
           showSuggestions: true,
           autoTranslate: true,
+          showGettingStarted: true,
         }),
       ],
     ])
