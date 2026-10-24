@@ -14,7 +14,9 @@ user's cards, and which of the user's tags fit a card being added or edited. The
 tags the same way. The Import cards page can also scan a
 document the user uploads for up to 100 new cards, made by the same model. In practice mode a Listen button reads a
 card's Spanish aloud with an Azure Speech neural voice on the same Foundry resource; the MP3s are kept in the same
-store as the pictures and cached per phrase (`GeneratedAudio`, read and written by `CachedSpeechSynthesizer`).
+store as the pictures and cached per phrase (`GeneratedAudio`, read and written by `CachedSpeechSynthesizer`). A new
+user's cards page starts with a getting started guide (`GettingStarted`), whose steps tick off from `/api/counts` and
+which stays until they hide it, kept as the `showGettingStarted` preference (off for users from before it existed).
 
 - `backend/FlashCardSage.Api`: ASP.NET Core Web API (.NET 10) with EF Core, SQL Server and controllers.
   OpenAPI is served at `/openapi/v1.json` and Scalar at `/scalar` in every environment.

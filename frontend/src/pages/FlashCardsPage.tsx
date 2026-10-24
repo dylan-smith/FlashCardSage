@@ -39,6 +39,7 @@ import { ConfirmDeleteCard } from '../components/cards/ConfirmDeleteCard'
 import { DeleteCards } from '../components/cards/DeleteCards'
 import { cardCount } from '../lib/cardCount'
 import { FlashCardEditForm } from '../components/cards/FlashCardForm'
+import { GettingStarted } from '../components/cards/GettingStarted'
 import { useCardEditor, withNewTags, withPicture } from '../hooks/useCardEditor'
 
 // The toast for what was just done to the picked cards, so a new one replaces the last.
@@ -309,6 +310,8 @@ function FlashCardsPage() {
 
   return (
     <Stack spacing={2}>
+      {/* For a new user, until they hide it. */}
+      <GettingStarted onError={setErrorMessage} />
       <Section title="Add flash card">
         <AddFlashCardForm
           tags={tags}

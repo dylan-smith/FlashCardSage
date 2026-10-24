@@ -22,13 +22,14 @@ public class PreferencesService(
     }
 
     // Saves the signed-in user's preferences, returning the user with them.
-    public async Task<User> UpdateAsync(bool showPictures, bool showSuggestions, bool autoTranslate)
+    public async Task<User> UpdateAsync(bool showPictures, bool showSuggestions, bool autoTranslate, bool showGettingStarted)
     {
         var user = await dbContext.Users.SingleAsync(item => item.Id == currentUser.UserId);
 
         user.ShowPictures = showPictures;
         user.ShowSuggestions = showSuggestions;
         user.AutoTranslate = autoTranslate;
+        user.ShowGettingStarted = showGettingStarted;
         await dbContext.SaveChangesAsync();
 
         logger.LogInformation("Updated user {UserId}'s preferences", user.Id);

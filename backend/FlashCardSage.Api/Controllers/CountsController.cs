@@ -5,7 +5,8 @@ using Microsoft.AspNetCore.Mvc;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// How many cards, decks and tags the user has, which the frontend shows in its navigation.
+/// How many cards, decks and tags the user has, which the frontend shows in its navigation, and how many answers
+/// they've given in practice, which its getting started guide ticks a step off with.
 /// </summary>
 [ApiController]
 [Route("api/counts")]

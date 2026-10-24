@@ -33,4 +33,8 @@ public class User
     public bool ShowSuggestions { get; set; } = true;
 
     public bool AutoTranslate { get; set; } = true;
+
+    // Whether the Cards page shows the getting started guide. On for a new user; the users there were before it was
+    // added had it turned off (see the 0018 script), since they'd found their way around already.
+    public bool ShowGettingStarted { get; set; } = true;
 }
