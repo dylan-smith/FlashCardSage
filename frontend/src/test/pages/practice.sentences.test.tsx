@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { beforeEach, describe, expect, it } from 'vitest'
 import type { Deck } from '../../api/decks'
@@ -18,7 +18,7 @@ import {
   unreachable,
 } from '../support/mockApi'
 import type { CallLog, Routes } from '../support/mockApi'
-import { goOffline, stubRandom } from '../support/practice'
+import { goOffline, stubAudio, stubRandom } from '../support/practice'
 import { renderAt, renderLoaded, signInForEachTest } from '../support/render'
 import type { User } from '../support/render'
 
@@ -79,6 +79,10 @@ function sentResults(calls: CallLog) {
 
 function practicedCount() {
   return screen.getByText(/^Sentences practiced/)
+}
+
+function listeningSwitch() {
+  return screen.getByRole('switch', { name: 'Listening mode' })
 }
 
 // Starts practicing sentences from the cards, each shown first on the side the roll picks (see stubRandom: 0 is
@@ -195,19 +199,130 @@ describe('practice mode', () => {
     expect(sentenceRequests(background).at(-1)?.query.get('deckId')).toBe('5')
   })
 
-  it('has no listening mode switch for sentences', async () => {
+  it('shares the listening mode switch with cards', async () => {
+    stubAudio()
     const user = userEvent.setup()
-    await practice()
+    await practice(animals, {
+      routes: { 'POST /speech': { urls: ['https://audio.test/gato.mp3'] } },
+    })
 
-    expect(
-      screen.queryByRole('switch', { name: 'Listening mode' }),
-    ).not.toBeInTheDocument()
+    expect(listeningSwitch()).not.toBeChecked()
+    expect(listeningSwitch()).toHaveAccessibleDescription(
+      'Hear the Spanish before you see it.',
+    )
+
+    await user.click(listeningSwitch())
+
+    expect(listeningSwitch()).toBeChecked()
+    expect(localStorage.getItem(storageKeys.practiceListening)).toBe('true')
+    expect(trackEvent).toHaveBeenCalledWith('PracticeListeningModeChanged', {
+      on: 'true',
+    })
 
     await user.click(screen.getByRole('tab', { name: 'Cards' }))
 
     expect(
       await screen.findByRole('switch', { name: 'Listening mode' }),
+    ).toBeChecked()
+    expect(screen.queryByText('el gato')).not.toBeInTheDocument()
+  })
+})
+
+describe('listening mode', () => {
+  const sentenceUrl = 'https://audio.test/gato-duerme.mp3'
+  const speechRoutes = { 'POST /speech': { urls: [sentenceUrl] } }
+
+  function finish(audio: HTMLMediaElement) {
+    act(() => {
+      audio.dispatchEvent(new Event('ended'))
+    })
+  }
+
+  beforeEach(() => {
+    localStorage.setItem(storageKeys.practiceListening, 'true')
+  })
+
+  it('is remembered, and plays the Spanish first even when the English was picked, hiding it until revealed', async () => {
+    const { played } = stubAudio()
+    const user = userEvent.setup()
+    // Without listening mode the sentence would start in English.
+    await practice(animals, { roll: 0.6, routes: speechRoutes })
+
+    expect(listeningSwitch()).toBeChecked()
+    await waitFor(() => {
+      expect(played.map((audio) => audio.src)).toEqual([sentenceUrl])
+    })
+    finish(played[0])
+    expect(screen.getByText('Spanish')).toBeInTheDocument()
+    expect(screen.queryByText('El gato duerme.')).not.toBeInTheDocument()
+    expect(screen.queryByText('The cat sleeps.')).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Listen' })).toHaveClass(
+      'MuiIconButton-sizeLarge',
+    )
+
+    await user.click(screen.getByRole('button', { name: 'Reveal' }))
+
+    expect(screen.getByText('El gato duerme.')).toBeInTheDocument()
+    expect(screen.getByText('The cat sleeps.')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Listen' })).not.toHaveClass(
+      'MuiIconButton-sizeLarge',
+    )
+    // Not played again for the reveal.
+    expect(played).toHaveLength(1)
+  })
+
+  it('records the Spanish as the side shown', async () => {
+    stubAudio()
+    const user = userEvent.setup()
+    const { calls } = await practice(animals, {
+      roll: 0.6,
+      routes: speechRoutes,
+    })
+
+    await answer(user)
+
+    await waitFor(() => {
+      expect(practicedCount()).toHaveTextContent('Sentences practiced 1')
+    })
+    expect(sentResults(calls)).toEqual([
+      {
+        spanish: 'El gato duerme.',
+        english: 'The cat sleeps.',
+        cardIds: [cat.id],
+        shownSide: 'Spanish',
+        outcome: 'GotIt',
+      },
+    ])
+    expect(trackEvent).toHaveBeenCalledWith('SentencePracticeResultRecorded', {
+      outcome: 'GotIt',
+      shownSide: 'Spanish',
+    })
+  })
+
+  it('shows the side picked once turned off', async () => {
+    stubAudio()
+    const user = userEvent.setup()
+    await practice(animals, { roll: 0.6, routes: speechRoutes })
+
+    await user.click(listeningSwitch())
+
+    expect(screen.getByText('The cat sleeps.')).toBeInTheDocument()
+    expect(screen.queryByText('El gato duerme.')).not.toBeInTheDocument()
+  })
+
+  it('leaves the offline message in place of the sentence while offline', async () => {
+    stubAudio()
+    await practice(animals, { routes: speechRoutes })
+
+    goOffline()
+
+    expect(
+      await screen.findByText(/^Sentences need a connection/),
     ).toBeInTheDocument()
+    // The header, and so the switch, is only shown while there's a sentence to practice online.
+    expect(
+      screen.queryByRole('switch', { name: 'Listening mode' }),
+    ).not.toBeInTheDocument()
   })
 })
 
