@@ -83,7 +83,7 @@ public class SentencePracticeController(
             return BadGatewayProblem("Making sentences failed.");
         }
 
-        var sentences = NewSentences.From(generated, described.Select(card => card.Id))
+        var sentences = NewSentences.From(generated, cards)
             .Take(SentenceCount)
             .ToList();
         logger.LogInformation(
