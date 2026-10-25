@@ -23,6 +23,9 @@ export type AdminOverview = {
   practiceResults: number
   practiceResultsLast7Days: number
   practiceResultsLast30Days: number
+  // Practice results in listening mode in the last 30 days, and the people who practiced that way then.
+  listeningPracticeResultsLast30Days: number
+  listeningUsersLast30Days: number
   cardsBySource: CardsBySource
   cachedTranslations: number
   generatedImages: number
@@ -56,14 +59,17 @@ export type AdminPracticeResult = {
   spanish: string[]
   outcome: PracticeOutcome
   practicedAt: string
+  // Whether it was practiced in listening mode, or null when it was recorded before that was.
+  listening: boolean | null
 }
 
-// How the user has practiced: each outcome's total, how many answers each of the last 30 days had (oldest first,
-// ending today), and their latest answers, newest first.
+// How the user has practiced: each outcome's total, how many answers were in listening mode, how many answers each
+// of the last 30 days had (oldest first, ending today), and their latest answers, newest first.
 export type AdminPracticeSummary = {
   gotIt: number
   wasClose: number
   failed: number
+  listening: number
   firstPracticedAt: string | null
   lastPracticedAt: string | null
   byDay: { date: string; results: number }[]

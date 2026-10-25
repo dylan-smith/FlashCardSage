@@ -395,8 +395,11 @@ function PracticeSession({
         const practicedAt = new Date().toISOString()
         const answered = applyAnswer(card, outcome, practicedAt)
         // Throws when the answer can't be kept, so the card stays to be answered again.
-        enqueueResult(subject, card.id, outcome, practicedAt)
-        trackEvent('PracticeResultRecorded', { outcome })
+        enqueueResult(subject, card.id, outcome, practicedAt, listeningNow)
+        trackEvent('PracticeResultRecorded', {
+          outcome,
+          listening: String(listeningNow),
+        })
         answeredRef.current = true
         setSessionScore((score) => score + answered.score - card.score)
         const cards = practice.cards.map((item) =>

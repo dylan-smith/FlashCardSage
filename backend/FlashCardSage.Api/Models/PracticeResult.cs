@@ -16,4 +16,8 @@ public class PracticeResult
     // The id the device gave the answer when it was practiced offline, so sending it again doesn't record it twice.
     // Null for results recorded before practice worked offline.
     public Guid? ClientId { get; set; }
+
+    // Whether the card was practiced in listening mode, heard rather than read. Null for results recorded before it
+    // was, including answers a device practiced then and sent later.
+    public bool? Listening { get; set; }
 }

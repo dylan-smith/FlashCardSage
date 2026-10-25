@@ -39,6 +39,8 @@ const overview: AdminOverview = {
   practiceResults: 12,
   practiceResultsLast7Days: 5,
   practiceResultsLast30Days: 9,
+  listeningPracticeResultsLast30Days: 4,
+  listeningUsersLast30Days: 1,
   cardsBySource: bySource,
   cachedTranslations: 40,
   generatedImages: 6,
@@ -189,6 +191,8 @@ describe('admin page', () => {
         ['Users', '2'],
         ['Active in the last 7 days', '1'],
         ['Practice results in the last 30 days', '9'],
+        ['Listening-mode results in the last 30 days', '4'],
+        ['Listening-mode users in the last 30 days', '1'],
         ['Added by hand', '3'],
         ['Built-in deck', '2'],
         ['Unknown', '1'],
@@ -327,6 +331,7 @@ describe('admin user page', () => {
       gotIt: 7,
       wasClose: 3,
       failed: 2,
+      listening: 5,
       firstPracticedAt: '2026-10-05T08:00:00Z',
       lastPracticedAt: '2026-10-19T08:00:00Z',
       byDay: Array.from({ length: 30 }, (_, index) => ({
@@ -339,6 +344,7 @@ describe('admin user page', () => {
           spanish: ['el gato'],
           outcome: 'WasClose',
           practicedAt: '2026-10-19T08:00:00Z',
+          listening: true,
         },
       ],
     },
@@ -428,6 +434,7 @@ describe('admin user page', () => {
         ['Got it', '7'],
         ['Close', '3'],
         ['Failed', '2'],
+        ['Listening mode', '5'],
         ['Added by hand', '3'],
       ]),
     )
@@ -441,7 +448,9 @@ describe('admin user page', () => {
       within(screen.getByRole('list', { name: 'Recent results' }))
         .getAllByRole('listitem')
         .map((item) => item.textContent),
-    ).toEqual([`el gato${formatDateTime('2026-10-19T08:00:00Z')}Close`])
+    ).toEqual([
+      `el gato${formatDateTime('2026-10-19T08:00:00Z')}, listening modeClose`,
+    ])
 
     expect(
       within(screen.getByRole('list', { name: 'Decks' }))

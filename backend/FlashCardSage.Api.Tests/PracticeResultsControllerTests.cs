@@ -9,6 +9,7 @@ using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Tests.Fakes;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging.Abstractions;
 
 namespace FlashCardSage.Api.Tests;
@@ -211,6 +212,38 @@ public class PracticeResultsControllerTests(WebApplicationFactory<Program> facto
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         Assert.Equal("""{"accepted":1}""", await response.Content.ReadAsStringAsync());
+    }
+
+    [Fact]
+    public async Task PostSync_RecordsWhetherEachAnswerWasPracticedListening()
+    {
+        using var client = TestApp.CreateSignedInClient(factory);
+        var card = await CreateCardAsync(client);
+        var listening = Guid.NewGuid();
+        var reading = Guid.NewGuid();
+        var unknown = Guid.NewGuid();
+
+        var response = await client.PostAsJsonAsync(
+            "/api/flashcards/practice-results",
+            new
+            {
+                results = new object[]
+                {
+                    new { id = listening, flashCardId = card.Id, outcome = "GotIt", practicedAt = Earlier, listening = true },
+                    new { id = reading, flashCardId = card.Id, outcome = "GotIt", practicedAt = Earlier, listening = false },
+                    // Kept on the device before it was recorded.
+                    new { id = unknown, flashCardId = card.Id, outcome = "GotIt", practicedAt = Earlier }
+                }
+            });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        using var scope = factory.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<FlashCardDbContext>();
+        var recorded = await dbContext.PracticeResults
+            .IgnoreQueryFilters()
+            .Where(result => result.ClientId == listening || result.ClientId == reading || result.ClientId == unknown)
+            .ToDictionaryAsync(result => result.ClientId!.Value, result => result.Listening);
+        Assert.Equal(new Dictionary<Guid, bool?> { [listening] = true, [reading] = false, [unknown] = null }, recorded);
     }
 
     [Theory]

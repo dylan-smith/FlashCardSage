@@ -68,6 +68,34 @@ public sealed class AdminServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Overview_CountsListeningPracticeInTheLast30Days_ByPeople()
+    {
+        var service = await CreateServiceAsync();
+        var cards = serviceDbContext!.FlashCards.IgnoreQueryFilters().ToList();
+        var bobsCardId = cards.Single(card => card.UserId == BobId).Id;
+        var serviceUsersCardId = cards.Single(card => card.UserId == ServiceUserId).Id;
+        serviceDbContext.PracticeResults.AddRange(
+            new PracticeResult { FlashCardId = bobsCardId, Outcome = PracticeOutcome.GotIt, PracticedAt = Now, Listening = true },
+            new PracticeResult { FlashCardId = bobsCardId, Outcome = PracticeOutcome.GotIt, PracticedAt = Now, Listening = true },
+            new PracticeResult { FlashCardId = bobsCardId, Outcome = PracticeOutcome.GotIt, PracticedAt = Now },
+            new PracticeResult
+            {
+                FlashCardId = serviceUsersCardId,
+                Outcome = PracticeOutcome.GotIt,
+                PracticedAt = Now,
+                Listening = true
+            });
+        await serviceDbContext.SaveChangesAsync();
+
+        var overview = await service.GetOverviewAsync();
+
+        // Alice's listening result from 40 days ago, the results not practiced listening, and the service user's
+        // aren't counted.
+        Assert.Equal(3, overview.ListeningPracticeResultsLast30Days);
+        Assert.Equal(2, overview.ListeningUsersLast30Days);
+    }
+
+    [Fact]
     public async Task Overview_CountsCardsBySource_WithUnknownForUnrecordedOnes()
     {
         var service = await CreateServiceAsync();
@@ -179,6 +207,8 @@ public sealed class AdminServiceTests : IDisposable
             [PracticeOutcome.GotIt, PracticeOutcome.Failed, PracticeOutcome.GotIt],
             practice.Recent.Select(result => result.Outcome));
         Assert.Equal(["el gato"], practice.Recent[0].Spanish);
+        Assert.Equal(2, practice.Listening);
+        Assert.Equal([true, false, true], practice.Recent.Select(result => result.Listening));
     }
 
     [Fact]
@@ -288,9 +318,27 @@ public sealed class AdminServiceTests : IDisposable
 
             // Added oldest first, so the newest has the highest ID, as when they're practiced.
             dbContext.PracticeResults.AddRange(
-                new PracticeResult { FlashCardId = gato.Id, Outcome = PracticeOutcome.GotIt, PracticedAt = Now.AddDays(-40) },
-                new PracticeResult { FlashCardId = gato.Id, Outcome = PracticeOutcome.Failed, PracticedAt = Now.AddDays(-10) },
-                new PracticeResult { FlashCardId = gato.Id, Outcome = PracticeOutcome.GotIt, PracticedAt = Now.AddDays(-2) });
+                new PracticeResult
+                {
+                    FlashCardId = gato.Id,
+                    Outcome = PracticeOutcome.GotIt,
+                    PracticedAt = Now.AddDays(-40),
+                    Listening = true
+                },
+                new PracticeResult
+                {
+                    FlashCardId = gato.Id,
+                    Outcome = PracticeOutcome.Failed,
+                    PracticedAt = Now.AddDays(-10),
+                    Listening = false
+                },
+                new PracticeResult
+                {
+                    FlashCardId = gato.Id,
+                    Outcome = PracticeOutcome.GotIt,
+                    PracticedAt = Now.AddDays(-2),
+                    Listening = true
+                });
             await dbContext.SaveChangesAsync();
         }
 
