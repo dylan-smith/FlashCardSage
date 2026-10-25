@@ -61,7 +61,7 @@ function SiteTile({
       <Box sx={{ minWidth: 0 }}>
         <Typography id={nameId} component="span" sx={{ fontWeight: 'bold' }}>
           {source.name}
-        </Typography>
+        </Typography>{' '}
         <Typography id={wordsId} variant="body2" color="text.secondary">
           Your {source.wordsName}
         </Typography>
