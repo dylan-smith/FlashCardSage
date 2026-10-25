@@ -61,7 +61,7 @@ describe('importing from Duolingo', () => {
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^Duolingo/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -116,9 +116,9 @@ describe('importing from Duolingo', () => {
     ).toContain('/import?from=website&site=duolingo')
 
     // Picking another site shows its steps instead.
-    await user.click(screen.getByRole('button', { name: 'Preply' }))
+    await user.click(screen.getByRole('button', { name: /^Preply/ }))
 
-    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^Preply/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -140,7 +140,7 @@ describe('importing from Duolingo', () => {
 
     await user.click(screen.getByRole('tab', { name: 'From a website' }))
 
-    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^Duolingo/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     )

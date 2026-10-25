@@ -346,11 +346,11 @@ describe('importing cards', () => {
       'true',
     )
     // Preply is the first of the sites, so it's picked.
-    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^Preply/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
-    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^Duolingo/ })).toHaveAttribute(
       'aria-pressed',
       'false',
     )

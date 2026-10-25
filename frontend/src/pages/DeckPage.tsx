@@ -280,7 +280,7 @@ function DeckView({
           <CardActionButton
             icon="remove"
             text="Remove from deck"
-            label={`Remove "${spanish}" from deck`}
+            label={`Remove from deck "${spanish}"`}
             disabled={busy}
             onClick={() => void handleChange([], [card.id])}
           />

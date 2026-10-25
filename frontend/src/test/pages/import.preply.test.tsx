@@ -67,7 +67,7 @@ describe('importing from Preply', () => {
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
+    expect(screen.getByRole('button', { name: /^Preply/ })).toHaveAttribute(
       'aria-pressed',
       'true',
     )
@@ -180,7 +180,7 @@ describe('importing from Preply', () => {
     ).not.toBeVisible()
     expect(screen.queryByText(/ left out because /)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Preply' }))
+    await user.click(screen.getByRole('button', { name: /^Preply/ }))
 
     expect(
       await screen.findByText(
