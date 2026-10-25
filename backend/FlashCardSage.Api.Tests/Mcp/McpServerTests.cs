@@ -41,7 +41,7 @@ public class McpServerTests(WebApplicationFactory<Program> factory) : IClassFixt
 
         var tools = await client.ListToolsAsync();
 
-        Assert.Equal("FlashCardSage", client.ServerInfo.Name);
+        Assert.Equal("FlashCardSage", client.ServerInfo?.Name);
         Assert.Equal(McpInstructions.Text, client.ServerInstructions);
         Assert.Equal(ToolNames, tools.Select(tool => tool.Name).Order(StringComparer.Ordinal));
         Assert.All(tools, tool => Assert.False(string.IsNullOrWhiteSpace(tool.Description), tool.Name));
