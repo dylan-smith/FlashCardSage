@@ -27,6 +27,8 @@ export type PracticeResultToSync = {
   flashCardId: number
   outcome: PracticeOutcome
   practicedAt: string
+  // Whether the card was practiced in listening mode. Answers kept before it was recorded don't have it.
+  listening?: boolean
 }
 
 // How many of the answers sent the API recorded. One it already had, or for a card that's gone, isn't counted.

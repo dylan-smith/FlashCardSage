@@ -21,13 +21,14 @@ public class PracticeResultsController(PracticeService practiceService) : Contro
     {
         ArgumentNullException.ThrowIfNull(request);
 
-        // Every property is required, so the model binder has already refused a request without one.
+        // The rest are required, so the model binder has already refused a request without one.
         var results = request.Results
             .Select(item => (
                 Id: item.Id!.Value,
                 FlashCardId: item.FlashCardId!.Value,
                 Outcome: item.Outcome!.Value,
-                PracticedAt: item.PracticedAt!.Value))
+                PracticedAt: item.PracticedAt!.Value,
+                item.Listening))
             .ToList();
 
         var accepted = await practiceService.RecordResultsAsync(results, cancellationToken);

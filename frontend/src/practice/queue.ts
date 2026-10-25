@@ -45,15 +45,23 @@ export function pendingCount(subject: string) {
   return readQueue(subject).length
 }
 
-// Keeps the answer, given at practicedAt, until it's saved, and returns it with the id it's saved under. Throws when
-// it can't be kept, such as when storage is full, so the answer isn't lost without the user knowing.
+// Keeps the answer, given at practicedAt (in listening mode or not), until it's saved, and returns it with the id it's
+// saved under. Throws when it can't be kept, such as when storage is full, so the answer isn't lost without the user
+// knowing.
 export function enqueueResult(
   subject: string,
   flashCardId: number,
   outcome: PracticeOutcome,
   practicedAt: string,
+  listening: boolean,
 ): PracticeResultToSync {
-  const result = { id: crypto.randomUUID(), flashCardId, outcome, practicedAt }
+  const result = {
+    id: crypto.randomUUID(),
+    flashCardId,
+    outcome,
+    practicedAt,
+    listening,
+  }
   if (!writeJson(queueKey(subject), [...readQueue(subject), result])) {
     throw new Error('The answer could not be kept on this device.')
   }
