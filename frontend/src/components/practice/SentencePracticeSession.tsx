@@ -29,6 +29,7 @@ import { EmptyText } from '../common/EmptyText'
 import { Loading } from '../common/Loading'
 import { CardSide } from './CardSide'
 import { ListenButton } from './ListenButton'
+import { ListeningDescription, ListeningSwitch } from './ListeningSwitch'
 import { OutcomeButtons } from './OutcomeButtons'
 import { sides } from './sides'
 
@@ -59,15 +60,19 @@ const prefetchWhenLeft = 2
 // Practices sentences gpt-5-mini writes from the selection's cards, a handful at a time, so the user meets their words
 // in context. Like a card, each shows one side, Spanish or English at random, then both and the cards it uses once
 // it's revealed. The answers are kept to learn from and don't change the cards' scores. The sentences are written as
-// they're needed, so unlike cards this needs a connection.
+// they're needed, so unlike cards this needs a connection. Listening mode works as it does for cards.
 export function SentencePracticeSession({
   kind,
   deckId,
   tagId,
+  listening,
+  onListeningChange,
 }: {
   kind: CardSelectionKind
   deckId?: number
   tagId?: number
+  listening: boolean
+  onListeningChange: (on: boolean) => void
 }) {
   const [errorMessage, setErrorMessage] = useState('')
   // Whose cards on the device these are. The session can't change while the page is open, since signing out leaves it.
@@ -96,6 +101,11 @@ export function SentencePracticeSession({
   const [practiced, setPracticed] = useState(0)
   const saving = useAction(setErrorMessage)
   const online = useOnline()
+  // In listening mode every sentence starts with its Spanish, heard rather than seen until it's revealed, whichever
+  // side was picked for it. The side picked is kept for when listening mode is off.
+  const listeningNow = listening && online
+  const shownSide: PracticeSide | null =
+    current === null ? null : listeningNow ? 'Spanish' : current.side
   // The request for more sentences on its way, so there's only ever one.
   const requestRef = useRef<AbortController | null>(null)
   // The button that replaces the one just pressed gets focus, so keyboard users can carry on from where they were.
@@ -180,10 +190,11 @@ export function SentencePracticeSession({
   }, [revealed, current])
 
   async function handleAnswer(outcome: PracticeOutcome) {
-    if (current === null) {
+    if (current === null || shownSide === null) {
       return
     }
-    const { sentence, side } = current
+    const { sentence } = current
+    const side = shownSide
     await saving.run(
       {
         operation: 'sentencePractice',
@@ -215,13 +226,16 @@ export function SentencePracticeSession({
     setStatus('idle')
   }
 
-  // The side's sentence, with Listen beside the Spanish. A new button for each sentence, so one's playing never
-  // carries over to the next.
+  // The side's sentence, with Listen beside the Spanish. In listening mode the Spanish plays as the sentence comes up,
+  // and until it's revealed there's only a bigger Listen in place of its words. It's the same button once revealed, so
+  // the audio carries on if it's still playing. A new button for each sentence, so one's playing never carries over to
+  // the next.
   function sentenceSide({ sentence }: QueuedSentence, side: PracticeSide) {
+    const heardOnly = listeningNow && side === 'Spanish' && !revealed
     return (
       <CardSide
         side={side}
-        text={sentence[sides[side].field]}
+        text={heardOnly ? undefined : sentence[sides[side].field]}
         variant="h5"
         action={
           side === 'Spanish' ? (
@@ -229,6 +243,8 @@ export function SentencePracticeSession({
               key={sentence.spanish}
               texts={[sentence.spanish]}
               onError={setErrorMessage}
+              autoPlay={listeningNow}
+              large={heardOnly}
             />
           ) : undefined
         }
@@ -274,7 +290,7 @@ export function SentencePracticeSession({
         />
       )
     }
-    if (current === null) {
+    if (current === null || shownSide === null) {
       switch (status) {
         case 'unavailable':
           return <EmptyText>Sentences aren&apos;t available.</EmptyText>
@@ -303,7 +319,7 @@ export function SentencePracticeSession({
     }
 
     const otherSide: PracticeSide =
-      current.side === 'Spanish' ? 'English' : 'Spanish'
+      shownSide === 'Spanish' ? 'English' : 'Spanish'
     const used = cardsUsed(current)
     return (
       <Stack spacing={{ xs: 2, sm: 3 }}>
@@ -312,7 +328,7 @@ export function SentencePracticeSession({
           aria-live="polite"
           sx={{ textAlign: 'center', py: { xs: 0, sm: 2 } }}
         >
-          {sentenceSide(current, current.side)}
+          {sentenceSide(current, shownSide)}
           {revealed && (
             <>
               <Divider />
@@ -379,30 +395,37 @@ export function SentencePracticeSession({
     <Stack spacing={2}>
       {errorMessage && <Alert severity="error">{errorMessage}</Alert>}
 
-      {/* Kept outside the card, since it's about the session rather than this sentence. */}
+      {/* Kept outside the card, since they're about the session rather than this sentence. */}
       {current !== null && online && (
-        <Stack
-          direction="row"
-          spacing={2}
-          sx={{ justifyContent: 'space-between', alignItems: 'center' }}
-        >
+        <Box>
           <Typography variant="body2" color="text.secondary">
             Sentences written from your cards, to practice your words in
             context.
           </Typography>
-          <Typography
-            color="text.secondary"
-            sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}
+          <Stack
+            direction="row"
+            spacing={2}
+            sx={{ justifyContent: 'space-between', alignItems: 'center' }}
           >
-            Sentences practiced{' '}
-            <Box
-              component="span"
-              sx={{ fontWeight: 'bold', color: 'text.primary' }}
+            <ListeningSwitch
+              listening={listening}
+              onChange={onListeningChange}
+            />
+            <Typography
+              color="text.secondary"
+              sx={{ textAlign: 'right', whiteSpace: 'nowrap' }}
             >
-              {practiced}
-            </Box>
-          </Typography>
-        </Stack>
+              Sentences practiced{' '}
+              <Box
+                component="span"
+                sx={{ fontWeight: 'bold', color: 'text.primary' }}
+              >
+                {practiced}
+              </Box>
+            </Typography>
+          </Stack>
+          <ListeningDescription listening={listening} online={online} />
+        </Box>
       )}
 
       <Paper

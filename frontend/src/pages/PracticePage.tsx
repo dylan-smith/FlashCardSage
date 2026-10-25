@@ -3,10 +3,8 @@ import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
 import Divider from '@mui/material/Divider'
-import FormControlLabel from '@mui/material/FormControlLabel'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
-import Switch from '@mui/material/Switch'
 import Typography from '@mui/material/Typography'
 import { formatWords } from '../api/flashCards'
 import type {
@@ -42,6 +40,10 @@ import { EmptySelection } from '../components/cards/EmptySelection'
 import { TabPanel } from '../components/common/TabPanel'
 import { CardSide } from '../components/practice/CardSide'
 import { ListenButton } from '../components/practice/ListenButton'
+import {
+  ListeningDescription,
+  ListeningSwitch,
+} from '../components/practice/ListeningSwitch'
 import { OutcomeButtons } from '../components/practice/OutcomeButtons'
 import { PracticeModeTabs } from '../components/practice/PracticeModeTabs'
 import { SentencePracticeSession } from '../components/practice/SentencePracticeSession'
@@ -109,8 +111,8 @@ function SyncNote() {
   )
 }
 
-// Whether practice is in listening mode, where every card starts with its Spanish heard rather than seen. Remembered
-// in the browser, so it stays on across reloads.
+// Whether practice is in listening mode, where every card or sentence starts with its Spanish heard rather than seen.
+// Remembered in the browser, so it stays on across reloads, and shared by both modes.
 function useListeningMode() {
   const [listening, setListening] = useState(
     () =>
@@ -145,7 +147,11 @@ function PracticePage() {
                 onListeningChange={setListening}
               />
             ) : (
-              <SentencePracticeSession {...selection} />
+              <SentencePracticeSession
+                {...selection}
+                listening={listening}
+                onListeningChange={setListening}
+              />
             )}
           </TabPanel>
         )}
@@ -308,17 +314,9 @@ function PracticeSession({
             spacing={2}
             sx={{ justifyContent: 'space-between', alignItems: 'center' }}
           >
-            <FormControlLabel
-              label="Listening mode"
-              control={
-                <Switch
-                  checked={listening}
-                  onChange={(event) => onListeningChange(event.target.checked)}
-                  slotProps={{
-                    input: { 'aria-describedby': 'listening-description' },
-                  }}
-                />
-              }
+            <ListeningSwitch
+              listening={listening}
+              onChange={onListeningChange}
             />
             <Typography
               color="text.secondary"
@@ -341,15 +339,7 @@ function PracticeSession({
               </Box>
             </Typography>
           </Stack>
-          <Typography
-            id="listening-description"
-            variant="body2"
-            color="text.secondary"
-          >
-            {listening && !online
-              ? "Listening mode is off while you're offline."
-              : 'Hear the Spanish before you see it.'}
-          </Typography>
+          <ListeningDescription listening={listening} online={online} />
           <SyncNote />
         </Box>
       )}
