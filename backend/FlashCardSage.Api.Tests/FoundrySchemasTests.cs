@@ -19,6 +19,20 @@ public class FoundrySchemasTests
     }
 
     [Fact]
+    public void Sentences_IsAStrictSchemaForAListOfSentences_WithTheirCardIds()
+    {
+        var json = JsonSerializer.Serialize(FoundrySchemas.Sentences("practice_sentences"));
+
+        Assert.Equal(
+            Json("{'type':'json_schema','json_schema':{'name':'practice_sentences','strict':true,'schema':{'type':'object',"
+                + "'properties':{'sentences':{'type':'array','items':{'type':'object','properties':{'spanish':{'type':'string'},"
+                + "'english':{'type':'string'},'cardIds':{'type':'array','items':{'type':'integer'}}},"
+                + "'required':['spanish','english','cardIds'],'additionalProperties':false}}},"
+                + "'required':['sentences'],'additionalProperties':false}}}"),
+            json);
+    }
+
+    [Fact]
     public void StringList_IsAStrictSchemaForAListOfStrings_UnderTheProperty()
     {
         var json = JsonSerializer.Serialize(FoundrySchemas.StringList("tag_suggestions", "tags"));

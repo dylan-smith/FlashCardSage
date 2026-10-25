@@ -10,8 +10,8 @@ namespace FlashCardSage.Api.Startup;
 
 public static class AiServicesSetup
 {
-    // Translation, card and tag suggestions, document scans, pictures and spoken audio, each a typed HttpClient with a
-    // timeout that suits how long the user waits for it.
+    // Translation, card and tag suggestions, document scans, practice sentences, pictures and spoken audio, each a typed
+    // HttpClient with a timeout that suits how long the user waits for it.
     public static IServiceCollection AddAiServices(this IServiceCollection services)
     {
         services.AddOptions<TranslatorOptions>().BindConfiguration(TranslatorOptions.SectionName);
@@ -34,6 +34,9 @@ public static class AiServicesSetup
         // Scanning a document makes up to a hundred cards, which takes the model a while, and the user asked for it and waits.
         services.AddHttpClient<IDocumentScanner, FoundryDocumentScanner>(client =>
             client.Timeout = TimeSpan.FromSeconds(150));
+        // Practice waits on the first few sentences, but later ones are fetched ahead while the user answers.
+        services.AddHttpClient<ISentenceGenerator, FoundrySentenceGenerator>(client =>
+            client.Timeout = TimeSpan.FromSeconds(30));
         services.AddOptions<ImageGenerationOptions>().BindConfiguration(ImageGenerationOptions.SectionName);
         // A picture takes the model tens of seconds, and the user asked for it, so they're given that long.
         services.AddHttpClient<FoundryImageGenerator>(client => client.Timeout = TimeSpan.FromSeconds(60));
