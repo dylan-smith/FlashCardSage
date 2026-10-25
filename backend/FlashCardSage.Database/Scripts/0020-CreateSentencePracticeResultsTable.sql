@@ -3,7 +3,8 @@
 -- result, a row belongs to the user directly and goes with the user if they're deleted.
 --
 -- CardIds is a JSON array of the ids of the user's cards the sentence used, as they were, so a card deleted since
--- keeps its id here. ShownSide is the side the user was shown first: Spanish or English.
+-- keeps its id here. ShownSide is the side the user was shown first: Spanish or English. Listening is whether the
+-- sentence was practiced in listening mode, heard rather than read.
 CREATE TABLE [dbo].[SentencePracticeResults] (
     [Id] INT IDENTITY(1,1) NOT NULL,
     [UserId] INT NOT NULL,
@@ -11,6 +12,7 @@ CREATE TABLE [dbo].[SentencePracticeResults] (
     [English] NVARCHAR(300) NOT NULL,
     [CardIds] NVARCHAR(MAX) NOT NULL,
     [ShownSide] NVARCHAR(10) NOT NULL,
+    [Listening] BIT NOT NULL,
     [Outcome] NVARCHAR(20) NOT NULL,
     [PracticedAt] DATETIMEOFFSET NOT NULL,
     CONSTRAINT [PK_SentencePracticeResults] PRIMARY KEY CLUSTERED ([Id] ASC),
