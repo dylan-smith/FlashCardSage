@@ -71,6 +71,50 @@ test.describe('Accessibility', () => {
     }
   })
 
+  test('practice page in Sentences mode, with a sentence revealed, has no detectable accessibility violations', async ({
+    page,
+    api,
+  }) => {
+    const ids: number[] = []
+    for (const [spanish, english] of [
+      [`A11y sentence ${Date.now()}`, 'a sentence check'],
+      ['el gato', 'the cat'],
+      ['la casa', 'the house'],
+    ]) {
+      ids.push((await api.createCard(spanish, english)).id)
+    }
+    // The E2E backend has no Foundry to write sentences, so this stands in for it.
+    await page.route(
+      (url) => url.pathname.endsWith('/api/flashcards/practice/sentences'),
+      (route) =>
+        route.fulfill({
+          json: [
+            {
+              spanish: 'El gato duerme en la casa.',
+              english: 'The cat sleeps in the house.',
+              cardIds: [ids[1], ids[2]],
+            },
+          ],
+        }),
+    )
+    await page.addInitScript(() => {
+      localStorage.setItem('flashcardsage.practiceMode', '"sentences"')
+    })
+
+    try {
+      await page.goto('/practice')
+      await page.getByRole('button', { name: 'Reveal' }).click()
+      await expect(page.getByRole('list', { name: 'Cards used' })).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Got it!' })).toBeVisible()
+
+      await expectNoA11yViolations(page)
+    } finally {
+      for (const id of ids) {
+        await api.deleteCard(id)
+      }
+    }
+  })
+
   test("decks list, a deck's page with a card picked, the new deck dialog and the Tags page have no detectable accessibility violations", async ({
     page,
     api,

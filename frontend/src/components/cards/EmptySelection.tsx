@@ -11,19 +11,22 @@ const emptyMessages = {
 }
 
 // What practice or scores says when the cards picked are none, with a button to where cards are added: the decks
-// for a deck, and the cards page otherwise.
+// for a deck, and the cards page otherwise. message, when given, is what it says instead, such as when there are too
+// few cards.
 export function EmptySelection({
   kind,
   noCardsMessage,
+  message,
 }: {
   kind: CardSelectionKind
   // What it says when the user has no cards at all.
   noCardsMessage: string
+  message?: string
 }) {
   return (
     <Stack spacing={2} sx={{ alignItems: 'flex-start' }}>
       <EmptyText>
-        {kind === 'all' ? noCardsMessage : emptyMessages[kind]}
+        {message ?? (kind === 'all' ? noCardsMessage : emptyMessages[kind])}
       </EmptyText>
       {kind === 'deck' ? (
         <Button component={Link} to="/decks" variant="contained">
