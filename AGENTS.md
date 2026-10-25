@@ -17,8 +17,8 @@ card's Spanish aloud with an Azure Speech neural voice on the same Foundry resou
 store as the pictures and cached per phrase (`GeneratedAudio`, read and written by `CachedSpeechSynthesizer`).
 Practice also has a Sentences mode, whose short sentences gpt-5-mini writes from the user's cards as they go
 (`SentencePracticeController`). Its answers (`SentencePracticeResults`) belong to the user directly and keep the card
-ids they used as JSON, and they don't count toward card scores. Listen reads these sentences too, so spoken text can be
-up to `CachedAudio.MaxTextLength` (300) characters.
+ids they used as JSON and whether the Spanish was heard first, and they don't count toward card scores. Listen reads
+these sentences too, so spoken text can be up to `CachedAudio.MaxTextLength` (300) characters.
 
 - `backend/FlashCardSage.Api`: ASP.NET Core Web API (.NET 10) with EF Core, SQL Server and controllers.
   OpenAPI is served at `/openapi/v1.json` and Scalar at `/scalar` in every environment.

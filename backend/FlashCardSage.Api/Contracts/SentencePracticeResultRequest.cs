@@ -25,6 +25,10 @@ public class SentencePracticeResultRequest
     [EnumDataType(typeof(Language))]
     public Language? ShownSide { get; set; }
 
+    // Whether the Spanish was heard rather than read first.
+    [Required]
+    public bool? Listening { get; set; }
+
     [Required]
     [EnumDataType(typeof(PracticeOutcome))]
     public PracticeOutcome? Outcome { get; set; }
