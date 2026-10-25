@@ -316,6 +316,7 @@ describe('admin user page', () => {
       showPictures: true,
       showSuggestions: false,
       autoTranslate: true,
+      showGettingStarted: false,
     },
     decks: [
       {
@@ -431,6 +432,7 @@ describe('admin user page', () => {
         ['Score', '455 / 700 (65%)'],
         ['Show pictures', 'On'],
         ['Suggest cards', 'Off'],
+        ['Show the getting started guide', 'Off'],
         ['Got it', '7'],
         ['Close', '3'],
         ['Failed', '2'],

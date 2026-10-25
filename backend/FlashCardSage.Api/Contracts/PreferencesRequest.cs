@@ -14,4 +14,7 @@ public class PreferencesRequest
 
     [Required]
     public bool? AutoTranslate { get; set; }
+
+    [Required]
+    public bool? ShowGettingStarted { get; set; }
 }

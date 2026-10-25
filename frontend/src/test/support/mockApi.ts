@@ -47,7 +47,7 @@ const defaultRoutes: Routes = {
   'GET /tags': [],
   'GET /decks': [],
   'GET /system-decks': [],
-  'GET /counts': { cards: 0, decks: 0, tags: 0 },
+  'GET /counts': { cards: 0, decks: 0, tags: 0, practiced: 0 },
   'GET /preferences': defaultPreferences,
   'GET /me': { displayName: 'Tester', email: null, isAdmin: false },
   'GET /oauth/connections': [],

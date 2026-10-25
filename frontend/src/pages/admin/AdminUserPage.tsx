@@ -49,6 +49,7 @@ const preferenceLabels = {
   showPictures: 'Show pictures',
   showSuggestions: 'Suggest cards',
   autoTranslate: 'Translate automatically',
+  showGettingStarted: 'Show the getting started guide',
 } as const
 
 // Whether the card has the search in its words, tags, decks or source, whatever its accents and case.

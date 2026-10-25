@@ -21,6 +21,7 @@ import {
   syncPracticeResults,
   syncStatus,
 } from '../practice/sync'
+import { clearCounts, countsStore } from '../state/counts'
 import { trackException } from '../telemetry'
 import { deck, packCard, pets, tag } from './support/factories'
 import {
@@ -73,6 +74,7 @@ afterEach(() => {
   stopPracticeSync()
   setSession(null)
   setPreferences(null)
+  clearCounts()
   localStorage.clear()
   vi.restoreAllMocks()
   vi.clearAllMocks()
@@ -271,7 +273,25 @@ describe('syncing answers', () => {
     expect(readStoredPack(subject)).toEqual(pack)
   })
 
-  it("doesn't load the pack again when the API already had every answer", async () => {
+  // The getting started guide ticks off practicing from the counts.
+  it('loads the counts again once answers are saved', async () => {
+    answer()
+    const counts = { cards: 3, decks: 1, tags: 1, practiced: 1 }
+    const { background } = mockApi({
+      'POST /flashcards/practice-results': { accepted: 1 },
+      'GET /flashcards/practice/pack': pack,
+      'GET /counts': counts,
+    })
+
+    await syncPracticeResults()
+
+    await vi.waitFor(() => {
+      expect(countsStore.get()).toEqual(counts)
+    })
+    expect(background.filter('GET', '/counts')).toHaveLength(1)
+  })
+
+  it("doesn't load the pack or the counts again when the API already had every answer", async () => {
     answer()
     const { background } = mockApi({
       'POST /flashcards/practice-results': { accepted: 0 },
@@ -280,6 +300,7 @@ describe('syncing answers', () => {
     await syncPracticeResults()
 
     expect(background.some('GET', '/flashcards/practice/pack')).toBe(false)
+    expect(background.some('GET', '/counts')).toBe(false)
   })
 
   it('does nothing when no one is signed in', async () => {

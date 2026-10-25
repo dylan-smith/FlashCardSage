@@ -20,7 +20,8 @@ A flash card app for learning a language, with:
 - Scan a document (.txt, .md, .srt, .vtt, .docx or .pdf) for words and phrases to make cards for: gpt-5-mini makes up to 100 cards from it, leaving out ones you have, and you change or remove any before adding them all at once; scan it again for more
 - Ask for a picture of what a card means, made by FLUX.2-pro on Azure AI Foundry, or upload your own (a JPEG, PNG or WebP of up to 5 MB), which goes on the card when you save it unless you discard it; practice mode shows it once the card is revealed
 - Hear a card's Spanish in practice mode: a Listen button beside it plays each word or phrase, read by an Azure Speech neural voice (Mexican Spanish) with the intonation of a phrase or sentence rather than word by word
-- A Preferences page, where each user can turn off pictures, suggested cards and translation as they type
+- A getting started guide at the top of the Cards page for a new user: three steps that tick themselves off (get some cards, practice them, see how you're doing), each with a link to where it's done, and a word about what else there is. Hide guide turns it off, and the Preferences page turns it back on
+- A Preferences page, where each user can turn off pictures, suggested cards, translation as they type and the getting started guide
 - Opens with no connection once it's been opened online, and can be installed as an app (on a phone, Add to Home Screen): a service worker keeps the app itself on the device
 - Practice offline: practice picks the next card on the device from your cards and scores as last loaded, and keeps your answers there until they can be saved
 - Connect an AI assistant such as Claude, ChatGPT or Claude Code to your cards: the API's MCP server lets it list, add, change and delete your cards, tags and decks and read your practice scores, after you approve it (see [Connect an AI assistant (MCP)](#connect-an-ai-assistant-mcp))

@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useState } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import FormControlLabel from '@mui/material/FormControlLabel'
@@ -6,15 +6,8 @@ import FormGroup from '@mui/material/FormGroup'
 import Stack from '@mui/material/Stack'
 import Switch from '@mui/material/Switch'
 import Typography from '@mui/material/Typography'
-import { describeFetchError } from '../api/client'
-import { savePreferences } from '../api/preferences'
 import type { Preferences } from '../api/preferences'
-import {
-  currentPreferences,
-  setPreferences,
-  usePreferences,
-} from '../hooks/usePreferences'
-import { trackEvent, trackException } from '../telemetry'
+import { useChangePreference, usePreferences } from '../hooks/usePreferences'
 import { Loading } from '../components/common/Loading'
 import { Section } from '../components/common/Section'
 import { ConnectedApps } from '../components/preferences/ConnectedApps'
@@ -42,39 +35,24 @@ const options: {
     description:
       "Fill in the other side of a card with a translation of the side you type. When it's off, you type both sides.",
   },
+  {
+    key: 'showGettingStarted',
+    label: 'Show the getting started guide',
+    description:
+      'Show the guide at the top of the Cards page that walks you through adding cards, practicing them and seeing your scores. Hide guide there turns this off.',
+  },
 ]
 
 // The user's preferences, each saved as soon as it's changed, and the apps they've connected.
 function PreferencesPage() {
   const preferences = usePreferences()
   const [errorMessage, setErrorMessage] = useState('')
-  // The saves, one after another, so the last change is the one the API keeps. The switches stay enabled while one
-  // is on its way, so the one the user changed keeps focus.
-  const saves = useRef(Promise.resolve())
+  // The switches stay enabled while a save is on its way, so the one the user changed keeps focus.
+  const changePreference = useChangePreference(setErrorMessage)
 
-  // Shows the change right away, and turns it back if it isn't saved.
   function change(key: keyof Preferences, value: boolean) {
-    if (preferences === null) {
-      return
-    }
-    const changed = { ...preferences, [key]: value }
     setErrorMessage('')
-    setPreferences(changed)
-    saves.current = saves.current.then(async () => {
-      try {
-        await savePreferences(changed)
-        trackEvent('PreferencesUpdated')
-      } catch (error) {
-        trackException(error, { operation: 'savePreferences' })
-        const latest = currentPreferences()
-        if (latest !== null) {
-          setPreferences({ ...latest, [key]: !value })
-        }
-        setErrorMessage(
-          describeFetchError(error, 'Unable to save preferences.'),
-        )
-      }
-    })
+    changePreference(key, value)
   }
 
   return (
