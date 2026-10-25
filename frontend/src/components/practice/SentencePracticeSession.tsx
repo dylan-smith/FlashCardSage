@@ -207,11 +207,13 @@ export function SentencePracticeSession({
           english: sentence.english,
           cardIds: sentence.cardIds,
           shownSide: side,
+          listening: listeningNow,
           outcome,
         })
         trackEvent('SentencePracticeResultRecorded', {
           outcome,
           shownSide: side,
+          listening: String(listeningNow),
         })
         answeredRef.current = true
         setPracticed((count) => count + 1)

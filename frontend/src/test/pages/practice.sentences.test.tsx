@@ -290,12 +290,14 @@ describe('listening mode', () => {
         english: 'The cat sleeps.',
         cardIds: [cat.id],
         shownSide: 'Spanish',
+        listening: true,
         outcome: 'GotIt',
       },
     ])
     expect(trackEvent).toHaveBeenCalledWith('SentencePracticeResultRecorded', {
       outcome: 'GotIt',
       shownSide: 'Spanish',
+      listening: 'true',
     })
   })
 
@@ -448,12 +450,13 @@ describe('practicing sentences', () => {
           english: 'The cat sleeps.',
           cardIds: [cat.id],
           shownSide: 'English',
+          listening: false,
           outcome,
         },
       ])
       expect(trackEvent).toHaveBeenCalledWith(
         'SentencePracticeResultRecorded',
-        { outcome, shownSide: 'English' },
+        { outcome, shownSide: 'English', listening: 'false' },
       )
     },
   )

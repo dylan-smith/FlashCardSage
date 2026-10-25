@@ -16,6 +16,8 @@ export type PracticeSentence = {
 // How the user did at a sentence, and the side they were shown first.
 export type SentenceResult = PracticeSentence & {
   shownSide: PracticeSide
+  // Whether it was practiced in listening mode, with the Spanish heard rather than read first.
+  listening: boolean
   outcome: PracticeOutcome
 }
 
