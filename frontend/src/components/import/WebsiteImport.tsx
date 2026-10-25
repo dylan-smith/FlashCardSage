@@ -62,6 +62,7 @@ function SiteTile({
         <Typography id={nameId} component="span" sx={{ fontWeight: 'bold' }}>
           {source.name}
         </Typography>
+        {/* Keeps the name and the words apart in the tile's text, as they are in its label. */}{' '}
         <Typography id={wordsId} variant="body2" color="text.secondary">
           Your {source.wordsName}
         </Typography>
