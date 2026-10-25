@@ -52,6 +52,7 @@ function answer(flashCardId = cat.id, seconds = 0) {
     flashCardId,
     'GotIt',
     new Date(Date.UTC(2026, 9, 19, 10, 0, seconds)).toISOString(),
+    false,
   )
 }
 

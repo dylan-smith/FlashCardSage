@@ -126,6 +126,7 @@ function Practice({ practice }: { practice: AdminPracticeSummary }) {
           { label: 'Got it', value: practice.gotIt },
           { label: 'Close', value: practice.wasClose },
           { label: 'Failed', value: practice.failed },
+          { label: 'Listening mode', value: practice.listening },
           {
             label: 'First practiced',
             value: formatDate(practice.firstPracticedAt, 'Never'),
@@ -186,7 +187,11 @@ function Practice({ practice }: { practice: AdminPracticeSummary }) {
             >
               <ListItemText
                 primary={formatWords(result.spanish)}
-                secondary={formatDateTime(result.practicedAt)}
+                secondary={
+                  result.listening === true
+                    ? `${formatDateTime(result.practicedAt)}, listening mode`
+                    : formatDateTime(result.practicedAt)
+                }
                 slotProps={{ primary: { lang: 'es' } }}
                 sx={{ overflowWrap: 'anywhere' }}
               />
