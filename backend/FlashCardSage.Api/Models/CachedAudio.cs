@@ -8,6 +8,9 @@ public class CachedAudio
 {
     public const int MaxVoiceLength = 64;
 
+    // Long enough for a practice sentence, as well as a card's words.
+    public const int MaxTextLength = SentencePracticeResult.MaxSentenceLength;
+
     public int Id { get; set; }
 
     // The voice's name, e.g. es-MX-DaliaNeural, so a change of voice starts afresh.
