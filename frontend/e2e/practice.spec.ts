@@ -294,10 +294,10 @@ test.describe('Sentences', () => {
     await expect(
       page.getByText(sentences()[0].spanish, { exact: true }),
     ).toBeVisible()
-    // Listening mode is about the cards.
+    // Listening mode works for sentences too.
     await expect(
       page.getByRole('switch', { name: 'Listening mode' }),
-    ).toBeHidden()
+    ).toBeVisible()
 
     await page.reload()
     await expect(tabs.getByRole('tab', { name: 'Sentences' })).toHaveAttribute(
@@ -382,6 +382,60 @@ test.describe('Sentences', () => {
       // The sample audio is a short silence: Stop while it plays, then Listen again.
       await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible()
       await expect(listen).toBeVisible()
+      await expect(page.getByRole('alert')).toBeHidden()
+    })
+
+    test('starts with the Spanish heard rather than seen in listening mode', async ({
+      page,
+    }) => {
+      // The English would come up first without listening mode, as a roll of a half or more picks it.
+      await page.addInitScript(() => {
+        Math.random = () => 0.6
+      })
+      await stubSentences(page)
+      const [first] = sentences()
+      const asked = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/speech') &&
+          response.request().method() === 'POST',
+      )
+      await page.goto('/practice')
+      await expect(page.getByText(first.english, { exact: true })).toBeVisible()
+      const spoken = await asked
+      expect(spoken.status()).toBe(200)
+      expect(spoken.request().postDataJSON()).toEqual({
+        texts: [first.spanish],
+      })
+
+      await page.getByRole('switch', { name: 'Listening mode' }).check()
+
+      await expect(page.getByText(first.english, { exact: true })).toBeHidden()
+      await expect(page.getByText(first.spanish, { exact: true })).toBeHidden()
+      await expect(page.getByRole('button', { name: 'Listen' })).toBeVisible()
+
+      await page.getByRole('button', { name: 'Reveal' }).click()
+
+      await expect(page.getByText(first.spanish, { exact: true })).toBeVisible()
+      await expect(page.getByText(first.english, { exact: true })).toBeVisible()
+
+      // The answer goes to the real API, with the Spanish as the side shown.
+      const saved = page.waitForRequest(
+        (request) =>
+          request
+            .url()
+            .endsWith('/api/flashcards/practice/sentences/results') &&
+          request.method() === 'POST',
+      )
+      await page.getByRole('button', { name: 'Got it!' }).click()
+
+      expect((await saved).postDataJSON()).toMatchObject({
+        spanish: first.spanish,
+        shownSide: 'Spanish',
+        outcome: 'GotIt',
+      })
+      await expect(page.getByText(/^Sentences practiced/)).toHaveText(
+        'Sentences practiced 1',
+      )
       await expect(page.getByRole('alert')).toBeHidden()
     })
 
