@@ -5,7 +5,7 @@ namespace FlashCardSage.Api.Tests;
 
 public class NewSentencesTests
 {
-    private static readonly int[] Scope = [1, 2, 3];
+    private static readonly FlashCard[] Scope = [Card(1, "gato"), Card(2, "perro"), Card(3, "comer")];
 
     [Fact]
     public void From_TrimsBothSides()
@@ -40,7 +40,7 @@ public class NewSentencesTests
     [Fact]
     public void From_CutsTheCardIdsToTheScope_EachOnce()
     {
-        var sentence = Assert.Single(NewSentences.From([new("El gato come.", "The cat eats.", [3, 9, 1, 3])], Scope));
+        var sentence = Assert.Single(NewSentences.From([new("Él come.", "He eats.", [3, 9, 1, 3])], Scope));
 
         Assert.Equal([3, 1], sentence.CardIds);
     }
@@ -48,15 +48,17 @@ public class NewSentencesTests
     [Fact]
     public void From_KeepsNoMoreCardIdsThanAResultKeeps()
     {
-        var scope = Enumerable.Range(1, SentencePracticeResult.MaxCards + 5).ToList();
+        var scope = Enumerable.Range(1, SentencePracticeResult.MaxCards + 5).Select(id => Card(id, $"palabra{id}"))
+            .ToList();
 
-        var sentence = Assert.Single(NewSentences.From([new("El gato come.", "The cat eats.", scope)], scope));
+        var sentence = Assert.Single(
+            NewSentences.From([new("El gato come.", "The cat eats.", [.. scope.Select(card => card.Id)])], scope));
 
         Assert.Equal(SentencePracticeResult.MaxCards, sentence.CardIds.Count);
     }
 
     [Fact]
-    public void From_LeavesOutSentencesWithNoCardsInScope()
+    public void From_LeavesOutSentencesTheModelGaveNoCardsInScopeFor()
     {
         PracticeSentence[] generated =
         [
@@ -82,5 +84,53 @@ public class NewSentencesTests
 
         Assert.Equal(["El gato come.", "El gato bebe."], sentences.Select(sentence => sentence.Spanish));
         Assert.Equal("The cat eats.", sentences[0].English);
+    }
+
+    [Fact]
+    public void From_AddsTheCardsInScopeWhoseSpanishIsInTheSentence_AfterTheModelsOnes()
+    {
+        FlashCard[] scope =
+        [
+            Card(1, "poder"), Card(2, "cerrar"), Card(3, "la puerta"), Card(4, "por favor"), Card(5, "la ventana")
+        ];
+
+        var sentence = Assert.Single(NewSentences.From(
+            [new("¿Puedes cerrar la puerta, por favor?", "Can you close the door, please?", [1])], scope));
+
+        Assert.Equal([1, 2, 3, 4], sentence.CardIds);
+    }
+
+    [Fact]
+    public void From_FindsACardByAnyOfItsWords_IgnoringCaseAndAccents()
+    {
+        FlashCard[] scope = [Card(1, "gato"), Card(2, "solo", "únicamente"), Card(3, "Está bien")];
+
+        var sentence = Assert.Single(
+            NewSentences.From([new("Unicamente el gato. ESTA BIEN.", "Only the cat. It's fine.", [1])], scope));
+
+        Assert.Equal([1, 2, 3], sentence.CardIds);
+    }
+
+    [Fact]
+    public void From_FindsOnlyWholeWordsTogether_LeavingOutANoteInBrackets()
+    {
+        FlashCard[] scope =
+        [
+            Card(1, "gato"), Card(2, "el"), Card(3, "puerta abierta"), Card(4, "cerrar (algo)"), Card(5, "ato")
+        ];
+
+        var sentence = Assert.Single(NewSentences.From(
+            [new("Los gatos van a cerrar la puerta, no abierta.", "The cats will close the door, not open.", [1])],
+            scope));
+
+        Assert.Equal([1, 4], sentence.CardIds);
+    }
+
+    private static FlashCard Card(int id, params string[] spanish)
+    {
+        var card = new FlashCard { Id = id };
+        card.SetWords(Language.Spanish, spanish);
+        card.SetWords(Language.English, ["word"]);
+        return card;
     }
 }

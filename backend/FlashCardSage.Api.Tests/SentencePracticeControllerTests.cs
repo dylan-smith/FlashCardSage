@@ -180,6 +180,31 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
     }
 
     [Fact]
+    public async Task Get_AddsTheSelectionsCardsASentenceUses_ThatTheModelLeftOut()
+    {
+        await using var dbContext = TestDb.Create();
+        var deck = new Deck { Name = "Animals" };
+        List<FlashCard> cards =
+        [
+            new() { Words = TestDb.Words("el gato", "the cat"), Decks = [deck] },
+            new() { Words = TestDb.Words("el perro", "the dog"), Decks = [deck] },
+            new() { Words = TestDb.Words("el pez", "the fish"), Decks = [deck] }
+        ];
+        dbContext.FlashCards.AddRange([.. cards, TestDb.Card("la casa", "the house")]);
+        await dbContext.SaveChangesAsync();
+        var generator = new FakeSentenceGenerator
+        {
+            Result = [new("El gato y el perro están en la casa.", "The cat and the dog are in the house.", [cards[0].Id])]
+        };
+
+        var result = await CreateController(dbContext, generator).Get(
+            new PracticeSelection { DeckId = deck.Id }, CancellationToken.None);
+
+        var sentence = Assert.Single(ActionResultAssert.Ok<List<PracticeSentence>>(result.Result));
+        Assert.Equal([cards[0].Id, cards[1].Id], sentence.CardIds);
+    }
+
+    [Fact]
     public async Task Get_ReturnsAHandfulAtMost()
     {
         var databaseName = TestDb.NewDatabaseName();
