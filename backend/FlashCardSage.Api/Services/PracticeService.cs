@@ -71,7 +71,7 @@ public class PracticeService(FlashCardDbContext dbContext, ILogger<PracticeServi
     // the device gave it, so the device can send them again when it didn't hear back. Answers for cards that are gone
     // (or were never the user's) are skipped rather than refused, since the device can't do anything else with them.
     public async Task<int> RecordResultsAsync(
-        IReadOnlyList<(Guid Id, int FlashCardId, PracticeOutcome Outcome, DateTimeOffset PracticedAt)> results,
+        IReadOnlyList<(Guid Id, int FlashCardId, PracticeOutcome Outcome, DateTimeOffset PracticedAt, bool? Listening)> results,
         CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(results);
@@ -95,7 +95,7 @@ public class PracticeService(FlashCardDbContext dbContext, ILogger<PracticeServi
 
         var now = DateTimeOffset.UtcNow;
         var accepted = 0;
-        foreach (var (id, flashCardId, outcome, practicedAt) in results)
+        foreach (var (id, flashCardId, outcome, practicedAt, listening) in results)
         {
             // Adding the id also skips it if it's sent twice in this request.
             if (!cards.Contains(flashCardId) || !recorded.Add(id))
@@ -109,7 +109,8 @@ public class PracticeService(FlashCardDbContext dbContext, ILogger<PracticeServi
                 FlashCardId = flashCardId,
                 Outcome = outcome,
                 // A device's clock can be ahead, and an answer can't have been given later than it was received.
-                PracticedAt = practicedAt < now ? practicedAt : now
+                PracticedAt = practicedAt < now ? practicedAt : now,
+                Listening = listening
             });
 
             // Saved one at a time, so the ids follow the order the answers were given in, which scores go by. One

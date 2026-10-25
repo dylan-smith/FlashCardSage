@@ -81,6 +81,14 @@ function OverviewSections({ overview }: { overview: AdminOverview }) {
               label: 'Practice results in the last 30 days',
               value: overview.practiceResultsLast30Days,
             },
+            {
+              label: 'Listening-mode results in the last 30 days',
+              value: overview.listeningPracticeResultsLast30Days,
+            },
+            {
+              label: 'Listening-mode users in the last 30 days',
+              value: overview.listeningUsersLast30Days,
+            },
           ]}
         />
       </Section>

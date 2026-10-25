@@ -38,6 +38,11 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
         var practicedLast30Days = await UsageSnapshot.CountByUserAsync(
             PracticeResults().Where(result => result.PracticedAt >= now.AddDays(-30)).Select(result => result.FlashCard.UserId),
             cancellationToken);
+        var listenedLast30Days = await UsageSnapshot.CountByUserAsync(
+            PracticeResults()
+                .Where(result => result.PracticedAt >= now.AddDays(-30) && result.Listening == true)
+                .Select(result => result.FlashCard.UserId),
+            cancellationToken);
 
         return new AdminOverviewResponse(
             summaries.Count,
@@ -50,6 +55,8 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
             summaries.Sum(user => user.PracticeResults),
             SumFor(personIds, practicedLast7Days),
             SumFor(personIds, practicedLast30Days),
+            SumFor(personIds, listenedLast30Days),
+            listenedLast30Days.Keys.Count(personIds.Contains),
             CountBySource(sources.Where(item => personIds.Contains(item.UserId))),
             await dbContext.Translations.CountAsync(cancellationToken),
             await dbContext.GeneratedImages.CountAsync(cancellationToken),
@@ -255,7 +262,7 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
         var results = await PracticeResults()
             .Where(result => result.FlashCard.UserId == userId)
             .OrderByDescending(result => result.Id)
-            .Select(result => new { result.FlashCardId, result.Outcome, result.PracticedAt })
+            .Select(result => new { result.FlashCardId, result.Outcome, result.PracticedAt, result.Listening })
             .ToListAsync(cancellationToken);
 
         var recent = results.Take(RecentPracticeResults).ToList();
@@ -272,6 +279,7 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
             results.Count(result => result.Outcome == PracticeOutcome.GotIt),
             results.Count(result => result.Outcome == PracticeOutcome.WasClose),
             results.Count(result => result.Outcome == PracticeOutcome.Failed),
+            results.Count(result => result.Listening == true),
             results.Count == 0 ? null : results.Min(result => result.PracticedAt),
             results.Count == 0 ? null : results.Max(result => result.PracticedAt),
             Enumerable.Range(1 - PracticeDays, PracticeDays)
@@ -283,7 +291,8 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
                     result.FlashCardId,
                     spanish.GetValueOrDefault(result.FlashCardId, []),
                     result.Outcome,
-                    result.PracticedAt))
+                    result.PracticedAt,
+                    result.Listening))
                 .ToList());
     }
 

@@ -222,12 +222,14 @@ describe('practicing', () => {
             flashCardId: cat.id,
             outcome,
             practicedAt: expect.any(String) as string,
+            listening: false,
           },
         ])
       })
       expect(readQueue(subject)).toEqual([])
       expect(trackEvent).toHaveBeenCalledWith('PracticeResultRecorded', {
         outcome,
+        listening: 'false',
       })
     },
   )
@@ -273,7 +275,7 @@ describe('practicing', () => {
 
   it('practices the answers on the device that are not saved yet', async () => {
     // The pack says the cat has never been got right, but an answer on the device has.
-    enqueueResult(subject, cat.id, 'GotIt', new Date().toISOString())
+    enqueueResult(subject, cat.id, 'GotIt', new Date().toISOString(), false)
     const user = userEvent.setup()
     await practice([cat], {
       // Keeps the answer on the device, so it's still not saved.
@@ -707,6 +709,28 @@ describe('practicing', () => {
         expect(screen.queryByText('el perro')).not.toBeInTheDocument()
         await waitFor(() => {
           expect(played.map((audio) => audio.src)).toEqual([gatoUrl, dogUrl])
+        })
+      })
+
+      it('records the answers as practiced in listening mode', async () => {
+        stubAudio()
+        localStorage.setItem(storageKeys.practiceListening, 'true')
+        const user = userEvent.setup()
+        const { calls } = await practice([cat], {
+          routes: { 'POST /speech': speech },
+        })
+
+        await user.click(screen.getByRole('button', { name: 'Reveal' }))
+        await user.click(screen.getByRole('button', { name: 'Got it!' }))
+
+        await waitFor(() => {
+          expect(sentResults(calls)).toEqual([
+            expect.objectContaining({ flashCardId: cat.id, listening: true }),
+          ])
+        })
+        expect(trackEvent).toHaveBeenCalledWith('PracticeResultRecorded', {
+          outcome: 'GotIt',
+          listening: 'true',
         })
       })
 
