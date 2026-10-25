@@ -21,6 +21,29 @@ public static class FoundrySchemas
         return Strict(name, new { cards }, "cards");
     }
 
+    // An answer of a list of sentences, { "sentences": [{ "spanish": ..., "english": ..., "cardIds": [...] }] }, read
+    // as PracticeSentences.
+    public static object Sentences(string name)
+    {
+        var sentences = new
+        {
+            type = "array",
+            items = new
+            {
+                type = "object",
+                properties = new
+                {
+                    spanish = new { type = "string" },
+                    english = new { type = "string" },
+                    cardIds = new { type = "array", items = new { type = "integer" } }
+                },
+                required = new[] { "spanish", "english", "cardIds" },
+                additionalProperties = false
+            }
+        };
+        return Strict(name, new { sentences }, "sentences");
+    }
+
     // An answer of a list of strings, { property: [...] }.
     public static object StringList(string name, string property)
     {

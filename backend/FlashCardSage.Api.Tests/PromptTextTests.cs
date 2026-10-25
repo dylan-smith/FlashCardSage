@@ -15,6 +15,14 @@ public class PromptTextTests
     }
 
     [Fact]
+    public void CardWithId_PutsTheIdBeforeTheCard()
+    {
+        var card = new FlashCard { Id = 12, Words = TestDb.Words(["solo", "únicamente"], ["only"]) };
+
+        Assert.Equal("12: solo / únicamente = only", PromptText.CardWithId(card));
+    }
+
+    [Fact]
     public void CardWithTags_AddsTheTagsInBrackets_WhenThereAreAny()
     {
         var tagged = new FlashCard

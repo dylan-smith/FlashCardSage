@@ -78,10 +78,25 @@ public sealed class SpeechControllerTests(WebApplicationFactory<Program> factory
         var synthesizer = new FakeSpeechSynthesizer();
 
         var result = await CreateController(dbContext, synthesizer).Speak(
-            new SpeechRequest { Texts = [new string('a', FlashCard.MaxWordLength + 1)] }, CancellationToken.None);
+            new SpeechRequest { Texts = [new string('a', CachedAudio.MaxTextLength + 1)] }, CancellationToken.None);
 
-        ActionResultAssert.ValidationProblem(result.Result, "Texts", "A text can be at most 200 characters.");
+        ActionResultAssert.ValidationProblem(result.Result, "Texts", "A text can be at most 300 characters.");
         Assert.Empty(synthesizer.Calls);
+    }
+
+    [Fact]
+    public async Task Speak_ReadsASentenceLongerThanACardsWords()
+    {
+        await using var dbContext = TestDb.Create();
+        var synthesizer = new FakeSpeechSynthesizer();
+        var sentence = new string('a', 250);
+
+        var result = await CreateController(dbContext, synthesizer).Speak(
+            new SpeechRequest { Texts = [sentence] }, CancellationToken.None);
+
+        var response = ActionResultAssert.Ok<SpeechResponse>(result.Result);
+        Assert.Single(response.Urls);
+        Assert.Equal([sentence], synthesizer.Calls);
     }
 
     [Fact]

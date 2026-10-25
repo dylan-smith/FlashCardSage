@@ -20,6 +20,7 @@ builder.Services.AddScoped<DeckService>();
 builder.Services.AddScoped<DeckSharingService>();
 builder.Services.AddScoped<CardPictureService>();
 builder.Services.AddScoped<PracticeService>();
+builder.Services.AddScoped<SentencePracticeService>();
 builder.Services.AddScoped<CountsService>();
 builder.Services.AddScoped<PreferencesService>();
 builder.Services.AddScoped<SystemDeckImporter>();

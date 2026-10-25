@@ -6,7 +6,7 @@ using Microsoft.AspNetCore.Mvc;
 namespace FlashCardSage.Api.Controllers;
 
 /// <summary>
-/// Reads a card's Spanish aloud, so the user can hear how it's said. Each word or phrase is read on its own, with the
+/// Reads a card's Spanish, or a practice sentence, aloud, so the user can hear how it's said. Each word or phrase is read on its own, with the
 /// intonation of a phrase or sentence rather than word by word, and the audio is kept in a cache every user shares
 /// (see CachedSpeechSynthesizer), so a phrase is only paid for the first time anyone asks to hear it. The browser plays
 /// the audio from the URLs this returns.
@@ -34,9 +34,9 @@ public class SpeechController(CachedSpeechSynthesizer speech, ILogger<SpeechCont
             return ValidationProblem(ModelState);
         }
 
-        if (texts.Any(text => text.Length > FlashCard.MaxWordLength))
+        if (texts.Any(text => text.Length > CachedAudio.MaxTextLength))
         {
-            ModelState.AddModelError(nameof(request.Texts), $"A text can be at most {FlashCard.MaxWordLength} characters.");
+            ModelState.AddModelError(nameof(request.Texts), $"A text can be at most {CachedAudio.MaxTextLength} characters.");
             return ValidationProblem(ModelState);
         }
 

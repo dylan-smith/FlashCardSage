@@ -17,6 +17,13 @@ public static class PromptText
         return $"{string.Join(" / ", spanish)} = {string.Join(" / ", english)}";
     }
 
+    // A card as id: Spanish = English, so the model can say which cards it used.
+    public static string CardWithId(FlashCard card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        return $"{card.Id}: {Card(card)}";
+    }
+
     // A card as Spanish = English [tags], with no brackets when it has no tags.
     public static string CardWithTags(FlashCard card)
     {
