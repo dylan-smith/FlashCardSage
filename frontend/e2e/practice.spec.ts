@@ -348,7 +348,14 @@ test.describe('Sentences', () => {
       )
       await page.getByRole('button', { name: 'Got it!' }).click()
 
-      expect((await saved).status()).toBe(204)
+      const response = await saved
+      expect(response.status()).toBe(204)
+      expect(response.request().postDataJSON()).toMatchObject({
+        spanish: first.spanish,
+        shownSide: 'Spanish',
+        listening: false,
+        outcome: 'GotIt',
+      })
       await expect(
         page.getByText(second.spanish, { exact: true }),
       ).toBeVisible()
@@ -418,19 +425,22 @@ test.describe('Sentences', () => {
       await expect(page.getByText(first.spanish, { exact: true })).toBeVisible()
       await expect(page.getByText(first.english, { exact: true })).toBeVisible()
 
-      // The answer goes to the real API, with the Spanish as the side shown.
-      const saved = page.waitForRequest(
-        (request) =>
-          request
+      // The answer goes to the real API, with the Spanish as the side shown, practiced in listening mode.
+      const saved = page.waitForResponse(
+        (response) =>
+          response
             .url()
             .endsWith('/api/flashcards/practice/sentences/results') &&
-          request.method() === 'POST',
+          response.request().method() === 'POST',
       )
       await page.getByRole('button', { name: 'Got it!' }).click()
 
-      expect((await saved).postDataJSON()).toMatchObject({
+      const response = await saved
+      expect(response.status()).toBe(204)
+      expect(response.request().postDataJSON()).toMatchObject({
         spanish: first.spanish,
         shownSide: 'Spanish',
+        listening: true,
         outcome: 'GotIt',
       })
       await expect(page.getByText(/^Sentences practiced/)).toHaveText(
