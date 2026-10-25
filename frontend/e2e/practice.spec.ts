@@ -1,3 +1,4 @@
+import type { Page } from '@playwright/test'
 import { test, expect, openSection } from './fixtures'
 
 const cards = [
@@ -233,5 +234,187 @@ test.describe('Practice', () => {
     await expect(
       page.getByRole('heading', { name: 'Add flash card' }),
     ).toBeVisible()
+  })
+})
+
+// Asking for sentences, but not saving an answer to one (.../sentences/results).
+function isSentencesRequest(url: URL) {
+  return url.pathname.endsWith('/api/flashcards/practice/sentences')
+}
+
+test.describe('Sentences', () => {
+  const sentenceCards = [...cards, { spanish: 'la casa', english: 'the house' }]
+  let ids: number[] = []
+
+  // The sentences the model would write. The E2E backend has no Foundry, so the tests stand in for it, with the ids of
+  // the cards they made.
+  function sentences() {
+    return [
+      {
+        spanish: 'El gato duerme en la casa.',
+        english: 'The cat sleeps in the house.',
+        cardIds: [ids[0], ids[2]],
+      },
+      {
+        spanish: 'El perro quiere jugar.',
+        english: 'The dog wants to play.',
+        cardIds: [ids[1]],
+      },
+    ]
+  }
+
+  async function stubSentences(page: Page) {
+    await page.route(isSentencesRequest, (route) =>
+      route.fulfill({ json: sentences() }),
+    )
+  }
+
+  test.beforeEach(async ({ api, page }) => {
+    await api.reset('flashcards')
+    ids = []
+    for (const card of sentenceCards) {
+      ids.push((await api.createCard(card.spanish, card.english)).id)
+    }
+    // The Spanish comes up first, as a roll under one half picks it.
+    await page.addInitScript(() => {
+      Math.random = () => 0
+    })
+  })
+
+  test('remembers the Sentences tab after a reload', async ({ page }) => {
+    await stubSentences(page)
+    await page.goto('/practice')
+    const tabs = page.getByRole('tablist', { name: 'Practice mode' })
+    await expect(tabs.getByRole('tab', { name: 'Cards' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+
+    await tabs.getByRole('tab', { name: 'Sentences' }).click()
+    await expect(
+      page.getByText(sentences()[0].spanish, { exact: true }),
+    ).toBeVisible()
+    // Listening mode is about the cards.
+    await expect(
+      page.getByRole('switch', { name: 'Listening mode' }),
+    ).toBeHidden()
+
+    await page.reload()
+    await expect(tabs.getByRole('tab', { name: 'Sentences' })).toHaveAttribute(
+      'aria-selected',
+      'true',
+    )
+    await expect(
+      page.getByText(sentences()[0].spanish, { exact: true }),
+    ).toBeVisible()
+  })
+
+  test.describe('in Sentences mode', () => {
+    test.beforeEach(async ({ page }) => {
+      await page.addInitScript(() => {
+        localStorage.setItem('flashcardsage.practiceMode', '"sentences"')
+      })
+    })
+
+    test('reveals a sentence and the cards it uses, and saves the answer', async ({
+      page,
+    }) => {
+      await stubSentences(page)
+      await page.goto('/practice')
+      const [first, second] = sentences()
+      const practiced = page.getByText(/^Sentences practiced/)
+
+      await expect(page.getByText(first.spanish, { exact: true })).toBeVisible()
+      await expect(practiced).toHaveText('Sentences practiced 0')
+      await expect(page.getByText(first.english, { exact: true })).toBeHidden()
+
+      await page.getByRole('button', { name: 'Reveal' }).click()
+
+      await expect(page.getByText(first.english, { exact: true })).toBeVisible()
+      const used = page.getByRole('list', { name: 'Cards used' })
+      await expect(used.getByRole('listitem')).toHaveText([
+        'el gato',
+        'la casa',
+      ])
+      await expect(page.getByRole('button', { name: 'Got it!' })).toBeFocused()
+
+      // The answer goes to the real API.
+      const saved = page.waitForResponse(
+        (response) =>
+          response
+            .url()
+            .endsWith('/api/flashcards/practice/sentences/results') &&
+          response.request().method() === 'POST',
+      )
+      await page.getByRole('button', { name: 'Got it!' }).click()
+
+      expect((await saved).status()).toBe(204)
+      await expect(
+        page.getByText(second.spanish, { exact: true }),
+      ).toBeVisible()
+      await expect(page.getByText(first.spanish, { exact: true })).toBeHidden()
+      await expect(practiced).toHaveText('Sentences practiced 1')
+      await expect(page.getByRole('button', { name: 'Reveal' })).toBeFocused()
+      await expect(page.getByRole('alert')).toBeHidden()
+    })
+
+    test('reads the sentence aloud when Listen is pressed', async ({
+      page,
+    }) => {
+      await stubSentences(page)
+      const [first] = sentences()
+      // The audio is asked for as soon as the sentence comes up.
+      const asked = page.waitForResponse(
+        (response) =>
+          response.url().endsWith('/api/speech') &&
+          response.request().method() === 'POST',
+      )
+      await page.goto('/practice')
+      const spoken = await asked
+      expect(spoken.status()).toBe(200)
+      expect(spoken.request().postDataJSON()).toEqual({
+        texts: [first.spanish],
+      })
+
+      const listen = page.getByRole('button', { name: 'Listen' })
+      await listen.click()
+
+      // The sample audio is a short silence: Stop while it plays, then Listen again.
+      await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible()
+      await expect(listen).toBeVisible()
+      await expect(page.getByRole('alert')).toBeHidden()
+    })
+
+    test("says so when sentences aren't available", async ({ page }) => {
+      // Not stubbed, so the API says there's no Foundry to write them.
+      await page.goto('/practice')
+
+      await expect(page.getByText("Sentences aren't available.")).toBeVisible()
+      await expect(page.getByRole('button', { name: 'Reveal' })).toBeHidden()
+    })
+
+    test('asks for more cards when there are fewer than 3', async ({
+      page,
+      api,
+    }) => {
+      await api.deleteCard(ids[2])
+      let asked = 0
+      page.on('request', (request) => {
+        if (isSentencesRequest(new URL(request.url()))) {
+          asked++
+        }
+      })
+      await stubSentences(page)
+      await page.goto('/practice')
+
+      const panel = page.getByRole('tabpanel')
+      await expect(
+        panel.getByText('Sentences need at least 3 cards, and you have 2.'),
+      ).toBeVisible()
+      await expect(
+        panel.getByRole('link', { name: 'Add flash cards' }),
+      ).toBeVisible()
+      expect(asked).toBe(0)
+    })
   })
 })
