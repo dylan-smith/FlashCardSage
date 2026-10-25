@@ -119,9 +119,11 @@ test.describe('Import from Duolingo', () => {
     await page.getByRole('tab', { name: 'From a website' }).click()
     await page.getByRole('button', { name: 'Duolingo' }).click()
     await expect(page).toHaveURL(/\/import\?from=website&site=duolingo$/)
-    const bookmarklet = page.getByRole('link', {
-      name: 'Send to FlashCardSage',
-    })
+    // From Duolingo's panel, since the URL changes before the page shows it, and until then the only bookmarklet
+    // showing is Preply's, which on Duolingo just says to open Preply.
+    const bookmarklet = page
+      .getByRole('region', { name: 'From Duolingo' })
+      .getByRole('link', { name: 'Send to FlashCardSage' })
     await expect(bookmarklet).toHaveAttribute('href', /^javascript:/)
     const href = (await bookmarklet.getAttribute('href')) ?? ''
     const source = decodeURIComponent(href.slice('javascript:'.length))
