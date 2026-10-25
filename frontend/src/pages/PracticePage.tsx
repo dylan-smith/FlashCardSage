@@ -1,18 +1,13 @@
 import { useEffect, useRef, useState } from 'react'
-import type { ReactNode } from 'react'
 import Alert from '@mui/material/Alert'
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
-import CircularProgress from '@mui/material/CircularProgress'
 import Divider from '@mui/material/Divider'
 import FormControlLabel from '@mui/material/FormControlLabel'
-import IconButton from '@mui/material/IconButton'
 import Paper from '@mui/material/Paper'
 import Stack from '@mui/material/Stack'
-import SvgIcon from '@mui/material/SvgIcon'
 import Switch from '@mui/material/Switch'
 import Typography from '@mui/material/Typography'
-import { describeFetchError } from '../api/client'
 import { formatWords } from '../api/flashCards'
 import type {
   PracticeCard,
@@ -24,10 +19,8 @@ import type { PackCard, PracticePack } from '../api/practice'
 import { getSession, sessionSubject } from '../auth/session'
 import type { CardSelectionKind } from '../hooks/useCardSelection'
 import { usePreferences } from '../hooks/usePreferences'
-import { icons } from '../lib/icons'
 import { readJson, writeJson } from '../lib/localJson'
 import { storageKeys } from '../lib/storageKeys'
-import { reportFailure } from '../lib/reportFailure'
 import { trackEvent } from '../telemetry'
 import { useAction } from '../hooks/useAction'
 import { useLoad } from '../hooks/useLoad'
@@ -40,32 +33,16 @@ import {
 import { pick } from '../practice/picker'
 import { enqueueResult, readQueue } from '../practice/queue'
 import { applyAnswer } from '../practice/score'
-import { loadSpeech, playFailedMessage, playSpeech } from '../practice/speech'
-import type { Playback } from '../practice/speech'
+import { loadSpeech } from '../practice/speech'
 import { syncPracticeResults, useSyncStatus } from '../practice/sync'
 import { Loading } from '../components/common/Loading'
 import { EmptyText } from '../components/common/EmptyText'
 import { CardSelectionPage } from '../components/cards/CardSelectionPage'
 import { EmptySelection } from '../components/cards/EmptySelection'
-
-// Which field of a card holds each side, and its language.
-const sides: Record<
-  PracticeSide,
-  { field: 'spanish' | 'english'; lang: string }
-> = {
-  Spanish: { field: 'spanish', lang: 'es' },
-  English: { field: 'english', lang: 'en' },
-}
-
-const outcomes: {
-  outcome: PracticeOutcome
-  label: string
-  color: 'success' | 'primary' | 'error'
-}[] = [
-  { outcome: 'GotIt', label: 'Got it!', color: 'success' },
-  { outcome: 'WasClose', label: 'I was close', color: 'primary' },
-  { outcome: 'Failed', label: 'Failed :(', color: 'error' },
-]
+import { CardSide } from '../components/practice/CardSide'
+import { ListenButton } from '../components/practice/ListenButton'
+import { OutcomeButtons } from '../components/practice/OutcomeButtons'
+import { sides } from '../components/practice/sides'
 
 // A rise in score gets a plus sign, so it reads as a change rather than a total.
 function formatScoreChange(change: number) {
@@ -125,151 +102,6 @@ function SyncNote() {
     >
       {note}
     </Typography>
-  )
-}
-
-// One side of the card: its words, unless they're to be heard rather than seen, with a button beside them when the
-// side has one (Listen, for the Spanish).
-function CardSide({
-  side,
-  text,
-  action,
-}: {
-  side: PracticeSide
-  text?: string
-  action?: ReactNode
-}) {
-  return (
-    <Box>
-      <Typography variant="overline" component="p" color="text.secondary">
-        {side}
-      </Typography>
-      <Stack
-        direction="row"
-        spacing={1}
-        sx={{ alignItems: 'center', justifyContent: 'center' }}
-      >
-        {text !== undefined && (
-          <Typography
-            variant="h4"
-            component="p"
-            lang={sides[side].lang}
-            sx={{ overflowWrap: 'anywhere', minWidth: 0 }}
-          >
-            {text}
-          </Typography>
-        )}
-        {action}
-      </Stack>
-    </Box>
-  )
-}
-
-// Whether the browser refused to play audio the user didn't ask for, as it does before they've pressed anything on
-// the page.
-function isAutoplayRefused(error: unknown) {
-  return error instanceof DOMException && error.name === 'NotAllowedError'
-}
-
-// Plays the card's Spanish: each word or phrase in turn, read by a natural voice. The audio is asked for as soon as
-// the card comes up (see PracticeSession), so pressing Listen usually plays at once; while it's still being fetched
-// the button shows a spinner, and while it plays the button stops it instead. With autoPlay it also plays as soon as
-// it's shown, unless the browser won't let it, which needs no error since the user can press it. The audio comes from
-// the API, so the button is off while the browser is offline.
-function ListenButton({
-  texts,
-  onError,
-  autoPlay = false,
-  large = false,
-}: {
-  texts: string[]
-  onError: (message: string) => void
-  autoPlay?: boolean
-  large?: boolean
-}) {
-  const online = useOnline()
-  // A button that plays by itself starts out fetching the audio.
-  const [state, setState] = useState<'idle' | 'loading' | 'playing'>(() =>
-    autoPlay && online ? 'loading' : 'idle',
-  )
-  const playbackRef = useRef<Playback | null>(null)
-  // Counts each play and the button going away, so audio that arrives after either is never played.
-  const runRef = useRef(0)
-
-  // Whatever's playing stops with the card.
-  useEffect(
-    () => () => {
-      runRef.current++
-      playbackRef.current?.stop()
-    },
-    [],
-  )
-
-  async function play(automatic: boolean) {
-    const run = ++runRef.current
-    const current = () => runRef.current === run
-    if (!automatic) {
-      setState('loading')
-    }
-    try {
-      const urls = await loadSpeech(texts)
-      if (!current()) {
-        return
-      }
-      const playback = playSpeech(urls)
-      playbackRef.current = playback
-      setState('playing')
-      await playback.done
-    } catch (error) {
-      if (current() && !(automatic && isAutoplayRefused(error))) {
-        reportFailure(error, 'speech')
-        onError(describeFetchError(error, playFailedMessage))
-      }
-    } finally {
-      if (current()) {
-        playbackRef.current = null
-        setState('idle')
-      }
-    }
-  }
-
-  // Once, when the card comes up.
-  useEffect(() => {
-    if (autoPlay && online) {
-      // Its state only changes once the audio has arrived, since it starts out fetching it.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
-      void play(true)
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
-
-  function handleClick() {
-    if (state === 'playing') {
-      playbackRef.current?.stop()
-    } else if (state === 'idle') {
-      void play(false)
-    }
-  }
-
-  const playing = state === 'playing'
-  return (
-    <IconButton
-      color="primary"
-      size={large ? 'large' : 'medium'}
-      aria-label={playing ? 'Stop' : 'Listen'}
-      aria-busy={state === 'loading'}
-      disabled={!online}
-      onClick={handleClick}
-      sx={{ flexShrink: 0 }}
-    >
-      {state === 'loading' ? (
-        <CircularProgress size={large ? 48 : 24} color="inherit" />
-      ) : (
-        <SvgIcon sx={large ? { fontSize: 48 } : undefined}>
-          <path d={icons[playing ? 'stop' : 'volumeUp']} />
-        </SvgIcon>
-      )}
-    </IconButton>
   )
 }
 
@@ -588,27 +420,11 @@ function PracticeSession({
               )}
             </Stack>
             {revealed ? (
-              // In a row even on a phone, where they share its width, so they take up less of the screen's height.
-              <Stack
-                direction="row"
-                spacing={1}
-                sx={{ justifyContent: 'center', flexShrink: 0 }}
-              >
-                {outcomes.map(({ outcome, label, color }, index) => (
-                  <Button
-                    key={outcome}
-                    ref={index === 0 ? firstOutcomeRef : undefined}
-                    type="button"
-                    variant="contained"
-                    color={color}
-                    disabled={saving.busy}
-                    onClick={() => void handleAnswer(outcome)}
-                    sx={{ flex: { xs: 1, sm: 'none' } }}
-                  >
-                    {label}
-                  </Button>
-                ))}
-              </Stack>
+              <OutcomeButtons
+                firstRef={firstOutcomeRef}
+                disabled={saving.busy}
+                onAnswer={(outcome) => void handleAnswer(outcome)}
+              />
             ) : (
               <Box sx={{ display: 'flex', justifyContent: 'center' }}>
                 <Button

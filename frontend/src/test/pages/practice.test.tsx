@@ -1,6 +1,6 @@
 import { act, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { beforeEach, describe, expect, it, onTestFinished, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Deck } from '../../api/decks'
 import type { Tag } from '../../api/flashCards'
 import type { PackCard, PracticePack } from '../../api/practice'
@@ -18,6 +18,7 @@ import {
   unreachable,
 } from '../support/mockApi'
 import type { Call, CallLog, Routes } from '../support/mockApi'
+import { goOffline, stubAudio, stubRandom } from '../support/practice'
 import { renderAt, renderLoaded, signInForEachTest } from '../support/render'
 
 signInForEachTest()
@@ -33,29 +34,6 @@ function packOf(
   { decks = [], tags = [] }: { decks?: Deck[]; tags?: Tag[] } = {},
 ): PracticePack {
   return { cards, decks, tags }
-}
-
-// Makes every roll the picker gets this, until it's changed: 0 picks the first card and its Spanish side, and 0.6 the
-// second of two cards that are as likely as each other and its English side.
-function stubRandom(roll: number) {
-  return vi.spyOn(Math, 'random').mockReturnValue(roll)
-}
-
-// The browser says it's offline until the returned function says it's online again.
-function goOffline() {
-  const onLine = vi.spyOn(navigator, 'onLine', 'get').mockReturnValue(false)
-  act(() => {
-    window.dispatchEvent(new Event('offline'))
-  })
-  onTestFinished(() => {
-    window.dispatchEvent(new Event('online'))
-  })
-  return () => {
-    onLine.mockReturnValue(true)
-    act(() => {
-      window.dispatchEvent(new Event('online'))
-    })
-  }
 }
 
 // The answers sent to be saved.
@@ -484,21 +462,6 @@ describe('practicing', () => {
       'https://audio.test/solo.mp3',
       'https://audio.test/unicamente.mp3',
     ]
-
-    // The audio elements the page has played, in order. jsdom has no playing of its own, so it's stood in for.
-    function stubAudio() {
-      const played: HTMLMediaElement[] = []
-      const play = vi
-        .spyOn(HTMLMediaElement.prototype, 'play')
-        .mockImplementation(function (this: HTMLMediaElement) {
-          played.push(this)
-          return Promise.resolve()
-        })
-      const pause = vi
-        .spyOn(HTMLMediaElement.prototype, 'pause')
-        .mockImplementation(() => {})
-      return { played, play, pause }
-    }
 
     // The clip finishes, or can't be played.
     function finish(audio: HTMLMediaElement, event = 'ended') {
