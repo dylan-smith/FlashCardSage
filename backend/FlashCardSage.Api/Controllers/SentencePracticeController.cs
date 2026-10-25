@@ -127,6 +127,7 @@ public class SentencePracticeController(
             english,
             request.CardIds!,
             request.ShownSide!.Value,
+            request.Listening!.Value,
             request.Outcome!.Value,
             cancellationToken);
 

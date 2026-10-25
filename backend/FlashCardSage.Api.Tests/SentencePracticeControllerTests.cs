@@ -227,8 +227,10 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
         ActionResultAssert.Problem(result.Result, StatusCodes.Status502BadGateway, "Making sentences failed.");
     }
 
-    [Fact]
-    public async Task Record_SavesTheAnswerForTheUser_WithOnlyTheirCards()
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task Record_SavesTheAnswerForTheUser_WithOnlyTheirCards(bool listening)
     {
         var databaseName = TestDb.NewDatabaseName();
         var ids = await TestDb.SeedCardsAsync(databaseName, TestDb.UserId, ("el gato", "the cat"), ("el perro", "the dog"));
@@ -237,7 +239,7 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
         var before = DateTimeOffset.UtcNow;
 
         var result = await CreateController(dbContext, new FakeSentenceGenerator()).Record(
-            Answer(" El gato y el perro. ", "The cat and the dog. ", [ids[1], others[0], 999, ids[0], ids[1]]),
+            Answer(" El gato y el perro. ", "The cat and the dog. ", [ids[1], others[0], 999, ids[0], ids[1]], listening),
             CancellationToken.None);
 
         Assert.IsType<NoContentResult>(result);
@@ -246,6 +248,7 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
         Assert.Equal(("El gato y el perro.", "The cat and the dog."), (saved.Spanish, saved.English));
         Assert.Equal([ids[1], ids[0]], saved.CardIds);
         Assert.Equal((Language.English, PracticeOutcome.WasClose), (saved.ShownSide, saved.Outcome));
+        Assert.Equal(listening, saved.Listening);
         Assert.InRange(saved.PracticedAt, before, DateTimeOffset.UtcNow);
     }
 
@@ -288,7 +291,7 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
         var get = await client.GetAsync(SentencesUrl);
         var post = await client.PostAsJsonAsync(
             ResultsUrl,
-            new { spanish = "El gato.", english = "The cat.", cardIds = Array.Empty<int>(), shownSide = "Spanish", outcome = "GotIt" });
+            new { spanish = "El gato.", english = "The cat.", cardIds = Array.Empty<int>(), shownSide = "Spanish", listening = false, outcome = "GotIt" });
 
         Assert.Equal(HttpStatusCode.Unauthorized, get.StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, post.StatusCode);
@@ -315,7 +318,7 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
     }
 
     [Fact]
-    public async Task PostResult_AcceptsTheSideAndOutcomeByName()
+    public async Task PostResult_AcceptsTheSideAndOutcomeByName_AndSavesListening()
     {
         using var client = TestApp.CreateSignedInClient(factory);
         var created = await client.PostAsJsonAsync("/api/flashcards", TestDb.CardBody("el gato", "the cat"));
@@ -325,7 +328,7 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
 
         var response = await client.PostAsJsonAsync(
             ResultsUrl,
-            new { spanish, english = "The cat.", cardIds = new[] { card.Id }, shownSide = "English", outcome = "Failed" });
+            new { spanish, english = "The cat.", cardIds = new[] { card.Id }, shownSide = "English", listening = true, outcome = "Failed" });
 
         Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
         using var scope = factory.Services.CreateScope();
@@ -333,20 +336,23 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
         var saved = await dbContext.SentencePracticeResults.IgnoreQueryFilters().SingleAsync(item => item.Spanish == spanish);
         Assert.Equal([card.Id], saved.CardIds);
         Assert.Equal((Language.English, PracticeOutcome.Failed), (saved.ShownSide, saved.Outcome));
+        Assert.True(saved.Listening);
     }
 
     [Theory]
     [InlineData("{}")]
-    [InlineData("""{"english":"The cat.","cardIds":[],"shownSide":"Spanish","outcome":"GotIt"}""")]
-    [InlineData("""{"spanish":"El gato.","cardIds":[],"shownSide":"Spanish","outcome":"GotIt"}""")]
-    [InlineData("""{"spanish":"El gato.","english":"The cat.","shownSide":"Spanish","outcome":"GotIt"}""")]
-    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"outcome":"GotIt"}""")]
-    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":"Spanish"}""")]
-    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":"French","outcome":"GotIt"}""")]
-    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":42,"outcome":"GotIt"}""")]
-    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":"Spanish","outcome":"Maybe"}""")]
-    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[1,2,3,4,5,6,7,8,9,10,11],"shownSide":"Spanish","outcome":"GotIt"}""")]
-    [InlineData("""{"spanish":"  ","english":"The cat.","cardIds":[],"shownSide":"Spanish","outcome":"GotIt"}""")]
+    [InlineData("""{"english":"The cat.","cardIds":[],"shownSide":"Spanish","listening":false,"outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"El gato.","cardIds":[],"shownSide":"Spanish","listening":false,"outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","shownSide":"Spanish","listening":false,"outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"listening":false,"outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":"Spanish","listening":false}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":"Spanish","outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":"Spanish","listening":"yes","outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":"French","listening":false,"outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":42,"listening":false,"outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[],"shownSide":"Spanish","listening":false,"outcome":"Maybe"}""")]
+    [InlineData("""{"spanish":"El gato.","english":"The cat.","cardIds":[1,2,3,4,5,6,7,8,9,10,11],"shownSide":"Spanish","listening":false,"outcome":"GotIt"}""")]
+    [InlineData("""{"spanish":"  ","english":"The cat.","cardIds":[],"shownSide":"Spanish","listening":false,"outcome":"GotIt"}""")]
     public async Task PostResult_ReturnsBadRequest_ForAMissingOrInvalidField(string body)
     {
         using var client = TestApp.CreateSignedInClient(factory);
@@ -370,13 +376,15 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
                 english = "Too long.",
                 cardIds = Array.Empty<int>(),
                 shownSide = "Spanish",
+                listening = false,
                 outcome = "GotIt"
             });
 
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
     }
 
-    private static SentencePracticeResultRequest Answer(string spanish, string english, List<int> cardIds)
+    private static SentencePracticeResultRequest Answer(
+        string spanish, string english, List<int> cardIds, bool listening = false)
     {
         return new SentencePracticeResultRequest
         {
@@ -384,6 +392,7 @@ public class SentencePracticeControllerTests(WebApplicationFactory<Program> fact
             English = english,
             CardIds = cardIds,
             ShownSide = Language.English,
+            Listening = listening,
             Outcome = PracticeOutcome.WasClose
         };
     }

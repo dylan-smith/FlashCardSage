@@ -20,6 +20,7 @@ public class SentencePracticeService(FlashCardDbContext dbContext, ILogger<Sente
         string english,
         IReadOnlyCollection<int> cardIds,
         Language shownSide,
+        bool listening,
         PracticeOutcome outcome,
         CancellationToken cancellationToken = default)
     {
@@ -39,6 +40,7 @@ public class SentencePracticeService(FlashCardDbContext dbContext, ILogger<Sente
             English = english,
             CardIds = [.. requested.Where(cards.Contains)],
             ShownSide = shownSide,
+            Listening = listening,
             Outcome = outcome,
             PracticedAt = DateTimeOffset.UtcNow
         });
