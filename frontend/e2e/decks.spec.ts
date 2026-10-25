@@ -122,7 +122,7 @@ test.describe('Decks', () => {
 
     // Removing takes a card out of the deck but keeps it.
     await page
-      .getByRole('button', { name: 'Remove "el libro" from deck' })
+      .getByRole('button', { name: 'Remove from deck: "el libro"' })
       .click()
     await expect(page.getByRole('status')).toHaveText(
       'Removed 1 card from the deck.',

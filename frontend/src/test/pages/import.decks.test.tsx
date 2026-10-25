@@ -346,14 +346,12 @@ describe('importing cards', () => {
       'true',
     )
     // Preply is the first of the sites, so it's picked.
-    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
-    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
-      'aria-pressed',
-      'false',
-    )
+    expect(
+      screen.getByRole('button', { name: 'Preply Your vocabulary' }),
+    ).toHaveAttribute('aria-pressed', 'true')
+    expect(
+      screen.getByRole('button', { name: 'Duolingo Your word list' }),
+    ).toHaveAttribute('aria-pressed', 'false')
     // Four steps, in order, with the bookmarklet in the first and Preply's page in the second.
     const steps = within(
       screen.getByRole('region', { name: 'From Preply' }),

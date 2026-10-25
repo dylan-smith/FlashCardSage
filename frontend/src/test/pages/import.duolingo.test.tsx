@@ -61,10 +61,9 @@ describe('importing from Duolingo', () => {
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(
+      screen.getByRole('button', { name: 'Duolingo Your word list' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     // The built-in decks load on their hidden tab too.
     expect(
       await screen.findByText("There aren't any built-in decks yet."),
@@ -116,12 +115,13 @@ describe('importing from Duolingo', () => {
     ).toContain('/import?from=website&site=duolingo')
 
     // Picking another site shows its steps instead.
-    await user.click(screen.getByRole('button', { name: 'Preply' }))
-
-    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
+    await user.click(
+      screen.getByRole('button', { name: 'Preply Your vocabulary' }),
     )
+
+    expect(
+      screen.getByRole('button', { name: 'Preply Your vocabulary' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(screen.getByRole('region', { name: 'From Preply' })).toBeVisible()
     expect(
       screen.queryByRole('region', { name: 'From Duolingo' }),
@@ -140,10 +140,9 @@ describe('importing from Duolingo', () => {
 
     await user.click(screen.getByRole('tab', { name: 'From a website' }))
 
-    expect(screen.getByRole('button', { name: 'Duolingo' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(
+      screen.getByRole('button', { name: 'Duolingo Your word list' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     expect(
       within(screen.getByRole('region', { name: 'From Duolingo' })).getByRole(
         'list',
