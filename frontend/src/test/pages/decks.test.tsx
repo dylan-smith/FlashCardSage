@@ -352,7 +352,7 @@ describe('decks', () => {
 
       await user.click(
         screen.getByRole('button', {
-          name: 'Remove "el gato" from deck',
+          name: 'Remove from deck: "el gato"',
         }),
       )
 
@@ -422,7 +422,7 @@ describe('decks', () => {
       ).toBeInTheDocument()
       expect(
         screen.queryByRole('button', {
-          name: 'Remove "la casita" from deck',
+          name: 'Remove from deck: "la casita"',
         }),
       ).not.toBeInTheDocument()
     })

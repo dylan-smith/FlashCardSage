@@ -8,7 +8,7 @@ import type { WordSource } from '../../wordSources/wordSources'
 import { WordSourceImport } from './WordSourceImport'
 
 // A site as a tile to pick it with: its logo, its name and what it calls the words, outlined in the app's colour when
-// picked. The name is the tile's label for a screen reader, and the words its description.
+// picked. Its name and what it calls the words are its label for a screen reader, as they are what it shows.
 function SiteTile({
   source,
   picked,
@@ -23,8 +23,7 @@ function SiteTile({
   return (
     <ButtonBase
       aria-pressed={picked}
-      aria-labelledby={nameId}
-      aria-describedby={wordsId}
+      aria-labelledby={`${nameId} ${wordsId}`}
       onClick={pick}
       sx={{
         display: 'flex',

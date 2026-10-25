@@ -67,10 +67,9 @@ describe('importing from Preply', () => {
       'aria-selected',
       'true',
     )
-    expect(screen.getByRole('button', { name: 'Preply' })).toHaveAttribute(
-      'aria-pressed',
-      'true',
-    )
+    expect(
+      screen.getByRole('button', { name: 'Preply Your vocabulary' }),
+    ).toHaveAttribute('aria-pressed', 'true')
     // The built-in decks load on their hidden tab too.
     expect(
       await screen.findByText("There aren't any built-in decks yet."),
@@ -180,7 +179,9 @@ describe('importing from Preply', () => {
     ).not.toBeVisible()
     expect(screen.queryByText(/ left out because /)).not.toBeInTheDocument()
 
-    await user.click(screen.getByRole('button', { name: 'Preply' }))
+    await user.click(
+      screen.getByRole('button', { name: 'Preply Your vocabulary' }),
+    )
 
     expect(
       await screen.findByText(
