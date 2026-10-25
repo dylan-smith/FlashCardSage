@@ -13,7 +13,8 @@ namespace FlashCardSage.Api.Data;
 /// user when they're saved, so the controllers never handle the owner themselves. Tags and decks work the same way.
 /// Practice results and a card's words are filtered through their card, so they're only the current user's too, and
 /// a card's tags are only reached through the card. A deck only gets cards that were found through the filter, and
-/// cached card suggestions are owned like cards, since they're made from the user's cards. The
+/// cached card suggestions and sentence practice results are owned like cards, since they're made from several of the
+/// user's cards. The
 /// built-in decks belong to the system user (see SystemDeckSeeder), and only SystemDeckImporter reads them past
 /// the filter. Cached translations and generated pictures are the exception: they're shared by every user, so they
 /// have no owner and no filter. So are the OAuth server's apps, sign-ins in progress and tokens: they're looked up
@@ -33,6 +34,8 @@ public class FlashCardDbContext(
     public DbSet<FlashCardWord> FlashCardWords => Set<FlashCardWord>();
 
     public DbSet<PracticeResult> PracticeResults => Set<PracticeResult>();
+
+    public DbSet<SentencePracticeResult> SentencePracticeResults => Set<SentencePracticeResult>();
 
     public DbSet<Tag> Tags => Set<Tag>();
 
@@ -103,6 +106,7 @@ public class FlashCardDbContext(
         ConfigureFlashCard(OwnedBy<FlashCard>(modelBuilder));
         ConfigureFlashCardWord(modelBuilder.Entity<FlashCardWord>());
         ConfigurePracticeResult(modelBuilder.Entity<PracticeResult>());
+        ConfigureSentencePracticeResult(OwnedBy<SentencePracticeResult>(modelBuilder));
         ConfigureTag(OwnedBy<Tag>(modelBuilder));
         ConfigureDeck(OwnedBy<Deck>(modelBuilder));
         ConfigureCachedTranslation(modelBuilder.Entity<CachedTranslation>());
@@ -221,6 +225,39 @@ public class FlashCardDbContext(
             .HasMaxLength(20);
     }
 
+    // A sentence uses several cards, so its result is owned like a card rather than reached through one, and the
+    // cards' ids are kept as a JSON array, so a deleted card's id stays (0020-*.sql).
+    private static void ConfigureSentencePracticeResult(EntityTypeBuilder<SentencePracticeResult> result)
+    {
+        result.HasIndex(item => item.UserId);
+
+        result.Property(item => item.Spanish)
+            .HasMaxLength(SentencePracticeResult.MaxSentenceLength)
+            .IsRequired();
+
+        result.Property(item => item.English)
+            .HasMaxLength(SentencePracticeResult.MaxSentenceLength)
+            .IsRequired();
+
+        result.Property(item => item.CardIds)
+            .HasConversion(
+                value => JsonSerializer.Serialize(value, JsonSerializerOptions.Web),
+                json => JsonSerializer.Deserialize<List<int>>(json, JsonSerializerOptions.Web) ?? new List<int>(),
+                new ValueComparer<List<int>>(
+                    (left, right) => left!.SequenceEqual(right!),
+                    value => value.Aggregate(0, (hash, item) => HashCode.Combine(hash, item)),
+                    value => value.ToList()))
+            .IsRequired();
+
+        result.Property(item => item.ShownSide)
+            .HasConversion<string>()
+            .HasMaxLength(10);
+
+        result.Property(item => item.Outcome)
+            .HasConversion<string>()
+            .HasMaxLength(20);
+    }
+
     private static void ConfigureTag(EntityTypeBuilder<Tag> tag)
     {
         tag.HasIndex(item => new { item.UserId, item.Name })
@@ -292,7 +329,7 @@ public class FlashCardDbContext(
     }
 
     // Not owned either: a phrase sounds the same for everyone in a given voice, so there's one row for it, shared by
-    // every user (0017-*.sql).
+    // every user (0017-*.sql, widened for practice sentences by 0021-*.sql).
     private static void ConfigureCachedAudio(EntityTypeBuilder<CachedAudio> audio)
     {
         // The voice might read "Madrid" and "madrid" differently, so the text is compared case-sensitively.
@@ -304,7 +341,7 @@ public class FlashCardDbContext(
             .IsRequired();
 
         audio.Property(item => item.Text)
-            .HasMaxLength(FlashCard.MaxWordLength)
+            .HasMaxLength(CachedAudio.MaxTextLength)
             .UseCollation("Latin1_General_CS_AS")
             .IsRequired();
 
