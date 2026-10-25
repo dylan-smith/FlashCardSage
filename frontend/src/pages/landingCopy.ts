@@ -63,7 +63,7 @@ export const features: Feature[] = [
   {
     title: 'Practice in spare minutes',
     description:
-      'Card, reveal, right or wrong. It shows you more of the words you keep getting wrong, reads the Spanish aloud, and works offline once you’ve opened it. Install it on your phone as an app.',
+      'Card, reveal, right or wrong. It shows you more of the words you keep getting wrong, reads the Spanish aloud, and works offline once you’ve opened it. Or practice your words in context, in sentences AI writes from your cards. Install it on your phone as an app.',
     demo: '/demos/practice-v1',
   },
 ]

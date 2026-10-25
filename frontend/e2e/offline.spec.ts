@@ -67,4 +67,27 @@ test.describe('Offline', () => {
       )
       .toBe(2)
   })
+
+  test('Sentences mode says it needs a connection', async ({
+    page,
+    context,
+    api,
+  }) => {
+    // Sentences need at least 3 cards.
+    await api.createCard('la casa', 'the house')
+    await page.addInitScript(() => {
+      localStorage.setItem('flashcardsage.practiceMode', '"sentences"')
+    })
+    await page.goto('/practice')
+    // The E2E backend has no Foundry, so once the cards are loaded there are no sentences.
+    await expect(page.getByText("Sentences aren't available.")).toBeVisible()
+
+    await context.setOffline(true)
+
+    await expect(
+      page.getByText(
+        "Sentences need a connection, since they're written for you as you go. Switch to Cards to practice offline.",
+      ),
+    ).toBeVisible()
+  })
 })
