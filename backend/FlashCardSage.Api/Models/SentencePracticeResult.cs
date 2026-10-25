@@ -27,6 +27,9 @@ public class SentencePracticeResult : IUserOwned
     // The side the user was shown first.
     public Language ShownSide { get; set; }
 
+    // Whether the sentence was practiced in listening mode, heard rather than read.
+    public bool Listening { get; set; }
+
     public PracticeOutcome Outcome { get; set; }
 
     public DateTimeOffset PracticedAt { get; set; }
