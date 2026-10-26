@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
+import Button from '@mui/material/Button'
 import CircularProgress from '@mui/material/CircularProgress'
 import IconButton from '@mui/material/IconButton'
 import SvgIcon from '@mui/material/SvgIcon'
@@ -115,24 +116,49 @@ export function ListenButton({
   function button(slow: boolean) {
     const status = state.slow === slow ? state.status : 'idle'
     const playing = status === 'playing'
+    const icon =
+      status === 'loading' ? (
+        <CircularProgress size={large ? 48 : 24} color="inherit" />
+      ) : (
+        <SvgIcon sx={large ? { fontSize: 48 } : undefined}>
+          <path d={icons[playing ? 'stop' : slow ? 'slow' : 'volumeUp']} />
+        </SvgIcon>
+      )
+    if (!slow) {
+      return (
+        <IconButton
+          color="primary"
+          size={large ? 'large' : 'medium'}
+          aria-label={playing ? 'Stop' : 'Listen'}
+          aria-busy={status === 'loading'}
+          disabled={!online}
+          onClick={() => handleClick(slow)}
+          sx={{ flexShrink: 0 }}
+        >
+          {icon}
+        </IconButton>
+      )
+    }
+    // Its icon alone doesn't say what it does, so it's labelled Slowly too. axe needs the label to be a whole word of
+    // its name (Listen slowly), so it isn't Slow.
     return (
-      <IconButton
+      <Button
         color="primary"
         size={large ? 'large' : 'medium'}
-        aria-label={playing ? 'Stop' : slow ? 'Listen slowly' : 'Listen'}
+        aria-label={playing ? undefined : 'Listen slowly'}
         aria-busy={status === 'loading'}
         disabled={!online}
         onClick={() => handleClick(slow)}
-        sx={{ flexShrink: 0 }}
+        sx={{
+          flexShrink: 0,
+          gap: 0.75,
+          textTransform: 'none',
+          fontSize: large ? '1.25rem' : undefined,
+        }}
       >
-        {status === 'loading' ? (
-          <CircularProgress size={large ? 48 : 24} color="inherit" />
-        ) : (
-          <SvgIcon sx={large ? { fontSize: 48 } : undefined}>
-            <path d={icons[playing ? 'stop' : slow ? 'slow' : 'volumeUp']} />
-          </SvgIcon>
-        )}
-      </IconButton>
+        {icon}
+        {playing ? 'Stop' : 'Slowly'}
+      </Button>
     )
   }
 
