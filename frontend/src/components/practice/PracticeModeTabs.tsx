@@ -16,6 +16,7 @@ export function PracticeModeTabs({
       value={value}
       onChange={(_event, mode: PracticeMode) => onChange(mode)}
       aria-label="Practice mode"
+      centered
     >
       <Tab
         value="cards"
