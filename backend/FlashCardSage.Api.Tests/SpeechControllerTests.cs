@@ -51,6 +51,7 @@ public sealed class SpeechControllerTests(WebApplicationFactory<Program> factory
 
         var response = ActionResultAssert.Ok<SpeechResponse>(result.Result);
         Assert.Equal(["solo", "únicamente"], synthesizer.Calls);
+        Assert.Equal([false, false], synthesizer.SlowCalls);
         // The same audio for both, from the fake, so both get its one file.
         Assert.Equal([store.Saved[0].Url, store.Saved[0].Url], response.Urls);
         Assert.Equal(2, dbContext.GeneratedAudio.Count());
@@ -138,6 +139,23 @@ public sealed class SpeechControllerTests(WebApplicationFactory<Program> factory
         var response = ActionResultAssert.Ok<SpeechResponse>(result.Result);
         Assert.Equal(["únicamente"], synthesizer.Calls);
         Assert.Equal(2, response.Urls.Count);
+    }
+
+    [Fact]
+    public async Task Speak_ReadsTheTextsSlowly_WhenAskedTo_ApartFromTheirNormalSpeed()
+    {
+        await using var dbContext = TestDb.Create();
+        var store = new FakeImageStore();
+        await CreateController(dbContext, store: store).Speak(new SpeechRequest { Texts = ["solo"] }, CancellationToken.None);
+        var synthesizer = new FakeSpeechSynthesizer();
+
+        var result = await CreateController(dbContext, synthesizer, store).Speak(
+            new SpeechRequest { Texts = ["solo"], Slow = true }, CancellationToken.None);
+
+        ActionResultAssert.Ok<SpeechResponse>(result.Result);
+        Assert.Equal(["solo"], synthesizer.Calls);
+        Assert.Equal([true], synthesizer.SlowCalls);
+        Assert.Equal(2, dbContext.GeneratedAudio.Count());
     }
 
     [Theory]

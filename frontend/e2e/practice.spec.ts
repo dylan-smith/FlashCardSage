@@ -132,6 +132,29 @@ test.describe('Practice', () => {
     ).toBeChecked()
   })
 
+  test('reads the Spanish slowly in listening mode when Listen slowly is pressed', async ({
+    page,
+  }) => {
+    await page.goto('/practice')
+    await page.getByRole('switch', { name: 'Listening mode' }).click()
+    const asked = page.waitForResponse(
+      (response) =>
+        response.url().endsWith('/api/speech') &&
+        response.request().method() === 'POST' &&
+        (response.request().postDataJSON() as { slow: boolean }).slow,
+    )
+
+    const listenSlowly = page.getByRole('button', { name: 'Listen slowly' })
+    await listenSlowly.click()
+
+    const spoken = await asked
+    expect(spoken.status()).toBe(200)
+    // The sample audio is a short silence: Stop while it plays, then Listen slowly again.
+    await expect(page.getByRole('button', { name: 'Stop' })).toBeVisible()
+    await expect(listenSlowly).toBeVisible()
+    await expect(page.getByRole('alert')).toBeHidden()
+  })
+
   test('keeps a running score for the session', async ({ page }) => {
     await page.goto('/practice')
     const sessionScore = page.getByText(/^Session score/)
@@ -381,6 +404,7 @@ test.describe('Sentences', () => {
       expect(spoken.status()).toBe(200)
       expect(spoken.request().postDataJSON()).toEqual({
         texts: [first.spanish],
+        slow: false,
       })
 
       const listen = page.getByRole('button', { name: 'Listen' })
@@ -412,6 +436,7 @@ test.describe('Sentences', () => {
       expect(spoken.status()).toBe(200)
       expect(spoken.request().postDataJSON()).toEqual({
         texts: [first.spanish],
+        slow: false,
       })
 
       await page.getByRole('switch', { name: 'Listening mode' }).check()

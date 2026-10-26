@@ -10,4 +10,7 @@ public class SpeechRequest
     [MinLength(1)]
     [MaxLength(FlashCard.MaxWordsPerSide)]
     public List<string> Texts { get; set; } = [];
+
+    // Has the voice say them slowly, for a learner who can't make them out at its normal speed.
+    public bool Slow { get; set; }
 }

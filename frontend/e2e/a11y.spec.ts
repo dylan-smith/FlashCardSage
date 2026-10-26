@@ -71,6 +71,30 @@ test.describe('Accessibility', () => {
     }
   })
 
+  test('practice page in listening mode, before and after the reveal, has no detectable accessibility violations', async ({
+    page,
+    api,
+  }) => {
+    const spanish = `A11y listening ${Date.now()}`
+    const { id } = await api.createCard(spanish, `${spanish} in English`)
+
+    try {
+      await page.goto('/practice')
+      await page.getByRole('switch', { name: 'Listening mode' }).click()
+      // Listen and Listen slowly, before the card is revealed.
+      await expect(
+        page.getByRole('button', { name: 'Listen slowly' }),
+      ).toBeVisible()
+      await expectNoA11yViolations(page)
+
+      await page.getByRole('button', { name: 'Reveal' }).click()
+      await expect(page.getByRole('button', { name: 'Got it!' })).toBeVisible()
+      await expectNoA11yViolations(page)
+    } finally {
+      await api.deleteCard(id)
+    }
+  })
+
   test('practice page in Sentences mode, with a sentence revealed, has no detectable accessibility violations', async ({
     page,
     api,

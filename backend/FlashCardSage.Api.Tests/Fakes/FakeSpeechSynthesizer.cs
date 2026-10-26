@@ -15,9 +15,13 @@ internal sealed class FakeSpeechSynthesizer : ISpeechSynthesizer
 
     public List<string> Calls { get; } = [];
 
-    public Task<SynthesizedSpeech> SynthesizeAsync(string text, CancellationToken cancellationToken)
+    // Whether each call in Calls was to read its text slowly.
+    public List<bool> SlowCalls { get; } = [];
+
+    public Task<SynthesizedSpeech> SynthesizeAsync(string text, bool slow, CancellationToken cancellationToken)
     {
         Calls.Add(text);
+        SlowCalls.Add(slow);
         return Failure is null ? Task.FromResult(Result) : Task.FromException<SynthesizedSpeech>(Failure);
     }
 }

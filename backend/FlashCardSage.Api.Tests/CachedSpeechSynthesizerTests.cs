@@ -16,7 +16,7 @@ public class CachedSpeechSynthesizerTests
         var store = new FakeImageStore();
         var synthesizer = new FakeSpeechSynthesizer();
 
-        var url = await Create(dbContext, synthesizer, store).SynthesizeAsync("el gato", CancellationToken.None);
+        var url = await Create(dbContext, synthesizer, store).SynthesizeAsync("el gato", false, CancellationToken.None);
 
         Assert.Equal(["el gato"], synthesizer.Calls);
         var saved = Assert.Single(store.Saved);
@@ -24,8 +24,34 @@ public class CachedSpeechSynthesizerTests
         Assert.Equal(FakeSpeechSynthesizer.Mp3, saved.Data);
         Assert.Matches(@"/[0-9a-f]{32}\.mp3$", url);
         var cached = Assert.Single(dbContext.GeneratedAudio);
-        Assert.Equal(("es-MX-DaliaNeural", "el gato", url), (cached.Voice, cached.Text, cached.AudioUrl));
+        Assert.Equal(("es-MX-DaliaNeural", 1.00m, "el gato", url), (cached.Voice, cached.SpeakingRate, cached.Text, cached.AudioUrl));
         Assert.NotEqual(default, cached.CreatedAt);
+    }
+
+    [Fact]
+    public async Task SynthesizeAsync_KeepsSlowAudioUnderItsRate()
+    {
+        await using var dbContext = TestDb.Create();
+        var synthesizer = new FakeSpeechSynthesizer();
+
+        var url = await Create(dbContext, synthesizer).SynthesizeAsync("el gato", true, CancellationToken.None);
+
+        Assert.Equal([true], synthesizer.SlowCalls);
+        var cached = Assert.Single(dbContext.GeneratedAudio);
+        Assert.Equal((0.70m, "el gato", url), (cached.SpeakingRate, cached.Text, cached.AudioUrl));
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task FindUrlAsync_KeepsSlowAndNormalAudioApart(bool slow)
+    {
+        await using var dbContext = TestDb.Create();
+        var cached = Create(dbContext);
+        var url = await cached.SynthesizeAsync("el gato", slow, CancellationToken.None);
+
+        Assert.Equal(url, await cached.FindUrlAsync("el gato", slow, CancellationToken.None));
+        Assert.Null(await cached.FindUrlAsync("el gato", !slow, CancellationToken.None));
     }
 
     [Fact]
@@ -33,7 +59,7 @@ public class CachedSpeechSynthesizerTests
     {
         await using var dbContext = TestDb.Create();
 
-        Assert.Null(await Create(dbContext).FindUrlAsync("el gato", CancellationToken.None));
+        Assert.Null(await Create(dbContext).FindUrlAsync("el gato", false, CancellationToken.None));
     }
 
     [Fact]
@@ -43,12 +69,12 @@ public class CachedSpeechSynthesizerTests
         string url;
         await using (var dbContext = TestDb.Create(databaseName, TestDb.UserId))
         {
-            url = await Create(dbContext).SynthesizeAsync("el gato", CancellationToken.None);
+            url = await Create(dbContext).SynthesizeAsync("el gato", false, CancellationToken.None);
         }
         await using var otherUsersContext = TestDb.Create(databaseName, TestDb.OtherUserId);
         var synthesizer = new FakeSpeechSynthesizer { Failure = new HttpRequestException("shouldn't be called") };
 
-        var found = await Create(otherUsersContext, synthesizer).FindUrlAsync("el gato", CancellationToken.None);
+        var found = await Create(otherUsersContext, synthesizer).FindUrlAsync("el gato", false, CancellationToken.None);
 
         Assert.Equal(url, found);
         Assert.Empty(synthesizer.Calls);
@@ -61,9 +87,9 @@ public class CachedSpeechSynthesizerTests
     {
         await using var dbContext = TestDb.Create();
         var cached = Create(dbContext);
-        await cached.SynthesizeAsync("el gato", CancellationToken.None);
+        await cached.SynthesizeAsync("el gato", false, CancellationToken.None);
 
-        Assert.Null(await cached.FindUrlAsync(other, CancellationToken.None));
+        Assert.Null(await cached.FindUrlAsync(other, false, CancellationToken.None));
     }
 
     [Fact]
@@ -71,10 +97,10 @@ public class CachedSpeechSynthesizerTests
     {
         var databaseName = TestDb.NewDatabaseName();
         await using var dbContext = TestDb.Create(databaseName);
-        await Create(dbContext).SynthesizeAsync("el gato", CancellationToken.None);
+        await Create(dbContext).SynthesizeAsync("el gato", false, CancellationToken.None);
         await using var otherVoicesContext = TestDb.Create(databaseName);
 
-        Assert.Null(await Create(otherVoicesContext, voice: "es-ES-ElviraNeural").FindUrlAsync("el gato", CancellationToken.None));
+        Assert.Null(await Create(otherVoicesContext, voice: "es-ES-ElviraNeural").FindUrlAsync("el gato", false, CancellationToken.None));
     }
 
     [Fact]
@@ -84,11 +110,11 @@ public class CachedSpeechSynthesizerTests
         await using var dbContext = TestDb.Create(databaseName, TestDb.UserId, new UniqueIndexInterceptor(async () =>
         {
             await using var other = TestDb.Create(databaseName);
-            await Create(other).SynthesizeAsync("el gato", CancellationToken.None);
+            await Create(other).SynthesizeAsync("el gato", false, CancellationToken.None);
         }));
         var store = new FakeImageStore();
 
-        var url = await Create(dbContext, store: store).SynthesizeAsync("el gato", CancellationToken.None);
+        var url = await Create(dbContext, store: store).SynthesizeAsync("el gato", false, CancellationToken.None);
 
         Assert.Equal(Assert.Single(store.Saved).Url, url);
     }
@@ -101,7 +127,7 @@ public class CachedSpeechSynthesizerTests
         var synthesizer = new FakeSpeechSynthesizer { Failure = new HttpRequestException("boom") };
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            Create(dbContext, synthesizer, store).SynthesizeAsync("el gato", CancellationToken.None));
+            Create(dbContext, synthesizer, store).SynthesizeAsync("el gato", false, CancellationToken.None));
 
         Assert.Empty(store.Saved);
         Assert.Equal(0, await dbContext.GeneratedAudio.CountAsync());

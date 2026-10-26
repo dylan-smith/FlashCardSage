@@ -231,7 +231,7 @@ export function SentencePracticeSession({
   // The side's sentence, with Listen beside the Spanish. In listening mode the Spanish plays as the sentence comes up,
   // and until it's revealed there's only a bigger Listen in place of its words. It's the same button once revealed, so
   // the audio carries on if it's still playing. A new button for each sentence, so one's playing never carries over to
-  // the next.
+  // the next. In listening mode there's Listen slowly beside it too.
   function sentenceSide({ sentence }: QueuedSentence, side: PracticeSide) {
     const heardOnly = listeningNow && side === 'Spanish' && !revealed
     return (
@@ -247,6 +247,7 @@ export function SentencePracticeSession({
               onError={setErrorMessage}
               autoPlay={listeningNow}
               large={heardOnly}
+              withSlow={listeningNow}
             />
           ) : undefined
         }

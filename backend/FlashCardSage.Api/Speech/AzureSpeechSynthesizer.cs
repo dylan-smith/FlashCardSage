@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security;
 using System.Text;
@@ -16,12 +17,12 @@ public class AzureSpeechSynthesizer(HttpClient httpClient, IOptions<SpeechOption
 
     public bool IsAvailable => options.IsAvailable;
 
-    public async Task<SynthesizedSpeech> SynthesizeAsync(string text, CancellationToken cancellationToken)
+    public async Task<SynthesizedSpeech> SynthesizeAsync(string text, bool slow, CancellationToken cancellationToken)
     {
         using var request = new HttpRequestMessage(HttpMethod.Post, $"{options.Endpoint.TrimEnd('/')}/cognitiveservices/v1")
         {
             // A StringContent has a known length, so the request carries Content-Length rather than being chunked.
-            Content = new StringContent(Ssml(text), Encoding.UTF8)
+            Content = new StringContent(Ssml(text, slow), Encoding.UTF8)
         };
         request.Content.Headers.ContentType = new MediaTypeHeaderValue("application/ssml+xml");
         request.Headers.Add("Ocp-Apim-Subscription-Key", options.Key);
@@ -38,9 +39,16 @@ public class AzureSpeechSynthesizer(HttpClient httpClient, IOptions<SpeechOption
     }
 
     // The SSML that has the voice read the text. The text is the user's, so it's escaped, and can't add markup of its
-    // own.
-    public string Ssml(string text)
+    // own. To read it slowly, the voice is given a slower prosody rate, so it speaks the words slowly itself, with
+    // longer sounds and pauses at its natural pitch, rather than the audio being stretched.
+    public string Ssml(string text, bool slow = false)
     {
-        return $"<speak version='1.0' xml:lang='{options.Locale}'><voice name='{options.Voice}'>{SecurityElement.Escape(text)}</voice></speak>";
+        var words = SecurityElement.Escape(text);
+        if (slow)
+        {
+            words = $"<prosody rate='{SpeechOptions.SlowRate.ToString(CultureInfo.InvariantCulture)}'>{words}</prosody>";
+        }
+
+        return $"<speak version='1.0' xml:lang='{options.Locale}'><voice name='{options.Voice}'>{words}</voice></speak>";
     }
 }

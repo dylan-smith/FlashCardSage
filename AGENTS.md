@@ -13,8 +13,8 @@ The cards page also suggests a handful of new cards, which gpt-5-mini on the sam
 user's cards, and which of the user's tags fit a card being added or edited. The Tags page suggests a handful of new
 tags the same way. The Import cards page can also scan a
 document the user uploads for up to 100 new cards, made by the same model. In practice mode a Listen button reads a
-card's Spanish aloud with an Azure Speech neural voice on the same Foundry resource; the MP3s are kept in the same
-store as the pictures and cached per phrase (`GeneratedAudio`, read and written by `CachedSpeechSynthesizer`).
+card's Spanish aloud with an Azure Speech neural voice on the same Foundry resource (in listening mode Listen slowly has the voice say it slowly, with an SSML prosody rate rather than stretched audio); the MP3s are kept in the same
+store as the pictures and cached per phrase and speed (`GeneratedAudio`, read and written by `CachedSpeechSynthesizer`).
 Practice also has a Sentences mode, whose short sentences gpt-5-mini writes from the user's cards as they go
 (`SentencePracticeController`). Its answers (`SentencePracticeResults`) belong to the user directly and keep the card
 ids they used as JSON and whether the Spanish was heard first, and they don't count toward card scores. Listen reads

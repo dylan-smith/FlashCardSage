@@ -277,7 +277,7 @@ function PracticeSession({
   // The side's words, with Listen beside the Spanish. In listening mode the Spanish plays as the card comes up, and
   // until the card is revealed there's only a bigger Listen in place of its words. It's the same button once revealed,
   // so the audio carries on if it's still playing. A new button for each card, so one card's playing never carries
-  // over to the next, and each card plays by itself once.
+  // over to the next, and each card plays by itself once. In listening mode there's Listen slowly beside it too.
   function cardSide(side: PracticeSide) {
     if (prompt === null) {
       return null
@@ -295,6 +295,7 @@ function PracticeSession({
               onError={setErrorMessage}
               autoPlay={listeningNow}
               large={heardOnly}
+              withSlow={listeningNow}
             />
           ) : undefined
         }

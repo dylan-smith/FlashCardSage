@@ -7,6 +7,11 @@ public class SpeechOptions
 {
     public const string SectionName = "Speech";
 
+    // How fast the voice speaks when the user asks to hear a phrase slowly, as a multiple of its normal speed (the SSML
+    // prosody rate; Azure Speech takes 0.5 to 2). Slow audio is cached under it (CachedAudio.SpeakingRate), so changing
+    // it starts afresh.
+    public const decimal SlowRate = 0.70m;
+
     // The Speech endpoint for the resource's region, e.g. https://westus3.tts.speech.microsoft.com/. Keys are scoped
     // to their region, so a key only works on its own region's endpoint.
     public string Endpoint { get; set; } = string.Empty;
