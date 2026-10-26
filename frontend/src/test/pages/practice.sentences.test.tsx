@@ -412,7 +412,7 @@ describe('practicing sentences', () => {
     await waitFor(() => {
       expect(
         background.filter('POST', '/speech').map((call) => call.body),
-      ).toEqual([{ texts: ['El gato duerme.'] }])
+      ).toEqual([{ texts: ['El gato duerme.'], slow: false }])
     })
   })
 

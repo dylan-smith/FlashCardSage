@@ -4,8 +4,9 @@ import { getSpeechUrls } from '../api/speech'
 
 export const playFailedMessage = 'Unable to play the audio.'
 
-// The audio URLs asked for so far, by the texts they're for, so a card's audio is asked for once however many times
-// it's played or comes up, and so asking as soon as a card is shown makes pressing Listen play at once.
+// The audio URLs asked for so far, by the texts they're for and how fast they're read, so a card's audio is asked for
+// once however many times it's played or comes up, and so asking as soon as a card is shown makes pressing Listen
+// play at once. The slow audio is only asked for when Listen slowly is pressed, since most cards never need it.
 const loaded = new Map<string, Promise<string[]>>()
 
 // Forgets the URLs asked for so far, for tests.
@@ -14,11 +15,11 @@ export function forgetSpeech() {
 }
 
 // The URLs to play for these texts, in order. A request that fails isn't kept, so the next press asks again.
-export function loadSpeech(texts: string[]): Promise<string[]> {
-  const key = JSON.stringify(texts)
+export function loadSpeech(texts: string[], slow = false): Promise<string[]> {
+  const key = JSON.stringify({ texts, slow })
   let urls = loaded.get(key)
   if (urls === undefined) {
-    urls = getSpeechUrls(texts)
+    urls = getSpeechUrls(texts, slow)
     urls.catch(() => loaded.delete(key))
     loaded.set(key, urls)
   }

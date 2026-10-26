@@ -484,8 +484,12 @@ describe('practicing', () => {
       await waitFor(() => {
         expect(
           background.filter('POST', '/speech').map((call) => call.body),
-        ).toEqual([{ texts: ['el gato'] }])
+        ).toEqual([{ texts: ['el gato'], slow: false }])
       })
+      // Only in listening mode.
+      expect(
+        screen.queryByRole('button', { name: 'Listen slowly' }),
+      ).not.toBeInTheDocument()
     })
 
     it('plays each Spanish word or phrase in turn when Listen is pressed', async () => {
@@ -695,6 +699,44 @@ describe('practicing', () => {
           outcome: 'GotIt',
           listening: 'true',
         })
+      })
+
+      it('plays the Spanish said slowly when Listen slowly is pressed, stopping the audio playing', async () => {
+        const { played, pause } = stubAudio()
+        const slowUrl = 'https://audio.test/gato-slow.mp3'
+        localStorage.setItem(storageKeys.practiceListening, 'true')
+        const user = userEvent.setup()
+        const { background } = await practice([cat], {
+          routes: {
+            'POST /speech': (call: Call) =>
+              (call.body as { slow: boolean }).slow
+                ? jsonResponse({ urls: [slowUrl] })
+                : speech(call),
+          },
+        })
+        await waitFor(() => {
+          expect(played.map((audio) => audio.src)).toEqual([gatoUrl])
+        })
+
+        await user.click(screen.getByRole('button', { name: 'Listen slowly' }))
+
+        await waitFor(() => {
+          expect(played.map((audio) => audio.src)).toEqual([gatoUrl, slowUrl])
+        })
+        expect(pause).toHaveBeenCalledTimes(1)
+        // Only the slow one shows Stop.
+        expect(screen.getByRole('button', { name: 'Listen' })).toBeEnabled()
+        expect(screen.getByRole('button', { name: 'Stop' })).toBeInTheDocument()
+        expect(
+          background.filter('POST', '/speech').map((call) => call.body),
+        ).toEqual([
+          { texts: ['el gato'], slow: false },
+          { texts: ['el gato'], slow: true },
+        ])
+        finish(played[1])
+        expect(
+          await screen.findByRole('button', { name: 'Listen slowly' }),
+        ).toBeInTheDocument()
       })
 
       it("shows no error when the browser won't play the audio by itself", async () => {

@@ -9,7 +9,8 @@ namespace FlashCardSage.Api.Controllers;
 /// Reads a card's Spanish, or a practice sentence, aloud, so the user can hear how it's said. Each word or phrase is read on its own, with the
 /// intonation of a phrase or sentence rather than word by word, and the audio is kept in a cache every user shares
 /// (see CachedSpeechSynthesizer), so a phrase is only paid for the first time anyone asks to hear it. The browser plays
-/// the audio from the URLs this returns.
+/// the audio from the URLs this returns. With slow, the voice says the texts more slowly, as a person would for a
+/// learner, and that audio is cached apart from the normal speed's.
 /// </summary>
 /// <remarks>
 /// The texts being read are user-provided, so they're never logged (log-forging).
@@ -44,7 +45,7 @@ public class SpeechController(CachedSpeechSynthesizer speech, ILogger<SpeechCont
         var synthesized = 0;
         foreach (var text in texts)
         {
-            if (await speech.FindUrlAsync(text, cancellationToken) is { } cached)
+            if (await speech.FindUrlAsync(text, request.Slow, cancellationToken) is { } cached)
             {
                 urls.Add(cached);
                 continue;
@@ -57,7 +58,7 @@ public class SpeechController(CachedSpeechSynthesizer speech, ILogger<SpeechCont
 
             try
             {
-                urls.Add(await speech.SynthesizeAsync(text, cancellationToken));
+                urls.Add(await speech.SynthesizeAsync(text, request.Slow, cancellationToken));
                 synthesized++;
             }
             catch (Exception ex) when (IsUpstreamFailure(ex, cancellationToken))
@@ -67,7 +68,8 @@ public class SpeechController(CachedSpeechSynthesizer speech, ILogger<SpeechCont
             }
         }
 
-        logger.LogInformation("Read {Count} texts aloud, {Synthesized} of them anew", texts.Count, synthesized);
+        logger.LogInformation(
+            "Read {Count} texts aloud, {Synthesized} of them anew, slowly: {Slow}", texts.Count, synthesized, request.Slow);
         return Ok(new SpeechResponse(urls));
     }
 }

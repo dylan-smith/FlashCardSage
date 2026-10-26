@@ -7,6 +7,10 @@ public class SpeechOptions
 {
     public const string SectionName = "Speech";
 
+    // How much slower the voice speaks when the user asks to hear a phrase slowly: an SSML prosody rate, relative to
+    // the voice's normal speed. Slow audio is cached under it (CachedAudio.Rate), so changing it starts afresh.
+    public const string SlowRate = "-30%";
+
     // The Speech endpoint for the resource's region, e.g. https://westus3.tts.speech.microsoft.com/. Keys are scoped
     // to their region, so a key only works on its own region's endpoint.
     public string Endpoint { get; set; } = string.Empty;

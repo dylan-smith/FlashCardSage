@@ -8,8 +8,8 @@ namespace FlashCardSage.Api.Speech;
 
 // Keeps the audio of every phrase the speech service reads, so a phrase is only paid for the first time anyone asks
 // to hear it. A phrase sounds the same for everyone in a given voice, so like translations the rows are shared by
-// every user, keyed by the voice and the text exactly as it's on the card. The audio itself goes in the image store,
-// which the browser plays it from, under a name made from its content.
+// every user, keyed by the voice, its speed and the text exactly as it's on the card. The audio itself goes in the
+// image store, which the browser plays it from, under a name made from its content.
 //
 // The text is user-provided, so like the controller, this never logs it (log-forging).
 public class CachedSpeechSynthesizer(
@@ -24,12 +24,14 @@ public class CachedSpeechSynthesizer(
     // Whether a phrase that hasn't been read yet can be.
     public bool IsAvailable => synthesizer.IsAvailable;
 
-    // The URL of the audio kept for the text in the voice, or null when nobody has asked to hear it yet.
-    public async Task<string?> FindUrlAsync(string text, CancellationToken cancellationToken)
+    // The URL of the audio kept for the text in the voice, read slowly or not, or null when nobody has asked to hear it
+    // that way yet.
+    public async Task<string?> FindUrlAsync(string text, bool slow, CancellationToken cancellationToken)
     {
+        var rate = Rate(slow);
         var cached = await dbContext.GeneratedAudio
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Voice == voice && item.Text == text, cancellationToken);
+            .FirstOrDefaultAsync(item => item.Voice == voice && item.Rate == rate && item.Text == text, cancellationToken);
         if (cached is null)
         {
             return null;
@@ -40,9 +42,9 @@ public class CachedSpeechSynthesizer(
     }
 
     // Has the text read, keeps the audio, and returns its URL. Throws as ISpeechSynthesizer.SynthesizeAsync does.
-    public async Task<string> SynthesizeAsync(string text, CancellationToken cancellationToken)
+    public async Task<string> SynthesizeAsync(string text, bool slow, CancellationToken cancellationToken)
     {
-        var speech = await synthesizer.SynthesizeAsync(text, cancellationToken);
+        var speech = await synthesizer.SynthesizeAsync(text, slow, cancellationToken);
 
         // The audio has been paid for, so it's kept even if the user has moved on to another card.
         var url = await imageStore.SaveAsync(
@@ -50,6 +52,7 @@ public class CachedSpeechSynthesizer(
         dbContext.GeneratedAudio.Add(new CachedAudio
         {
             Voice = voice,
+            Rate = Rate(slow),
             Text = text,
             AudioUrl = url,
             CreatedAt = DateTimeOffset.UtcNow
@@ -66,5 +69,11 @@ public class CachedSpeechSynthesizer(
         }
 
         return url;
+    }
+
+    // What the audio is kept under for its speed: nothing for the voice's own, or the rate it's slowed to.
+    private static string Rate(bool slow)
+    {
+        return slow ? SpeechOptions.SlowRate : string.Empty;
     }
 }

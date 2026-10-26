@@ -15,7 +15,7 @@ public class SampleSpeechSynthesizer : ISpeechSynthesizer
 
     public bool IsAvailable => true;
 
-    public Task<SynthesizedSpeech> SynthesizeAsync(string text, CancellationToken cancellationToken)
+    public Task<SynthesizedSpeech> SynthesizeAsync(string text, bool slow, CancellationToken cancellationToken)
     {
         return Task.FromResult(new SynthesizedSpeech(SynthesizedSpeech.Mp3ContentType, Audio));
     }

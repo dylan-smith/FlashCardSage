@@ -13,7 +13,7 @@ public class AzureSpeechSynthesizerTests
         var handler = new RecordingHttpHandler(HttpStatusCode.OK, "mp3 bytes");
         using var httpClient = new HttpClient(handler);
 
-        var speech = await CreateSynthesizer(httpClient).SynthesizeAsync("¿Dónde está la biblioteca?", CancellationToken.None);
+        var speech = await CreateSynthesizer(httpClient).SynthesizeAsync("¿Dónde está la biblioteca?", false, CancellationToken.None);
 
         Assert.Equal("audio/mpeg", speech.ContentType);
         Assert.Equal("mp3 bytes"u8.ToArray(), speech.Data.ToArray());
@@ -41,6 +41,20 @@ public class AzureSpeechSynthesizerTests
         Assert.Contains("<voice name='es-MX-DaliaNeural'>&lt;break time=&apos;10s&apos;/&gt; &amp; &quot;so&quot; on</voice>", ssml, StringComparison.Ordinal);
     }
 
+    [Fact]
+    public async Task SynthesizeAsync_HasTheVoiceSpeakSlowly_WhenAskedTo()
+    {
+        var handler = new RecordingHttpHandler(HttpStatusCode.OK, "mp3 bytes");
+        using var httpClient = new HttpClient(handler);
+
+        await CreateSynthesizer(httpClient).SynthesizeAsync("hola & adiós", true, CancellationToken.None);
+
+        var request = Assert.Single(handler.Requests);
+        Assert.Equal(
+            "<speak version='1.0' xml:lang='es-MX'><voice name='es-MX-DaliaNeural'><prosody rate='-30%'>hola &amp; adiós</prosody></voice></speak>",
+            request.Body);
+    }
+
     [Theory]
     [InlineData("es-ES-ElviraNeural", "es-ES")]
     [InlineData("es-ES-Ximena:DragonHDLatestNeural", "es-ES")]
@@ -50,7 +64,7 @@ public class AzureSpeechSynthesizerTests
         using var httpClient = new HttpClient(handler);
         var options = new SpeechOptions { Endpoint = "https://speech.example", Key = "secret-key", Voice = voice };
 
-        await new AzureSpeechSynthesizer(httpClient, Options.Create(options)).SynthesizeAsync("hola", CancellationToken.None);
+        await new AzureSpeechSynthesizer(httpClient, Options.Create(options)).SynthesizeAsync("hola", false, CancellationToken.None);
 
         var request = Assert.Single(handler.Requests);
         Assert.Equal($"<speak version='1.0' xml:lang='{locale}'><voice name='{voice}'>hola</voice></speak>", request.Body);
@@ -66,7 +80,7 @@ public class AzureSpeechSynthesizerTests
         using var httpClient = new HttpClient(handler);
 
         var exception = await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSynthesizer(httpClient).SynthesizeAsync("hola", CancellationToken.None));
+            CreateSynthesizer(httpClient).SynthesizeAsync("hola", false, CancellationToken.None));
 
         Assert.Equal(status, exception.StatusCode);
     }
@@ -78,7 +92,7 @@ public class AzureSpeechSynthesizerTests
         using var httpClient = new HttpClient(handler);
 
         await Assert.ThrowsAsync<HttpRequestException>(() =>
-            CreateSynthesizer(httpClient).SynthesizeAsync("hola", CancellationToken.None));
+            CreateSynthesizer(httpClient).SynthesizeAsync("hola", false, CancellationToken.None));
     }
 
     [Theory]

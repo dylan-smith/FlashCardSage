@@ -24,7 +24,18 @@ describe('loadSpeech', () => {
     expect(first).toEqual(['https://audio.test/a.mp3'])
     expect(second).toBe(first)
     expect(getUrls).toHaveBeenCalledTimes(1)
-    expect(getUrls).toHaveBeenCalledWith(['hola'])
+    expect(getUrls).toHaveBeenCalledWith(['hola'], false)
+  })
+
+  it('asks for the slow audio apart from the normal speed', async () => {
+    getUrls.mockResolvedValue(['https://audio.test/a.mp3'])
+
+    await loadSpeech(['hola'])
+    await loadSpeech(['hola'], true)
+    await loadSpeech(['hola'], true)
+
+    expect(getUrls).toHaveBeenCalledTimes(2)
+    expect(getUrls).toHaveBeenLastCalledWith(['hola'], true)
   })
 
   it('asks for each set of texts in its own right', async () => {
