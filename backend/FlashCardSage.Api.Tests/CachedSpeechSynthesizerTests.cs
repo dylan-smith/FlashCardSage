@@ -24,7 +24,7 @@ public class CachedSpeechSynthesizerTests
         Assert.Equal(FakeSpeechSynthesizer.Mp3, saved.Data);
         Assert.Matches(@"/[0-9a-f]{32}\.mp3$", url);
         var cached = Assert.Single(dbContext.GeneratedAudio);
-        Assert.Equal(("es-MX-DaliaNeural", "", "el gato", url), (cached.Voice, cached.Rate, cached.Text, cached.AudioUrl));
+        Assert.Equal(("es-MX-DaliaNeural", 1.00m, "el gato", url), (cached.Voice, cached.SpeakingRate, cached.Text, cached.AudioUrl));
         Assert.NotEqual(default, cached.CreatedAt);
     }
 
@@ -38,7 +38,7 @@ public class CachedSpeechSynthesizerTests
 
         Assert.Equal([true], synthesizer.SlowCalls);
         var cached = Assert.Single(dbContext.GeneratedAudio);
-        Assert.Equal(("-30%", "el gato", url), (cached.Rate, cached.Text, cached.AudioUrl));
+        Assert.Equal((0.70m, "el gato", url), (cached.SpeakingRate, cached.Text, cached.AudioUrl));
     }
 
     [Theory]

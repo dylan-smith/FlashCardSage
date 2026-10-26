@@ -333,16 +333,15 @@ public class FlashCardDbContext(
     private static void ConfigureCachedAudio(EntityTypeBuilder<CachedAudio> audio)
     {
         // The voice might read "Madrid" and "madrid" differently, so the text is compared case-sensitively.
-        audio.HasIndex(item => new { item.Voice, item.Rate, item.Text })
+        audio.HasIndex(item => new { item.Voice, item.SpeakingRate, item.Text })
             .IsUnique();
 
         audio.Property(item => item.Voice)
             .HasMaxLength(CachedAudio.MaxVoiceLength)
             .IsRequired();
 
-        audio.Property(item => item.Rate)
-            .HasMaxLength(CachedAudio.MaxRateLength)
-            .IsRequired();
+        audio.Property(item => item.SpeakingRate)
+            .HasPrecision(3, 2);
 
         audio.Property(item => item.Text)
             .HasMaxLength(CachedAudio.MaxTextLength)

@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Net.Http.Headers;
 using System.Security;
 using System.Text;
@@ -45,7 +46,7 @@ public class AzureSpeechSynthesizer(HttpClient httpClient, IOptions<SpeechOption
         var words = SecurityElement.Escape(text);
         if (slow)
         {
-            words = $"<prosody rate='{SpeechOptions.SlowRate}'>{words}</prosody>";
+            words = $"<prosody rate='{SpeechOptions.SlowRate.ToString(CultureInfo.InvariantCulture)}'>{words}</prosody>";
         }
 
         return $"<speak version='1.0' xml:lang='{options.Locale}'><voice name='{options.Voice}'>{words}</voice></speak>";

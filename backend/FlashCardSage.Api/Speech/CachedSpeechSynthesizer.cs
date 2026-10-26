@@ -28,10 +28,11 @@ public class CachedSpeechSynthesizer(
     // that way yet.
     public async Task<string?> FindUrlAsync(string text, bool slow, CancellationToken cancellationToken)
     {
-        var rate = Rate(slow);
+        var rate = SpeakingRate(slow);
         var cached = await dbContext.GeneratedAudio
             .AsNoTracking()
-            .FirstOrDefaultAsync(item => item.Voice == voice && item.Rate == rate && item.Text == text, cancellationToken);
+            .FirstOrDefaultAsync(
+                item => item.Voice == voice && item.SpeakingRate == rate && item.Text == text, cancellationToken);
         if (cached is null)
         {
             return null;
@@ -52,7 +53,7 @@ public class CachedSpeechSynthesizer(
         dbContext.GeneratedAudio.Add(new CachedAudio
         {
             Voice = voice,
-            Rate = Rate(slow),
+            SpeakingRate = SpeakingRate(slow),
             Text = text,
             AudioUrl = url,
             CreatedAt = DateTimeOffset.UtcNow
@@ -71,9 +72,9 @@ public class CachedSpeechSynthesizer(
         return url;
     }
 
-    // What the audio is kept under for its speed: nothing for the voice's own, or the rate it's slowed to.
-    private static string Rate(bool slow)
+    // How fast the voice speaks, as a multiple of its normal speed, which the audio is kept under.
+    private static decimal SpeakingRate(bool slow)
     {
-        return slow ? SpeechOptions.SlowRate : string.Empty;
+        return slow ? SpeechOptions.SlowRate : CachedAudio.NormalSpeakingRate;
     }
 }

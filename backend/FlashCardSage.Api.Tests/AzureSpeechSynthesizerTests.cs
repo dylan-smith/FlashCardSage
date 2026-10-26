@@ -51,7 +51,7 @@ public class AzureSpeechSynthesizerTests
 
         var request = Assert.Single(handler.Requests);
         Assert.Equal(
-            "<speak version='1.0' xml:lang='es-MX'><voice name='es-MX-DaliaNeural'><prosody rate='-30%'>hola &amp; adiós</prosody></voice></speak>",
+            "<speak version='1.0' xml:lang='es-MX'><voice name='es-MX-DaliaNeural'><prosody rate='0.70'>hola &amp; adiós</prosody></voice></speak>",
             request.Body);
     }
 
