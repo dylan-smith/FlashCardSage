@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text;
 using FlashCardSage.Api.Models;
 
@@ -42,19 +41,16 @@ public static class NewSentences
         return side.Length is > 0 and <= SentencePracticeResult.MaxSentenceLength;
     }
 
-    // The text's words in lower case without accents, so "Por favor" is found in "¿Cierras la puerta, por favor?" and
-    // "está" in "Esta". A note in brackets on a card, as in "cerrar (algo)", isn't one of its words.
+    // The text's words in lower case, so "Por favor" is found in "¿Cierras la puerta, por favor?". Accents are kept,
+    // since they tell words apart: "él" (he) isn't "el" (the). A note in brackets on a card, as in "cerrar (algo)",
+    // isn't one of its words.
     private static List<string> Words(string text)
     {
         var words = new List<string>();
         var word = new StringBuilder();
         var bracketed = 0;
-        foreach (var letter in text.Normalize(NormalizationForm.FormD))
+        foreach (var letter in text.Normalize(NormalizationForm.FormC))
         {
-            if (CharUnicodeInfo.GetUnicodeCategory(letter) == UnicodeCategory.NonSpacingMark)
-            {
-                continue;
-            }
             if (bracketed == 0 && char.IsLetterOrDigit(letter))
             {
                 word.Append(char.ToLowerInvariant(letter));

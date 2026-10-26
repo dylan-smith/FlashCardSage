@@ -101,14 +101,26 @@ public class NewSentencesTests
     }
 
     [Fact]
-    public void From_FindsACardByAnyOfItsWords_IgnoringCaseAndAccents()
+    public void From_FindsACardByAnyOfItsWords_IgnoringCase()
     {
         FlashCard[] scope = [Card(1, "gato"), Card(2, "solo", "únicamente"), Card(3, "Está bien")];
 
         var sentence = Assert.Single(
-            NewSentences.From([new("Unicamente el gato. ESTA BIEN.", "Only the cat. It's fine.", [1])], scope));
+            NewSentences.From([new("ÚNICAMENTE el gato. ESTÁ BIEN.", "Only the cat. It's fine.", [1])], scope));
 
         Assert.Equal([1, 2, 3], sentence.CardIds);
+    }
+
+    [Fact]
+    public void From_FindsACardOnlyWithTheSameAccents()
+    {
+        // The sentence's "está" is written with a combining accent, as some text is, and still matches.
+        FlashCard[] scope = [Card(1, "gato"), Card(2, "él"), Card(3, "esta"), Card(4, "está"), Card(5, "unicamente")];
+
+        var sentence = Assert.Single(NewSentences.From(
+            [new("El gato está aquí únicamente.", "The cat is only here.", [1])], scope));
+
+        Assert.Equal([1, 4], sentence.CardIds);
     }
 
     [Fact]
