@@ -24,5 +24,6 @@
   "generatorApp": "bubblewrap-core",
   "fallbackType": "customtabs",
   "enableSiteSettingsShortcut": true,
+  "minSdkVersion": 24,
   "orientation": "default"
 }
