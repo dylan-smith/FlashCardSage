@@ -8,6 +8,9 @@ const precachedPublicFiles = [
   '/manifest.webmanifest',
   '/favicon.svg',
   '/apple-touch-icon.png',
+  '/icon-192.png',
+  '/icon-512.png',
+  '/icon-maskable-512.png',
 ]
 
 // Gives the service worker (sw/sw.ts, built to sw.js) the list of files to keep: index.html, the files above and
