@@ -100,6 +100,10 @@ npm run test:e2e
 - Flash cards belong to a user. `FlashCardDbContext` filters them to the current user and sets the owner on new
   ones. Anything added later that hangs off a card must be reached through its card, so a new endpoint must look
   that up first, or it can reach another user's data.
+- A user can delete their account (`DELETE /api/me`, `AccountService`), which deletes everything that's theirs. Anything
+  new that belongs to a user must be deleted there too, and covered in `AccountServiceTests`. The privacy policy
+  (`frontend/src/pages/PrivacyPage.tsx`, which signed-out visitors can open) says what's kept, so update it when that
+  changes.
 - The built-in decks users can import belong to a system user (`Subject` `system`, which no sign-in can produce). The
   API adds any that are missing from `backend/FlashCardSage.Api/SystemDecks/system-decks.json` when it starts, and
   only `SystemDeckImporter` reads them past the query filter. Importing copies them, so edit the JSON to change

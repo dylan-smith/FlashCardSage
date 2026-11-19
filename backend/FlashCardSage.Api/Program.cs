@@ -23,6 +23,7 @@ builder.Services.AddScoped<PracticeService>();
 builder.Services.AddScoped<SentencePracticeService>();
 builder.Services.AddScoped<CountsService>();
 builder.Services.AddScoped<PreferencesService>();
+builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<SystemDeckImporter>();
 // Reads every user's data for the admin pages.
 builder.Services.AddScoped<AdminService>();
