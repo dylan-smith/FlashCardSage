@@ -7,6 +7,7 @@ import Stack from '@mui/material/Stack'
 import Switch from '@mui/material/Switch'
 import Typography from '@mui/material/Typography'
 import { describeFetchError } from '../api/client'
+import { useSession } from '../auth/session'
 import { savePreferences } from '../api/preferences'
 import type { Preferences } from '../api/preferences'
 import {
@@ -18,6 +19,7 @@ import { trackEvent, trackException } from '../telemetry'
 import { Loading } from '../components/common/Loading'
 import { Section } from '../components/common/Section'
 import { ConnectedApps } from '../components/preferences/ConnectedApps'
+import { DeleteAccount } from '../components/preferences/DeleteAccount'
 
 const options: {
   key: keyof Preferences
@@ -44,9 +46,10 @@ const options: {
   },
 ]
 
-// The user's preferences, each saved as soon as it's changed, and the apps they've connected.
+// The user's preferences, each saved as soon as it's changed, the apps they've connected, and deleting their account.
 function PreferencesPage() {
   const preferences = usePreferences()
+  const session = useSession()
   const [errorMessage, setErrorMessage] = useState('')
   // The saves, one after another, so the last change is the one the API keeps. The switches stay enabled while one
   // is on its way, so the one the user changed keeps focus.
@@ -119,6 +122,11 @@ function PreferencesPage() {
       <Section title="Connected apps">
         <ConnectedApps />
       </Section>
+      {session !== null && (
+        <Section title="Your account">
+          <DeleteAccount session={session} />
+        </Section>
+      )}
     </Stack>
   )
 }

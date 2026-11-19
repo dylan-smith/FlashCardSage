@@ -1,6 +1,7 @@
 using FlashCardSage.Api.Admin;
 using FlashCardSage.Api.Authentication;
 using FlashCardSage.Api.Contracts;
+using FlashCardSage.Api.Services;
 using Microsoft.AspNetCore.Mvc;
 
 namespace FlashCardSage.Api.Controllers;
@@ -10,8 +11,16 @@ namespace FlashCardSage.Api.Controllers;
 /// </summary>
 [ApiController]
 [Route("api/me")]
-public class MeController(AdminUsers adminUsers) : ControllerBase
+public class MeController(AdminUsers adminUsers, AccountService accountService) : ControllerBase
 {
+    // Deletes the signed-in user's account and everything in it, which can't be undone.
+    [HttpDelete]
+    public async Task<IActionResult> Delete()
+    {
+        await accountService.DeleteAsync();
+        return NoContent();
+    }
+
     [HttpGet]
     public ActionResult<MeResponse> Get()
     {
