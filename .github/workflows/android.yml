@@ -1,0 +1,139 @@
+name: Android
+
+# Builds the Android app, a Trusted Web Activity that opens flashcardsage.com (see android/ and the README's "Android
+# app" section). The app only changes when android/ or its icons do, since everything else it shows is the site, so
+# this is separate from ci.yml and never deploys anything: a pull request builds a debug APK to check the project
+# still builds, and running it by hand builds the signed bundle to upload to Google Play.
+on:
+  pull_request:
+    paths:
+      - 'android/**'
+      - 'frontend/public/icon-512.png'
+      - 'frontend/public/icon-maskable-512.png'
+      - '.github/workflows/android.yml'
+  workflow_dispatch:
+    inputs:
+      version-code:
+        description: 'Version code: a whole number higher than every upload before it'
+        required: true
+        type: number
+      version-name:
+        description: 'Version name shown to users'
+        required: true
+        default: '1.0.0'
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  debug:
+    name: Build debug APK
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: android/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate the Android project
+        working-directory: android
+        run: npm ci && npm run generate
+
+      - name: Build
+        working-directory: android/project
+        run: ./gradlew assembleDebug --no-daemon
+
+      - name: Upload the APK
+        uses: actions/upload-artifact@v7
+        with:
+          name: flashcardsage-debug-apk
+          path: android/project/app/build/outputs/apk/debug/app-debug.apk
+          if-no-files-found: error
+
+  release:
+    name: Build signed bundle
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    # The signing key is a production-environment secret, so only main can sign.
+    environment: production
+    steps:
+      - uses: actions/checkout@v7
+
+      # Chrome closes the app if its start page answers 404, which the static website does for every page but the
+      # home page unless Cloudflare's rewrite rule is there (see the README's custom domain section).
+      - name: Check the site is ready for the app
+        run: |
+          start_url="https://flashcardsage.com$(jq -r .startUrl android/twa-manifest.json)"
+          status=$(curl -s -o /dev/null -w '%{http_code}' "$start_url")
+          if [ "$status" != "200" ]; then
+            echo "::error::$start_url answers $status, so the app would close when it opens. Add the Cloudflare rewrite rule first."
+            exit 1
+          fi
+          package=$(jq -r .packageId android/twa-manifest.json)
+          if ! curl -sf https://flashcardsage.com/.well-known/assetlinks.json | jq -e --arg package "$package" 'any(.[]; .target.package_name == $package)' > /dev/null; then
+            echo "::warning::assetlinks.json on the site doesn't name $package yet, so the app will show a browser bar until it does."
+          fi
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          cache: npm
+          cache-dependency-path: android/package-lock.json
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Generate the Android project
+        working-directory: android
+        env:
+          ANDROID_VERSION_CODE: ${{ inputs.version-code }}
+          ANDROID_VERSION_NAME: ${{ inputs.version-name }}
+        run: npm ci && npm run generate
+
+      - name: Build
+        working-directory: android/project
+        run: ./gradlew bundleRelease --no-daemon
+
+      # Signed with the upload key. Google Play signs what users install with its own key.
+      - name: Sign the bundle
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          VERSION_CODE: ${{ inputs.version-code }}
+          VERSION_NAME: ${{ inputs.version-name }}
+        run: |
+          keystore="$RUNNER_TEMP/upload.keystore"
+          echo "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$keystore"
+          bundle="flashcardsage-${VERSION_NAME//[^A-Za-z0-9.]/-}-$VERSION_CODE.aab"
+          cp android/project/app/build/outputs/bundle/release/app-release.aab "$bundle"
+          jarsigner -sigalg SHA256withRSA -digestalg SHA-256 \
+            -keystore "$keystore" -storepass:env ANDROID_KEYSTORE_PASSWORD -keypass:env ANDROID_KEY_PASSWORD \
+            "$bundle" "$ANDROID_KEY_ALIAS"
+          jarsigner -verify "$bundle"
+          rm "$keystore"
+          echo "BUNDLE=$bundle" >> "$GITHUB_ENV"
+
+      - name: Upload the bundle
+        uses: actions/upload-artifact@v7
+        with:
+          name: flashcardsage-release-bundle
+          path: ${{ env.BUNDLE }}
+          if-no-files-found: error
