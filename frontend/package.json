@@ -45,7 +45,7 @@
     "eslint-plugin-jsx-a11y": "^6.10.2",
     "eslint-plugin-playwright": "^2.12.2",
     "eslint-plugin-react-hooks": "^7.1.1",
-    "eslint-plugin-react-refresh": "^0.5.7",
+    "eslint-plugin-react-refresh": "^0.5.8",
     "eslint-plugin-testing-library": "^7.16.2",
     "globals": "^17.14.0",
     "jsdom": "^30.1.3",
