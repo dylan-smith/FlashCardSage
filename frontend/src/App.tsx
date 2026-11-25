@@ -14,6 +14,7 @@ import ImportCardsPage from './pages/ImportCardsPage'
 import NotFoundPage from './pages/NotFoundPage'
 import PracticePage from './pages/PracticePage'
 import PreferencesPage from './pages/PreferencesPage'
+import PrivacyPage from './pages/PrivacyPage'
 import ScoresPage from './pages/ScoresPage'
 import TagsPage from './pages/TagsPage'
 import { trackPageView } from './telemetry'
@@ -48,7 +49,12 @@ function App() {
       <Brand />
 
       {session === null ? (
-        <LandingPage />
+        // The privacy policy is the one page a signed-out visitor can open.
+        pathname === '/privacy' ? (
+          <PrivacyPage signedIn={false} />
+        ) : (
+          <LandingPage />
+        )
       ) : (
         <>
           {!consenting && <ModeNav current={currentMode} />}
@@ -68,6 +74,7 @@ function App() {
             <Route path="/practice" element={<PracticePage />} />
             <Route path="/scores" element={<ScoresPage />} />
             <Route path="/preferences" element={<PreferencesPage />} />
+            <Route path="/privacy" element={<PrivacyPage signedIn />} />
             <Route path="/admin" element={<AdminPage />} />
             <Route path="/admin/users/:id" element={<AdminUserPage />} />
             <Route path="/authorize" element={<AuthorizePage />} />

@@ -6,7 +6,9 @@
 # (sync skips the blobs just uploaded, since they're newer than the local files). index.html, and sw.js (the service
 # worker, which keeps the app for offline use), are what browsers check for a new version, so they're marked no-cache
 # and given the types browsers expect, which sync can't set. So is manifest.webmanifest, whose name and icons
-# browsers read when the app is installed. The landing page's demo clips (demos/) are named with a version (-v1), so a
+# browsers read when the app is installed. .well-known/assetlinks.json, which names the Android app allowed to open the
+# site full-screen, is uploaded by name, so it's there whether or not sync copies a folder starting with a dot, and
+# Android gets the JSON type it expects. The landing page's demo clips (demos/) are named with a version (-v1), so a
 # new cut gets a new name and they're kept for a year like the hashed files; the social preview image keeps its name,
 # since sites that show it cache it by URL, so it can only be kept for a day.
 set -euo pipefail
@@ -33,6 +35,10 @@ az storage blob update "${common[@]}" --container-name '$web' --name sw.js \
 
 az storage blob update "${common[@]}" --container-name '$web' --name manifest.webmanifest \
   --content-cache-control 'no-cache' --content-type 'application/manifest+json'
+
+az storage blob upload "${common[@]}" --container-name '$web' --name .well-known/assetlinks.json \
+  --file dist/.well-known/assetlinks.json --overwrite \
+  --content-cache-control 'no-cache' --content-type 'application/json'
 
 az storage blob update "${common[@]}" --container-name '$web' --name og-image.png \
   --content-cache-control 'public, max-age=86400' --content-type 'image/png'

@@ -174,7 +174,7 @@ The image deployment allows 6 pictures a minute. For a big run, raise its capaci
 
    **Application Insights** — The API automatically sends telemetry to Azure Application Insights when a connection string is available. Set the `APPLICATIONINSIGHTS_CONNECTION_STRING` environment variable (or the `AzureMonitor:ConnectionString` app setting) to your Application Insights connection string. When using Azure App Service, you can connect Application Insights directly from the Azure Portal, which sets `APPLICATIONINSIGHTS_CONNECTION_STRING` automatically. Telemetry is silently disabled when neither value is configured (e.g. during local development).
 
-2. **Frontend** — Run `npm run build` in `frontend` and serve the contents of `frontend/dist` with any static file host (Azure Storage Account static website, Nginx, etc.). Set `VITE_API_BASE_URL` to the production API URL and `VITE_GOOGLE_CLIENT_ID` to the Google OAuth client ID before building. When using a different origin for the frontend, make sure the backend `Cors:AllowedOrigins` setting includes that frontend URL. Serve `index.html` and `sw.js` (the service worker) with `Cache-Control: no-cache` so browsers pick up new versions, and `manifest.webmanifest` as `application/manifest+json`; the hashed files under `assets/` can be cached for a long time. `npm run deploy` (`.github/scripts/deploy-frontend.sh`) does this for the Azure Storage static website.
+2. **Frontend** — Run `npm run build` in `frontend` and serve the contents of `frontend/dist` with any static file host (Azure Storage Account static website, Nginx, etc.). Set `VITE_API_BASE_URL` to the production API URL and `VITE_GOOGLE_CLIENT_ID` to the Google OAuth client ID before building. When using a different origin for the frontend, make sure the backend `Cors:AllowedOrigins` setting includes that frontend URL. Serve `index.html` and `sw.js` (the service worker) with `Cache-Control: no-cache` so browsers pick up new versions, and `manifest.webmanifest` as `application/manifest+json`, and `.well-known/assetlinks.json` (which names the Android app allowed to open the site full-screen) as `application/json`; the hashed files under `assets/` can be cached for a long time. `npm run deploy` (`.github/scripts/deploy-frontend.sh`) does this for the Azure Storage static website.
 
    **Application Insights** — The frontend sends page views, exceptions, API calls and flash card events to Application Insights using the Application Insights JavaScript SDK when `VITE_APPINSIGHTS_CONNECTION_STRING` is set at build time (CI reads it from the API's `APPLICATIONINSIGHTS_CONNECTION_STRING` app setting, so both report to the same resource). API calls carry a W3C `traceparent` header, so each browser request and the API request it triggers share one operation in Application Insights. The SDK sets `ai_user` and `ai_session` cookies to count users and sessions. Telemetry is disabled when the variable isn't set (local development, unit tests and E2E runs).
 
@@ -187,6 +187,7 @@ FlashCardSage/
 │   ├── FlashCardSage.Database/     # Database CLI project for migrations
 │   └── FlashCardSage.Api.Tests/    # xUnit backend tests
 ├── frontend/                        # React + TypeScript (Vite)
+├── android/                         # Android app (a Trusted Web Activity that opens the site)
 ├── infra/                           # Bicep Infrastructure as Code
 │   ├── main.bicep                   # Root Bicep template
 │   ├── main.bicepparam              # Production parameter values
@@ -398,6 +399,7 @@ Before the first deployment with the domain (Azure checks it then, and the deplo
 - Under **Rules → Configuration Rules**, a rule for the hostname sets **SSL** to **Full**. The storage account's certificate is for `*.web.core.windows.net`, so **Full (strict)** fails, and **Flexible** connects over HTTP, which the storage account refuses.
 - Under **Rules → Redirect Rules**, a rule sends `www.flashcardsage.com` to `https://flashcardsage.com` with the path, so the `www` record never reaches Azure (the storage account only knows the bare domain). A **Cache Rule** for the hostname respects the origin's cache headers, so `index.html` (`no-cache`) is always fresh while the hashed assets are cached.
 - **SSL/TLS → Edge Certificates → Always Use HTTPS** is on, since Google sign-in needs HTTPS.
+- The Android app needs one more rule. The static website answers a page other than the home page (like `/practice`) with `index.html` but a 404 status, and Chrome closes an Android app whose site answers 404. Under **Rules → Transform Rules → Rewrite URL**, a rule for `http.host eq "flashcardsage.com" and not http.request.uri.path contains "."` rewrites the path to the static value `/index.html` and keeps the query, so every page answers 200 while files (which all have a `.` in their path) are left alone.
 - In the Google Cloud console, add `https://flashcardsage.com` to the OAuth client's **Authorized JavaScript origins**, or Google sign-in won't load there.
 
 For another app, the same records work for a subdomain (`asverify.<sub>` and `<sub>`) with `frontendCustomDomain` set to the full name.
@@ -415,6 +417,16 @@ sqlpackage /Action:Import /SourceFile:backup.bacpac /TargetServerName:flashcards
 ```
 
 The Azure SQL built-in point-in-time restore (7 days) is still available for restoring to a moment between backups.
+
+### Database Access From Deployments
+
+Both SQL servers' firewalls only let in addresses inside Azure (the `AllowAllWindowsAzureIps` rule), which covers the web apps. The `deploy-backend` and `deploy-preview` jobs also connect from the GitHub runner, for the backup, the migrations and the preview's database user, and GitHub runs some jobs on runners outside Azure. Those fail with `Client with IP address '...' is not allowed to access the server`.
+
+So before those steps, `.github/scripts/sql-firewall.sh` checks whether the runner can connect. If the server turns it away, the script adds a firewall rule for the runner's address, named `github-<job>-<run ID>-<attempt>`, waits for it to take effect, and removes it when the steps are done. A runner inside Azure connects straight away and nothing is changed. The deploy identities' **Contributor** role covers changing the rules.
+
+Signing in is the other thing that differs on those runners. The Database CLI signs in with the job's `az` login wherever it runs, so it also runs the preview's database user script (`--run-script`). `sqlcmd`, which `azure/sql-action` uses, doesn't: it first asks the host's metadata service for a managed identity token, and on a runner outside Azure that request is refused and `sqlcmd` gives up.
+
+A job that's killed before it removes its rule leaves the rule behind. It only lets in that one address, and the server still needs an Entra sign-in. Delete it in the portal or with `az sql server firewall-rule delete`.
 
 ### Required GitHub Variables
 
@@ -454,6 +466,7 @@ The what-if identity is a user-assigned managed identity with a federated creden
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth token (from `claude setup-token`) used by the CI failure and alert investigation workflows |
 | `ALERT_INVESTIGATION_TOKEN` | Optional. Fine-grained personal access token for this repository only, with **Actions: Read and write**. The infrastructure deployment gives it to the Slack Logic App, which uses it to start the alert investigation workflow. Without it (or `SLACK_WEBHOOK_URL`), alerts aren't investigated |
 | `AUTOMERGE_TOKEN` | Personal access token with write access to contents and pull requests. The Dependabot workflows use it to comment, the Auto-update PRs workflow uses it to merge main into PRs with auto-merge enabled (so CI runs on them), and the CI failure investigation workflow uses it to push fix branches and open PRs (so CI runs on them). Save it as both an Actions secret and a Dependabot secret |
+| `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | The Android app's upload key (the keystore file as base64, its password, and the key's alias and password), which the Android workflow signs the bundle for Google Play with (see [Android app](#android-app)). Store them in the `production` environment |
 | `TS_COMPAT_PR_TOKEN` | Fine-grained personal access token for this repository with Contents, Pull requests and Workflows read/write, used by the nightly TypeScript/ESLint compatibility and Pkcs pin check workflows to open PRs that delete a workflow file |
 
 ### CI Failure Investigation
@@ -477,6 +490,23 @@ To try it, choose **Test** on the **FlashCardSage-Alerts** action group, or run 
 ### Environment
 
 The workflow uses the `production` GitHub Environment for all deployments. Configure the `production` environment in your repository settings to enable approval gates and environment-specific secrets, and restrict its deployment branches to `main` so pull requests can't use its credentials or secrets.
+
+## Android app
+
+The Android app (`com.flashcardsage.app`) is a [Trusted Web Activity](https://developer.chrome.com/docs/android/trusted-web-activity): a small app that opens `https://flashcardsage.com` full-screen in Chrome. Everything it shows is the site, so sign-in, offline practice and every deployment of the frontend work in it with no new release. The app itself only needs a new release when its name, icon, colors or start page change.
+
+- `android/twa-manifest.json` describes the app. `npm run generate` in `android/` makes the Android project from it in `android/project` (not committed) with [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap)'s generator, taking the icons from `frontend/public`.
+- `.github/workflows/android.yml` builds a debug APK on pull requests that change `android/`. Run by hand (**Actions → Android → Run workflow**, with a version code higher than the last upload), it builds the bundle (`.aab`), signs it with the upload key and attaches it to the run, to upload in the Play Console.
+- `frontend/public/.well-known/assetlinks.json` is what lets the app show the site without a browser bar. It lists the SHA-256 fingerprints of the keys the app may be signed with: the upload key (for builds installed by hand) and Google Play's app signing key (**Play Console → Test and release → App integrity**), which signs what users install.
+- Chrome closes the app if a page of the site answers 404, so the Cloudflare rewrite rule in [Custom Domain](#custom-domain) has to stay. The workflow checks the start page before it builds a release.
+
+To make the upload key (once; keep a backup, since Play only accepts bundles signed with it):
+
+```bash
+keytool -genkeypair -v -keystore upload.keystore -alias upload -keyalg RSA -keysize 2048 -validity 10000
+keytool -list -v -keystore upload.keystore -alias upload   # shows the SHA-256 fingerprint for assetlinks.json
+base64 -w0 upload.keystore                                  # the value of ANDROID_KEYSTORE_BASE64
+```
 
 ## Contributing
 

@@ -1,0 +1,29 @@
+{
+  "packageId": "com.flashcardsage.app",
+  "host": "flashcardsage.com",
+  "name": "FlashCardSage",
+  "launcherName": "FlashCardSage",
+  "display": "standalone",
+  "themeColor": "#0e2841",
+  "themeColorDark": "#0e2841",
+  "navigationColor": "#f3f4f6",
+  "navigationColorDark": "#0e2841",
+  "backgroundColor": "#f3f4f6",
+  "enableNotifications": false,
+  "startUrl": "/practice",
+  "iconUrl": "https://flashcardsage.com/icon-512.png",
+  "maskableIconUrl": "https://flashcardsage.com/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "./upload.keystore",
+    "alias": "upload"
+  },
+  "appVersionCode": 1,
+  "appVersion": "1.0.0",
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-core",
+  "fallbackType": "customtabs",
+  "enableSiteSettingsShortcut": true,
+  "minSdkVersion": 24,
+  "orientation": "default"
+}
