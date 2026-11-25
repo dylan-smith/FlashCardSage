@@ -33,6 +33,17 @@ test('smoke: app loads and asks the user to sign in', async ({ page }) => {
   ).toBeVisible()
 })
 
+// Android only lets the app open the site full-screen if this file is served as JSON (see deploy-frontend.sh).
+test('smoke: the host serves the Android asset links as JSON', async ({
+  request,
+}) => {
+  const response = await request.get('/.well-known/assetlinks.json')
+
+  expect(response.status()).toBe(200)
+  expect(response.headers()['content-type']).toContain('application/json')
+  expect(Array.isArray(await response.json())).toBe(true)
+})
+
 test('smoke: can add, edit and delete a flash card', async ({ page }) => {
   // Room for both waits for the list, on top of the usual steps.
   test.setTimeout(4 * 60_000)
