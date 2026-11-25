@@ -187,6 +187,7 @@ FlashCardSage/
 │   ├── FlashCardSage.Database/     # Database CLI project for migrations
 │   └── FlashCardSage.Api.Tests/    # xUnit backend tests
 ├── frontend/                        # React + TypeScript (Vite)
+├── android/                         # Android app (a Trusted Web Activity that opens the site)
 ├── infra/                           # Bicep Infrastructure as Code
 │   ├── main.bicep                   # Root Bicep template
 │   ├── main.bicepparam              # Production parameter values
@@ -465,6 +466,7 @@ The what-if identity is a user-assigned managed identity with a federated creden
 | `CLAUDE_CODE_OAUTH_TOKEN` | Claude Code OAuth token (from `claude setup-token`) used by the CI failure and alert investigation workflows |
 | `ALERT_INVESTIGATION_TOKEN` | Optional. Fine-grained personal access token for this repository only, with **Actions: Read and write**. The infrastructure deployment gives it to the Slack Logic App, which uses it to start the alert investigation workflow. Without it (or `SLACK_WEBHOOK_URL`), alerts aren't investigated |
 | `AUTOMERGE_TOKEN` | Personal access token with write access to contents and pull requests. The Dependabot workflows use it to comment, the Auto-update PRs workflow uses it to merge main into PRs with auto-merge enabled (so CI runs on them), and the CI failure investigation workflow uses it to push fix branches and open PRs (so CI runs on them). Save it as both an Actions secret and a Dependabot secret |
+| `ANDROID_KEYSTORE_BASE64`, `ANDROID_KEYSTORE_PASSWORD`, `ANDROID_KEY_ALIAS`, `ANDROID_KEY_PASSWORD` | The Android app's upload key (the keystore file as base64, its password, and the key's alias and password), which the Android workflow signs the bundle for Google Play with (see [Android app](#android-app)). Store them in the `production` environment |
 | `TS_COMPAT_PR_TOKEN` | Fine-grained personal access token for this repository with Contents, Pull requests and Workflows read/write, used by the nightly TypeScript/ESLint compatibility and Pkcs pin check workflows to open PRs that delete a workflow file |
 
 ### CI Failure Investigation
@@ -488,6 +490,23 @@ To try it, choose **Test** on the **FlashCardSage-Alerts** action group, or run 
 ### Environment
 
 The workflow uses the `production` GitHub Environment for all deployments. Configure the `production` environment in your repository settings to enable approval gates and environment-specific secrets, and restrict its deployment branches to `main` so pull requests can't use its credentials or secrets.
+
+## Android app
+
+The Android app (`com.flashcardsage.app`) is a [Trusted Web Activity](https://developer.chrome.com/docs/android/trusted-web-activity): a small app that opens `https://flashcardsage.com` full-screen in Chrome. Everything it shows is the site, so sign-in, offline practice and every deployment of the frontend work in it with no new release. The app itself only needs a new release when its name, icon, colors or start page change.
+
+- `android/twa-manifest.json` describes the app. `npm run generate` in `android/` makes the Android project from it in `android/project` (not committed) with [Bubblewrap](https://github.com/GoogleChromeLabs/bubblewrap)'s generator, taking the icons from `frontend/public`.
+- `.github/workflows/android.yml` builds a debug APK on pull requests that change `android/`. Run by hand (**Actions → Android → Run workflow**, with a version code higher than the last upload), it builds the bundle (`.aab`), signs it with the upload key and attaches it to the run, to upload in the Play Console.
+- `frontend/public/.well-known/assetlinks.json` is what lets the app show the site without a browser bar. It lists the SHA-256 fingerprints of the keys the app may be signed with: the upload key (for builds installed by hand) and Google Play's app signing key (**Play Console → Test and release → App integrity**), which signs what users install.
+- Chrome closes the app if a page of the site answers 404, so the Cloudflare rewrite rule in [Custom Domain](#custom-domain) has to stay. The workflow checks the start page before it builds a release.
+
+To make the upload key (once; keep a backup, since Play only accepts bundles signed with it):
+
+```bash
+keytool -genkeypair -v -keystore upload.keystore -alias upload -keyalg RSA -keysize 2048 -validity 10000
+keytool -list -v -keystore upload.keystore -alias upload   # shows the SHA-256 fingerprint for assetlinks.json
+base64 -w0 upload.keystore                                  # the value of ANDROID_KEYSTORE_BASE64
+```
 
 ## Contributing
 

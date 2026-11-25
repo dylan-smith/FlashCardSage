@@ -63,3 +63,14 @@ updates:
         patterns:
           - "vitest"
           - "@vitest/*"
+
+  # npm dependencies for the Android app's project generator
+  - package-ecosystem: "npm"
+    directory: "/android"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    reviewers:
+      - "dylan-smith"
+    labels:
+      - "dependencies"
