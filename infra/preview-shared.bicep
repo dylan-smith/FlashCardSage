@@ -71,7 +71,8 @@ resource sqlServer 'Microsoft.Sql/servers@2023-08-01' = {
   }
 }
 
-// GitHub-hosted runners run in Azure, so this lets the migrations reach the server.
+// Lets in addresses inside Azure: the previews' web apps, and the GitHub runner when it happens to be in Azure. A
+// runner outside Azure gets a rule of its own while its job uses the database (.github/scripts/sql-firewall.sh).
 resource allowAzureServices 'Microsoft.Sql/servers/firewallRules@2023-08-01' = {
   parent: sqlServer
   name: 'AllowAllWindowsAzureIps'

@@ -143,6 +143,11 @@ npm run test:e2e
   up by `infra/Setup-Environment.ps1` (see README), so a new identity, role or GitHub variable
   belongs there too. Preview web apps' database users are created by the `deploy-preview` job
   (`.github/scripts/preview-db-user.sql`), so don't add manual steps for them.
+- The SQL servers only let in addresses inside Azure, and GitHub runs some jobs on runners outside
+  it. A workflow step that connects to a database from the runner must come between
+  `.github/scripts/sql-firewall.sh open` and `close`, as the migrations do, and should run its SQL
+  with the Database CLI (`--run-script`) rather than `sqlcmd` or `azure/sql-action`, which can't
+  sign in on those runners (see the README's "Database Access From Deployments" section).
 - A deployment doesn't delete resources removed from the template. After deploying, `deploy-infrastructure` deletes any
   alert rules the template no longer defines (`.github/scripts/orphaned-resources.sh` and `delete-orphaned-alerts.sh`)
   and warns about anything else, and the PR what-if comment lists the same resources.
