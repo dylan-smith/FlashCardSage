@@ -417,6 +417,16 @@ sqlpackage /Action:Import /SourceFile:backup.bacpac /TargetServerName:flashcards
 
 The Azure SQL built-in point-in-time restore (7 days) is still available for restoring to a moment between backups.
 
+### Database Access From Deployments
+
+Both SQL servers' firewalls only let in addresses inside Azure (the `AllowAllWindowsAzureIps` rule), which covers the web apps. The `deploy-backend` and `deploy-preview` jobs also connect from the GitHub runner, for the backup, the migrations and the preview's database user, and GitHub runs some jobs on runners outside Azure. Those fail with `Client with IP address '...' is not allowed to access the server`.
+
+So before those steps, `.github/scripts/sql-firewall.sh` checks whether the runner can connect. If the server turns it away, the script adds a firewall rule for the runner's address, named `github-<job>-<run ID>-<attempt>`, waits for it to take effect, and removes it when the steps are done. A runner inside Azure connects straight away and nothing is changed. The deploy identities' **Contributor** role covers changing the rules.
+
+Signing in is the other thing that differs on those runners. The Database CLI signs in with the job's `az` login wherever it runs, so it also runs the preview's database user script (`--run-script`). `sqlcmd`, which `azure/sql-action` uses, doesn't: it first asks the host's metadata service for a managed identity token, and on a runner outside Azure that request is refused and `sqlcmd` gives up.
+
+A job that's killed before it removes its rule leaves the rule behind. It only lets in that one address, and the server still needs an Entra sign-in. Delete it in the portal or with `az sql server firewall-rule delete`.
+
 ### Required GitHub Variables
 
 | Variable | Description |
