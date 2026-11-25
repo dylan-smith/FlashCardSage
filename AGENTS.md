@@ -103,6 +103,10 @@ npm run test:e2e
 - Flash cards belong to a user. `FlashCardDbContext` filters them to the current user and sets the owner on new
   ones. Anything added later that hangs off a card must be reached through its card, so a new endpoint must look
   that up first, or it can reach another user's data.
+- A user can delete their account (`DELETE /api/me`, `AccountService`), which deletes everything that's theirs. Anything
+  new that belongs to a user must be deleted there too, and covered in `AccountServiceTests`. The privacy policy
+  (`frontend/src/pages/PrivacyPage.tsx`, which signed-out visitors can open) says what's kept, so update it when that
+  changes.
 - The built-in decks users can import belong to a system user (`Subject` `system`, which no sign-in can produce). The
   API adds any that are missing from `backend/FlashCardSage.Api/SystemDecks/system-decks.json` when it starts, and
   only `SystemDeckImporter` reads them past the query filter. Importing copies them, so edit the JSON to change
@@ -146,6 +150,11 @@ npm run test:e2e
   up by `infra/Setup-Environment.ps1` (see README), so a new identity, role or GitHub variable
   belongs there too. Preview web apps' database users are created by the `deploy-preview` job
   (`.github/scripts/preview-db-user.sql`), so don't add manual steps for them.
+- The SQL servers only let in addresses inside Azure, and GitHub runs some jobs on runners outside
+  it. A workflow step that connects to a database from the runner must come between
+  `.github/scripts/sql-firewall.sh open` and `close`, as the migrations do, and should run its SQL
+  with the Database CLI (`--run-script`) rather than `sqlcmd` or `azure/sql-action`, which can't
+  sign in on those runners (see the README's "Database Access From Deployments" section).
 - A deployment doesn't delete resources removed from the template. After deploying, `deploy-infrastructure` deletes any
   alert rules the template no longer defines (`.github/scripts/orphaned-resources.sh` and `delete-orphaned-alerts.sh`)
   and warns about anything else, and the PR what-if comment lists the same resources.
