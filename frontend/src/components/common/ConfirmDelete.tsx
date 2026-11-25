@@ -16,6 +16,7 @@ export function ConfirmDelete({
   busy,
   confirmText = 'Delete',
   busyText = 'Deleting…',
+  confirmDisabled = false,
   onCancel,
   onConfirm,
 }: {
@@ -30,6 +31,8 @@ export function ConfirmDelete({
   // disconnecting an app.
   confirmText?: string
   busyText?: string
+  // Holds the confirm button back until the options are filled in, such as a word the user has to type.
+  confirmDisabled?: boolean
   onCancel: () => void
   onConfirm: () => void
 }) {
@@ -61,7 +64,7 @@ export function ConfirmDelete({
           type="button"
           variant="contained"
           color="error"
-          disabled={busy}
+          disabled={busy || confirmDisabled}
           onClick={onConfirm}
         >
           {busy ? busyText : confirmText}

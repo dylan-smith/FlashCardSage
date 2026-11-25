@@ -1,5 +1,6 @@
 import Box from '@mui/material/Box'
 import Button from '@mui/material/Button'
+import Link from '@mui/material/Link'
 import List from '@mui/material/List'
 import ListItem from '@mui/material/ListItem'
 import ListItemIcon from '@mui/material/ListItemIcon'
@@ -7,6 +8,7 @@ import ListItemText from '@mui/material/ListItemText'
 import Stack from '@mui/material/Stack'
 import Typography from '@mui/material/Typography'
 import useMediaQuery from '@mui/material/useMediaQuery'
+import { Link as RouterLink } from 'react-router'
 import SignInPage from '../auth/SignInPage'
 import {
   features,
@@ -152,7 +154,10 @@ function LandingPage() {
           Get started, it&apos;s free
         </Button>
         <Typography color="text.secondary" align="center">
-          Only you can see your cards.
+          Only you can see your cards.{' '}
+          <Link component={RouterLink} to="/privacy">
+            Privacy policy
+          </Link>
         </Typography>
       </Stack>
     </Stack>
