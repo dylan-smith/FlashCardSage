@@ -1,1 +1,12 @@
-[]
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.flashcardsage.app",
+      "sha256_cert_fingerprints": [
+        "1B:60:D0:B2:37:94:DE:05:7C:6A:DF:3B:37:70:43:C4:1C:D3:51:EE:F6:1E:23:FA:00:24:CD:79:AF:C8:76:73"
+      ]
+    }
+  }
+]
