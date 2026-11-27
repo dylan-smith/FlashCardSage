@@ -220,13 +220,10 @@ describe('admin page', () => {
     expect(userRows()).toEqual([
       [
         'test:Tom',
-        '',
-        'test',
         formatDate(tom.createdAt),
-        formatDateTime(tom.lastSeenAt),
-        'Web',
+        `${formatDateTime(tom.lastSeenAt)}Web`,
         '1',
-        '0 / 100 (0%)',
+        '0%',
         '0',
         '0',
         '0',
@@ -234,27 +231,21 @@ describe('admin page', () => {
         '0',
       ],
       [
-        'María López',
-        'maria@example.com',
-        'google',
+        'María Lópezmaria@example.com',
         formatDate(maria.createdAt),
-        formatDateTime(maria.lastSeenAt),
-        'Web and Android app',
+        `${formatDateTime(maria.lastSeenAt)}Web and Android app`,
         '7',
-        '455 / 700 (65%)',
+        '65%',
         '2',
         '3',
         '12',
-        formatDateTime(maria.lastPracticedAt),
+        formatDate(maria.lastPracticedAt),
         '1',
       ],
       [
-        'Never Seen',
-        'user4@example.com',
-        'google',
+        'Never Seenuser4@example.com',
         formatDate(never.createdAt),
         'Unknown',
-        '',
         '0',
         'No cards',
         '0',
@@ -276,11 +267,15 @@ describe('admin page', () => {
     const search = screen.getByRole('searchbox', { name: 'Search' })
 
     await user.type(search, 'MARIA')
-    expect(userRows().map((row) => row[0])).toEqual(['María López'])
+    expect(userRows().map((row) => row[0])).toEqual([
+      'María Lópezmaria@example.com',
+    ])
 
     await user.clear(search)
     await user.type(search, 'user4@')
-    expect(userRows().map((row) => row[0])).toEqual(['Never Seen'])
+    expect(userRows().map((row) => row[0])).toEqual([
+      'Never Seenuser4@example.com',
+    ])
 
     await user.clear(search)
     await user.type(search, 'test:tom')

@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Alert from '@mui/material/Alert'
+import Box from '@mui/material/Box'
 import Link from '@mui/material/Link'
 import Stack from '@mui/material/Stack'
 import TableBody from '@mui/material/TableBody'
@@ -16,7 +17,7 @@ import {
   formatClients,
   formatDate,
   formatDateTime,
-  formatScore,
+  formatScorePercent,
   sourceLabel,
   userName,
 } from '../../lib/adminFormat'
@@ -149,12 +150,9 @@ function UsersTable({ users }: { users: AdminUserSummary[] }) {
     <ScrollTable label="Users">
       <TableHead>
         <TableRow>
-          <TableCell>Name</TableCell>
-          <TableCell>Email</TableCell>
-          <TableCell>Provider</TableCell>
+          <TableCell>User</TableCell>
           <TableCell>Signed up</TableCell>
           <TableCell>Last seen</TableCell>
-          <TableCell>Uses</TableCell>
           <TableCell align="right">Cards</TableCell>
           <TableCell align="right">Score</TableCell>
           <TableCell align="right">Decks</TableCell>
@@ -167,33 +165,30 @@ function UsersTable({ users }: { users: AdminUserSummary[] }) {
       <TableBody>
         {users.map((user) => (
           <TableRow key={user.id} hover>
-            <TableCell sx={{ overflowWrap: 'anywhere', minWidth: 120 }}>
+            <TableCell sx={{ overflowWrap: 'anywhere', minWidth: 200 }}>
               <Link component={RouterLink} to={`/admin/users/${user.id}`}>
                 {userName(user)}
               </Link>
+              {user.email !== null && (
+                <Box sx={{ color: 'text.secondary' }}>{user.email}</Box>
+              )}
             </TableCell>
-            <TableCell sx={{ overflowWrap: 'anywhere' }}>
-              {user.email ?? ''}
-            </TableCell>
-            <TableCell>{user.provider}</TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap' }}>
               {formatDate(user.createdAt)}
             </TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap' }}>
               {formatDateTime(user.lastSeenAt)}
-            </TableCell>
-            <TableCell sx={{ whiteSpace: 'nowrap' }}>
-              {formatClients(user)}
+              <Box sx={{ color: 'text.secondary' }}>{formatClients(user)}</Box>
             </TableCell>
             <TableCell align="right">{user.cards}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
-              {formatScore(user)}
+              {formatScorePercent(user)}
             </TableCell>
             <TableCell align="right">{user.decks}</TableCell>
             <TableCell align="right">{user.tags}</TableCell>
             <TableCell align="right">{user.practiceResults}</TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap' }}>
-              {formatDateTime(user.lastPracticedAt, 'Never')}
+              {formatDate(user.lastPracticedAt, 'Never')}
             </TableCell>
             <TableCell align="right">{user.connectedApps}</TableCell>
           </TableRow>

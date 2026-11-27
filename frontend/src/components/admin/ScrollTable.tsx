@@ -21,7 +21,11 @@ export function ScrollTable({
       <Table
         size="small"
         aria-label={label}
-        sx={{ '& th': { whiteSpace: 'nowrap', fontWeight: 'bold' } }}
+        sx={{
+          '& th': { whiteSpace: 'nowrap', fontWeight: 'bold' },
+          // Less room between the columns than a table usually has, so more of them fit without scrolling.
+          '& th, & td': { px: 1 },
+        }}
       >
         {children}
       </Table>
