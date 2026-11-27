@@ -37,7 +37,7 @@ function PrivacyPage({ signedIn }: { signedIn: boolean }) {
   return (
     <Section title="Privacy policy">
       <Typography color="text.secondary">
-        Last updated 19 November 2026. This covers FlashCardSage at
+        Last updated 27 November 2026. This covers FlashCardSage at
         flashcardsage.com and the FlashCardSage Android app, which shows the
         same site.
       </Typography>
@@ -47,8 +47,8 @@ function PrivacyPage({ signedIn }: { signedIn: boolean }) {
           Your account: when you sign in with Google, FlashCardSage gets your
           name, email address and profile picture from Google. It keeps your
           name, your email address, Google&apos;s ID for your account, when you
-          first signed in and when you last used the app. It never sees your
-          Google password.
+          first signed in and when you last used the app, on the website and in
+          the Android app. It never sees your Google password.
         </Text>
         <Text>
           What you make: your flash cards, tags, decks, the pictures on your

@@ -54,6 +54,22 @@ public sealed class AdminServiceTests : IDisposable
     }
 
     [Fact]
+    public async Task Overview_CountsThePeopleSeenOnTheWebAndInTheAndroidApp()
+    {
+        var service = await CreateServiceAsync();
+
+        var overview = await service.GetOverviewAsync();
+
+        // Alice was on the web 10 days ago and in the Android app yesterday, and Bob on the web 20 days ago. The
+        // service user, seen on both today, isn't counted.
+        Assert.Equal(0, overview.WebUsersLast7Days);
+        Assert.Equal(2, overview.WebUsersLast30Days);
+        Assert.Equal(1, overview.AndroidAppUsersLast7Days);
+        Assert.Equal(1, overview.AndroidAppUsersLast30Days);
+        Assert.Equal(1, overview.WebAndAndroidAppUsersLast30Days);
+    }
+
+    [Fact]
     public async Task Overview_CountsCachedAudio()
     {
         var service = await CreateServiceAsync();
@@ -132,11 +148,12 @@ public sealed class AdminServiceTests : IDisposable
                 new AdminUserSummary(
                     AliceId, "test:alice", "test", "Alice", "alice@example.com", Now.AddDays(-60), Now.AddDays(-1),
                     Cards: 2, Decks: 1, Tags: 1, PracticeResults: 3, Now.AddDays(-2), ConnectedApps: 1,
-                    Score: 50, MaximumScore: 200),
+                    Score: 50, MaximumScore: 200,
+                    LastSeenOnWebAt: Now.AddDays(-10), LastSeenInAndroidAppAt: Now.AddDays(-1)),
                 new AdminUserSummary(
                     BobId, "google:123", "google", "Bob", null, Now.AddDays(-5), Now.AddDays(-20),
                     Cards: 1, Decks: 0, Tags: 0, PracticeResults: 0, null, ConnectedApps: 0,
-                    Score: 0, MaximumScore: 100),
+                    Score: 0, MaximumScore: 100, LastSeenOnWebAt: Now.AddDays(-20)),
                 new AdminUserSummary(
                     CarolId, "test:carol", "test", "Carol", null, Now.AddDays(-1), null,
                     Cards: 0, Decks: 0, Tags: 0, PracticeResults: 0, null, ConnectedApps: 0,
@@ -279,6 +296,8 @@ public sealed class AdminServiceTests : IDisposable
                     Email = "alice@example.com",
                     CreatedAt = Now.AddDays(-60),
                     LastSeenAt = Now.AddDays(-1),
+                    LastSeenOnWebAt = Now.AddDays(-10),
+                    LastSeenInAndroidAppAt = Now.AddDays(-1),
                     ShowPictures = false
                 },
                 new User
@@ -287,11 +306,19 @@ public sealed class AdminServiceTests : IDisposable
                     Subject = "google:123",
                     DisplayName = "Bob",
                     CreatedAt = Now.AddDays(-5),
-                    LastSeenAt = Now.AddDays(-20)
+                    LastSeenAt = Now.AddDays(-20),
+                    LastSeenOnWebAt = Now.AddDays(-20)
                 },
                 new User { Id = CarolId, Subject = "test:carol", DisplayName = "Carol", CreatedAt = Now.AddDays(-1) },
                 new User { Id = SystemUserId, Subject = User.SystemSubject, CreatedAt = Now.AddDays(-90) },
-                new User { Id = ServiceUserId, Subject = LocalTokenHandler.ServiceSubject, CreatedAt = Now.AddDays(-90) });
+                new User
+                {
+                    Id = ServiceUserId,
+                    Subject = LocalTokenHandler.ServiceSubject,
+                    CreatedAt = Now.AddDays(-90),
+                    LastSeenOnWebAt = Now,
+                    LastSeenInAndroidAppAt = Now
+                });
             await dbContext.SaveChangesAsync();
         }
 

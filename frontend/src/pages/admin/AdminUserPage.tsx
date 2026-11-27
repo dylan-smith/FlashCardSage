@@ -102,6 +102,14 @@ function Profile({ detail }: { detail: AdminUserDetail }) {
           ['Sign-in', user.subject],
           ['Signed up', formatDateTime(user.createdAt)],
           ['Last seen', formatDateTime(user.lastSeenAt)],
+          [
+            'Last seen on the web',
+            formatDateTime(user.lastSeenOnWebAt, 'Never'),
+          ],
+          [
+            'Last seen in the Android app',
+            formatDateTime(user.lastSeenInAndroidAppAt, 'Never'),
+          ],
           ['Cards', String(user.cards)],
           ['Score', formatScore(user)],
           ['Decks', String(user.decks)],

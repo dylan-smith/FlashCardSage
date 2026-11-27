@@ -47,6 +47,11 @@ const overview: AdminOverview = {
   generatedAudio: 9,
   oAuthClients: 1,
   connectedApps: 1,
+  webUsersLast7Days: 1,
+  webUsersLast30Days: 2,
+  androidAppUsersLast7Days: 0,
+  androidAppUsersLast30Days: 1,
+  webAndAndroidAppUsersLast30Days: 1,
 }
 
 function user(
@@ -69,6 +74,8 @@ function user(
     connectedApps: 0,
     score: 0,
     maximumScore: 0,
+    lastSeenOnWebAt: null,
+    lastSeenInAndroidAppAt: null,
     ...fields,
   }
 }
@@ -85,6 +92,8 @@ const maria = user(2, {
   connectedApps: 1,
   score: 455,
   maximumScore: 700,
+  lastSeenOnWebAt: '2026-10-12T10:30:00Z',
+  lastSeenInAndroidAppAt: '2026-10-20T10:30:00Z',
 })
 const tom = user(3, {
   displayName: null,
@@ -94,6 +103,7 @@ const tom = user(3, {
   lastSeenAt: '2026-10-21T10:30:00Z',
   cards: 1,
   maximumScore: 100,
+  lastSeenOnWebAt: '2026-10-21T10:30:00Z',
 })
 const never = user(4, { displayName: 'Never Seen' })
 
@@ -190,6 +200,11 @@ describe('admin page', () => {
       expect.arrayContaining([
         ['Users', '2'],
         ['Active in the last 7 days', '1'],
+        ['On the web in the last 7 days', '1'],
+        ['On the web in the last 30 days', '2'],
+        ['In the Android app in the last 7 days', '0'],
+        ['In the Android app in the last 30 days', '1'],
+        ['On both in the last 30 days', '1'],
         ['Practice results in the last 30 days', '9'],
         ['Listening-mode results in the last 30 days', '4'],
         ['Listening-mode users in the last 30 days', '1'],
@@ -209,6 +224,7 @@ describe('admin page', () => {
         'test',
         formatDate(tom.createdAt),
         formatDateTime(tom.lastSeenAt),
+        'Web',
         '1',
         '0 / 100 (0%)',
         '0',
@@ -223,6 +239,7 @@ describe('admin page', () => {
         'google',
         formatDate(maria.createdAt),
         formatDateTime(maria.lastSeenAt),
+        'Web and Android app',
         '7',
         '455 / 700 (65%)',
         '2',
@@ -237,6 +254,7 @@ describe('admin page', () => {
         'google',
         formatDate(never.createdAt),
         'Unknown',
+        '',
         '0',
         'No cards',
         '0',
@@ -428,6 +446,11 @@ describe('admin user page', () => {
         ['Email', 'maria@example.com'],
         ['Sign-in', 'google:2'],
         ['Last seen', formatDateTime(maria.lastSeenAt)],
+        ['Last seen on the web', formatDateTime(maria.lastSeenOnWebAt)],
+        [
+          'Last seen in the Android app',
+          formatDateTime(maria.lastSeenInAndroidAppAt),
+        ],
         ['Score', '455 / 700 (65%)'],
         ['Show pictures', 'On'],
         ['Suggest cards', 'Off'],

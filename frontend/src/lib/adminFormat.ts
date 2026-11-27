@@ -15,6 +15,17 @@ export function formatScore(user: AdminUserSummary) {
     : `${user.score} / ${user.maximumScore} (${Math.round((user.score / user.maximumScore) * 100)}%)`
 }
 
+// Which of the website and the Android app the user has been seen on, or nothing when it's neither since that was
+// recorded.
+export function formatClients(user: AdminUserSummary) {
+  const web = user.lastSeenOnWebAt !== null
+  const androidApp = user.lastSeenInAndroidAppAt !== null
+  if (web && androidApp) {
+    return 'Web and Android app'
+  }
+  return web ? 'Web' : androidApp ? 'Android app' : ''
+}
+
 // A day, in the viewer's own locale, or the fallback when there's none (such as for what was made before it was
 // recorded).
 export function formatDate(date: string | null, fallback = 'Unknown') {

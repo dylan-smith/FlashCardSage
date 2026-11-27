@@ -5,7 +5,8 @@ namespace FlashCardSage.Api.Contracts.Admin;
 // signed up in it. The listening numbers count the results practiced in listening mode in the last 30 days, and the
 // people who practiced that way then. CardsBySource has every source, with "Unknown" for cards made before it was
 // recorded. The cached translations, pictures and audio, and the OAuth server's apps, belong to nobody, so they're all
-// counted.
+// counted. The web and Android app users were last seen on the website or in the Android app in the period, and
+// WebAndAndroidAppUsersLast30Days on both.
 public record AdminOverviewResponse(
     int Users,
     int ActiveUsersLast7Days,
@@ -24,4 +25,9 @@ public record AdminOverviewResponse(
     int GeneratedImages,
     int GeneratedAudio,
     int OAuthClients,
-    int ConnectedApps);
+    int ConnectedApps,
+    int WebUsersLast7Days,
+    int WebUsersLast30Days,
+    int AndroidAppUsersLast7Days,
+    int AndroidAppUsersLast30Days,
+    int WebAndAndroidAppUsersLast30Days);

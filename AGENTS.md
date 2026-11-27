@@ -34,7 +34,8 @@ these sentences too, so spoken text can be up to `CachedAudio.MaxTextLength` (30
   the plan and SQL server every preview shares (deployed from the PR's base branch).
 - `android`: the Android app, a Trusted Web Activity that opens the site. `twa-manifest.json` describes it,
   `generate.mjs` makes the Android project from it, and `.github/workflows/android.yml` builds it. See the README's
-  "Android app" section.
+  "Android app" section. The frontend tells the API whether it's the website or the app in a header on every request
+  (`frontend/src/lib/appClient.ts`, `Authentication/AppClient.cs`), which the admin pages show.
 - `.github/workflows/ci.yml`: build, test, CodeQL, E2E, PR what-if preview, deploy each PR to a
   preview environment, and deploy to production on `main`. `preview-cleanup.yml` deletes a PR's
   preview when it closes.

@@ -27,6 +27,15 @@ public class User
     /// </summary>
     public DateTimeOffset? LastSeenAt { get; set; }
 
+    /// <summary>
+    /// When the user last sent a request from the website and from the Android app (see
+    /// <see cref="Authentication.AppClient"/>), as precise as <see cref="LastSeenAt"/>, or null if they haven't since
+    /// it was recorded. Requests from anything else, such as an AI assistant, change neither.
+    /// </summary>
+    public DateTimeOffset? LastSeenOnWebAt { get; set; }
+
+    public DateTimeOffset? LastSeenInAndroidAppAt { get; set; }
+
     // The user's preferences (see PreferencesController), all on for a new user.
     public bool ShowPictures { get; set; } = true;
 
