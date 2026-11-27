@@ -32,6 +32,12 @@ export type AdminOverview = {
   generatedAudio: number
   oAuthClients: number
   connectedApps: number
+  // The people last seen on the website, in the Android app, and on both, in the period.
+  webUsersLast7Days: number
+  webUsersLast30Days: number
+  androidAppUsersLast7Days: number
+  androidAppUsersLast30Days: number
+  webAndAndroidAppUsersLast30Days: number
 }
 
 // A user and how much they have. provider is the part of their subject before the colon, such as "google".
@@ -52,6 +58,9 @@ export type AdminUserSummary = {
   // The total of their cards' practice scores, out of the most their cards could score.
   score: number
   maximumScore: number
+  // When they last used the website and the Android app, or null when they haven't since it was recorded.
+  lastSeenOnWebAt: string | null
+  lastSeenInAndroidAppAt: string | null
 }
 
 export type AdminPracticeResult = {

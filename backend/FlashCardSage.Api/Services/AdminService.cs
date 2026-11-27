@@ -62,7 +62,13 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
             await dbContext.GeneratedImages.CountAsync(cancellationToken),
             await dbContext.GeneratedAudio.CountAsync(cancellationToken),
             await dbContext.OAuthClients.CountAsync(cancellationToken),
-            summaries.Sum(user => user.ConnectedApps));
+            summaries.Sum(user => user.ConnectedApps),
+            summaries.Count(user => user.LastSeenOnWebAt >= now.AddDays(-7)),
+            summaries.Count(user => user.LastSeenOnWebAt >= now.AddDays(-30)),
+            summaries.Count(user => user.LastSeenInAndroidAppAt >= now.AddDays(-7)),
+            summaries.Count(user => user.LastSeenInAndroidAppAt >= now.AddDays(-30)),
+            summaries.Count(user =>
+                user.LastSeenOnWebAt >= now.AddDays(-30) && user.LastSeenInAndroidAppAt >= now.AddDays(-30)));
     }
 
     // Everyone using the app, last seen first, with those never seen since it was recorded last.
@@ -232,7 +238,9 @@ public class AdminService(FlashCardDbContext dbContext, TimeProvider timeProvide
                 lastPracticedAt.TryGetValue(user.Id, out var practicedAt) ? practicedAt : null,
                 connectedApps.GetValueOrDefault(user.Id),
                 scores.GetValueOrDefault(user.Id),
-                cards.GetValueOrDefault(user.Id) * PracticeScore.Maximum))
+                cards.GetValueOrDefault(user.Id) * PracticeScore.Maximum,
+                user.LastSeenOnWebAt,
+                user.LastSeenInAndroidAppAt))
             .ToList();
     }
 

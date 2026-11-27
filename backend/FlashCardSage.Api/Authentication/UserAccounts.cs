@@ -11,6 +11,7 @@ public static class UserAccounts
     public static readonly TimeSpan LastSeenPrecision = TimeSpan.FromMinutes(15);
 
     // setUpNewUser, when given, runs with a user's ID just after their row is made, to add what a new user starts with.
+    // client, when given, is which of the app's clients the request came from, which is seen now too.
     public static async Task<int> GetOrCreateUserIdAsync(
         FlashCardDbContext dbContext,
         string subject,
@@ -18,7 +19,8 @@ public static class UserAccounts
         string? email,
         DateTimeOffset now,
         CancellationToken cancellationToken,
-        Func<int, CancellationToken, Task>? setUpNewUser = null)
+        Func<int, CancellationToken, Task>? setUpNewUser = null,
+        AppClient? client = null)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
 
@@ -28,7 +30,7 @@ public static class UserAccounts
         {
             if (setUpNewUser is null || !dbContext.Database.IsRelational())
             {
-                return await CreateUserAsync(dbContext, subject, name, email, now, setUpNewUser, cancellationToken);
+                return await CreateUserAsync(dbContext, subject, name, email, now, setUpNewUser, client, cancellationToken);
             }
 
             // The row and what setUpNewUser adds are saved together, so the user's other first requests, which wait for
@@ -39,27 +41,50 @@ public static class UserAccounts
                 {
                     dbContext.ChangeTracker.Clear();
                     await using var transaction = await dbContext.Database.BeginTransactionAsync(token);
-                    var id = await CreateUserAsync(dbContext, subject, name, email, now, setUpNewUser, token);
+                    var id = await CreateUserAsync(dbContext, subject, name, email, now, setUpNewUser, client, token);
                     await transaction.CommitAsync(token);
                     return id;
                 },
                 cancellationToken);
         }
 
-        // Keep the name and email in step with the account, and when they were last seen, without writing on every
-        // request.
+        // Keep the name and email in step with the account, and when they were last seen, here and on the request's
+        // client, without writing on every request.
         if ((name is not null && user.DisplayName != name)
             || (email is not null && user.Email != email)
-            || user.LastSeenAt is not { } lastSeenAt
-            || now - lastSeenAt >= LastSeenPrecision)
+            || IsStale(user.LastSeenAt, now)
+            || (client is { } seenOn && IsStale(LastSeenOn(user, seenOn), now)))
         {
             user.DisplayName = name ?? user.DisplayName;
             user.Email = email ?? user.Email;
-            user.LastSeenAt = now;
+            SetLastSeen(user, now, client);
             await dbContext.SaveChangesAsync(cancellationToken);
         }
 
         return user.Id;
+    }
+
+    private static bool IsStale(DateTimeOffset? lastSeenAt, DateTimeOffset now)
+    {
+        return lastSeenAt is not { } seenAt || now - seenAt >= LastSeenPrecision;
+    }
+
+    private static DateTimeOffset? LastSeenOn(User user, AppClient client)
+    {
+        return client == AppClient.Android ? user.LastSeenInAndroidAppAt : user.LastSeenOnWebAt;
+    }
+
+    private static void SetLastSeen(User user, DateTimeOffset now, AppClient? client)
+    {
+        user.LastSeenAt = now;
+        if (client == AppClient.Android)
+        {
+            user.LastSeenInAndroidAppAt = now;
+        }
+        else if (client == AppClient.Web)
+        {
+            user.LastSeenOnWebAt = now;
+        }
     }
 
     // Adds the user's row and sets it up, or finds the one another request added first.
@@ -70,9 +95,11 @@ public static class UserAccounts
         string? email,
         DateTimeOffset now,
         Func<int, CancellationToken, Task>? setUpNewUser,
+        AppClient? client,
         CancellationToken cancellationToken)
     {
-        var user = new User { Subject = subject, DisplayName = name, Email = email, CreatedAt = now, LastSeenAt = now };
+        var user = new User { Subject = subject, DisplayName = name, Email = email, CreatedAt = now };
+        SetLastSeen(user, now, client);
         dbContext.Users.Add(user);
 
         try

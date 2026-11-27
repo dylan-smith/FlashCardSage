@@ -36,7 +36,8 @@ public class CurrentUserMiddleware(RequestDelegate next)
                 email,
                 timeProvider.GetUtcNow(),
                 context.RequestAborted,
-                UsageSnapshot.IsPerson(subject) && starterDeck.Enabled ? starterDeck.AddAsync : null);
+                UsageSnapshot.IsPerson(subject) && starterDeck.Enabled ? starterDeck.AddAsync : null,
+                AppClients.FromRequest(context.Request));
 
             if (UsageSnapshot.IsPerson(subject))
             {

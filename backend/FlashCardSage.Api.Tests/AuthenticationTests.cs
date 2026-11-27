@@ -99,6 +99,39 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
     }
 
     [Fact]
+    public async Task Requests_RecordWhenTheUserWasLastSeenOnTheirClient()
+    {
+        var name = $"Alice {Guid.NewGuid()}";
+        var clock = new FixedTimeProvider();
+        var signedUpAt = clock.Now;
+        using var app = TestApp.CreateFactory(
+            factory, Settings(), services => services.AddSingleton<TimeProvider>(clock));
+        using var client = TestApp.CreateClient(app, $"test:{name}");
+
+        // Signing up on the web.
+        await GetMeAsync(client, "web");
+        Assert.Equal((signedUpAt, null), await LastSeenByClientAsync(app, name));
+
+        // The first request from the Android app is recorded though the user was only just seen, and the next isn't.
+        clock.Advance(TimeSpan.FromMinutes(1));
+        var firstInAndroidAppAt = clock.Now;
+        await GetMeAsync(client, "android");
+        clock.Advance(TimeSpan.FromMinutes(1));
+        await GetMeAsync(client, "android");
+        Assert.Equal((signedUpAt, firstInAndroidAppAt), await LastSeenByClientAsync(app, name));
+
+        // A request that names no client, or one that isn't the app's, counts for neither.
+        clock.Advance(UserAccounts.LastSeenPrecision);
+        await GetMeAsync(client, null);
+        await GetMeAsync(client, "something-else");
+        Assert.Equal(clock.Now, await LastSeenAtAsync(app, name));
+        Assert.Equal((signedUpAt, firstInAndroidAppAt), await LastSeenByClientAsync(app, name));
+
+        await GetMeAsync(client, "web");
+        Assert.Equal((clock.Now, firstInAndroidAppAt), await LastSeenByClientAsync(app, name));
+    }
+
+    [Fact]
     public async Task Me_SaysTheUserIsAnAdmin_WhenAdminUsersListsThem()
     {
         // Development's Admin:Users lists test:admin.
@@ -193,6 +226,30 @@ public class AuthenticationTests(WebApplicationFactory<Program> factory)
             .Where(user => user.Subject == subject)
             .Select(user => user.LastSeenAt)
             .SingleAsync();
+    }
+
+    // When the test sign-in user with this name was last seen on the web and in the Android app.
+    private static async Task<(DateTimeOffset? OnWeb, DateTimeOffset? InAndroidApp)> LastSeenByClientAsync(
+        WebApplicationFactory<Program> app, string name)
+    {
+        using var scope = app.Services.CreateScope();
+        var dbContext = scope.ServiceProvider.GetRequiredService<FlashCardDbContext>();
+        var subject = $"test:{name.ToLowerInvariant()}";
+        var user = await dbContext.Users.AsNoTracking().SingleAsync(user => user.Subject == subject);
+        return (user.LastSeenOnWebAt, user.LastSeenInAndroidAppAt);
+    }
+
+    // A request that names this client as the frontend does, or none when it's null.
+    private static async Task GetMeAsync(HttpClient client, string? appClient)
+    {
+        using var request = new HttpRequestMessage(HttpMethod.Get, "/api/me");
+        if (appClient is not null)
+        {
+            request.Headers.Add(AppClients.HeaderName, appClient);
+        }
+
+        using var response = await client.SendAsync(request);
+        response.EnsureSuccessStatusCode();
     }
 
     // The sign-in settings, with test sign-in on and no service token unless the test says otherwise.

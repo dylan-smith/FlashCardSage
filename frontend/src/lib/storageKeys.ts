@@ -14,6 +14,9 @@ export const storageKeys = {
   // sessionStorage, kept for the tab, so the words a site's bookmarklet sent are still here after the user signs in or
   // reloads the page.
   wordHandoff: 'flashcardsage.wordHandoff',
+  // sessionStorage, kept for the tab, so a page the Android app opened still knows it's in the app after the user
+  // signs in or reloads, when the referrer that says so is gone (see getAppClient).
+  appClient: 'flashcardsage.appClient',
   // localStorage, one for each user (see userStorageKey), so practice works offline: the user's cards, decks and tags
   // as last loaded, the answers not yet saved to the API, and the preferences as last loaded. None of them are cleared
   // at sign-out, since answers must outlive a sign-out from an expired token until the user is back.

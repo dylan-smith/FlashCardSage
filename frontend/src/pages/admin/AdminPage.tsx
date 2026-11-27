@@ -13,6 +13,7 @@ import type { AdminOverview, AdminUserSummary } from '../../api/admin'
 import { useLoad } from '../../hooks/useLoad'
 import { matchesSearch } from '../../lib/cardSearch'
 import {
+  formatClients,
   formatDate,
   formatDateTime,
   formatScore,
@@ -62,6 +63,32 @@ function OverviewSections({ overview }: { overview: AdminOverview }) {
             {
               label: 'New in the last 30 days',
               value: overview.newUsersLast30Days,
+            },
+          ]}
+        />
+      </Section>
+      <Section title="Web and Android app">
+        <StatTiles
+          stats={[
+            {
+              label: 'On the web in the last 7 days',
+              value: overview.webUsersLast7Days,
+            },
+            {
+              label: 'On the web in the last 30 days',
+              value: overview.webUsersLast30Days,
+            },
+            {
+              label: 'In the Android app in the last 7 days',
+              value: overview.androidAppUsersLast7Days,
+            },
+            {
+              label: 'In the Android app in the last 30 days',
+              value: overview.androidAppUsersLast30Days,
+            },
+            {
+              label: 'On both in the last 30 days',
+              value: overview.webAndAndroidAppUsersLast30Days,
             },
           ]}
         />
@@ -127,6 +154,7 @@ function UsersTable({ users }: { users: AdminUserSummary[] }) {
           <TableCell>Provider</TableCell>
           <TableCell>Signed up</TableCell>
           <TableCell>Last seen</TableCell>
+          <TableCell>Uses</TableCell>
           <TableCell align="right">Cards</TableCell>
           <TableCell align="right">Score</TableCell>
           <TableCell align="right">Decks</TableCell>
@@ -153,6 +181,9 @@ function UsersTable({ users }: { users: AdminUserSummary[] }) {
             </TableCell>
             <TableCell sx={{ whiteSpace: 'nowrap' }}>
               {formatDateTime(user.lastSeenAt)}
+            </TableCell>
+            <TableCell sx={{ whiteSpace: 'nowrap' }}>
+              {formatClients(user)}
             </TableCell>
             <TableCell align="right">{user.cards}</TableCell>
             <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
