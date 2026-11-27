@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Globalization;
 using FlashCardSage.Api.Data;
+using FlashCardSage.Api.Services;
 using FlashCardSage.Api.Usage;
 
 namespace FlashCardSage.Api.Authentication;
@@ -20,14 +21,22 @@ public class CurrentUserMiddleware(RequestDelegate next)
         FlashCardDbContext dbContext,
         CurrentUser currentUser,
         UsageSnapshotService usageSnapshots,
+        StarterDeck starterDeck,
         TimeProvider timeProvider)
     {
         if (context.User.FindFirst(AuthenticationSetup.SubjectClaim)?.Value is { } subject)
         {
             var name = context.User.FindFirst(AuthenticationSetup.NameClaim)?.Value;
             var email = context.User.FindFirst(AuthenticationSetup.EmailClaim)?.Value;
+            // A new person starts with the starter deck's cards; the service sign-in doesn't.
             currentUser.UserId = await UserAccounts.GetOrCreateUserIdAsync(
-                dbContext, subject, name, email, timeProvider.GetUtcNow(), context.RequestAborted);
+                dbContext,
+                subject,
+                name,
+                email,
+                timeProvider.GetUtcNow(),
+                context.RequestAborted,
+                UsageSnapshot.IsPerson(subject) && starterDeck.Enabled ? starterDeck.AddAsync : null);
 
             if (UsageSnapshot.IsPerson(subject))
             {
