@@ -114,6 +114,8 @@ npm run test:e2e
   Their pictures are committed in `SystemDecks/images` (made by `scripts/Generate-SystemDeckImages.ps1`), and the API
   puts them on the cards, and in the picture cache, when it starts (`SystemDeckImageSync`). Importing a card shares
   its built-in picture through the cache rather than copying it. A new built-in card needs the script run for it too.
+  A new person's account starts with a copy of the Animals deck (`StarterDeck`, imported in the same transaction as
+  their user row). `NewUsers:AddStarterDeck` is off in Development, so backend and E2E tests' users start empty.
 - Cached translations (`Translations`, read and written by `CachedTranslator`), generated pictures
   (`GeneratedImages`, read and written by `CachedImageGenerator`) and spoken audio (`GeneratedAudio`, read and written
   by `CachedSpeechSynthesizer`) are the only things that belong to no user: a text translates the same way for

@@ -10,13 +10,15 @@ public static class UserAccounts
     // How stale a user's LastSeenAt can get, so a request only writes it now and then rather than every time.
     public static readonly TimeSpan LastSeenPrecision = TimeSpan.FromMinutes(15);
 
+    // setUpNewUser, when given, runs with a user's ID just after their row is made, to add what a new user starts with.
     public static async Task<int> GetOrCreateUserIdAsync(
         FlashCardDbContext dbContext,
         string subject,
         string? name,
         string? email,
         DateTimeOffset now,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Func<int, CancellationToken, Task>? setUpNewUser = null)
     {
         ArgumentNullException.ThrowIfNull(dbContext);
 
@@ -24,24 +26,24 @@ public static class UserAccounts
 
         if (user is null)
         {
-            user = new User { Subject = subject, DisplayName = name, Email = email, CreatedAt = now, LastSeenAt = now };
-            dbContext.Users.Add(user);
+            if (setUpNewUser is null || !dbContext.Database.IsRelational())
+            {
+                return await CreateUserAsync(dbContext, subject, name, email, now, setUpNewUser, cancellationToken);
+            }
 
-            try
-            {
-                await dbContext.SaveChangesAsync(cancellationToken);
-                return user.Id;
-            }
-            catch (DbUpdateException)
-            {
-                // Another request from the same user created the row first, which fails the unique Subject index.
-                dbContext.Entry(user).State = EntityState.Detached;
-                return await dbContext.Users
-                    .AsNoTracking()
-                    .Where(item => item.Subject == subject)
-                    .Select(item => item.Id)
-                    .SingleAsync(cancellationToken);
-            }
+            // The row and what setUpNewUser adds are saved together, so the user's other first requests, which wait for
+            // the new row, never find the user without it. Through the execution strategy, which retries the whole
+            // transaction, starting over from nothing tracked (this is the request's first use of the context).
+            return await dbContext.Database.CreateExecutionStrategy().ExecuteAsync(
+                async token =>
+                {
+                    dbContext.ChangeTracker.Clear();
+                    await using var transaction = await dbContext.Database.BeginTransactionAsync(token);
+                    var id = await CreateUserAsync(dbContext, subject, name, email, now, setUpNewUser, token);
+                    await transaction.CommitAsync(token);
+                    return id;
+                },
+                cancellationToken);
         }
 
         // Keep the name and email in step with the account, and when they were last seen, without writing on every
@@ -55,6 +57,42 @@ public static class UserAccounts
             user.Email = email ?? user.Email;
             user.LastSeenAt = now;
             await dbContext.SaveChangesAsync(cancellationToken);
+        }
+
+        return user.Id;
+    }
+
+    // Adds the user's row and sets it up, or finds the one another request added first.
+    private static async Task<int> CreateUserAsync(
+        FlashCardDbContext dbContext,
+        string subject,
+        string? name,
+        string? email,
+        DateTimeOffset now,
+        Func<int, CancellationToken, Task>? setUpNewUser,
+        CancellationToken cancellationToken)
+    {
+        var user = new User { Subject = subject, DisplayName = name, Email = email, CreatedAt = now, LastSeenAt = now };
+        dbContext.Users.Add(user);
+
+        try
+        {
+            await dbContext.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateException)
+        {
+            // Another request from the same user created the row first, which fails the unique Subject index.
+            dbContext.Entry(user).State = EntityState.Detached;
+            return await dbContext.Users
+                .AsNoTracking()
+                .Where(item => item.Subject == subject)
+                .Select(item => item.Id)
+                .SingleAsync(cancellationToken);
+        }
+
+        if (setUpNewUser is not null)
+        {
+            await setUpNewUser(user.Id, cancellationToken);
         }
 
         return user.Id;

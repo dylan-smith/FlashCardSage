@@ -25,6 +25,8 @@ builder.Services.AddScoped<CountsService>();
 builder.Services.AddScoped<PreferencesService>();
 builder.Services.AddScoped<AccountService>();
 builder.Services.AddScoped<SystemDeckImporter>();
+// The built-in deck a new user starts with (see CurrentUserMiddleware).
+builder.Services.AddScoped<StarterDeck>();
 // Reads every user's data for the admin pages.
 builder.Services.AddScoped<AdminService>();
 // The MCP server AI assistants connect to, which uses the services above.
