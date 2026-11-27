@@ -31,12 +31,18 @@ test('an admin can see every user and what they have', async ({
   await expect(row).toHaveCount(1)
   // They've used neither the website nor the Android app, only the API. Then their cards, score (I was close scores
   // nothing), decks, tags and practice results.
-  await expect(row.getByRole('cell').nth(5)).toHaveText('')
+  await expect(row.getByRole('cell').nth(2)).not.toContainText(/Web|Android/)
+  await expect(row.getByRole('cell').nth(3)).toHaveText('1')
+  await expect(row.getByRole('cell').nth(4)).toHaveText('0%')
+  await expect(row.getByRole('cell').nth(5)).toHaveText('1')
   await expect(row.getByRole('cell').nth(6)).toHaveText('1')
-  await expect(row.getByRole('cell').nth(7)).toHaveText('0 / 100 (0%)')
-  await expect(row.getByRole('cell').nth(8)).toHaveText('1')
-  await expect(row.getByRole('cell').nth(9)).toHaveText('1')
-  await expect(row.getByRole('cell').nth(10)).toHaveText('1')
+  await expect(row.getByRole('cell').nth(7)).toHaveText('1')
+  // The table fits the page at this width, with no scrolling sideways.
+  expect(
+    await page
+      .getByRole('region', { name: 'Users, scrolls sideways' })
+      .evaluate((region) => region.scrollWidth <= region.clientWidth),
+  ).toBe(true)
   // Move off the admin icon so its tooltip closes: the tooltip sits outside the landmarks, which axe flags.
   await page.mouse.move(0, 0)
   await expect(page.getByRole('tooltip')).toBeHidden()
@@ -73,7 +79,7 @@ test('an admin can see who uses the website and the Android app', async ({
     .filter({ has: page.getByRole('link', { name: 'Admin', exact: true }) })
 
   await page.goto('/admin')
-  await expect(ownRow.getByRole('cell').nth(5)).toContainText('Web')
+  await expect(ownRow.getByRole('cell').nth(2)).toContainText('Web')
 
   // The Android app opens the site with its package as the referrer, which Chromium here won't take from a test, so
   // the tab is marked the way the site remembers it was opened by the app.
@@ -81,7 +87,7 @@ test('an admin can see who uses the website and the Android app', async ({
     sessionStorage.setItem('flashcardsage.appClient', 'android')
   })
   await page.goto('/admin')
-  await expect(ownRow.getByRole('cell').nth(5)).toHaveText(
+  await expect(ownRow.getByRole('cell').nth(2)).toContainText(
     'Web and Android app',
   )
 })

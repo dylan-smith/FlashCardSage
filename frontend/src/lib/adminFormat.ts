@@ -12,7 +12,14 @@ export function userName(user: AdminUserSummary) {
 export function formatScore(user: AdminUserSummary) {
   return user.maximumScore === 0
     ? 'No cards'
-    : `${user.score} / ${user.maximumScore} (${Math.round((user.score / user.maximumScore) * 100)}%)`
+    : `${user.score} / ${user.maximumScore} (${formatScorePercent(user)})`
+}
+
+// Only the percentage of that score, which is all there's room for in the table of every user.
+export function formatScorePercent(user: AdminUserSummary) {
+  return user.maximumScore === 0
+    ? 'No cards'
+    : `${Math.round((user.score / user.maximumScore) * 100)}%`
 }
 
 // Which of the website and the Android app the user has been seen on, or nothing when it's neither since that was
